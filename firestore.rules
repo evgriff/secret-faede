@@ -1,0 +1,65 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isGardenMember(gardenId) {
+      return signedIn()
+        && exists(
+          /databases/$(database)/documents/gardens/$(gardenId)/members/$(request.auth.uid)
+        );
+    }
+
+    function memberRole(gardenId) {
+      return get(
+        /databases/$(database)/documents/gardens/$(gardenId)/members/$(request.auth.uid)
+      ).data.role;
+    }
+
+    function isGardenOwner(gardenId) {
+      return isGardenMember(gardenId) && memberRole(gardenId) == 'owner';
+    }
+
+    function canEditGardenData(gardenId) {
+      return isGardenOwner(gardenId) || memberRole(gardenId) == 'editor';
+    }
+
+    match /users/{uid} {
+      allow create, read, update: if isSelf(uid);
+      allow delete: if false;
+    }
+
+    match /gardens/{gardenId} {
+      allow read: if isGardenMember(gardenId);
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isGardenOwner(gardenId);
+
+      match /members/{uid} {
+        allow read: if isGardenMember(gardenId);
+        allow create, update, delete: if isGardenOwner(gardenId);
+      }
+
+      match /plots/{plotId} {
+        allow read: if isGardenMember(gardenId);
+        allow create, update, delete: if canEditGardenData(gardenId);
+      }
+
+      match /plantings/{plantingId} {
+        allow read: if isGardenMember(gardenId);
+        allow create, update, delete: if canEditGardenData(gardenId);
+      }
+    }
+
+    // TODO: Add field-level validation and stricter schema checks before live usage.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

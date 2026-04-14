@@ -1,0 +1,38 @@
+.form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.label {
+  color: var(--color-text-strong);
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--color-text-strong);
+  padding: 0.95rem 1rem;
+}
+
+.button {
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-strong);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.85rem 1.1rem;
+}
+
+.error {
+  margin: 0;
+  color: #9a3a2d;
+}

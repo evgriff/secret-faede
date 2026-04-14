@@ -1,0 +1,95 @@
+.form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.label {
+  color: var(--color-text-strong);
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--color-text-strong);
+  padding: 0.95rem 1rem;
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: 2px;
+}
+
+.hint,
+.error {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.hint {
+  color: var(--color-text-muted);
+}
+
+.error {
+  color: #9a3a2d;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.button,
+.secondaryButton {
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.85rem 1.1rem;
+  transition:
+    transform var(--motion-fast),
+    background-color var(--motion-fast),
+    border-color var(--motion-fast);
+}
+
+.button {
+  border: 1px solid transparent;
+  background: var(--color-accent-strong);
+  color: #fff;
+  text-decoration: none;
+}
+
+.secondaryButton {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-strong);
+}
+
+.helperList {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--color-text-muted);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .button:hover,
+  .secondaryButton:hover {
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .secondaryButton {
+    transition: none;
+  }
+}

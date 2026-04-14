@@ -1,0 +1,46 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background:
+    radial-gradient(circle at top, rgba(184, 211, 159, 0.45), transparent 30%),
+    linear-gradient(180deg, #edf3e7 0%, #f8fbf5 36%, #f5f6f0 100%);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100dvh;
+}
+
+body,
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+  border-radius: 0;
+}
+
+#root {
+  min-height: 100dvh;
+}
