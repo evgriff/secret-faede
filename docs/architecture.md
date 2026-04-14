@@ -91,7 +91,8 @@ flowchart TD
 `GardenRepository`
 
 - `MockGardenRepository` returns deterministic garden summaries
-- `FirebaseGardenRepository` queries member documents and garden documents
+- `FirebaseGardenRepository` queries member documents, garden documents, and plot documents
+- the interface now includes plot listing and plot save/delete methods so the next milestone can add editing without bypassing the seam
 - UI code depends on the interface, not the backing store
 
 This is the central seam for later milestones. Expanding those interfaces is acceptable. Bypassing them from feature code is not.

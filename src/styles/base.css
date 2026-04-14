@@ -6,14 +6,15 @@
 
 html {
   background:
-    radial-gradient(circle at top, rgba(184, 211, 159, 0.45), transparent 30%),
-    linear-gradient(180deg, #edf3e7 0%, #f8fbf5 36%, #f5f6f0 100%);
+    radial-gradient(circle at top, rgba(228, 182, 77, 0.08), transparent 26%),
+    linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper-soft) 100%);
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100dvh;
+  color: var(--color-text);
 }
 
 body,
@@ -22,6 +23,13 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+  border-radius: 0;
 }
 
 img,
@@ -34,11 +42,8 @@ a {
   color: inherit;
 }
 
-button,
-input,
-textarea,
-select {
-  border-radius: 0;
+::selection {
+  background: rgba(121, 175, 201, 0.24);
 }
 
 #root {

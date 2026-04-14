@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { BotanicalDivider } from '../../../assets/illustrations/GardenIllustrations';
 import { useServices } from '../../../app/providers';
 import type { GardenSummary } from '../../../domain/gardens/types';
 import { buildGardenPath } from '../../../shared/lib/routes';
@@ -52,6 +53,7 @@ export function GardenSelectionPage() {
           Selection is stored locally per signed-in user so the app root can
           redirect back into the correct garden shell.
         </p>
+        <BotanicalDivider className={styles.divider} size="100%" />
       </div>
       <div className="pageCard stack">
         {status === 'loading' ? (

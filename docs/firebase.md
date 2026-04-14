@@ -9,12 +9,28 @@
 
 Cloud Functions are intentionally not part of Milestone 1.
 
-## Create the Firebase project
+## Project status
 
-1. Create a Firebase project.
-2. Add a Web app to the project.
-3. Copy the Firebase Web config values into `.env.local`.
-4. Enable Authentication, Firestore, and Hosting in the console.
+The repo is already wired with the current Firebase Web app values for the `secret-faeries` project in `.env.example`:
+
+- `authDomain=your-project-id.firebaseapp.com`
+- `projectId=secret-faeries`
+- `storageBucket=your-project-id.firebasestorage.app`
+- `messagingSenderId=your-sender-id`
+- `appId=your-firebase-app-id`
+
+To use the live Firebase adapters locally, copy `.env.example` to `.env.local` and set `VITE_APP_RUNTIME=firebase`.
+
+The repo also includes `npm run setup:firebase:live`, which uses the current Firebase CLI login to:
+
+- ensure email auth is enabled with `passwordRequired=false` so email-link sign-in works
+- ensure `localhost`, `127.0.0.1`, `your-project-id.firebaseapp.com`, and `secret-faeries.web.app` are authorized domains
+- seed one canonical dev user, garden, membership, and starter plot set in Firestore
+
+The tracked Firebase project is also pinned in `.firebaserc`, and the live membership lookup path is backed by:
+
+- the collection-group-aware member read rule in `firestore.rules`
+- the `members.uid` field override in `firestore.indexes.json`
 
 ## Email-link auth setup
 
@@ -52,16 +68,18 @@ The app reads these values:
 VITE_APP_RUNTIME=mock|firebase
 VITE_ENABLE_PWA=true
 VITE_USE_FIREBASE_EMULATORS=false|true
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_STORAGE_BUCKET=
-VITE_FIREBASE_MESSAGING_SENDER_ID=
-VITE_FIREBASE_APP_ID=
+VITE_FIREBASE_API_KEY=your-firebase-web-api-key
+VITE_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=secret-faeries
+VITE_FIREBASE_STORAGE_BUCKET=your-project-id.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+VITE_FIREBASE_APP_ID=your-firebase-app-id
 VITE_FIREBASE_EMULATOR_HOST=127.0.0.1
 VITE_FIREBASE_AUTH_EMULATOR_PORT=9099
 VITE_FIREBASE_FIRESTORE_EMULATOR_PORT=8080
 ```
+
+The Firebase Web config also includes a `measurementId`, but this app does not read it because Firebase Analytics is intentionally excluded from Milestone 1.
 
 ## Emulator usage
 
@@ -109,10 +127,9 @@ Preview and live deploy workflows expect:
 
 ## Owner follow-up
 
-The repo scaffolding is complete without cloud credentials, but the owner still needs to:
+The repo scaffolding is complete. Live Firebase usage now only needs:
 
-1. create the Firebase project
-2. enable Email Link auth
-3. add Authorized domains
-4. populate `.env.local` for live or emulator-backed Firebase mode
-5. add GitHub secrets for preview and production deployments
+1. `npm run setup:firebase:live` run once from a machine authenticated with `firebase login`
+2. `.env.local` updated to `VITE_APP_RUNTIME=firebase` for local live-adapter work
+3. one successful manual Hosting deploy or GitHub deploy-secret setup, depending on whether automated previews matter now
+4. any custom production domain added to Authorized domains if you introduce one later

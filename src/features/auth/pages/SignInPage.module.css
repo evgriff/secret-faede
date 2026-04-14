@@ -15,9 +15,9 @@
 
 .input {
   width: 100%;
-  border: 1px solid var(--color-border);
+  border: 1.5px solid var(--color-border);
   border-radius: 0.9rem;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.7);
   color: var(--color-text-strong);
   padding: 0.95rem 1rem;
 }
@@ -49,27 +49,51 @@
 
 .button,
 .secondaryButton {
+  align-self: start;
+}
+
+.hero {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.heroRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+.heroMark {
+  flex: none;
+  color: var(--color-ink);
+}
+
+.heroTag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: start;
   border-radius: var(--radius-pill);
-  cursor: pointer;
+  background: rgba(115, 163, 107, 0.14);
+  color: var(--color-ink);
+  font-size: 0.82rem;
   font-weight: 600;
-  padding: 0.85rem 1.1rem;
-  transition:
-    transform var(--motion-fast),
-    background-color var(--motion-fast),
-    border-color var(--motion-fast);
+  padding: 0.32rem 0.62rem;
 }
 
-.button {
-  border: 1px solid transparent;
-  background: var(--color-accent-strong);
-  color: #fff;
-  text-decoration: none;
+.divider {
+  color: var(--color-line-muted);
 }
 
-.secondaryButton {
-  border: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text-strong);
+.supportCard {
+  display: grid;
+  gap: 1rem;
+}
+
+.supportArt {
+  width: min(100%, 18rem);
+  color: var(--color-line-soft);
 }
 
 .helperList {
@@ -80,16 +104,13 @@
   color: var(--color-text-muted);
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .button:hover,
-  .secondaryButton:hover {
-    transform: translateY(-1px);
+@media (min-width: 44rem) {
+  .heroRow {
+    justify-content: space-between;
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .button,
-  .secondaryButton {
-    transition: none;
+  .supportCard {
+    grid-template-columns: minmax(0, 1.2fr) minmax(12rem, 18rem);
+    align-items: end;
   }
 }

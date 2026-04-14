@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 
+import { SeedPinLogo } from '../../assets/brand/BrandMarks';
+import { BotanicalDivider } from '../../assets/illustrations/GardenIllustrations';
 import type { AuthUser } from '../../domain/auth/types';
 import type { AppEnvironment } from '../config/env';
 import { routePaths } from '../lib/routes';
@@ -23,9 +25,17 @@ export function AppFrame({
     <div className={styles.shell}>
       <header className={styles.header}>
         <div className={styles.branding}>
-          <p className={styles.eyebrow}>Garden Plot PWA</p>
-          <Link className={styles.title} to={routePaths.root}>
-            Secret Faede
+          <Link className={styles.brandLink} to={routePaths.root}>
+            <SeedPinLogo
+              accentColor="var(--color-plant-green)"
+              className={styles.mark}
+              size={44}
+              title="Secret Faede"
+            />
+            <span className={styles.brandText}>
+              <span className={styles.eyebrow}>Garden Plot PWA</span>
+              <span className={styles.title}>Secret Faede</span>
+            </span>
           </Link>
         </div>
         <div className={styles.actions}>
@@ -50,6 +60,9 @@ export function AppFrame({
           </button>
         </div>
       </header>
+      <div className={styles.divider}>
+        <BotanicalDivider className="botanicalDivider" size="100%" />
+      </div>
       {environment.fallbackReason ? (
         <aside className={styles.notice}>{environment.fallbackReason}</aside>
       ) : null}

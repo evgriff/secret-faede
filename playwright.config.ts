@@ -14,6 +14,7 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev -- --host 127.0.0.1 --port 4173',
     env: {
+      VITE_APP_RUNTIME: 'mock',
       VITE_ENABLE_PWA: 'false',
     },
     port: 4173,

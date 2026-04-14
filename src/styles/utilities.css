@@ -1,0 +1,126 @@
+.pageShell {
+  display: grid;
+  gap: var(--space-5);
+  max-width: 46rem;
+  margin: 0 auto;
+  animation: motion-page-enter var(--motion-standard) both;
+}
+
+.pageCard {
+  position: relative;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: linear-gradient(
+    180deg,
+    rgba(247, 244, 238, 0.96) 0%,
+    rgba(239, 234, 226, 0.88) 100%
+  );
+  box-shadow: var(--shadow-card);
+  padding: var(--space-5);
+}
+
+.pageCard::after {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border: 1px solid rgba(109, 101, 93, 0.08);
+  border-radius: calc(var(--radius-card) - 0.45rem);
+  pointer-events: none;
+}
+
+.pageTitle {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: clamp(1.95rem, 6vw, 2.7rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+}
+
+.pageLead {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.stack {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.inkButton,
+.paperButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  font-weight: 650;
+  padding: 0.85rem 1.15rem;
+  text-decoration: none;
+  transition:
+    transform var(--motion-micro),
+    border-color var(--motion-micro),
+    background-color var(--motion-micro),
+    color var(--motion-micro);
+}
+
+.inkButton {
+  border: 1.5px solid var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+.paperButton {
+  border: 1.5px solid var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text-strong);
+}
+
+.inkButton:focus-visible,
+.paperButton:focus-visible,
+.inkLink:focus-visible {
+  outline: 2px solid var(--color-plant-sky);
+  outline-offset: 3px;
+}
+
+.inkLink {
+  color: var(--color-text-strong);
+  text-decoration-color: rgba(31, 27, 24, 0.24);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.2em;
+}
+
+.tokenCaption {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .inkButton:hover,
+  .paperButton:hover {
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pageShell,
+  .inkButton,
+  .paperButton {
+    animation: none;
+    transition: none;
+  }
+}

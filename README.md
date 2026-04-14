@@ -39,7 +39,8 @@ Intentionally excluded:
 1. Use Node 22.
 2. Install dependencies with `npm ci`.
 3. Copy `.env.example` to `.env.local` if you want to change runtime settings.
-4. Start the app with `npm run dev`.
+4. Run `npm run setup:firebase:live` once if you want a repeatable live Firebase dev baseline.
+5. Start the app with `npm run dev`.
 
 The default `.env.example` keeps the app in `mock` mode. That is the intended local and CI baseline.
 
@@ -55,7 +56,9 @@ The default `.env.example` keeps the app in `mock` mode. That is the intended lo
 `firebase` mode:
 
 - set `VITE_APP_RUNTIME=firebase`
-- provide all required `VITE_FIREBASE_*` values
+- the committed `.env.example` already contains the current `secret-faeries` web app values
+- copy `.env.example` to `.env.local` if you want to override those values locally
+- `npm run setup:firebase:live` will normalize the project auth config, including `localhost` and `127.0.0.1`, and seed one canonical dev garden for the current Firebase CLI account
 - optionally set `VITE_USE_FIREBASE_EMULATORS=true`
 - if Firebase mode is requested without complete config, the app falls back to mock mode with a visible notice
 
@@ -72,15 +75,11 @@ To point the app at emulators, set these in `.env.local`:
 ```bash
 VITE_APP_RUNTIME=firebase
 VITE_USE_FIREBASE_EMULATORS=true
-VITE_FIREBASE_API_KEY=demo-api-key
-VITE_FIREBASE_AUTH_DOMAIN=demo-secret-faede.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=demo-secret-faede
-VITE_FIREBASE_STORAGE_BUCKET=demo-secret-faede.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=000000000000
-VITE_FIREBASE_APP_ID=1:000000000000:web:demo
 ```
 
 The current milestone keeps garden reads mocked by default. The Firebase repository implementation is present and ready for seeded emulator data or live documents, but local development does not depend on that seed data existing.
+
+The Firebase `measurementId` for the web app is intentionally not wired into the client because analytics is out of scope for Milestone 1.
 
 ## Scripts
 
@@ -97,6 +96,7 @@ The current milestone keeps garden reads mocked by default. The Firebase reposit
 - `npm run test:coverage`: run unit tests with coverage
 - `npm run test:e2e`: run the Playwright smoke flow
 - `npm run ci`: local equivalent of the quality workflow
+- `npm run setup:firebase:live`: configure email-link auth for the project and seed the default live dev garden
 - `npm run emulators`: start Firebase Auth, Firestore, Hosting, and Emulator UI
 
 ## Deployment overview

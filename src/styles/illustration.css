@@ -1,0 +1,135 @@
+.asset {
+  display: inline-block;
+  width: auto;
+  height: auto;
+  color: var(--color-line);
+}
+
+.asset svg {
+  overflow: visible;
+}
+
+.asset [data-layer='outline'],
+.asset [data-layer='path'],
+.asset [data-layer='motion-lines'] {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: var(--stroke-cap);
+  stroke-linejoin: var(--stroke-join);
+}
+
+.asset [data-layer='hatch'] {
+  fill: none;
+  opacity: 0.72;
+  stroke: currentColor;
+  stroke-linecap: round;
+}
+
+.asset [data-layer='accent'] {
+  fill: var(--asset-accent, transparent);
+  stroke: none;
+}
+
+.asset [data-layer='glyph'] {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.asset [data-layer='halo'] {
+  fill: none;
+  opacity: 0;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.asset [data-layer='shadow'] {
+  fill: rgba(31, 27, 24, 0.08);
+}
+
+.assetMonochrome {
+  --asset-accent: transparent;
+}
+
+.assetTintGreen {
+  --asset-accent: var(--color-plant-green);
+}
+
+.assetTintTomato {
+  --asset-accent: var(--color-plant-tomato);
+}
+
+.assetTintMarigold {
+  --asset-accent: var(--color-plant-marigold);
+}
+
+.assetTintSky {
+  --asset-accent: var(--color-plant-sky);
+}
+
+.assetTintLavender {
+  --asset-accent: var(--color-plant-lavender);
+}
+
+.assetTintBerry {
+  --asset-accent: var(--color-plant-berry);
+}
+
+.plantPin {
+  position: relative;
+  color: var(--color-ink);
+}
+
+.plantPin [data-layer='halo'] {
+  opacity: 0.44;
+}
+
+.plantPinSelected {
+  color: var(--color-ink);
+}
+
+.plantPinSelected [data-layer='halo'] {
+  opacity: 1;
+}
+
+.plantPinDragging {
+  transform: rotate(-3deg) translateY(-2px) scale(1.03);
+}
+
+.plantPinGhost {
+  opacity: 0.52;
+}
+
+.plantPinGhost [data-layer='outline'],
+.plantPinGhost [data-layer='glyph'] {
+  stroke-dasharray: 5 5;
+}
+
+.plantPinCompleted {
+  opacity: 0.8;
+}
+
+.plantPinCompleted [data-layer='accent'] {
+  fill: rgba(115, 163, 107, 0.26);
+}
+
+.plantPinNeedsAttention [data-layer='accent'] {
+  fill: color-mix(in srgb, var(--color-plant-tomato) 88%, white 12%);
+}
+
+.reducedMotionExample {
+  border-style: dashed;
+}
+
+.botanicalDivider {
+  width: 100%;
+  color: var(--color-line-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plantPinDragging {
+    transform: none;
+  }
+}

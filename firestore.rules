@@ -36,6 +36,10 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /{path=**}/members/{uid} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
     match /gardens/{gardenId} {
       allow read: if isGardenMember(gardenId);
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;

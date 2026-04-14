@@ -3,6 +3,33 @@
   gap: 1rem;
 }
 
+.heroRow {
+  display: grid;
+  gap: 1rem;
+}
+
+.heroBadgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.heroBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: var(--radius-pill);
+  background: rgba(230, 224, 215, 0.74);
+  color: var(--color-ink);
+  padding: 0.32rem 0.6rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.divider {
+  color: var(--color-line-muted);
+}
+
 .meta {
   display: grid;
   gap: 0.6rem;
@@ -27,4 +54,66 @@
   margin: 0;
   padding-left: 1rem;
   color: var(--color-text-muted);
+}
+
+.plotList {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plotItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  background: rgba(247, 244, 238, 0.72);
+  padding: 0.85rem 1rem;
+}
+
+.plotName {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-weight: 600;
+}
+
+.plotMeta {
+  margin: 0.2rem 0 0;
+  color: var(--color-text-muted);
+}
+
+.plotBadge {
+  border-radius: var(--radius-pill);
+  background: rgba(230, 224, 215, 0.74);
+  color: var(--color-ink-soft);
+  padding: 0.28rem 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.emptyState {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.summaryArt {
+  width: min(100%, 18rem);
+  justify-self: start;
+  color: var(--color-line-soft);
+}
+
+@media (min-width: 48rem) {
+  .grid {
+    grid-template-columns: minmax(0, 1.1fr) minmax(14rem, 18rem);
+    align-items: end;
+  }
+
+  .summaryArt {
+    justify-self: end;
+  }
 }

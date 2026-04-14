@@ -21,6 +21,7 @@ import {
 } from '../../../shared/lib/storage';
 import type { AppEnvironment } from '../../../shared/config/env';
 import { getFirebaseAuthClient } from '../app';
+import { getFirebaseAuthErrorMessage } from './firebaseAuthErrors';
 
 const pendingEmailKey = 'secret-faede.auth.pending-email';
 
@@ -62,11 +63,14 @@ export class FirebaseAuthService implements AuthService {
       throw new Error('Email confirmation is required to complete sign-in.');
     }
 
-    const result = await signInWithEmailLink(
-      this.authClient,
-      email,
-      options.url,
-    );
+    let result;
+
+    try {
+      result = await signInWithEmailLink(this.authClient, email, options.url);
+    } catch (error) {
+      throw new Error(getFirebaseAuthErrorMessage(error));
+    }
+
     this.clearStoredEmail();
 
     const user = mapFirebaseUser(result.user);
@@ -92,7 +96,12 @@ export class FirebaseAuthService implements AuthService {
       url: new URL(routePaths.authComplete, window.location.origin).toString(),
     };
 
-    await sendSignInLinkToEmail(this.authClient, email, actionCodeSettings);
+    try {
+      await sendSignInLinkToEmail(this.authClient, email, actionCodeSettings);
+    } catch (error) {
+      throw new Error(getFirebaseAuthErrorMessage(error));
+    }
+
     this.setStoredEmail(email);
 
     return {

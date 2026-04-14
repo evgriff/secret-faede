@@ -1,0 +1,154 @@
+@keyframes motion-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes motion-line-draw {
+  from {
+    opacity: 0.2;
+    stroke-dashoffset: 1;
+  }
+
+  to {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes motion-bloom {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+
+  70% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes motion-settle {
+  0% {
+    opacity: 0;
+    transform: translateY(5px) scale(0.96);
+  }
+
+  65% {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.02);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes motion-nudge {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  40% {
+    transform: translateX(2px);
+  }
+
+  70% {
+    transform: translateX(-1px);
+  }
+}
+
+@keyframes motion-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, -2px, 0);
+  }
+}
+
+@keyframes motion-pulse-ring {
+  from {
+    opacity: 0.55;
+    transform: scale(0.82);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.16);
+  }
+}
+
+.motion-page-enter {
+  animation: motion-page-enter var(--motion-standard) both;
+}
+
+.motion-draw [data-layer='outline'],
+.motion-draw [data-layer='path'],
+.motion-draw [data-layer='motion-lines'] {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: motion-line-draw var(--motion-draw) both;
+}
+
+.motion-bloom [data-layer='accent'],
+.motion-bloom [data-layer='glyph'],
+.motion-bloom [data-layer='halo'] {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: motion-bloom var(--motion-bloom) both;
+}
+
+.motion-settle {
+  animation: motion-settle var(--motion-standard) both;
+}
+
+.motion-nudge {
+  animation: motion-nudge 220ms ease-out both;
+}
+
+.motion-drift {
+  animation: motion-drift 2.6s ease-in-out infinite;
+}
+
+.motion-pulse-ring [data-layer='halo'] {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: motion-pulse-ring var(--motion-bloom) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-page-enter,
+  .motion-settle,
+  .motion-nudge,
+  .motion-drift {
+    animation: none !important;
+  }
+
+  .motion-draw [data-layer='outline'],
+  .motion-draw [data-layer='path'],
+  .motion-draw [data-layer='motion-lines'],
+  .motion-bloom [data-layer='accent'],
+  .motion-bloom [data-layer='glyph'],
+  .motion-bloom [data-layer='halo'],
+  .motion-pulse-ring [data-layer='halo'] {
+    animation: none !important;
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}

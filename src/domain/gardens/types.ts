@@ -16,3 +16,23 @@ export interface GardenSummary {
   timezone: string;
   updatedLabel: string;
 }
+
+export interface GardenPlot {
+  height: number;
+  id: string;
+  name: string;
+  rotation: number;
+  width: number;
+  x: number;
+  y: number;
+}
+
+export interface SaveGardenPlotInput {
+  height: number;
+  id: string;
+  name: string;
+  rotation: number;
+  width: number;
+  x: number;
+  y: number;
+}

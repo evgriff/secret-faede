@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
+import { RouteLineIllustration } from '../../../assets/illustrations/GardenIllustrations';
 import { routePaths } from '../../../shared/lib/routes';
 import { useAuth } from '../auth-context';
 import styles from './AuthCompletePage.module.css';
@@ -76,6 +77,14 @@ export function AuthCompletePage() {
       <div className="pageCard stack">
         <p className="pageLead">Completing sign-in</p>
         <h1 className="pageTitle">Finish the email-link flow.</h1>
+        <div className={styles.hero}>
+          <RouteLineIllustration
+            accentColor="var(--color-plant-sky)"
+            animated={status !== 'error'}
+            className={styles.heroArt}
+            title="Route line illustration"
+          />
+        </div>
         {status === 'checking' || status === 'submitting' ? (
           <p className="pageLead">
             {status === 'checking'
@@ -105,7 +114,7 @@ export function AuthCompletePage() {
                 value={email}
               />
             </div>
-            <button className={styles.button} type="submit">
+            <button className={`inkButton ${styles.button}`} type="submit">
               Complete sign-in
             </button>
           </form>
@@ -115,7 +124,9 @@ export function AuthCompletePage() {
             <p className={styles.error} role="alert">
               {error}
             </p>
-            <Link to={routePaths.signIn}>Return to sign-in</Link>
+            <Link className="inkLink" to={routePaths.signIn}>
+              Return to sign-in
+            </Link>
           </>
         ) : null}
       </div>
