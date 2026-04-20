@@ -32,6 +32,10 @@
 - `/auth/complete`
 - `/access-denied`
 - `/app`
+- `/app/garden`
+- `/app/tasks`
+- `/app/journal`
+- `/app/settings`
 - `*`
 
 ## 4. Preserved seams
@@ -57,4 +61,7 @@
 - plot dimensions in feet
 - plant center positions in feet
 - manual save to `gardens/{uid}` in Firebase mode
-- no multiple garden management, dashboards, reminders, weather, maps, collaboration, onboarding, or AI features
+- authenticated shell routes for garden, tasks, journal, and settings
+- weather reads and watering recommendations are scoped to garden operations
+- no multiple garden management, notifications, maps, collaboration,
+  onboarding, or AI features yet

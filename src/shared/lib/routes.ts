@@ -1,7 +1,11 @@
 export const routePaths = {
   accessDenied: '/access-denied',
   app: '/app',
-  root: '/',
-  signIn: '/sign-in',
   authComplete: '/auth/complete',
+  garden: '/app/garden',
+  journal: '/app/journal',
+  root: '/',
+  settings: '/app/settings',
+  signIn: '/sign-in',
+  tasks: '/app/tasks',
 } as const;

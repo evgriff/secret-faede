@@ -21,13 +21,15 @@ test('allowlisted mock sign-in reaches and saves the garden editor', async ({
   await signInWithMockLink(page);
   await expect(page.getByText('12 ft by 8 ft')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Add' }).click();
-  await page.getByRole('button', { name: 'Add Plant' }).click();
+  await page.getByRole('button', { exact: true, name: 'Add' }).click();
+  await page.getByRole('searchbox', { name: 'Search crops' }).fill('tomato');
+  await page.getByRole('button', { exact: true, name: 'Tomato crop' }).click();
+  await page.getByRole('button', { name: 'Add plant' }).click();
   await expect(
-    page.getByRole('button', { name: 'Plant 1 at X: 6.0 ft, Y: 4.0 ft' }),
+    page.getByRole('button', { name: 'Tomato at X: 6.0 ft, Y: 4.0 ft' }),
   ).toBeVisible();
   const plantBox = await page
-    .getByRole('button', { name: 'Plant 1 at X: 6.0 ft, Y: 4.0 ft' })
+    .getByRole('button', { name: 'Tomato at X: 6.0 ft, Y: 4.0 ft' })
     .boundingBox();
 
   if (!plantBox) {
@@ -45,14 +47,24 @@ test('allowlisted mock sign-in reaches and saves the garden editor', async ({
   );
   await page.mouse.up();
   await expect(
-    page.getByRole('button', { name: 'Plant 1 at X: 8.0 ft, Y: 5.0 ft' }),
+    page.getByRole('button', { name: /Tomato at X:/ }),
+  ).toBeVisible();
+  await page
+    .getByRole('combobox', { name: 'Structure type' })
+    .selectOption('trellis');
+  await page.getByRole('button', { name: 'Add structure' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Trellis at X: 1.0 ft, Y: 1.0 ft' }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
 
   await page.reload();
   await expect(
-    page.getByRole('button', { name: 'Plant 1 at X: 8.0 ft, Y: 5.0 ft' }),
+    page.getByRole('button', { name: /Tomato at X:/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Trellis at X: 1.0 ft, Y: 1.0 ft' }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save' })).toHaveCount(0);
 });
@@ -100,7 +112,7 @@ test('garden plot has exact board sizing and scrolls large plots', async ({
   await page.getByRole('button', { name: 'Plot' }).click();
   await page.getByLabel('Width in feet').fill('60');
   await page.getByLabel('Depth in feet').fill('20');
-  await page.getByRole('button', { name: 'Save plot' }).click();
+  await page.getByLabel('Depth in feet').press('Enter');
 
   await expect(page.getByTestId('garden-plot')).toHaveJSProperty(
     'clientWidth',

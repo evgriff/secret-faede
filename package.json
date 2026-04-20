@@ -22,6 +22,10 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "ci": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build && npm run test:e2e",
+    "functions:build": "npm --prefix functions run build",
+    "functions:test": "npm --prefix functions test",
+    "catalog:ingest:trefle": "node scripts/ingest-trefle-crops.mjs",
+    "seed:dev": "node scripts/seed-dev.mjs",
     "setup:firebase:live": "node scripts/setup-live-firebase.mjs",
     "emulators": "firebase emulators:start --project demo-secret-faede",
     "prepare": "husky"
@@ -31,6 +35,7 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.1",
+    "suncalc": "^1.9.0",
     "vite-plugin-pwa": "^1.2.0"
   },
   "devDependencies": {
@@ -42,6 +47,7 @@
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/suncalc": "^1.9.2",
     "@vitejs/plugin-react": "^5.2.0",
     "@vitest/coverage-v8": "^4.1.4",
     "eslint": "^9.39.4",

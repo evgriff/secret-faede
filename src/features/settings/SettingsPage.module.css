@@ -1,0 +1,165 @@
+.page {
+  display: grid;
+  gap: 1rem;
+  max-width: 48rem;
+}
+
+.header {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.header h1,
+.header p {
+  margin: 0;
+}
+
+.header h1 {
+  color: var(--color-text-strong);
+  font-size: 1.7rem;
+  line-height: 1.1;
+}
+
+.header p {
+  color: var(--color-text-muted);
+}
+
+.form {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid rgba(54, 48, 40, 0.14);
+  border-radius: 12px;
+  background: #fffdf7;
+  padding: 1rem;
+  box-shadow: 0 10px 24px rgba(31, 27, 24, 0.05);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.field,
+.checkbox {
+  color: var(--color-text-strong);
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.field span,
+.channels legend {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.field input {
+  min-height: 2.5rem;
+  border: 1px solid rgba(54, 48, 40, 0.22);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--color-text-strong);
+  font: inherit;
+  padding: 0 0.7rem;
+}
+
+.channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  min-width: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.channels legend {
+  flex-basis: 100%;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.button,
+.secondaryButton {
+  min-height: 2.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  padding: 0 0.9rem;
+}
+
+.button {
+  border: 1px solid var(--color-text-strong);
+  background: var(--color-text-strong);
+  color: var(--color-background);
+}
+
+.secondaryButton {
+  justify-self: start;
+  border: 1px solid rgba(54, 48, 40, 0.22);
+  background: #fffdf7;
+  color: var(--color-text-strong);
+}
+
+.button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.consentPanel {
+  display: grid;
+  gap: 0.65rem;
+  border: 1px solid rgba(54, 48, 40, 0.12);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 0.85rem;
+}
+
+.consentPanel h2,
+.consentPanel p,
+.metaText {
+  margin: 0;
+}
+
+.consentPanel h2 {
+  color: var(--color-text-strong);
+  font-size: 1rem;
+}
+
+.consentPanel p,
+.metaText {
+  color: var(--color-text-muted);
+}
+
+.metaText {
+  font-size: 0.9rem;
+}
+
+.saved {
+  color: #1f6b3a;
+}
+
+.error {
+  color: #a33428;
+}
+
+@media (max-width: 44rem) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

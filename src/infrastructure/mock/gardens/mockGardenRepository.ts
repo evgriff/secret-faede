@@ -2,6 +2,7 @@ import type {
   Garden,
   GardenRepository,
 } from '../../../domain/gardens/GardenRepository';
+import { parseGarden } from '../../../domain/gardens/GardenRepository';
 import {
   readJsonStorageValue,
   writeJsonStorageValue,
@@ -9,7 +10,11 @@ import {
 
 export class MockGardenRepository implements GardenRepository {
   async getGarden(userId: string): Promise<Garden | null> {
-    return readJsonStorageValue<Garden>(getGardenStorageKey(userId));
+    const storedGarden = readJsonStorageValue<unknown>(
+      getGardenStorageKey(userId),
+    );
+
+    return storedGarden ? parseGarden(userId, storedGarden) : null;
   }
 
   async saveGarden(garden: Garden): Promise<void> {

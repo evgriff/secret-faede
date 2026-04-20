@@ -4,17 +4,19 @@ import { useServices } from '../providers';
 import { useAuth } from '../../features/auth/auth-context';
 import { routePaths } from '../../shared/lib/routes';
 import { AppFrame } from '../../shared/ui/AppFrame';
+import { LoadingState } from '../../shared/ui/LoadingState';
 
-interface ProtectedLayoutProps {
-  frame?: boolean;
-}
-
-export function ProtectedLayout({ frame = false }: ProtectedLayoutProps) {
+export function ProtectedLayout() {
   const { environment } = useServices();
   const { signOut, state } = useAuth();
 
   if (state.status === 'loading') {
-    return <div className="pageShell pageCard">Loading your session...</div>;
+    return (
+      <LoadingState
+        message="Checking your sign-in state."
+        title="Loading session"
+      />
+    );
   }
 
   if (state.accessStatus === 'denied') {
@@ -23,10 +25,6 @@ export function ProtectedLayout({ frame = false }: ProtectedLayoutProps) {
 
   if (!state.user) {
     return <Navigate replace to={routePaths.signIn} />;
-  }
-
-  if (!frame) {
-    return <Outlet />;
   }
 
   return (

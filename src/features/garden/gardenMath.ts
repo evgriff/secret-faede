@@ -1,6 +1,7 @@
 import type {
   GardenPlant,
   GardenPlot,
+  Structure,
 } from '../../domain/gardens/GardenRepository';
 
 export const pixelsPerFoot = 32;
@@ -53,6 +54,30 @@ export function clampPlantToPlot(
     ...plant,
     xFt: point.xFt,
     yFt: point.yFt,
+  };
+}
+
+export function clampStructureToPlot(
+  structure: Structure,
+  plot: GardenPlot,
+): Structure {
+  const widthFt = clamp(structure.widthFt, 0.25, plot.widthFt);
+  const depthFt = clamp(structure.depthFt, 0.25, plot.depthFt);
+  const xFt = snapFeet(
+    clamp(structure.xFt, 0, Math.max(plot.widthFt - widthFt, 0)),
+    plot.snapUnitFt,
+  );
+  const yFt = snapFeet(
+    clamp(structure.yFt, 0, Math.max(plot.depthFt - depthFt, 0)),
+    plot.snapUnitFt,
+  );
+
+  return {
+    ...structure,
+    depthFt,
+    widthFt,
+    xFt: clamp(Number(xFt.toFixed(2)), 0, Math.max(plot.widthFt - widthFt, 0)),
+    yFt: clamp(Number(yFt.toFixed(2)), 0, Math.max(plot.depthFt - depthFt, 0)),
   };
 }
 

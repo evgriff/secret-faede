@@ -1,10 +1,7 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, type ReactNode } from 'react';
 
 import { AuthProvider } from '../features/auth/auth-context';
-import {
-  createRuntimeServices,
-  type AppServices,
-} from '../infrastructure/runtime/services';
+import type { AppServices } from '../infrastructure/runtime/services';
 
 const ServicesContext = createContext<AppServices | null>(null);
 
@@ -13,16 +10,13 @@ export function AppProviders({
   services,
 }: {
   children: ReactNode;
-  services?: AppServices;
+  services: AppServices;
 }) {
-  const resolvedServices = useMemo(
-    () => services ?? createRuntimeServices(),
-    [services],
-  );
-
   return (
-    <ServicesContext.Provider value={resolvedServices}>
-      <AuthProvider>{children}</AuthProvider>
+    <ServicesContext.Provider value={services}>
+      <AuthProvider>
+        <ForegroundPushBridge>{children}</ForegroundPushBridge>
+      </AuthProvider>
     </ServicesContext.Provider>
   );
 }
@@ -35,4 +29,28 @@ export function useServices() {
   }
 
   return context;
+}
+
+function ForegroundPushBridge({ children }: { children: ReactNode }) {
+  const { notificationService } = useServices();
+
+  useEffect(
+    () =>
+      notificationService.subscribeToForegroundMessages((message) => {
+        if (
+          !('Notification' in window) ||
+          Notification.permission !== 'granted'
+        ) {
+          return;
+        }
+
+        new Notification(message.title, {
+          body: message.body,
+          tag: message.type,
+        });
+      }),
+    [notificationService],
+  );
+
+  return children;
 }

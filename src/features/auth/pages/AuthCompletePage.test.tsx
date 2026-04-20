@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { renderRoute } from '../../../test/render';
@@ -30,8 +30,10 @@ describe('AuthCompletePage', () => {
     await user.type(screen.getByLabelText('Email'), 'primary.gardener@example.com');
     await user.click(screen.getByRole('button', { name: 'Complete sign-in' }));
 
-    expect(
-      await screen.findByRole('heading', { name: 'Garden editor' }),
-    ).toBeVisible();
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { name: 'Garden editor' }),
+      ).toBeVisible();
+    });
   });
 });

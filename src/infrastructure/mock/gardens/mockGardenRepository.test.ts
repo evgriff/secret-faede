@@ -1,4 +1,7 @@
-import { createDefaultGarden } from '../../../domain/gardens/GardenRepository';
+import {
+  createDefaultGarden,
+  createDefaultPlanting,
+} from '../../../domain/gardens/GardenRepository';
 import { MockGardenRepository } from './mockGardenRepository';
 
 describe('MockGardenRepository', () => {
@@ -6,7 +9,14 @@ describe('MockGardenRepository', () => {
     const repository = new MockGardenRepository();
     const garden = {
       ...createDefaultGarden('user-a'),
-      plants: [{ id: 'plant-1', type: 'plant' as const, xFt: 3.5, yFt: 2 }],
+      plantings: [
+        createDefaultPlanting({
+          id: 'planting-1',
+          label: 'Tomato',
+          xFt: 3.5,
+          yFt: 2,
+        }),
+      ],
     };
 
     await repository.saveGarden(garden);

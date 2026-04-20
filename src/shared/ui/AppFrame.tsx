@@ -1,10 +1,18 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 
 import type { AuthUser } from '../../domain/auth/types';
 import type { AppEnvironment } from '../config/env';
 import { routePaths } from '../lib/routes';
+import { useNetworkStatus } from '../network/networkStatus';
 import styles from './AppFrame.module.css';
+
+const navItems = [
+  { label: 'Garden', to: routePaths.garden },
+  { label: 'Tasks', to: routePaths.tasks },
+  { label: 'Journal', to: routePaths.journal },
+  { label: 'Settings', to: routePaths.settings },
+] as const;
 
 interface AppFrameProps {
   children: ReactNode;
@@ -19,6 +27,8 @@ export function AppFrame({
   onSignOut,
   user,
 }: AppFrameProps) {
+  const networkStatus = useNetworkStatus();
+
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
@@ -29,9 +39,27 @@ export function AppFrame({
             </span>
           </Link>
         </div>
+        <nav aria-label="Workspace" className={styles.nav}>
+          {navItems.map((item) => (
+            <NavLink
+              className={({ isActive }) =>
+                `${styles.navLink} ${isActive ? styles.activeNavLink : ''}`
+              }
+              key={item.to}
+              to={item.to}
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
         <div className={styles.actions}>
-          <span className={styles.runtimeBadge}>
-            {environment.runtimeMode === 'mock' ? 'Mock mode' : 'Firebase mode'}
+          <span
+            aria-live="polite"
+            className={`${styles.connectionStatus} ${
+              networkStatus === 'offline' ? styles.offline : styles.online
+            }`}
+          >
+            {networkStatus === 'offline' ? 'Offline' : 'Online'}
           </span>
           <span className={styles.user}>{user.email}</span>
           <button

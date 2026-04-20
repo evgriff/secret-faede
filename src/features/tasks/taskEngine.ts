@@ -1,0 +1,947 @@
+import { getCropById } from '../../domain/crops/cropCatalog';
+import type {
+  CropProfile,
+  Garden,
+  LocalDateString,
+  Planting,
+  Structure,
+  SunExposure,
+  Task,
+  TaskPriority,
+  TaskType,
+  WaterRecommendation,
+} from '../../domain/gardens/GardenRepository';
+
+const dayMs = 24 * 60 * 60 * 1000;
+
+interface TaskInput {
+  bedLabel: string | null;
+  dueDate: LocalDateString;
+  id: string;
+  notes: string;
+  plantingId: string | null;
+  priority?: TaskPriority;
+  source: Task['source'];
+  sourceId: string | null;
+  structureId?: string | null;
+  title: string;
+  type: TaskType;
+}
+
+interface SynchronizeOptions {
+  now?: Date;
+  refreshOpenGenerated?: boolean;
+}
+
+export interface SuccessionRecommendation {
+  cropId: string;
+  cropName: string;
+  daysRemaining: number;
+  earliestDate: LocalDateString;
+  id: string;
+  plantingId: string;
+  reason: string;
+  sunExposure: SunExposure | null;
+  targetLabel: string;
+}
+
+export interface ManualTaskInput {
+  dueDate: LocalDateString;
+  notes: string;
+  priority?: TaskPriority;
+  title: string;
+  type: TaskType;
+}
+
+export function synchronizeGardenTasks(
+  garden: Garden,
+  options: SynchronizeOptions = {},
+): Garden {
+  const now = options.now ?? new Date();
+  const generatedTasks = buildGeneratedTasks(garden, now);
+  const generatedById = new Map(
+    generatedTasks.map((task) => [task.id, task] as const),
+  );
+  const existingIds = new Set(garden.tasks.map((task) => task.id));
+  const mergedExisting = garden.tasks.map((task) => {
+    const generated = generatedById.get(task.id);
+
+    if (!generated || !shouldRefreshTask(task, options)) {
+      return task;
+    }
+
+    return {
+      ...generated,
+      completedAtIso: task.completedAtIso,
+      createdAtIso: task.createdAtIso,
+      status: task.status,
+    };
+  });
+  const missingTasks = generatedTasks.filter(
+    (task) => !existingIds.has(task.id),
+  );
+
+  return {
+    ...garden,
+    tasks: sortTasks([...mergedExisting, ...missingTasks]),
+  };
+}
+
+export function buildGeneratedTasks(garden: Garden, now = new Date()): Task[] {
+  const tasks = garden.plantings.flatMap((planting) =>
+    buildPlantingTasks(garden, planting, now),
+  );
+  const waterTasks = garden.waterRecommendations.flatMap((recommendation) =>
+    buildWaterTask(garden, recommendation, now),
+  );
+
+  return sortTasks([...tasks, ...waterTasks]).map((task) => ({
+    ...task,
+    gardenId: garden.id,
+  }));
+}
+
+export function completeTask(
+  garden: Garden,
+  taskId: string,
+  completedAt = new Date(),
+): Garden {
+  const task = garden.tasks.find((candidate) => candidate.id === taskId);
+
+  if (!task) {
+    return garden;
+  }
+
+  const completedAtIso = completedAt.toISOString();
+  const completedDate = task.dueDate ?? toLocalDate(completedAt);
+  const updatedTasks = garden.tasks.map((candidate) => {
+    if (candidate.id === taskId) {
+      return {
+        ...candidate,
+        completedAtIso,
+        status: 'done' as const,
+      };
+    }
+
+    if (shouldClearSetupTask(candidate, task, completedDate)) {
+      return {
+        ...candidate,
+        completedAtIso,
+        status: 'skipped' as const,
+      };
+    }
+
+    return candidate;
+  });
+  const plantings = garden.plantings.map((planting) =>
+    updatePlantingFromCompletedTask(planting, task, completedDate),
+  );
+  const waterRecommendations =
+    task.type === 'water' && task.sourceId
+      ? garden.waterRecommendations.map((recommendation) =>
+          recommendation.id === task.sourceId
+            ? { ...recommendation, status: 'completed' as const }
+            : recommendation,
+        )
+      : garden.waterRecommendations;
+
+  return synchronizeGardenTasks(
+    {
+      ...garden,
+      plantings,
+      tasks: updatedTasks,
+      updatedAtIso: completedAtIso,
+      waterRecommendations,
+    },
+    {
+      now: completedAt,
+      refreshOpenGenerated: true,
+    },
+  );
+}
+
+export function snoozeTask(
+  garden: Garden,
+  taskId: string,
+  days: number,
+  now = new Date(),
+): Garden {
+  const dueDate = addDays(toLocalDate(now), days);
+
+  return updateTaskDate(garden, taskId, {
+    deferredUntilDate: null,
+    dueDate,
+    snoozedUntilDate: dueDate,
+  });
+}
+
+export function deferTask(
+  garden: Garden,
+  taskId: string,
+  days: number,
+): Garden {
+  const task = garden.tasks.find((candidate) => candidate.id === taskId);
+
+  if (!task?.dueDate) {
+    return garden;
+  }
+
+  const dueDate = addDays(task.dueDate, days);
+
+  return updateTaskDate(garden, taskId, {
+    deferredUntilDate: dueDate,
+    dueDate,
+    snoozedUntilDate: null,
+  });
+}
+
+export function addSuccessionTask(
+  garden: Garden,
+  recommendation: SuccessionRecommendation,
+  now = new Date(),
+): Garden {
+  const existing = garden.tasks.some(
+    (task) => task.id === `succession-${recommendation.id}`,
+  );
+
+  if (existing) {
+    return garden;
+  }
+
+  const task = createTask(
+    {
+      bedLabel: recommendation.targetLabel,
+      dueDate: recommendation.earliestDate,
+      id: `succession-${recommendation.id}`,
+      notes: recommendation.reason,
+      plantingId: recommendation.plantingId,
+      priority: 'medium',
+      source: 'succession',
+      sourceId: recommendation.cropId,
+      title: `Succession sow ${recommendation.cropName}`,
+      type: 'sow',
+    },
+    now,
+  );
+
+  return {
+    ...garden,
+    tasks: sortTasks([
+      ...garden.tasks,
+      {
+        ...task,
+        gardenId: garden.id,
+      },
+    ]),
+    updatedAtIso: now.toISOString(),
+  };
+}
+
+export function addManualTask(
+  garden: Garden,
+  input: ManualTaskInput,
+  now = new Date(),
+): Garden {
+  const task = createTask(
+    {
+      bedLabel: null,
+      dueDate: input.dueDate,
+      id: createTaskId('manual'),
+      notes: input.notes,
+      plantingId: null,
+      priority: input.priority ?? 'medium',
+      source: 'manual',
+      sourceId: null,
+      title: input.title,
+      type: input.type,
+    },
+    now,
+  );
+
+  return {
+    ...garden,
+    tasks: sortTasks([
+      ...garden.tasks,
+      {
+        ...task,
+        gardenId: garden.id,
+      },
+    ]),
+    updatedAtIso: now.toISOString(),
+  };
+}
+
+export function buildSuccessionRecommendations(
+  garden: Garden,
+  now = new Date(),
+): SuccessionRecommendation[] {
+  const today = toLocalDate(now);
+  const firstFrost = resolveFirstFrostDate(garden, today);
+
+  return garden.plantings
+    .flatMap((planting): SuccessionRecommendation[] => {
+      const crop = getCropById(planting.cropId);
+
+      if (!crop || planting.status === 'removed') {
+        return [];
+      }
+
+      const harvestDate = getHarvestDate(garden, planting, crop, today);
+      const earliestDate =
+        planting.status === 'harvested' ||
+        isHarvestTaskDone(garden, planting.id)
+          ? today
+          : harvestDate;
+      const daysRemaining = differenceInDays(firstFrost, earliestDate);
+
+      if (daysRemaining < 28) {
+        return [];
+      }
+
+      const sunExposure = getSunExposureAtPlanting(garden, planting);
+      const followOn = chooseSuccessionCrop(daysRemaining, sunExposure);
+
+      if (!followOn) {
+        return [];
+      }
+
+      return [
+        {
+          cropId: followOn.id,
+          cropName: followOn.commonName,
+          daysRemaining,
+          earliestDate,
+          id: `${planting.id}-${followOn.id}-${earliestDate}`,
+          plantingId: planting.id,
+          reason: `${daysRemaining} frost-free days remain after ${planting.label}. ${followOn.commonName} fits the remaining season and ${formatExposure(sunExposure)} exposure.`,
+          sunExposure,
+          targetLabel: getBedLabelForPlanting(garden, planting),
+        },
+      ];
+    })
+    .slice(0, 6);
+}
+
+export function tasksAreEqual(left: Task[], right: Task[]) {
+  return JSON.stringify(sortTasks(left)) === JSON.stringify(sortTasks(right));
+}
+
+export function sortTasks(tasks: Task[]) {
+  return [...tasks].sort((left, right) => {
+    const leftDate = left.dueDate ?? '9999-12-31';
+    const rightDate = right.dueDate ?? '9999-12-31';
+
+    if (leftDate !== rightDate) {
+      return leftDate.localeCompare(rightDate);
+    }
+
+    return left.title.localeCompare(right.title);
+  });
+}
+
+function buildPlantingTasks(
+  garden: Garden,
+  planting: Planting,
+  now: Date,
+): Task[] {
+  if (planting.status === 'harvested' || planting.status === 'removed') {
+    return [];
+  }
+
+  const crop = getCropById(planting.cropId);
+  const bedLabel = getBedLabelForPlanting(garden, planting);
+  const anchorDate = getPlantingAnchorDate(garden, planting, crop, now);
+  const tasks: Task[] = [];
+
+  if (!planting.plantedOn && crop) {
+    if (crop.sowMethod === 'transplant' || crop.sowMethod === 'both') {
+      tasks.push(
+        createTask(
+          {
+            bedLabel,
+            dueDate: addDays(anchorDate, -42),
+            id: `planting-${planting.id}-seed-start`,
+            notes: climateNote(garden, 'Seed start timing'),
+            plantingId: planting.id,
+            priority: 'medium',
+            source: 'generated',
+            sourceId: planting.id,
+            title: `Start ${planting.label} indoors`,
+            type: 'sow',
+          },
+          now,
+        ),
+      );
+    }
+
+    tasks.push(
+      createTask(
+        {
+          bedLabel,
+          dueDate: anchorDate,
+          id: `planting-${planting.id}-plant`,
+          notes: climateNote(garden, getPlantingInstruction(crop)),
+          plantingId: planting.id,
+          priority: crop.frostSensitive ? 'high' : 'medium',
+          source: 'generated',
+          sourceId: planting.id,
+          title: `${getPlantingVerb(crop)} ${planting.label}`,
+          type: getPlantingTaskType(crop),
+        },
+        now,
+      ),
+    );
+  }
+
+  const plantedOrPlannedDate = planting.plantedOn ?? anchorDate;
+
+  if (needsThinning(planting, crop)) {
+    tasks.push(
+      createTask(
+        {
+          bedLabel,
+          dueDate: addDays(plantedOrPlannedDate, 14),
+          id: `planting-${planting.id}-thin`,
+          notes: 'Thin crowded seedlings to the saved crop spacing.',
+          plantingId: planting.id,
+          source: 'generated',
+          sourceId: planting.id,
+          title: `Thin ${planting.label}`,
+          type: 'thin',
+        },
+        now,
+      ),
+    );
+  }
+
+  if (needsTrellis(planting, crop)) {
+    tasks.push(
+      createTask(
+        {
+          bedLabel,
+          dueDate: addDays(plantedOrPlannedDate, 7),
+          id: `planting-${planting.id}-trellis`,
+          notes:
+            'Install support before vines elongate and roots fill the bed.',
+          plantingId: planting.id,
+          priority: 'high',
+          source: 'generated',
+          sourceId: planting.id,
+          title: `Set support for ${planting.label}`,
+          type: 'trellis',
+        },
+        now,
+      ),
+    );
+  }
+
+  if (!planting.mulched) {
+    tasks.push(
+      createTask(
+        {
+          bedLabel,
+          dueDate: addDays(plantedOrPlannedDate, 10),
+          id: `planting-${planting.id}-mulch`,
+          notes:
+            'Mulch after seedlings establish to reduce evaporation and weeds.',
+          plantingId: planting.id,
+          source: 'generated',
+          sourceId: planting.id,
+          title: `Mulch ${planting.label}`,
+          type: 'mulch',
+        },
+        now,
+      ),
+    );
+  }
+
+  if (needsFertilizer(crop)) {
+    tasks.push(
+      createTask(
+        {
+          bedLabel,
+          dueDate: addDays(plantedOrPlannedDate, 28),
+          id: `planting-${planting.id}-fertilize`,
+          notes: 'Side-dress or feed once active growth is underway.',
+          plantingId: planting.id,
+          source: 'generated',
+          sourceId: planting.id,
+          title: `Feed ${planting.label}`,
+          type: 'fertilize',
+        },
+        now,
+      ),
+    );
+  }
+
+  if (needsPruning(crop)) {
+    tasks.push(
+      createTask(
+        {
+          bedLabel,
+          dueDate: addDays(plantedOrPlannedDate, 35),
+          id: `planting-${planting.id}-prune`,
+          notes: 'Inspect growth and prune lightly for airflow and access.',
+          plantingId: planting.id,
+          source: 'generated',
+          sourceId: planting.id,
+          title: `Prune and inspect ${planting.label}`,
+          type: 'prune',
+        },
+        now,
+      ),
+    );
+  }
+
+  if (crop?.daysToMaturity) {
+    tasks.push(
+      createTask(
+        {
+          bedLabel,
+          dueDate: addDays(plantedOrPlannedDate, crop.daysToMaturity),
+          id: `planting-${planting.id}-harvest`,
+          notes: `Harvest window estimate from ${crop.daysToMaturity} days to maturity. Check the bed before clearing it.`,
+          plantingId: planting.id,
+          priority: 'medium',
+          source: 'generated',
+          sourceId: planting.id,
+          title: `Harvest ${planting.label}`,
+          type: 'harvest',
+        },
+        now,
+      ),
+    );
+  }
+
+  return tasks;
+}
+
+function buildWaterTask(
+  garden: Garden,
+  recommendation: WaterRecommendation,
+  now: Date,
+): Task[] {
+  if (
+    recommendation.status === 'suppressed' ||
+    recommendation.status === 'completed' ||
+    recommendation.recommendedWaterInches <= 0
+  ) {
+    return [];
+  }
+
+  return [
+    createTask(
+      {
+        bedLabel: getBedLabelForRecommendation(garden, recommendation),
+        dueDate: recommendation.recommendationDate,
+        id: `water-${recommendation.id}`,
+        notes: recommendation.rationale.join(' '),
+        plantingId: recommendation.plantingId,
+        priority: recommendation.urgency === 'high' ? 'high' : 'medium',
+        source: 'waterRecommendation',
+        sourceId: recommendation.id,
+        title: `Water ${recommendation.targetLabel}`,
+        type: 'water',
+      },
+      now,
+    ),
+  ];
+}
+
+function createTask(input: TaskInput, now: Date): Task {
+  return {
+    bedLabel: input.bedLabel,
+    completedAtIso: null,
+    createdAtIso: now.toISOString(),
+    deferredUntilDate: null,
+    dueDate: input.dueDate,
+    gardenId: '',
+    id: input.id,
+    notes: input.notes,
+    plantingId: input.plantingId,
+    priority: input.priority ?? 'medium',
+    snoozedUntilDate: null,
+    source: input.source,
+    sourceId: input.sourceId,
+    status: 'open',
+    structureId: input.structureId ?? null,
+    title: input.title,
+    type: input.type,
+  };
+}
+
+function createTaskId(prefix: string) {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${prefix}-${Date.now()}`;
+}
+
+function shouldRefreshTask(task: Task, options: SynchronizeOptions) {
+  return (
+    Boolean(options.refreshOpenGenerated) &&
+    task.status === 'open' &&
+    task.source === 'generated' &&
+    !task.snoozedUntilDate &&
+    !task.deferredUntilDate
+  );
+}
+
+function updatePlantingFromCompletedTask(
+  planting: Planting,
+  task: Task,
+  completedDate: LocalDateString,
+): Planting {
+  if (planting.id !== task.plantingId) {
+    return planting;
+  }
+
+  if (
+    task.type === 'plant' ||
+    task.type === 'sow' ||
+    task.type === 'transplant'
+  ) {
+    return {
+      ...planting,
+      plantedOn: planting.plantedOn ?? completedDate,
+      status: planting.status === 'planned' ? 'growing' : planting.status,
+    };
+  }
+
+  if (task.type === 'harvest') {
+    return {
+      ...planting,
+      status: 'harvested',
+    };
+  }
+
+  if (task.type === 'mulch') {
+    return {
+      ...planting,
+      mulched: true,
+    };
+  }
+
+  return planting;
+}
+
+function shouldClearSetupTask(
+  candidate: Task,
+  completedTask: Task,
+  completedDate: LocalDateString,
+) {
+  const setupTypes: TaskType[] = ['plant', 'sow', 'transplant'];
+
+  return (
+    candidate.status === 'open' &&
+    candidate.id !== completedTask.id &&
+    candidate.plantingId === completedTask.plantingId &&
+    setupTypes.includes(candidate.type) &&
+    setupTypes.includes(completedTask.type) &&
+    Boolean(candidate.dueDate && candidate.dueDate <= completedDate)
+  );
+}
+
+function updateTaskDate(
+  garden: Garden,
+  taskId: string,
+  values: Pick<Task, 'deferredUntilDate' | 'dueDate' | 'snoozedUntilDate'>,
+): Garden {
+  const now = new Date().toISOString();
+
+  return {
+    ...garden,
+    tasks: sortTasks(
+      garden.tasks.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              ...values,
+              status: 'open',
+            }
+          : task,
+      ),
+    ),
+    updatedAtIso: now,
+  };
+}
+
+function getPlantingAnchorDate(
+  garden: Garden,
+  planting: Planting,
+  crop: CropProfile | null,
+  now: Date,
+): LocalDateString {
+  if (planting.plantedOn) {
+    return planting.plantedOn;
+  }
+
+  const today = toLocalDate(now);
+  const lastFrost = resolveLastFrostDate(garden, today);
+
+  if (!crop) {
+    return lastFrost;
+  }
+
+  const warmSeason = crop.frostSensitive || /warm-season/i.test(crop.hardiness);
+
+  if (crop.sowMethod === 'transplant') {
+    return addDays(lastFrost, warmSeason ? 7 : -14);
+  }
+
+  if (crop.sowMethod === 'directSow') {
+    return addDays(lastFrost, warmSeason ? 7 : -28);
+  }
+
+  return addDays(lastFrost, warmSeason ? 7 : -21);
+}
+
+function getPlantingVerb(crop: CropProfile) {
+  if (crop.sowMethod === 'transplant') {
+    return 'Transplant';
+  }
+
+  if (crop.sowMethod === 'directSow') {
+    return 'Direct sow';
+  }
+
+  return 'Plant';
+}
+
+function getPlantingTaskType(crop: CropProfile): TaskType {
+  if (crop.sowMethod === 'transplant') {
+    return 'transplant';
+  }
+
+  if (crop.sowMethod === 'directSow') {
+    return 'sow';
+  }
+
+  return 'plant';
+}
+
+function getPlantingInstruction(crop: CropProfile) {
+  if (crop.sowMethod === 'transplant') {
+    return 'Transplant timing';
+  }
+
+  if (crop.sowMethod === 'directSow') {
+    return 'Direct sow timing';
+  }
+
+  return 'Planting timing';
+}
+
+function needsThinning(planting: Planting, crop: CropProfile | null) {
+  return (
+    (crop?.sowMethod === 'directSow' || crop?.sowMethod === 'both') &&
+    (planting.mode === 'row' ||
+      planting.mode === 'block' ||
+      planting.mode === 'cluster' ||
+      (planting.plantCount ?? 0) > 1)
+  );
+}
+
+function needsTrellis(planting: Planting, crop: CropProfile | null) {
+  return (
+    planting.mode === 'trellisLine' ||
+    crop?.trellisRecommended ||
+    crop?.growthForm === 'vining' ||
+    crop?.growthForm === 'climber'
+  );
+}
+
+function needsFertilizer(crop: CropProfile | null) {
+  return (
+    crop?.category === 'fruit' ||
+    crop?.waterNeeds === 'high' ||
+    crop?.growthForm === 'vining'
+  );
+}
+
+function needsPruning(crop: CropProfile | null) {
+  return (
+    crop?.growthForm === 'vining' ||
+    crop?.growthForm === 'climber' ||
+    crop?.id.includes('tomato') === true
+  );
+}
+
+function getHarvestDate(
+  garden: Garden,
+  planting: Planting,
+  crop: CropProfile,
+  today: LocalDateString,
+) {
+  const anchorDate =
+    planting.plantedOn ??
+    getPlantingAnchorDate(garden, planting, crop, parseLocalDate(today));
+
+  return addDays(anchorDate, crop.daysToMaturity ?? 60);
+}
+
+function chooseSuccessionCrop(
+  daysRemaining: number,
+  sunExposure: SunExposure | null,
+) {
+  if (sunExposure === 'fullSun' && daysRemaining >= 55) {
+    return getCropById('bush-bean');
+  }
+
+  if (
+    (sunExposure === 'partShade' || sunExposure === 'partSun') &&
+    daysRemaining >= 45
+  ) {
+    return getCropById('lettuce') ?? getCropById('spinach');
+  }
+
+  if (daysRemaining >= 35) {
+    return getCropById('spinach') ?? getCropById('arugula');
+  }
+
+  return getCropById('radish');
+}
+
+function isHarvestTaskDone(garden: Garden, plantingId: string) {
+  return garden.tasks.some(
+    (task) =>
+      task.plantingId === plantingId &&
+      task.type === 'harvest' &&
+      task.status === 'done',
+  );
+}
+
+function getBedLabelForRecommendation(
+  garden: Garden,
+  recommendation: WaterRecommendation,
+) {
+  if (recommendation.targetType === 'bed') {
+    return recommendation.targetLabel;
+  }
+
+  const planting = garden.plantings.find(
+    (candidate) => candidate.id === recommendation.plantingId,
+  );
+
+  return planting ? getBedLabelForPlanting(garden, planting) : 'Open plot';
+}
+
+function getBedLabelForPlanting(garden: Garden, planting: Planting) {
+  const bed = garden.structures.find(
+    (structure) =>
+      isBedLike(structure) && containsPlanting(structure, planting),
+  );
+
+  return bed?.label ?? 'Open plot';
+}
+
+function isBedLike(structure: Structure) {
+  return (
+    structure.type === 'bed' ||
+    structure.type === 'container' ||
+    structure.type === 'inGroundBed' ||
+    structure.type === 'raisedBed'
+  );
+}
+
+function containsPlanting(structure: Structure, planting: Planting) {
+  return (
+    planting.xFt >= structure.xFt &&
+    planting.xFt <= structure.xFt + structure.widthFt &&
+    planting.yFt >= structure.yFt &&
+    planting.yFt <= structure.yFt + structure.depthFt
+  );
+}
+
+function getSunExposureAtPlanting(garden: Garden, planting: Planting) {
+  const layers = [...garden.sunShadeLayers].sort((left, right) =>
+    left.season === 'fall' ? -1 : right.season === 'fall' ? 1 : 0,
+  );
+
+  for (const layer of layers) {
+    const area = layer.areas.find(
+      (candidate) =>
+        planting.xFt >= candidate.xFt &&
+        planting.xFt < candidate.xFt + candidate.widthFt &&
+        planting.yFt >= candidate.yFt &&
+        planting.yFt < candidate.yFt + candidate.depthFt,
+    );
+
+    if (area) {
+      return area.exposure;
+    }
+  }
+
+  return planting.sunRequirement;
+}
+
+function climateNote(garden: Garden, label: string) {
+  return `${label} uses editable climate defaults for ${garden.climateProfile.locationName}, zone ${garden.climateProfile.hardinessZone}: last frost ${garden.climateProfile.averageLastFrost}, first frost ${garden.climateProfile.averageFirstFrost}.`;
+}
+
+function formatExposure(exposure: SunExposure | null) {
+  if (!exposure) {
+    return 'saved';
+  }
+
+  return exposure.replace(/[A-Z]/g, (letter) => ` ${letter.toLowerCase()}`);
+}
+
+function resolveLastFrostDate(garden: Garden, today: LocalDateString) {
+  const year = getSchedulingYear(garden, today);
+
+  return dateFromMonthDay(year, garden.climateProfile.averageLastFrost);
+}
+
+function resolveFirstFrostDate(garden: Garden, today: LocalDateString) {
+  const year = getSchedulingYear(garden, today);
+  const firstFrost = dateFromMonthDay(
+    year,
+    garden.climateProfile.averageFirstFrost,
+  );
+
+  return firstFrost < today
+    ? dateFromMonthDay(year + 1, garden.climateProfile.averageFirstFrost)
+    : firstFrost;
+}
+
+function getSchedulingYear(garden: Garden, today: LocalDateString) {
+  const year = Number(today.slice(0, 4));
+  const firstFrost = dateFromMonthDay(
+    year,
+    garden.climateProfile.averageFirstFrost,
+  );
+
+  return today > addDays(firstFrost, 14) ? year + 1 : year;
+}
+
+function dateFromMonthDay(year: number, monthDay: string): LocalDateString {
+  const [month = '1', day = '1'] = monthDay.split('-');
+
+  return toLocalDate(new Date(Date.UTC(year, Number(month) - 1, Number(day))));
+}
+
+function addDays(date: LocalDateString, days: number): LocalDateString {
+  return toLocalDate(new Date(parseLocalDate(date).getTime() + days * dayMs));
+}
+
+function differenceInDays(
+  later: LocalDateString,
+  earlier: LocalDateString,
+): number {
+  return Math.round(
+    (parseLocalDate(later).getTime() - parseLocalDate(earlier).getTime()) /
+      dayMs,
+  );
+}
+
+function parseLocalDate(date: LocalDateString) {
+  const [year = '1970', month = '1', day = '1'] = date.split('-');
+
+  return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+}
+
+function toLocalDate(date: Date): LocalDateString {
+  return date.toISOString().slice(0, 10);
+}

@@ -1,4 +1,7 @@
-import { defaultGardenPlot } from '../../domain/gardens/GardenRepository';
+import {
+  createDefaultPlanting,
+  defaultGardenPlot,
+} from '../../domain/gardens/GardenRepository';
 import {
   clientPointToPlotFeet,
   clampPlantToPlot,
@@ -29,9 +32,14 @@ describe('gardenMath', () => {
     ).toEqual({ xFt: 3.5, yFt: 8 });
     expect(
       clampPlantToPlot(
-        { id: 'plant-1', type: 'plant', xFt: -2, yFt: 20 },
+        createDefaultPlanting({
+          id: 'planting-1',
+          label: 'Tomato',
+          xFt: -2,
+          yFt: 20,
+        }),
         defaultGardenPlot,
       ),
-    ).toEqual({ id: 'plant-1', type: 'plant', xFt: 0, yFt: 8 });
+    ).toMatchObject({ id: 'planting-1', xFt: 0, yFt: 8 });
   });
 });

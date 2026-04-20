@@ -22,12 +22,15 @@ export default defineConfig(({ mode }) => {
               manifest: {
                 name: 'Secret Faede',
                 short_name: 'Faede',
-                description: 'A small saved garden plot planner.',
-                theme_color: '#edf3e7',
-                background_color: '#edf3e7',
+                description:
+                  'A field-ready garden planner for plot edits, tasks, journal notes, and harvest logs.',
+                theme_color: '#fffdf7',
+                background_color: '#fffdf7',
                 display: 'standalone',
+                id: '/',
                 start_url: '/',
                 scope: '/',
+                categories: ['productivity', 'lifestyle'],
                 icons: [
                   {
                     src: '/pwa-192x192.png',
@@ -46,12 +49,62 @@ export default defineConfig(({ mode }) => {
                     purpose: 'maskable',
                   },
                 ],
+                shortcuts: [
+                  {
+                    name: 'Garden',
+                    short_name: 'Garden',
+                    url: '/app/garden',
+                    icons: [
+                      {
+                        src: '/pwa-192x192.png',
+                        sizes: '192x192',
+                        type: 'image/png',
+                      },
+                    ],
+                  },
+                  {
+                    name: 'Tasks',
+                    short_name: 'Tasks',
+                    url: '/app/tasks',
+                    icons: [
+                      {
+                        src: '/pwa-192x192.png',
+                        sizes: '192x192',
+                        type: 'image/png',
+                      },
+                    ],
+                  },
+                  {
+                    name: 'Journal',
+                    short_name: 'Journal',
+                    url: '/app/journal',
+                    icons: [
+                      {
+                        src: '/pwa-192x192.png',
+                        sizes: '192x192',
+                        type: 'image/png',
+                      },
+                    ],
+                  },
+                ],
               },
               workbox: {
                 globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
                 cleanupOutdatedCaches: true,
-                navigateFallback: 'index.html',
-                runtimeCaching: [],
+                navigateFallback: '/index.html',
+                runtimeCaching: [
+                  {
+                    urlPattern: /\.(?:ico|png|svg)$/,
+                    handler: 'CacheFirst',
+                    options: {
+                      cacheName: 'secret-faede-app-assets',
+                      expiration: {
+                        maxAgeSeconds: 60 * 60 * 24 * 30,
+                        maxEntries: 48,
+                      },
+                    },
+                  },
+                ],
               },
               devOptions: {
                 enabled: false,
@@ -66,11 +119,16 @@ export default defineConfig(({ mode }) => {
       setupFiles: './src/test/setup.ts',
       css: true,
       testTimeout: 10_000,
-      exclude: ['e2e/**', 'node_modules/**'],
+      exclude: ['e2e/**', 'functions/**', 'node_modules/**'],
       coverage: {
         provider: 'v8',
         reporter: ['text', 'html'],
-        exclude: ['src/test/**', 'e2e/**', 'playwright.config.ts'],
+        exclude: [
+          'src/test/**',
+          'e2e/**',
+          'functions/**',
+          'playwright.config.ts',
+        ],
       },
     },
   };

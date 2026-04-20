@@ -19,9 +19,14 @@ export interface AppEnvironment {
   fallbackReason: string | null;
   firebaseConfig: FirebaseRuntimeConfig | null;
   firestoreEmulatorPort: number;
+  geocodingApiKey: string | null;
+  messagingVapidKey: string | null;
   pwaEnabled: boolean;
   requestedMode: RuntimeMode;
   runtimeMode: RuntimeMode;
+  storageEmulatorPort: number;
+  tomorrowApiKey: string | null;
+  tomorrowWeatherEnabled: boolean;
   useFirebaseEmulators: boolean;
 }
 
@@ -37,7 +42,12 @@ export interface AppEnvSource {
   VITE_FIREBASE_FIRESTORE_EMULATOR_PORT?: string;
   VITE_FIREBASE_MESSAGING_SENDER_ID?: string;
   VITE_FIREBASE_PROJECT_ID?: string;
+  VITE_FIREBASE_STORAGE_EMULATOR_PORT?: string;
   VITE_FIREBASE_STORAGE_BUCKET?: string;
+  VITE_GOOGLE_MAPS_API_KEY?: string;
+  VITE_FIREBASE_MESSAGING_VAPID_KEY?: string;
+  VITE_TOMORROW_API_KEY?: string;
+  VITE_ENABLE_TOMORROW_WEATHER?: string;
   VITE_USE_FIREBASE_EMULATORS?: string;
 }
 
@@ -94,9 +104,23 @@ export function resolveAppEnvironmentFromEnv(
       env.VITE_FIREBASE_FIRESTORE_EMULATOR_PORT,
       8080,
     ),
+    geocodingApiKey: hasText(env.VITE_GOOGLE_MAPS_API_KEY)
+      ? env.VITE_GOOGLE_MAPS_API_KEY.trim()
+      : null,
+    messagingVapidKey: hasText(env.VITE_FIREBASE_MESSAGING_VAPID_KEY)
+      ? env.VITE_FIREBASE_MESSAGING_VAPID_KEY.trim()
+      : null,
     pwaEnabled: env.VITE_ENABLE_PWA !== 'false',
     requestedMode,
     runtimeMode,
+    storageEmulatorPort: parsePort(
+      env.VITE_FIREBASE_STORAGE_EMULATOR_PORT,
+      9199,
+    ),
+    tomorrowApiKey: hasText(env.VITE_TOMORROW_API_KEY)
+      ? env.VITE_TOMORROW_API_KEY.trim()
+      : null,
+    tomorrowWeatherEnabled: env.VITE_ENABLE_TOMORROW_WEATHER === 'true',
     useFirebaseEmulators: env.VITE_USE_FIREBASE_EMULATORS === 'true',
   };
 }
