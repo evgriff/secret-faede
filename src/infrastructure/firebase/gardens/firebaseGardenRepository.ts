@@ -1,258 +1,111 @@
 import {
-  collection,
-  collectionGroup,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  setDoc,
-  where,
-} from 'firebase/firestore';
-
-import type { GardenRepository } from '../../../domain/gardens/GardenRepository';
-import type {
-  GardenDocument,
-  GardenMemberDocument,
-  PlotDocument,
-  UserDocument,
-} from '../../../domain/gardens/schema';
-import type {
-  GardenPlot,
-  GardenRole,
-  GardenSummary,
-  SaveGardenPlotInput,
-} from '../../../domain/gardens/types';
+  defaultGardenPlot,
+  type Garden,
+  type GardenPlant,
+  type GardenPlot,
+  type GardenRepository,
+} from '../../../domain/gardens/GardenRepository';
 import type { AppEnvironment } from '../../../shared/config/env';
 import { getFirestoreClient } from '../app';
-
-function toGardenPlot(id: string, plot: PlotDocument): GardenPlot {
-  return {
-    height: plot.height,
-    id,
-    name: plot.name,
-    rotation: plot.rotation,
-    width: plot.width,
-    x: plot.x,
-    y: plot.y,
-  };
-}
-
-function toGardenSummary(
-  id: string,
-  garden: GardenDocument,
-  memberRole: GardenRole,
-  plotCount: number,
-): GardenSummary {
-  return {
-    dimensions: garden.dimensions,
-    id,
-    memberRole,
-    name: garden.name,
-    plotCount,
-    slug: garden.slug,
-    timezone: garden.timezone,
-    updatedLabel: 'Loaded from Firestore',
-  };
-}
-
-function isMissingCollectionGroupIndexError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-
-  const code = 'code' in error ? String(error.code) : '';
-  const message = 'message' in error ? String(error.message) : '';
-
-  return code === 'failed-precondition' && /index/i.test(message);
-}
+import {
+  doc,
+  getDoc,
+  serverTimestamp,
+  setDoc,
+  type Firestore,
+} from 'firebase/firestore';
 
 export class FirebaseGardenRepository implements GardenRepository {
-  private readonly firestore;
+  private readonly firestore: Firestore;
 
   constructor(environment: AppEnvironment) {
     this.firestore = getFirestoreClient(environment);
   }
 
-  async deletePlot(
-    gardenId: string,
-    plotId: string,
-    uid: string,
-  ): Promise<void> {
-    await this.assertCanEditPlots(gardenId, uid);
+  async getGarden(userId: string): Promise<Garden | null> {
+    const snapshot = await getDoc(this.getGardenDocument(userId));
 
-    await deleteDoc(doc(this.firestore, 'gardens', gardenId, 'plots', plotId));
-  }
-
-  async getById(gardenId: string, uid: string): Promise<GardenSummary | null> {
-    const memberSnapshot = await this.getMemberSnapshot(gardenId, uid);
-
-    if (!memberSnapshot.exists()) {
+    if (!snapshot.exists()) {
       return null;
     }
 
-    const gardenSnapshot = await getDoc(
-      doc(this.firestore, 'gardens', gardenId),
-    );
-
-    if (!gardenSnapshot.exists()) {
-      return null;
-    }
-
-    const plotsSnapshot = await getDocs(
-      collection(this.firestore, 'gardens', gardenId, 'plots'),
-    );
-
-    return toGardenSummary(
-      gardenSnapshot.id,
-      gardenSnapshot.data() as GardenDocument,
-      (memberSnapshot.data() as GardenMemberDocument).role,
-      plotsSnapshot.size,
-    );
+    return parseGardenDocument(userId, snapshot.data());
   }
 
-  async listPlots(gardenId: string, uid: string): Promise<GardenPlot[]> {
-    const memberSnapshot = await this.getMemberSnapshot(gardenId, uid);
+  async saveGarden(garden: Garden): Promise<void> {
+    await setDoc(this.getGardenDocument(garden.userId), {
+      plants: garden.plants.map((plant) => ({
+        id: plant.id,
+        type: plant.type,
+        xFt: plant.xFt,
+        yFt: plant.yFt,
+      })),
+      plot: garden.plot,
+      updatedAt: serverTimestamp(),
+      userId: garden.userId,
+    });
+  }
 
-    if (!memberSnapshot.exists()) {
+  private getGardenDocument(userId: string) {
+    return doc(this.firestore, 'gardens', userId);
+  }
+}
+
+function parseGardenDocument(
+  userId: string,
+  data: Record<string, unknown>,
+): Garden {
+  const plot = parsePlot(data.plot);
+
+  return {
+    plants: parsePlants(data.plants, plot),
+    plot,
+    userId,
+  };
+}
+
+function parsePlot(value: unknown): GardenPlot {
+  if (!isRecord(value)) {
+    return defaultGardenPlot;
+  }
+
+  return {
+    depthFt: readNumber(value.depthFt, defaultGardenPlot.depthFt),
+    gridUnitFt: 1,
+    snapUnitFt: 0.5,
+    widthFt: readNumber(value.widthFt, defaultGardenPlot.widthFt),
+  };
+}
+
+function parsePlants(value: unknown, plot: GardenPlot): GardenPlant[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((plant): GardenPlant[] => {
+    if (!isRecord(plant) || typeof plant.id !== 'string') {
       return [];
     }
 
-    const plotsSnapshot = await getDocs(
-      collection(this.firestore, 'gardens', gardenId, 'plots'),
-    );
+    return [
+      {
+        id: plant.id,
+        type: 'plant',
+        xFt: clamp(readNumber(plant.xFt, 0), 0, plot.widthFt),
+        yFt: clamp(readNumber(plant.yFt, 0), 0, plot.depthFt),
+      },
+    ];
+  });
+}
 
-    return plotsSnapshot.docs
-      .map((plotSnapshot) =>
-        toGardenPlot(plotSnapshot.id, plotSnapshot.data() as PlotDocument),
-      )
-      .sort((left, right) => left.name.localeCompare(right.name));
-  }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
 
-  async listForUser(uid: string): Promise<GardenSummary[]> {
-    try {
-      const gardens = await this.listFromMembershipQuery(uid);
+function readNumber(value: unknown, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
 
-      if (gardens.length > 0) {
-        return gardens;
-      }
-    } catch (error) {
-      if (!isMissingCollectionGroupIndexError(error)) {
-        throw error;
-      }
-    }
-
-    return this.listFromLastGarden(uid);
-  }
-
-  async savePlot(
-    gardenId: string,
-    plot: SaveGardenPlotInput,
-    uid: string,
-  ): Promise<GardenPlot> {
-    await this.assertCanEditPlots(gardenId, uid);
-
-    const existingPlotSnapshot = await getDoc(
-      doc(this.firestore, 'gardens', gardenId, 'plots', plot.id),
-    );
-    const now = new Date().toISOString();
-    const existingPlot = existingPlotSnapshot.exists()
-      ? (existingPlotSnapshot.data() as PlotDocument)
-      : null;
-    const plotDocument: PlotDocument = {
-      createdAt: existingPlot?.createdAt ?? now,
-      height: plot.height,
-      name: plot.name,
-      rotation: plot.rotation,
-      updatedAt: now,
-      width: plot.width,
-      x: plot.x,
-      y: plot.y,
-    };
-
-    await setDoc(
-      doc(this.firestore, 'gardens', gardenId, 'plots', plot.id),
-      plotDocument,
-    );
-
-    return toGardenPlot(plot.id, plotDocument);
-  }
-
-  private async assertCanEditPlots(
-    gardenId: string,
-    uid: string,
-  ): Promise<void> {
-    const memberSnapshot = await this.getMemberSnapshot(gardenId, uid);
-
-    if (!memberSnapshot.exists()) {
-      throw new Error('Garden access is required to edit plots.');
-    }
-
-    const memberRole = (memberSnapshot.data() as GardenMemberDocument).role;
-
-    if (memberRole === 'viewer') {
-      throw new Error('Viewer members cannot edit plots.');
-    }
-  }
-
-  private getMemberSnapshot(gardenId: string, uid: string) {
-    return getDoc(doc(this.firestore, 'gardens', gardenId, 'members', uid));
-  }
-
-  private async listFromLastGarden(uid: string): Promise<GardenSummary[]> {
-    const userSnapshot = await getDoc(doc(this.firestore, 'users', uid));
-
-    if (!userSnapshot.exists()) {
-      return [];
-    }
-
-    const lastGardenId = (userSnapshot.data() as UserDocument).lastGardenId;
-
-    if (!lastGardenId) {
-      return [];
-    }
-
-    const garden = await this.getById(lastGardenId, uid);
-
-    return garden ? [garden] : [];
-  }
-
-  private async listFromMembershipQuery(uid: string): Promise<GardenSummary[]> {
-    const membershipsQuery = query(
-      collectionGroup(this.firestore, 'members'),
-      where('uid', '==', uid),
-    );
-    const membershipSnapshots = await getDocs(membershipsQuery);
-    const gardens = await Promise.all(
-      membershipSnapshots.docs.map(async (memberSnapshot) => {
-        const memberData = memberSnapshot.data() as GardenMemberDocument;
-        const gardenRef = memberSnapshot.ref.parent.parent;
-
-        if (!gardenRef) {
-          return null;
-        }
-
-        const gardenSnapshot = await getDoc(gardenRef);
-
-        if (!gardenSnapshot.exists()) {
-          return null;
-        }
-
-        const plotsSnapshot = await getDocs(
-          collection(this.firestore, 'gardens', gardenSnapshot.id, 'plots'),
-        );
-
-        return toGardenSummary(
-          gardenSnapshot.id,
-          gardenSnapshot.data() as GardenDocument,
-          memberData.role,
-          plotsSnapshot.size,
-        );
-      }),
-    );
-
-    return gardens
-      .filter((garden): garden is GardenSummary => Boolean(garden))
-      .sort((left, right) => left.name.localeCompare(right.name));
-  }
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }

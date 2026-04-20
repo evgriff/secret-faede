@@ -7,33 +7,19 @@
 }
 
 .pageCard {
-  position: relative;
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-card);
-  background: linear-gradient(
-    180deg,
-    rgba(247, 244, 238, 0.96) 0%,
-    rgba(239, 234, 226, 0.88) 100%
-  );
+  background: var(--color-surface);
   box-shadow: var(--shadow-card);
   padding: var(--space-5);
-}
-
-.pageCard::after {
-  content: '';
-  position: absolute;
-  inset: 9px;
-  border: 1px solid rgba(109, 101, 93, 0.08);
-  border-radius: calc(var(--radius-card) - 0.45rem);
-  pointer-events: none;
 }
 
 .pageTitle {
   margin: 0;
   color: var(--color-text-strong);
-  font-size: clamp(1.95rem, 6vw, 2.7rem);
+  font-size: 2rem;
   line-height: 1.02;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .pageLead {

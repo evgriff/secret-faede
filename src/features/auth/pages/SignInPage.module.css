@@ -1,116 +1,79 @@
-.form {
+.card {
   display: grid;
-  gap: var(--space-3);
+  gap: 1rem;
+}
+
+.form,
+.sentState {
+  display: grid;
+  gap: 0.9rem;
 }
 
 .field {
   display: grid;
-  gap: 0.45rem;
-}
-
-.label {
+  gap: 0.35rem;
   color: var(--color-text-strong);
-  font-weight: 600;
 }
 
-.input {
+.field input {
   width: 100%;
-  border: 1.5px solid var(--color-border);
-  border-radius: 0.9rem;
-  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: #ffffff;
   color: var(--color-text-strong);
-  padding: 0.95rem 1rem;
+  font: inherit;
+  padding: 0.75rem 0.85rem;
 }
 
-.input:focus-visible {
-  outline: 2px solid var(--color-accent-strong);
-  outline-offset: 2px;
-}
-
-.hint,
-.error {
-  margin: 0;
-  font-size: 0.95rem;
-}
-
-.hint {
-  color: var(--color-text-muted);
-}
-
-.error {
-  color: #9a3a2d;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.button,
+.primaryButton,
 .secondaryButton {
-  align-self: start;
-}
-
-.hero {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.heroRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1rem;
-}
-
-.heroMark {
-  flex: none;
-  color: var(--color-ink);
-}
-
-.heroTag {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  align-self: start;
-  border-radius: var(--radius-pill);
-  background: rgba(115, 163, 107, 0.14);
-  color: var(--color-ink);
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 0.32rem 0.62rem;
+  min-height: 2.75rem;
+  width: fit-content;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  padding: 0 1rem;
+  text-decoration: none;
 }
 
-.divider {
-  color: var(--color-line-muted);
+.primaryButton {
+  border-color: var(--color-text-strong);
+  background: var(--color-text-strong);
+  color: var(--color-background);
 }
 
-.supportCard {
-  display: grid;
-  gap: 1rem;
+.secondaryButton {
+  background: var(--color-surface);
+  color: var(--color-text-strong);
 }
 
-.supportArt {
-  width: min(100%, 18rem);
-  color: var(--color-line-soft);
+.primaryButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
-.helperList {
-  display: grid;
-  gap: 0.6rem;
+.error,
+.notice,
+.runtime {
   margin: 0;
-  padding-left: 1rem;
+}
+
+.error {
+  color: #a33428;
+}
+
+.notice,
+.runtime {
   color: var(--color-text-muted);
 }
 
-@media (min-width: 44rem) {
-  .heroRow {
-    justify-content: space-between;
-  }
-
-  .supportCard {
-    grid-template-columns: minmax(0, 1.2fr) minmax(12rem, 18rem);
-    align-items: end;
-  }
+.primaryButton:focus-visible,
+.secondaryButton:focus-visible,
+.field input:focus-visible {
+  outline: 2px solid var(--color-plant-sky);
+  outline-offset: 2px;
 }

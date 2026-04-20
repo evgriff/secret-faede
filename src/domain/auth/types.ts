@@ -4,7 +4,15 @@ export interface AuthUser {
   uid: string;
 }
 
+export type AuthAccessStatus =
+  | 'allowed'
+  | 'config-error'
+  | 'denied'
+  | 'unknown';
+
 export interface AuthState {
+  accessStatus: AuthAccessStatus;
+  deniedEmail: string | null;
   status: 'authenticated' | 'loading' | 'unauthenticated';
   user: AuthUser | null;
 }

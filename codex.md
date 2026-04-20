@@ -2,129 +2,99 @@
 
 ## Project philosophy
 
-This repo is intentionally constrained. Milestone 1 exists to make later milestones cheaper and safer, not to impress with breadth. The right move here is usually the smaller move.
+This repo is intentionally narrow. Secret Faede should do one thing well: email-link auth into a saved real-world garden plot editor.
 
 Core principles:
 
 - mock-first by default
-- no custom backend
-- explicit seams before live integrations
-- platform APIs and small modules over helper sprawl
-- documentation that prevents repo drift
+- explicit seams for auth and garden persistence
+- small modules over helper sprawl
+- docs that prevent repo drift
+- no speculative product infrastructure
 
-## Why this stack
+## Current MVP target
 
-- `react` + `react-dom`: simplest fit for a small interactive SPA shell
-- `react-router-dom`: readable client routing and test-friendly memory router support
-- `firebase`: required client SDK surface for Auth and Firestore without server code
-- `vite-plugin-pwa`: conservative manifest and service-worker support with minimal custom code
-- `vite`: low-friction SPA build tool
-- `typescript`: strict static checks with small module boundaries
-- `eslint`, `typescript-eslint`, `prettier`: baseline code-quality railings
-- `vitest`, `@testing-library/*`, `@playwright/test`: enough testing surface for component, routing, and smoke coverage
-- `husky`, `lint-staged`: lightweight staged-file guardrails only
-- `firebase-tools`: emulator and local hosting support
+- route map: `/`, `/sign-in`, `/auth/complete`, `/access-denied`, `/app`, `*`
+- Firebase email-link auth behind `AuthService`
+- application-level two-email allowlist enforced after sign-in
+- mock and Firebase runtimes selected from centralized config
+- `GardenRepository` active for one garden per user
+- Firestore path `gardens/{uid}` in Firebase mode
+- plot dimensions stored in feet
+- plant centers stored as `xFt` and `yFt`, never pixels
 
-If a future change wants a new dependency, make it earn admission.
+## Boundaries
 
-## Dependency admission checklist
+Active now:
 
-Do not add a dependency until all answers are "yes":
+- auth/session state
+- runtime config parsing
+- route guards
+- Firebase Auth, Firestore, Hosting, and emulator support
+- saved garden editor
+- tests and CI
 
-1. Is the platform or existing stack insufficient?
-2. Is it needed for the current milestone, not a later one?
-3. Does it reduce total code and cognitive load?
-4. Does it avoid locking the repo into a larger architectural pattern?
-5. Will you document the reason in this file or the architecture docs?
+Deferred on purpose:
 
-## What is intentionally excluded
-
-- custom backend code
-- Cloud Functions
-- state management libraries
-- query/cache libraries
-- UI kits and design systems
-- animation libraries
-- plant, weather, analytics, or notification SDKs
-- speculative future screens
+- multiple gardens
+- plant metadata and species libraries
+- reminders, weather, maps, dashboards, collaboration, and onboarding
+- Cloud Functions or server code
 
 ## Repo navigation
 
 `src/app`
 
 - composition root
-- router and route guards
-- provider assembly
+- router
+- route guards
 
-`src/domain`
+`src/features/auth`
 
-- app-facing types and interfaces
-- Firestore draft model types
+- sign-in
+- auth completion
+- access denied
+- auth context
 
-`src/features`
+`src/features/garden`
 
-- user-facing feature slices
-- auth and garden flows
+- garden editor screen
+- plot settings and add-plant modals
+- local garden state hook
+- coordinate math
 
 `src/infrastructure`
 
-- mock adapters
-- Firebase adapters
+- Firebase and mock adapters
 - runtime service selection
 
 `src/shared`
 
-- low-level UI shell pieces
-- env parsing
-- route helpers
-- storage helpers
-- global style tokens
+- config parsing
+- allowlist helpers
+- reusable shell UI
+- global styles
 
-`src/test`
+`src/domain/gardens`
 
-- common render helpers
-- test service factories
+- canonical garden model and persistence interface
 
-## Coding conventions
+## Dependency admission checklist
 
-- prefer named exports
-- prefer functions over classes unless a boundary is meaningfully stateful
-- keep CSS local with CSS Modules unless it is a true global token/reset/utility
-- keep route definitions centralized in `src/app/router.tsx`
-- keep browser storage access behind small helper functions
-- if a component needs a large explanation, split it instead
+Do not add a dependency until all answers are yes:
 
-## Future milestone expectations
-
-Likely future work:
-
-- plot and planting CRUD
-- schedule derivation
-- weather ingestion
-- collaboration management
-
-That future work should extend the existing seams, not replace them:
-
-- expand `GardenRepository` rather than bypassing it
-- add domain types before UI
-- keep mock implementations working alongside live ones
-- update rules and emulator docs at the same time as data-model changes
-
-## How not to bloat this codebase
-
-- avoid utility dumping grounds
-- avoid helper layers with only one caller unless they are real architecture seams
-- avoid premature abstractions around form state or data fetching
-- do not add "temporary" demo UI that future agents will have to delete
-- keep docs synchronized with runtime behavior instead of adding more runtime indirection
+1. Is the platform or current stack insufficient?
+2. Is it needed for the current MVP?
+3. Does it reduce total code and cognitive load?
+4. Does it avoid forcing a larger architecture pattern?
+5. Will the reason be documented here or in the architecture docs?
 
 ## Future-agent checklist
 
-Before adding a feature:
-
 1. Re-read `AGENTS.md`, `codex.md`, and `docs/architecture.md`.
-2. Confirm the feature is in scope for the active milestone.
-3. Decide whether the change belongs in `domain`, `features`, or `infrastructure`.
-4. Keep mock mode working.
-5. Update docs if the runtime contract, scripts, or Firebase setup changed.
-6. Re-run `npm run lint`, `npm run typecheck`, `npm run test:unit`, `npm run test:e2e`, and `npm run build`.
+2. Keep mock mode working.
+3. Keep `AuthService` explicit and avoid bypassing it from UI code.
+4. Keep `GardenRepository` as the only garden persistence boundary.
+5. Store plot and plant data in feet, not pixels.
+6. Update docs when runtime, scripts, persistence, or deployment requirements change.
+7. Re-run `npm run lint`, `npm run typecheck`, `npm run test:unit`, `npm run test:e2e`, `npm run build`, and `npm run ci`.

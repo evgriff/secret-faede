@@ -1,7 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { RouteLineIllustration } from '../../../assets/illustrations/GardenIllustrations';
+import {
+  isEmailFormatValid,
+  normalizeEmail,
+} from '../../../shared/auth/allowlist';
 import { routePaths } from '../../../shared/lib/routes';
 import { useAuth } from '../auth-context';
 import styles from './AuthCompletePage.module.css';
@@ -53,12 +56,20 @@ export function AuthCompletePage() {
 
   async function handleConfirmEmail(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!isEmailFormatValid(normalizedEmail)) {
+      setError('Enter the email address that received the sign-in link.');
+      setStatus('needs-email');
+      return;
+    }
+
     setStatus('submitting');
     setError(null);
 
     try {
       await completeEmailLinkSignIn({
-        email,
+        email: normalizedEmail,
         url: window.location.href,
       });
       await navigate(routePaths.root, { replace: true });
@@ -75,21 +86,12 @@ export function AuthCompletePage() {
   return (
     <section className="pageShell" data-route-shell="true">
       <div className="pageCard stack">
-        <p className="pageLead">Completing sign-in</p>
-        <h1 className="pageTitle">Finish the email-link flow.</h1>
-        <div className={styles.hero}>
-          <RouteLineIllustration
-            accentColor="var(--color-plant-sky)"
-            animated={status !== 'error'}
-            className={styles.heroArt}
-            title="Route line illustration"
-          />
-        </div>
+        <h1 className="pageTitle">Completing sign-in</h1>
         {status === 'checking' || status === 'submitting' ? (
           <p className="pageLead">
             {status === 'checking'
-              ? 'Checking the sign-in link…'
-              : 'Signing you in and restoring the session…'}
+              ? 'Checking the sign-in link...'
+              : 'Signing you in...'}
           </p>
         ) : null}
         {status === 'needs-email' ? (
@@ -98,8 +100,7 @@ export function AuthCompletePage() {
             onSubmit={(event) => void handleConfirmEmail(event)}
           >
             <p className="pageLead">
-              This looks like a different-device flow. Re-enter the email
-              address that received the link to continue.
+              Re-enter the email address that received the link.
             </p>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="completion-email">
@@ -114,7 +115,7 @@ export function AuthCompletePage() {
                 value={email}
               />
             </div>
-            <button className={`inkButton ${styles.button}`} type="submit">
+            <button className={styles.button} type="submit">
               Complete sign-in
             </button>
           </form>

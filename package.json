@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:firebase:emulators": "env VITE_APP_RUNTIME=firebase VITE_USE_FIREBASE_EMULATORS=true VITE_ENABLE_PWA=false vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -20,7 +21,7 @@
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "ci": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build",
+    "ci": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build && npm run test:e2e",
     "setup:firebase:live": "node scripts/setup-live-firebase.mjs",
     "emulators": "firebase emulators:start --project demo-secret-faede",
     "prepare": "husky"

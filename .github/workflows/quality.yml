@@ -16,6 +16,10 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    env:
+      VITE_ALLOWED_EMAILS: primary.gardener@example.com,partner.gardener@example.com
+      VITE_APP_RUNTIME: mock
+      VITE_ENABLE_PWA: false
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -28,6 +32,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
 
       - name: Run quality gate
         run: npm run ci

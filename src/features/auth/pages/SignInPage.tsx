@@ -1,20 +1,17 @@
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 
-import { SeedPinLogo } from '../../../assets/brand/BrandMarks';
+import { useServices } from '../../../app/providers';
 import {
-  BotanicalDivider,
-  FoldedMapIllustration,
-} from '../../../assets/illustrations/GardenIllustrations';
+  isEmailFormatValid,
+  normalizeEmail,
+} from '../../../shared/auth/allowlist';
 import { routePaths } from '../../../shared/lib/routes';
 import { useAuth } from '../auth-context';
 import styles from './SignInPage.module.css';
 
-function isEmail(value: string): boolean {
-  return /\S+@\S+\.\S+/.test(value);
-}
-
 export function SignInPage() {
+  const { environment } = useServices();
   const { requestEmailSignIn, state } = useAuth();
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -30,9 +27,14 @@ export function SignInPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(email);
 
-    if (!isEmail(normalizedEmail)) {
+    if (environment.allowlistError) {
+      setError(environment.allowlistError);
+      return;
+    }
+
+    if (!isEmailFormatValid(normalizedEmail)) {
       setError('Enter a valid email address to receive the sign-in link.');
       return;
     }
@@ -56,44 +58,34 @@ export function SignInPage() {
 
   return (
     <section className="pageShell" data-route-shell="true">
-      <div className="pageCard stack">
-        <p className="pageLead">Milestone 1 foundation</p>
+      <div className={`pageCard ${styles.card}`}>
         <h1 className="pageTitle">Sign in with an email link.</h1>
-        <p className="pageLead">
-          The app defaults to mock mode so local work and CI stay independent
-          from live Firebase resources.
-        </p>
-        <div className={styles.hero}>
-          <div className={styles.heroRow}>
-            <SeedPinLogo
-              accentColor="var(--color-plant-green)"
-              animated
-              className={styles.heroMark}
-              size={64}
-              title="Seed pin logo"
-            />
-            <span className={styles.heroTag}>
-              Quiet utility, mock-first workflow
-            </span>
-          </div>
-          <BotanicalDivider className={styles.divider} size="100%" />
-        </div>
+
+        {environment.allowlistError ? (
+          <p className={styles.error} role="alert">
+            {environment.allowlistError}
+          </p>
+        ) : null}
+
+        {environment.fallbackReason ? (
+          <p className={styles.notice} role="status">
+            {environment.fallbackReason}
+          </p>
+        ) : null}
+
         {sentState ? (
-          <div className="stack">
-            <p className="pageLead">
-              Check your email for a sign-in link. On the same device, the
-              stored email can finish the flow automatically.
-            </p>
+          <div className={styles.sentState}>
+            <p className="pageLead">Check your email for the sign-in link.</p>
             {sentState.delivery === 'mock-link' && sentState.completionPath ? (
               <Link
-                className={`inkButton ${styles.button}`}
+                className={styles.secondaryButton}
                 to={sentState.completionPath}
               >
                 Use mock sign-in link
               </Link>
             ) : null}
             <button
-              className={`paperButton ${styles.secondaryButton}`}
+              className={styles.secondaryButton}
               onClick={() => setSentState(null)}
               type="button"
             >
@@ -105,13 +97,10 @@ export function SignInPage() {
             className={styles.form}
             onSubmit={(event) => void handleSubmit(event)}
           >
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="email">
-                Email
-              </label>
+            <label className={styles.field}>
+              <span>Email</span>
               <input
                 autoComplete="email"
-                className={styles.input}
                 id="email"
                 inputMode="email"
                 name="email"
@@ -120,46 +109,27 @@ export function SignInPage() {
                 type="email"
                 value={email}
               />
-              <p className={styles.hint}>
-                No passwords and no email in query params. Same-device
-                completion uses local storage only.
-              </p>
-            </div>
+            </label>
+
             {error ? (
               <p className={styles.error} role="alert">
                 {error}
               </p>
             ) : null}
-            <div className={styles.actions}>
-              <button
-                className={`inkButton ${styles.button}`}
-                disabled={isSubmitting}
-                type="submit"
-              >
-                {isSubmitting ? 'Sending link…' : 'Send sign-in link'}
-              </button>
-            </div>
+
+            <button
+              className={styles.primaryButton}
+              disabled={Boolean(environment.allowlistError) || isSubmitting}
+              type="submit"
+            >
+              {isSubmitting ? 'Sending link...' : 'Send sign-in link'}
+            </button>
           </form>
         )}
-      </div>
 
-      <div className={`pageCard ${styles.supportCard}`}>
-        <div className="stack">
-          <h2>What this milestone includes</h2>
-          <ul className={styles.helperList}>
-            <li>Mock-first auth and garden data providers</li>
-            <li>
-              Firebase Auth and Firestore seams behind explicit interfaces
-            </li>
-            <li>Local selection persistence and guarded routing</li>
-          </ul>
-        </div>
-        <FoldedMapIllustration
-          accentColor="var(--color-plant-marigold)"
-          animated
-          className={styles.supportArt}
-          title="Folded map illustration"
-        />
+        <p className={styles.runtime}>
+          {environment.runtimeMode === 'mock' ? 'Mock mode' : 'Firebase mode'}
+        </p>
       </div>
     </section>
   );

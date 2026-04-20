@@ -1,119 +1,86 @@
 # Secret Faede
 
-Secret Faede is a personal-use garden plot tracker PWA scaffold. Milestone 1 is intentionally narrow: it delivers the foundation for future planting, layout, care, and collaboration work without shipping those features early.
+Secret Faede is a small garden plot planner PWA. It uses email-link auth, then routes the signed-in user into one saved real-world garden editor.
 
-## Milestone 1 scope
+## MVP
 
 Included:
 
-- installable React + TypeScript + Vite PWA shell
-- guarded routing for `/`, `/sign-in`, `/auth/complete`, `/gardens`, `/gardens/:gardenId`, and `*`
-- email-link auth behind an `AuthService` boundary
-- deterministic mock auth and mock garden data for local work and CI
-- Firebase client skeleton for Auth, Firestore, Hosting, and emulators
-- Firestore schema draft, security rules scaffold, and hosting config
+- React + TypeScript + Vite PWA shell
+- routes for `/`, `/sign-in`, `/auth/complete`, `/access-denied`, `/app`, and `*`
+- Firebase email-link auth behind `AuthService`
+- mock runtime and Firebase runtime from one env parser
+- application-level allowlist for exactly two configured email addresses
+- one persisted garden per authenticated user
+- plot width/depth in feet with a 1 square foot visual grid
+- plant center positions stored as `xFt` and `yFt`
+- Firebase Hosting and Local Emulator Suite scaffolding
 - ESLint, Prettier, Vitest, React Testing Library, Playwright, Husky, lint-staged, and GitHub Actions
 
 Intentionally excluded:
 
-- plot editing UI
-- planting CRUD
-- reminders or notifications
-- weather integration
-- analytics, telemetry, or AI features
-- any custom backend code
+- multiple gardens
+- plant species libraries
+- dashboards, reminders, weather, maps, collaboration, onboarding, and AI features
+- Cloud Functions or server code
 
-## Stack
-
-- Node.js 22 + npm
-- React 19 + TypeScript 5 + Vite 7
-- React Router 7
-- CSS Modules + CSS custom properties
-- Firebase modular SDK
-- `vite-plugin-pwa`
-- ESLint flat config + Prettier
-- Vitest + React Testing Library + Playwright
-
-## Local setup
+## Quick start
 
 1. Use Node 22.
-2. Install dependencies with `npm ci`.
-3. Copy `.env.example` to `.env.local` if you want to change runtime settings.
-4. Run `npm run setup:firebase:live` once if you want a repeatable live Firebase dev baseline.
-5. Start the app with `npm run dev`.
+2. Run `npm ci`.
+3. Start the default mock workflow with `npm run dev`.
 
-The default `.env.example` keeps the app in `mock` mode. That is the intended local and CI baseline.
+Optional local config:
+
+- copy `.env.local.example` to `.env.local` for Firebase or emulator work
+- keep `.env.example` committed and generic
 
 ## Runtime modes
 
-`mock` mode:
+`mock`
 
-- default for local work and CI
-- no Firebase credentials required
-- mock sign-in link is rendered directly in the UI
-- deterministic mock gardens back the selection screen
+- default local and CI baseline
+- no Firebase config required
+- sign-in uses the mock completion link rendered in the UI
+- garden persistence uses localStorage by user id
 
-`firebase` mode:
+`firebase`
 
 - set `VITE_APP_RUNTIME=firebase`
-- the committed `.env.example` already contains the current `secret-faeries` web app values
-- copy `.env.example` to `.env.local` if you want to override those values locally
-- `npm run setup:firebase:live` will normalize the project auth config, including `localhost` and `127.0.0.1`, and seed one canonical dev garden for the current Firebase CLI account
-- optionally set `VITE_USE_FIREBASE_EMULATORS=true`
-- if Firebase mode is requested without complete config, the app falls back to mock mode with a visible notice
+- provide all `VITE_FIREBASE_*` values
+- keep `VITE_ALLOWED_EMAILS` set to exactly two distinct email addresses
+- garden persistence uses Firestore path `gardens/{uid}`
 
-## Emulator usage
+`firebase + emulators`
 
-Start the Firebase Local Emulator Suite:
+- run `npm run emulators`
+- run `npm run dev:firebase:emulators`
 
-```bash
-npm run emulators
-```
-
-To point the app at emulators, set these in `.env.local`:
-
-```bash
-VITE_APP_RUNTIME=firebase
-VITE_USE_FIREBASE_EMULATORS=true
-```
-
-The current milestone keeps garden reads mocked by default. The Firebase repository implementation is present and ready for seeded emulator data or live documents, but local development does not depend on that seed data existing.
-
-The Firebase `measurementId` for the web app is intentionally not wired into the client because analytics is out of scope for Milestone 1.
+If Firebase mode is requested without complete web config, the app falls back to mock mode and shows a visible notice.
 
 ## Scripts
 
-- `npm run dev`: start the Vite dev server
-- `npm run build`: typecheck with project references and build the production bundle
-- `npm run preview`: preview the production build locally
-- `npm run typecheck`: run TypeScript without emitting
-- `npm run lint`: run ESLint
-- `npm run lint:fix`: run ESLint with fixes
-- `npm run format`: format the repo with Prettier
-- `npm run format:check`: verify formatting
-- `npm run test`: run Vitest in watch mode
-- `npm run test:unit`: run unit and component tests once
-- `npm run test:coverage`: run unit tests with coverage
-- `npm run test:e2e`: run the Playwright smoke flow
-- `npm run ci`: local equivalent of the quality workflow
-- `npm run setup:firebase:live`: configure email-link auth for the project and seed the default live dev garden
-- `npm run emulators`: start Firebase Auth, Firestore, Hosting, and Emulator UI
+- `npm run dev`: default mock-first dev server
+- `npm run dev:firebase:emulators`: dev server pointed at Firebase emulators
+- `npm run emulators`: start Auth, Firestore, Hosting, and Emulator UI
+- `npm run setup:firebase:live`: enable email-link auth and authorized domains for a live Firebase project
+- `npm run lint`
+- `npm run typecheck`
+- `npm run test:unit`
+- `npm run test:e2e`
+- `npm run build`
+- `npm run ci`
 
-## Deployment overview
+## Firebase and deployment
 
-Quality checks run on pushes to `main` and on pull requests.
+The allowlist is an application-level gate. It prevents unauthorized users from entering the garden editor after sign-in, but it is not a hard pre-auth block on account creation.
 
-Preview deploys:
+Firestore rules allow authenticated users to read and write only their own garden document at `gardens/{uid}`.
 
-- run on pull requests
-- deploy the built SPA to a Firebase Hosting preview channel
-- require repository secrets for the Firebase service account and project ID
-- can hit real Firebase backend resources if the preview project points at live services
+See:
 
-Production deploys:
-
-- run on pushes to `main`
-- deploy to the Firebase Hosting live channel
-- use the same secret set as preview deploys
-
-See [docs/firebase.md](docs/firebase.md), [docs/testing-ci.md](docs/testing-ci.md), and [docs/architecture.md](docs/architecture.md) for the operational details.
+- [docs/architecture.md](docs/architecture.md)
+- [docs/firebase.md](docs/firebase.md)
+- [docs/testing-ci.md](docs/testing-ci.md)
+- [docs/deployment.md](docs/deployment.md)
+- [docs/repo-audit.md](docs/repo-audit.md)

@@ -15,6 +15,7 @@ export default defineConfig({
     command: 'npm run dev -- --host 127.0.0.1 --port 4173',
     env: {
       VITE_APP_RUNTIME: 'mock',
+      VITE_ALLOWED_EMAILS: 'primary.gardener@example.com,partner.gardener@example.com',
       VITE_ENABLE_PWA: 'false',
     },
     port: 4173,

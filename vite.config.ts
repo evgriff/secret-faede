@@ -22,8 +22,7 @@ export default defineConfig(({ mode }) => {
               manifest: {
                 name: 'Secret Faede',
                 short_name: 'Faede',
-                description:
-                  'Garden plot tracking foundation for future milestones.',
+                description: 'A small saved garden plot planner.',
                 theme_color: '#edf3e7',
                 background_color: '#edf3e7',
                 display: 'standalone',
@@ -66,6 +65,7 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: './src/test/setup.ts',
       css: true,
+      testTimeout: 10_000,
       exclude: ['e2e/**', 'node_modules/**'],
       coverage: {
         provider: 'v8',

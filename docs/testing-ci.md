@@ -2,70 +2,78 @@
 
 ## Test strategy
 
-This milestone uses three layers:
+Keep the test surface small and high-signal:
 
-- unit and component tests with Vitest and React Testing Library
-- one repository/service test for the mock auth seam
-- one Playwright smoke flow covering sign-in, garden selection, and the garden shell
+- config parsing unit tests
+- auth and route behavior component tests
+- Playwright smoke paths for auth and the garden editor
 
-The goal is useful regression coverage for the scaffold, not artificial coverage targets.
+Focus areas:
 
-## Script reference
+- allowlist parsing and normalization
+- root redirects
+- sign-in form behavior
+- different-device auth completion
+- access-denied behavior
+- authenticated garden editor rendering
+- garden coordinate math
+- plot resize and plant clamping
+- mock garden persistence
 
-| Script                  | Purpose                                 |
-| ----------------------- | --------------------------------------- |
-| `npm run lint`          | ESLint across source, tests, and config |
-| `npm run typecheck`     | TypeScript verification without emit    |
-| `npm run test:unit`     | unit and component tests                |
-| `npm run test:coverage` | unit tests with coverage output         |
-| `npm run test:e2e`      | Playwright smoke path                   |
-| `npm run build`         | production bundle build                 |
-| `npm run ci`            | local quality-gate equivalent           |
+## Local commands
 
-## CI workflows
+- `npm run lint`
+- `npm run typecheck`
+- `npm run test:unit`
+- `npm run test:e2e`
+- `npm run build`
+- `npm run ci`
+
+`npm run ci` runs format check, lint, typecheck, unit tests, build, and Playwright smoke coverage.
+
+## GitHub Actions
 
 `quality.yml`
 
-- runs on pushes to `main` and on pull requests
-- installs dependencies with `npm ci`
-- runs formatting check, lint, typecheck, unit/component tests, and build
+- runs on pull requests and pushes to `main`
+- injects mock-safe env values
+- installs Playwright Chromium
+- runs `npm run ci`
 
 `hosting-preview.yml`
 
 - runs on pull requests
-- deploys the built app to a Firebase Hosting preview channel
-- skips cleanly if Firebase secrets are not present
+- builds with mock runtime by default
+- disables PWA registration for safer preview behavior
+- deploys to Firebase Hosting preview channels when deploy secrets are present
 
 `hosting-live.yml`
 
 - runs on pushes to `main`
-- deploys the built app to the live Firebase Hosting channel
-- skips cleanly if Firebase secrets are not present
+- builds with Firebase runtime only
+- requires explicit `VITE_*` repository variables
+- validates required build env before deploying live Hosting
 
-## What blocks merges
+## CI configuration needed
 
-The intended merge gate is the quality workflow:
-
-- formatting must pass
-- lint must pass
-- typecheck must pass
-- unit/component tests must pass
-- build must pass
-
-Preview deploys are useful operational feedback but should not be the only quality signal.
-
-## Preview deployment requirements
+GitHub secrets:
 
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_SERVICE_ACCOUNT`
-- a Firebase project configured for Hosting
 
-If preview deploys should avoid real backend resources, set them up against a non-production Firebase project.
+GitHub repository variables for live builds:
+
+- `VITE_ALLOWED_EMAILS`
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
 
 ## Intentionally deferred
 
-- emulator seed automation
-- Firestore rules unit tests
-- browser matrix beyond one Playwright smoke project
-- coverage thresholds
+- Firestore rules tests
+- emulator seed data
 - live Firebase integration tests in CI
+- browser matrix expansion beyond the current smoke coverage

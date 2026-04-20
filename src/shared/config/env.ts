@@ -1,3 +1,5 @@
+import { parseAllowedEmails } from '../auth/allowlist';
+
 export type RuntimeMode = 'firebase' | 'mock';
 
 export interface FirebaseRuntimeConfig {
@@ -10,6 +12,8 @@ export interface FirebaseRuntimeConfig {
 }
 
 export interface AppEnvironment {
+  allowedEmails: string[];
+  allowlistError: string | null;
   authEmulatorPort: number;
   emulatorHost: string;
   fallbackReason: string | null;
@@ -21,30 +25,57 @@ export interface AppEnvironment {
   useFirebaseEmulators: boolean;
 }
 
+export interface AppEnvSource {
+  VITE_ALLOWED_EMAILS?: string;
+  VITE_APP_RUNTIME?: string;
+  VITE_ENABLE_PWA?: string;
+  VITE_FIREBASE_API_KEY?: string;
+  VITE_FIREBASE_APP_ID?: string;
+  VITE_FIREBASE_AUTH_DOMAIN?: string;
+  VITE_FIREBASE_AUTH_EMULATOR_PORT?: string;
+  VITE_FIREBASE_EMULATOR_HOST?: string;
+  VITE_FIREBASE_FIRESTORE_EMULATOR_PORT?: string;
+  VITE_FIREBASE_MESSAGING_SENDER_ID?: string;
+  VITE_FIREBASE_PROJECT_ID?: string;
+  VITE_FIREBASE_STORAGE_BUCKET?: string;
+  VITE_USE_FIREBASE_EMULATORS?: string;
+}
+
 function hasText(value: string | undefined): value is string {
   return Boolean(value && value.trim());
 }
 
-export function resolveAppEnvironment(): AppEnvironment {
+function parsePort(value: string | undefined, fallback: number): number {
+  const parsedValue = Number(value ?? fallback);
+
+  return Number.isFinite(parsedValue) && parsedValue > 0
+    ? parsedValue
+    : fallback;
+}
+
+export function resolveAppEnvironmentFromEnv(
+  env: AppEnvSource,
+): AppEnvironment {
   const requestedMode =
-    import.meta.env.VITE_APP_RUNTIME === 'firebase' ? 'firebase' : 'mock';
+    env.VITE_APP_RUNTIME === 'firebase' ? 'firebase' : 'mock';
+  const { allowedEmails, error } = parseAllowedEmails(env.VITE_ALLOWED_EMAILS);
   const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    apiKey: env.VITE_FIREBASE_API_KEY,
+    appId: env.VITE_FIREBASE_APP_ID,
+    authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
+    messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    projectId: env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET,
   };
   const firebaseConfigured = Object.values(firebaseConfig).every(hasText);
   const runtimeMode =
     requestedMode === 'firebase' && firebaseConfigured ? 'firebase' : 'mock';
 
   return {
-    authEmulatorPort: Number(
-      import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_PORT ?? 9099,
-    ),
-    emulatorHost: import.meta.env.VITE_FIREBASE_EMULATOR_HOST ?? '127.0.0.1',
+    allowedEmails,
+    allowlistError: error,
+    authEmulatorPort: parsePort(env.VITE_FIREBASE_AUTH_EMULATOR_PORT, 9099),
+    emulatorHost: env.VITE_FIREBASE_EMULATOR_HOST ?? '127.0.0.1',
     fallbackReason:
       requestedMode === 'firebase' && !firebaseConfigured
         ? 'Firebase mode was requested but one or more VITE_FIREBASE_* values are missing. The app is using mock services instead.'
@@ -59,13 +90,17 @@ export function resolveAppEnvironment(): AppEnvironment {
           storageBucket: firebaseConfig.storageBucket ?? '',
         }
       : null,
-    firestoreEmulatorPort: Number(
-      import.meta.env.VITE_FIREBASE_FIRESTORE_EMULATOR_PORT ?? 8080,
+    firestoreEmulatorPort: parsePort(
+      env.VITE_FIREBASE_FIRESTORE_EMULATOR_PORT,
+      8080,
     ),
-    pwaEnabled: import.meta.env.VITE_ENABLE_PWA !== 'false',
+    pwaEnabled: env.VITE_ENABLE_PWA !== 'false',
     requestedMode,
     runtimeMode,
-    useFirebaseEmulators:
-      import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true',
+    useFirebaseEmulators: env.VITE_USE_FIREBASE_EMULATORS === 'true',
   };
+}
+
+export function resolveAppEnvironment(): AppEnvironment {
+  return resolveAppEnvironmentFromEnv(import.meta.env);
 }

@@ -1,55 +1,22 @@
-import type { GardenRepository } from '../../../domain/gardens/GardenRepository';
 import type {
-  GardenPlot,
-  GardenSummary,
-  SaveGardenPlotInput,
-} from '../../../domain/gardens/types';
-import { mockGardens } from './mockGardens';
-import { mockPlotsByGardenId } from './mockPlots';
+  Garden,
+  GardenRepository,
+} from '../../../domain/gardens/GardenRepository';
+import {
+  readJsonStorageValue,
+  writeJsonStorageValue,
+} from '../../../shared/lib/storage';
 
 export class MockGardenRepository implements GardenRepository {
-  async getById(gardenId: string): Promise<GardenSummary | null> {
-    return mockGardens.find((garden) => garden.id === gardenId) ?? null;
+  async getGarden(userId: string): Promise<Garden | null> {
+    return readJsonStorageValue<Garden>(getGardenStorageKey(userId));
   }
 
-  async listPlots(gardenId: string): Promise<GardenPlot[]> {
-    return [...(mockPlotsByGardenId[gardenId] ?? [])];
+  async saveGarden(garden: Garden): Promise<void> {
+    writeJsonStorageValue(getGardenStorageKey(garden.userId), garden);
   }
+}
 
-  async listForUser(): Promise<GardenSummary[]> {
-    return [...mockGardens];
-  }
-
-  async savePlot(
-    gardenId: string,
-    plot: SaveGardenPlotInput,
-  ): Promise<GardenPlot> {
-    const existingPlots = mockPlotsByGardenId[gardenId] ?? [];
-    const nextPlot: GardenPlot = { ...plot };
-    const existingIndex = existingPlots.findIndex(
-      (candidate) => candidate.id === plot.id,
-    );
-
-    if (existingIndex >= 0) {
-      existingPlots.splice(existingIndex, 1, nextPlot);
-    } else {
-      existingPlots.push(nextPlot);
-    }
-
-    mockPlotsByGardenId[gardenId] = existingPlots;
-
-    return nextPlot;
-  }
-
-  async deletePlot(gardenId: string, plotId: string): Promise<void> {
-    const existingPlots = mockPlotsByGardenId[gardenId];
-
-    if (!existingPlots) {
-      return;
-    }
-
-    mockPlotsByGardenId[gardenId] = existingPlots.filter(
-      (plot) => plot.id !== plotId,
-    );
-  }
+function getGardenStorageKey(userId: string) {
+  return `secret-faede.garden.v1:${encodeURIComponent(userId)}`;
 }

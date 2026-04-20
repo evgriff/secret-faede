@@ -9,14 +9,30 @@ Read these first:
 
 Repo intent:
 
-- keep Milestone 1 as a small, mock-first PWA foundation for a garden plot tracker
-- optimize for future feature work without adding speculative UI or infrastructure now
+- keep Secret Faede as a small, functionality-first garden plot planner
+- preserve email-link auth and one saved garden per user
+- avoid product scope beyond a real plot editor
+
+Current MVP scope:
+
+- sign-in
+- auth routing
+- access-denied handling
+- authenticated garden editor
+- one Firestore garden document per user
+- plot dimensions in feet
+- plant center positions in plot coordinates
+- tests
+- CI
+- docs
 
 Guardrails:
 
-- do not add features outside sign-in, routing, garden selection, shell layout, Firebase scaffolding, tests, CI, and docs
-- do not add dependencies unless they clearly reduce code and are needed in the current milestone
-- keep repository interfaces and adapter seams explicit: `AuthService` and `GardenRepository`
+- do not add dashboards, charts, weather, reminders, maps, collaboration, lore, AI, or onboarding flows
+- do not add dependencies unless they clearly reduce code for the current MVP
+- keep seams explicit: `AuthService` owns auth and `GardenRepository` owns garden persistence
+- use `xFt` from the left edge and `yFt` from the top edge as canonical plant coordinates
+- store garden positions in feet, never raw pixels
 - prefer small files, named exports, plain TypeScript, and readable route guards
 
 Before finishing:
@@ -26,14 +42,11 @@ Before finishing:
 - `npm run test:unit`
 - `npm run test:e2e`
 - `npm run build`
-
-Do not:
-
-- add fake dashboards, fake charts, fake reminders, or fake weather
-- introduce state libraries, server code, analytics, AI integrations, or ornamental abstractions
+- `npm run ci`
 
 Primary docs:
 
 - `docs/architecture.md`
 - `docs/firebase.md`
 - `docs/testing-ci.md`
+- `docs/deployment.md`

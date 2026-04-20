@@ -1,0 +1,478 @@
+.screen {
+  display: grid;
+  gap: 1rem;
+}
+
+.toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(54, 48, 40, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 253, 247, 0.72);
+  box-shadow: 0 12px 30px rgba(31, 27, 24, 0.06);
+}
+
+.titleGroup {
+  min-width: 0;
+}
+
+.titleGroup h1,
+.modalHeader h2 {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: 1.55rem;
+  line-height: 1.1;
+}
+
+.titleGroup p,
+.statusRow p {
+  margin: 0;
+}
+
+.titleGroup p {
+  margin-top: 0.2rem;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.dimensionBadge,
+.primaryButton,
+.secondaryButton,
+.addButton,
+.iconButton {
+  min-height: 2.5rem;
+  border: 1px solid rgba(54, 48, 40, 0.22);
+  border-radius: 10px;
+  background: #fffdf7;
+  color: var(--color-text-strong);
+  font: inherit;
+}
+
+.dimensionBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.8rem;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.primaryButton,
+.secondaryButton,
+.addButton,
+.iconButton {
+  cursor: pointer;
+}
+
+.primaryButton,
+.secondaryButton {
+  padding: 0 0.9rem;
+}
+
+.primaryButton {
+  border-color: var(--color-text-strong);
+  background: var(--color-text-strong);
+  color: var(--color-background);
+}
+
+.primaryButton:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.addButton,
+.iconButton {
+  align-items: center;
+  display: inline-flex;
+  font-size: 1.35rem;
+  font-weight: 700;
+  justify-content: center;
+  padding: 0;
+}
+
+.addButton {
+  width: 2.5rem;
+}
+
+.iconButton {
+  width: 2.25rem;
+}
+
+.statusRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 3.5rem;
+  border: 1px solid rgba(54, 48, 40, 0.12);
+  border-radius: 12px;
+  background: #fffdf7;
+  padding: 0.75rem 1rem;
+  color: var(--color-text-muted);
+  box-shadow: 0 10px 24px rgba(31, 27, 24, 0.05);
+}
+
+.statusLabel {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.positionReadout {
+  color: var(--color-text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.saveState {
+  min-width: 8rem;
+  text-align: right;
+}
+
+.unsaved {
+  color: #8a5a00;
+}
+
+.saved {
+  color: #1f6b3a;
+}
+
+.error {
+  color: #a33428;
+}
+
+.viewport {
+  overflow: auto;
+  border: 1px solid rgba(54, 48, 40, 0.18);
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 253, 247, 0.74),
+      rgba(246, 242, 233, 0.88)
+    ),
+    #f6f2e9;
+  max-height: calc(100dvh - 16rem);
+  min-height: 22rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 16px 38px rgba(31, 27, 24, 0.08);
+}
+
+.workbench {
+  display: grid;
+  justify-content: center;
+  align-content: start;
+  min-width: max-content;
+  min-height: 100%;
+  padding: 1.2rem;
+}
+
+.plotShell {
+  --ruler-size: 2.4rem;
+  display: grid;
+  grid-template-columns: var(--ruler-size) var(--plot-width);
+  grid-template-rows: var(--ruler-size) var(--plot-height);
+  width: max-content;
+  border: 1px solid rgba(54, 48, 40, 0.28);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ece4d2;
+  box-shadow:
+    0 16px 28px rgba(31, 27, 24, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.46) inset;
+}
+
+.rulerCorner,
+.topRuler,
+.leftRuler {
+  background: #ded4bd;
+  color: rgba(31, 27, 24, 0.68);
+  font-size: 0.72rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.rulerCorner {
+  display: grid;
+  place-items: center;
+  border-right: 1px solid rgba(54, 48, 40, 0.2);
+  border-bottom: 1px solid rgba(54, 48, 40, 0.2);
+  text-transform: uppercase;
+}
+
+.topRuler,
+.leftRuler {
+  position: relative;
+}
+
+.topRuler {
+  border-bottom: 1px solid rgba(54, 48, 40, 0.2);
+}
+
+.leftRuler {
+  border-right: 1px solid rgba(54, 48, 40, 0.2);
+}
+
+.topTick,
+.leftTick {
+  position: absolute;
+  display: block;
+}
+
+.topTick {
+  bottom: 0.3rem;
+  transform: translateX(-50%);
+}
+
+.startTopTick {
+  transform: translateX(0);
+}
+
+.endTopTick {
+  transform: translateX(-100%);
+}
+
+.topTick::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -0.3rem;
+  width: 1px;
+  height: 0.45rem;
+  background: rgba(54, 48, 40, 0.28);
+}
+
+.leftTick {
+  right: 0.45rem;
+  transform: translateY(-50%);
+}
+
+.startLeftTick {
+  transform: translateY(0);
+}
+
+.endLeftTick {
+  transform: translateY(-100%);
+}
+
+.leftTick::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -0.45rem;
+  width: 0.45rem;
+  height: 1px;
+  background: rgba(54, 48, 40, 0.28);
+}
+
+.plot {
+  position: relative;
+  width: var(--plot-width);
+  height: var(--plot-height);
+  overflow: hidden;
+  background-color: #efe6d5;
+  background-image:
+    linear-gradient(rgba(63, 54, 44, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(63, 54, 44, 0.16) 1px, transparent 1px),
+    repeating-conic-gradient(
+      from 0deg,
+      #eadfca 0deg 90deg,
+      #fbf6eb 90deg 180deg,
+      #eadfca 180deg 270deg,
+      #fbf6eb 270deg 360deg
+    );
+  background-size:
+    var(--cell-size) var(--cell-size),
+    var(--cell-size) var(--cell-size),
+    calc(var(--cell-size) * 2) calc(var(--cell-size) * 2);
+}
+
+.plotMeta {
+  position: absolute;
+  right: 0.55rem;
+  bottom: 0.55rem;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+
+.plotMeta span {
+  border: 1px solid rgba(54, 48, 40, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 253, 247, 0.84);
+  color: rgba(31, 27, 24, 0.68);
+  font-size: 0.72rem;
+  font-weight: 750;
+  padding: 0.25rem 0.45rem;
+}
+
+.plant {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border: 2px solid #24472e;
+  border-radius: 999px;
+  background:
+    radial-gradient(
+      circle at 35% 28%,
+      rgba(255, 255, 255, 0.86),
+      transparent 34%
+    ),
+    #f8fbf1;
+  color: #2f6f43;
+  cursor: grab;
+  padding: 0;
+  touch-action: none;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 8px 16px rgba(31, 27, 24, 0.18);
+}
+
+.plant svg {
+  width: 1.58rem;
+  height: 1.58rem;
+}
+
+.selectedPlant {
+  border-color: #b35a3f;
+  box-shadow:
+    0 0 0 4px rgba(179, 90, 63, 0.22),
+    0 10px 18px rgba(31, 27, 24, 0.2);
+}
+
+.draggingPlant {
+  cursor: grabbing;
+  z-index: 3;
+  transform: translate(-50%, -50%) scale(1.04);
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(31, 27, 24, 0.36);
+}
+
+.modal {
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 22rem);
+  border: 1px solid rgba(54, 48, 40, 0.18);
+  border-radius: 12px;
+  background: #fffdf7;
+  padding: 1rem;
+  box-shadow: 0 18px 40px rgba(31, 27, 24, 0.22);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.modalPlantIcon {
+  width: 3.5rem;
+  height: 3.5rem;
+  color: #2f6f43;
+}
+
+.modalForm {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--color-text-strong);
+}
+
+.field input {
+  width: 100%;
+  border: 1px solid rgba(54, 48, 40, 0.22);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--color-text-strong);
+  font: inherit;
+  padding: 0.7rem 0.75rem;
+}
+
+.primaryButton:focus-visible,
+.secondaryButton:focus-visible,
+.addButton:focus-visible,
+.iconButton:focus-visible,
+.plant:focus-visible,
+.field input:focus-visible {
+  outline: 2px solid var(--color-plant-sky);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .secondaryButton:hover,
+  .addButton:hover,
+  .iconButton:hover {
+    border-color: rgba(54, 48, 40, 0.38);
+    background: #f6f0e5;
+  }
+
+  .plant:hover {
+    box-shadow:
+      0 0 0 3px rgba(47, 111, 67, 0.14),
+      0 10px 18px rgba(31, 27, 24, 0.2);
+  }
+}
+
+@media (max-width: 44rem) {
+  .toolbar {
+    display: grid;
+  }
+
+  .actions {
+    justify-content: start;
+  }
+
+  .dimensionBadge {
+    order: -1;
+  }
+
+  .viewport {
+    max-height: calc(100dvh - 17rem);
+    min-height: 19rem;
+  }
+
+  .workbench {
+    justify-content: start;
+    padding: 0.9rem;
+  }
+
+  .plotShell {
+    --ruler-size: 2.1rem;
+  }
+
+  .plotMeta {
+    display: none;
+  }
+}

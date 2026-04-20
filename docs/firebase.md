@@ -1,135 +1,158 @@
-# Firebase Setup
+# Firebase
 
-## Required Firebase products
+## What this milestone uses
 
 - Firebase Authentication
-- Cloud Firestore
+- Firestore
 - Firebase Hosting
 - Firebase Local Emulator Suite
 
-Cloud Functions are intentionally not part of Milestone 1.
+Not included now:
 
-## Project status
+- Cloud Functions
+- blocking triggers
 
-The repo is already wired with the current Firebase Web app values for the `secret-faeries` project in `.env.example`:
+## Required web-app setup
 
-- `authDomain=your-project-id.firebaseapp.com`
-- `projectId=secret-faeries`
-- `storageBucket=your-project-id.firebasestorage.app`
-- `messagingSenderId=your-sender-id`
-- `appId=your-firebase-app-id`
+1. Create or choose a Firebase project.
+2. Register a web app in that project.
+3. Copy the Firebase web config values into `.env.local` or GitHub repository variables.
+4. Enable Authentication.
+5. Enable `Email/Password`.
+6. Enable `Email link (passwordless sign-in)`.
+7. Add authorized domains for every environment that will complete the sign-in link.
 
-To use the live Firebase adapters locally, copy `.env.example` to `.env.local` and set `VITE_APP_RUNTIME=firebase`.
+Important:
 
-The repo also includes `npm run setup:firebase:live`, which uses the current Firebase CLI login to:
+- email-link auth for web requires `handleCodeInApp: true`
+- the app completes the sign-in flow at `/auth/complete`
+- do not put the user email in URL params
+- in Firebase projects created after April 28, 2025, `localhost` is not added automatically; add it yourself
 
-- ensure email auth is enabled with `passwordRequired=false` so email-link sign-in works
-- ensure `localhost`, `127.0.0.1`, `your-project-id.firebaseapp.com`, and `secret-faeries.web.app` are authorized domains
-- seed one canonical dev user, garden, membership, and starter plot set in Firestore
+## Authorized domains checklist
 
-The tracked Firebase project is also pinned in `.firebaserc`, and the live membership lookup path is backed by:
+Add these as needed:
 
-- the collection-group-aware member read rule in `firestore.rules`
-- the `members.uid` field override in `firestore.indexes.json`
-
-## Email-link auth setup
-
-Enable email-link auth:
-
-1. Open Firebase Console.
-2. Go to Authentication.
-3. Enable Email/Password.
-4. Enable Email link (passwordless sign-in).
-
-Required auth settings:
-
-- use `handleCodeInApp=true`
-- make sure the app URL for completion points at `/auth/complete`
-- do not encode the email address into the redirect URL
-
-## Authorized domains
-
-Add these domains as appropriate:
-
-- your Firebase Hosting domain
+- `localhost`
+- `127.0.0.1`
+- your Firebase Hosting domain: `your-project.firebaseapp.com`
+- your Firebase Hosting site domain: `your-project.web.app`
 - any custom production domain
-- localhost for local development
 
-Important localhost note:
+Preview caution:
 
-- Firebase email-link auth commonly fails in local work because `localhost` is missing from Authorized domains
-- if local email-link auth fails unexpectedly, check Authorized domains first
+- Firebase Hosting preview channels use separate preview URLs
+- those preview deployments still talk to real backend resources if you point them at a live Firebase project
+- this repo keeps preview builds mock-first by default, so preview auth should not be assumed to work unless you intentionally reconfigure it
 
 ## Environment variables
 
-The app reads these values:
+Required runtime variables:
 
 ```bash
+VITE_ALLOWED_EMAILS=primary.gardener@example.com,partner.gardener@example.com
 VITE_APP_RUNTIME=mock|firebase
-VITE_ENABLE_PWA=true
-VITE_USE_FIREBASE_EMULATORS=false|true
-VITE_FIREBASE_API_KEY=your-firebase-web-api-key
-VITE_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=secret-faeries
-VITE_FIREBASE_STORAGE_BUCKET=your-project-id.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
-VITE_FIREBASE_APP_ID=your-firebase-app-id
+VITE_ENABLE_PWA=true|false
+VITE_USE_FIREBASE_EMULATORS=true|false
+```
+
+Firebase web config values for `firebase` runtime:
+
+```bash
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
 VITE_FIREBASE_EMULATOR_HOST=127.0.0.1
 VITE_FIREBASE_AUTH_EMULATOR_PORT=9099
 VITE_FIREBASE_FIRESTORE_EMULATOR_PORT=8080
 ```
 
-The Firebase Web config also includes a `measurementId`, but this app does not read it because Firebase Analytics is intentionally excluded from Milestone 1.
+`VITE_ALLOWED_EMAILS` rules:
 
-## Emulator usage
+- exactly two entries
+- normalized to lowercase and trimmed before comparison
+- duplicates after normalization are invalid
+- invalid allowlist config fails closed with a visible UI error
 
-Start the suite:
+## Runtime switching
 
-```bash
-npm run emulators
+Mock mode:
+
+- `npm run dev`
+- no Firebase config required
+
+Firebase emulator mode:
+
+- copy `.env.local.example` to `.env.local`
+- keep `VITE_APP_RUNTIME=firebase`
+- keep `VITE_USE_FIREBASE_EMULATORS=true`
+- run `npm run emulators`
+- run `npm run dev:firebase:emulators`
+
+Firebase live mode:
+
+- set `VITE_APP_RUNTIME=firebase`
+- set `VITE_USE_FIREBASE_EMULATORS=false`
+- provide all `VITE_FIREBASE_*` values
+- run `npm run dev`
+
+If Firebase mode is requested without complete web config, the app falls back to mock mode and tells the user why.
+
+## Firestore garden document
+
+Firebase mode stores one garden per authenticated user:
+
+```text
+gardens/{uid}
 ```
 
-Point the app at emulators:
+Document shape:
 
-```bash
-VITE_APP_RUNTIME=firebase
-VITE_USE_FIREBASE_EMULATORS=true
+```ts
+{
+  userId: string,
+  updatedAt: serverTimestamp(),
+  plot: {
+    widthFt: number,
+    depthFt: number,
+    gridUnitFt: 1,
+    snapUnitFt: 0.5
+  },
+  plants: [
+    {
+      id: string,
+      type: "plant",
+      xFt: number,
+      yFt: number
+    }
+  ]
+}
 ```
 
-Notes:
+Rules allow only `primary.gardener@example.com` and `partner.gardener@example.com` to read and write their own `gardens/{uid}` document.
 
-- the app itself does not require real Firebase credentials in mock mode
-- emulator-backed mode is available for live Firebase adapter work
-- garden selection UI still defaults to mock data unless Firestore documents exist
+## Live setup helper
 
-## Hosting notes
+`npm run setup:firebase:live`
 
-`firebase.json` is already wired for SPA hosting:
+This script does one thing only:
 
-- `dist/` as the public directory
-- rewrite all routes to `index.html`
-- Auth, Firestore, Hosting, and Emulator UI ports configured
+- enables Email/Password plus Email link sign-in
+- patches authorized domains for the supplied `FIREBASE_PROJECT_ID`
 
-## GitHub Actions secrets
+Optional:
 
-Preview and live deploy workflows expect:
+- set `FIREBASE_AUTH_DOMAINS=example.com,preview.example.com` to append additional domains
 
-- `FIREBASE_PROJECT_ID`
-- `FIREBASE_SERVICE_ACCOUNT`
+## Allowlist limitation
 
-`FIREBASE_SERVICE_ACCOUNT` should be the JSON service-account credential stored as a GitHub secret.
+The two-email allowlist is enough for the MVP, but it is not a hard pre-auth restriction. Unauthorized users can still complete Firebase sign-in and are then immediately signed out by the app.
 
-## Preview and live deployment cautions
+Future hard enforcement option:
 
-- Hosting preview URLs can point at the same Firebase project as production if you configure them that way
-- preview deployments can therefore hit real backend resources
-- if you want safe preview data, use a separate Firebase project or point previews at emulator-backed or non-production config
+- Firebase Auth blocking triggers with Identity Platform
 
-## Owner follow-up
-
-The repo scaffolding is complete. Live Firebase usage now only needs:
-
-1. `npm run setup:firebase:live` run once from a machine authenticated with `firebase login`
-2. `.env.local` updated to `VITE_APP_RUNTIME=firebase` for local live-adapter work
-3. one successful manual Hosting deploy or GitHub deploy-secret setup, depending on whether automated previews matter now
-4. any custom production domain added to Authorized domains if you introduce one later
+That option is intentionally not implemented in this milestone.

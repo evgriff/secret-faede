@@ -9,6 +9,10 @@ describe('NotFoundPage', () => {
 
     renderRoute('/does-not-exist', services);
 
-    expect(await screen.findByText('That route does not exist.')).toBeVisible();
+    expect(
+      await screen.findByRole('heading', {
+        name: 'That route does not exist.',
+      }),
+    ).toBeVisible();
   });
 });

@@ -1,6 +1,5 @@
 import { screen } from '@testing-library/react';
 
-import { buildSelectedGardenStorageKey } from '../features/gardens/storage';
 import { renderRoute } from '../test/render';
 import { createTestServices } from '../test/testServices';
 
@@ -17,39 +16,43 @@ describe('app routing', () => {
     ).toBeVisible();
   });
 
-  it('redirects authenticated users without a selection to garden selection', async () => {
+  it('redirects allowlisted users from the root to the garden editor', async () => {
     const services = await createTestServices({
-      signedInEmail: 'gardener@example.com',
+      signedInEmail: 'primary.gardener@example.com',
+    });
+
+    renderRoute('/', services);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Garden editor' }),
+    ).toBeVisible();
+  });
+
+  it('renders the garden editor at the app route', async () => {
+    const services = await createTestServices({
+      signedInEmail: 'primary.gardener@example.com',
+    });
+
+    renderRoute('/app', services);
+
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Garden editor',
+      }),
+    ).toBeVisible();
+  });
+
+  it('redirects non-allowlisted users from the root to access denied', async () => {
+    const services = await createTestServices({
+      signedInEmail: 'blocked@example.com',
     });
 
     renderRoute('/', services);
 
     expect(
       await screen.findByRole('heading', {
-        name: 'Choose the garden context for this session.',
+        name: 'This email address is not authorized.',
       }),
-    ).toBeVisible();
-  });
-
-  it('redirects authenticated users with a saved garden selection into the garden route', async () => {
-    const services = await createTestServices({
-      signedInEmail: 'gardener@example.com',
-    });
-    const user = services.authService.getCurrentUser();
-
-    if (!user) {
-      throw new Error('Expected an authenticated mock user.');
-    }
-
-    window.localStorage.setItem(
-      buildSelectedGardenStorageKey(user.uid),
-      'north-lot',
-    );
-
-    renderRoute('/', services);
-
-    expect(
-      await screen.findByRole('heading', { name: 'North Lot' }),
     ).toBeVisible();
   });
 });

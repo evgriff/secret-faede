@@ -1,7 +1,6 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
 import { AuthProvider } from '../features/auth/auth-context';
-import { SelectedGardenProvider } from '../features/gardens/garden-context';
 import {
   createRuntimeServices,
   type AppServices,
@@ -23,9 +22,7 @@ export function AppProviders({
 
   return (
     <ServicesContext.Provider value={resolvedServices}>
-      <AuthProvider>
-        <SelectedGardenProvider>{children}</SelectedGardenProvider>
-      </AuthProvider>
+      <AuthProvider>{children}</AuthProvider>
     </ServicesContext.Provider>
   );
 }
