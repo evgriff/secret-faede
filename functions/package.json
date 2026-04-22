@@ -7,8 +7,8 @@
     "node": "22"
   },
   "scripts": {
-    "build": "node --check index.js && node --check notificationLogic.js && node --check notificationCompliance.js && node --check notificationProvider.js && node --check notificationProviderWebhooks.js && node --check gardenOperations.js && node --check operationRunner.js && node --check operationTime.js && node --check taskAutomation.js && node --check wateringLogic.js && node --check weatherProviderUtils.js && node --check nwsWeatherProvider.js && node --check tomorrowWeatherProvider.js && node --check weatherProviders.js",
-    "test": "node test/notificationLogic.test.js && node test/gardenOperations.test.js && node test/notificationProvider.test.js && node test/notificationProviderWebhooks.test.js"
+    "build": "node --check index.js && node --check notificationLogic.js && node --check gardenOperations.js && node --check operationRunner.js && node --check operationTime.js && node --check taskAutomation.js && node --check wateringLogic.js && node --check weatherProviderUtils.js && node --check nwsWeatherProvider.js && node --check tomorrowWeatherProvider.js && node --check weatherProviders.js",
+    "test": "node test/notificationLogic.test.js && node test/gardenOperations.test.js"
   },
   "dependencies": {
     "firebase-admin": "^13.5.0",

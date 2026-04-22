@@ -171,10 +171,9 @@ function CropLibraryResult({
   const fit = getSeasonCropFitSignal({
     crop,
     garden,
-    selection: createSeasonCropSelection(crop, 0),
+    selection: createSeasonCropSelection(crop),
     sunExposureAtPlacement,
   });
-
   return (
     <article className={styles.resultCard}>
       <span
@@ -186,9 +185,7 @@ function CropLibraryResult({
       </span>
       <div className={styles.resultBody}>
         <strong>{crop.commonName}</strong>
-        <span className={styles.resultMeta}>
-          {formatCropFamilyLine(crop)} - {fit.label}
-        </span>
+        <span className={styles.resultMeta}>{formatCropFamilyLine(crop)}</span>
         <span className={styles.resultFit}>{fit.summary}</span>
         <CropResultFacts crop={crop} />
       </div>

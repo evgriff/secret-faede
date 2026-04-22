@@ -10,16 +10,19 @@ import type {
   SunExposure,
   SunShadeArea,
 } from '../../../domain/gardens/GardenRepository';
+import { getPlantingInstances } from '../../../domain/gardens/plantingInstances';
 import { pixelsPerFoot } from '../../garden/gardenMath';
-import {
-  hasWarningForItem,
-  type PlanWarning,
-} from '../../garden/gardenPlanning';
+import type { PlanWarning } from '../../garden/gardenPlanning';
 import type { SunSeason } from '../../garden/sunShadeEngine';
 import type { SelectedGardenItem } from '../../garden/useGarden';
+import type { PlanInfluenceOverlayModel } from '../planInfluenceOverlay';
 import type { ResizeHandle, SnapGuide } from '../planInteractionGeometry';
 import type { PlanMode } from '../planModes';
+import { getPlantingFocusKey } from '../planCropFocus';
+import type { ProposalDiffOverlayModel } from '../proposalDiffOverlay';
+import { PlanInfluenceOverlay } from './PlanInfluenceOverlay';
 import { PlanPlantButton } from './PlanPlantButton';
+import { PlanProposalDiffOverlay } from './PlanProposalDiffOverlay';
 import { footprintStyle } from './planCanvasGeometry';
 import itemStyles from './PlanCanvasItems.module.css';
 import styles from './PlanCanvas.module.css';
@@ -31,7 +34,9 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   activeSunLayer,
   draggingPlantId,
   draggingStructureId,
+  focusedCropKey,
   garden,
+  influenceOverlay,
   manualSunEdit,
   manualSunExposure,
   marqueeRect,
@@ -52,6 +57,7 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   onStructurePointerMove,
   plotRef,
   plotStyle,
+  proposalDiffOverlay,
   resizingStructureId,
   sceneStyle,
   selectedPlantIds,
@@ -64,7 +70,9 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   activeSunLayer: { areas: SunShadeArea[] };
   draggingPlantId: string | null;
   draggingStructureId: string | null;
+  focusedCropKey: string | null;
   garden: Garden;
+  influenceOverlay: PlanInfluenceOverlayModel | null;
   manualSunEdit: boolean;
   manualSunExposure: SunExposure;
   marqueeRect: {
@@ -86,14 +94,17 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   onPlantPointerDown(
     event: PointerEvent<HTMLButtonElement>,
     plantId: string,
+    instanceId?: string,
   ): void;
   onPlantPointerEnd(
     event: PointerEvent<HTMLButtonElement>,
     plantId: string,
+    instanceId?: string,
   ): void;
   onPlantPointerMove(
     event: PointerEvent<HTMLButtonElement>,
     plantId: string,
+    instanceId?: string,
   ): void;
   onResizePointerDown(
     event: PointerEvent<HTMLSpanElement>,
@@ -117,6 +128,7 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   ): void;
   plotRef: RefObject<HTMLDivElement | null>;
   plotStyle: CSSProperties;
+  proposalDiffOverlay: ProposalDiffOverlayModel | null;
   resizingStructureId: string | null;
   sceneStyle: CSSProperties;
   selectedPlantIds: string[];
@@ -195,6 +207,18 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
               />
             ) : null}
 
+            {influenceOverlay ? (
+              <PlanInfluenceOverlay overlay={influenceOverlay} />
+            ) : null}
+
+            {proposalDiffOverlay ? (
+              <PlanProposalDiffOverlay
+                overlay={proposalDiffOverlay}
+                plotDepthFt={garden.plot.depthFt}
+                plotWidthFt={garden.plot.widthFt}
+              />
+            ) : null}
+
             {snapGuides.map((guide) => (
               <div
                 aria-hidden="true"
@@ -240,20 +264,36 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
               />
             ))}
 
-            {garden.plantings.map((plant, index) => (
-              <PlanPlantButton
-                hasWarning={hasWarningForItem(visibleWarnings, plant.id)}
-                index={index}
-                isDragging={plant.id === draggingPlantId}
-                isSelected={selectedPlantIds.includes(plant.id)}
-                key={plant.id}
-                onPlantPointerDown={onPlantPointerDown}
-                onPlantPointerEnd={onPlantPointerEnd}
-                onPlantPointerMove={onPlantPointerMove}
-                onSelectItem={onSelectItem}
-                plant={plant}
-              />
-            ))}
+            {garden.plantings.flatMap((plant, index) =>
+              getPlantingInstances(plant).map((instance) => (
+                <PlanPlantButton
+                  index={index}
+                  instance={instance}
+                  isCropFocused={getPlantingFocusKey(plant) === focusedCropKey}
+                  isFocusDimmed={Boolean(
+                    focusedCropKey &&
+                    getPlantingFocusKey(plant) !== focusedCropKey,
+                  )}
+                  isDragging={isPlantInstanceDragging(
+                    draggingPlantId,
+                    plant.id,
+                    instance.id,
+                  )}
+                  isSelected={selectedPlantIds.includes(
+                    getPlantSelectionKey(plant.id, instance.id),
+                  )}
+                  key={`${plant.id}:${instance.id}`}
+                  onPlantPointerDown={onPlantPointerDown}
+                  onPlantPointerEnd={onPlantPointerEnd}
+                  onPlantPointerMove={onPlantPointerMove}
+                  onSelectItem={onSelectItem}
+                  plant={plant}
+                  warnings={visibleWarnings.filter((warning) =>
+                    warning.itemIds.includes(plant.id),
+                  )}
+                />
+              )),
+            )}
 
             {mode === 'measure' ? (
               <div className={itemStyles.measureOverlay} aria-hidden="true">
@@ -274,4 +314,16 @@ function snapGuideStyle(guide: SnapGuide): CSSProperties {
   }
 
   return { top: `${guide.valueFt * pixelsPerFoot}px` };
+}
+
+function getPlantSelectionKey(plantingId: string, instanceId: string) {
+  return `${plantingId}:${instanceId}`;
+}
+
+function isPlantInstanceDragging(
+  draggingPlantId: string | null,
+  plantingId: string,
+  instanceId: string,
+) {
+  return draggingPlantId === plantingId || draggingPlantId === instanceId;
 }

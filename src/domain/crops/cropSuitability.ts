@@ -55,7 +55,7 @@ export function scoreCropSuitability({
     }
   } else {
     score -= 4;
-    warnings.push('Sun fit is unknown until a placement area is selected.');
+    warnings.push('Sun is unknown until a placement area is selected.');
   }
 
   const frostState = getFrostWindowState(climateProfile, today);
@@ -100,7 +100,7 @@ export function scoreCropSuitability({
     reasons.push('Spacing has enough room for mature spread.');
   }
 
-  if (crop.profileConfidence === 'complete') {
+  if (crop.profileCompleteness === 'complete') {
     score += 5;
     reasons.push(
       'Crop profile has complete spacing, water, sun, and timing data.',

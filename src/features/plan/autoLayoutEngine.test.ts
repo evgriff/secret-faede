@@ -11,7 +11,12 @@ import {
   rectsOverlap,
 } from '../garden/gardenPlanning';
 import { isRectInsidePlot } from '../garden/gardenPlanningGeometry';
-import { scoreSunAreaFit, scoreSunFit } from './autoLayoutScoring';
+import {
+  scoreSunAreaFit,
+  scoreSunFit,
+  scoreSunFootprintFit,
+} from './autoLayoutScoring';
+import { getLegalSupportFootprint } from './autoLayoutConstraints';
 import { generateAutoLayoutCandidates } from './autoLayoutEngine';
 import {
   createLayoutFixture,
@@ -63,7 +68,6 @@ describe('auto layout engine', () => {
 
     for (const candidate of firstRun) {
       expect(candidate.hardConstraintViolations).toEqual([]);
-      expect(candidate.score).toBeGreaterThan(60);
       expect(candidate.plantings.length).toBeGreaterThanOrEqual(3);
       expect(
         candidate.structures.some((structure) => structure.type === 'trellis'),
@@ -156,7 +160,95 @@ describe('auto layout engine', () => {
     expect(tallCropPartSun).toBeLessThan(plainPartSun);
   });
 
-  it('keeps unsupported must-grow trellis crops out of illegal layouts', () => {
+  it('scores sun fit across the whole planting footprint', () => {
+    const tomato = getCropById('tomato');
+
+    if (!tomato) {
+      throw new Error('Expected tomato in crop catalog.');
+    }
+
+    const planting = {
+      ...createDefaultPlanting({
+        id: 'wide-tomato',
+        label: 'Wide tomato',
+        xFt: 1,
+        yFt: 0.5,
+      }),
+      blockDepthFt: 1,
+      blockWidthFt: 2,
+      cropId: tomato.id,
+      mode: 'block' as const,
+    };
+    const layer = {
+      ...createSunLayer(createLayoutFixture()),
+      areas: [
+        {
+          depthFt: 1,
+          exposure: 'partSun' as const,
+          id: 'part-sun',
+          source: 'manual' as const,
+          sunHours: 5,
+          widthFt: 1,
+          xFt: 0,
+          yFt: 0,
+        },
+        {
+          depthFt: 1,
+          exposure: 'fullSun' as const,
+          id: 'full-sun',
+          source: 'manual' as const,
+          sunHours: 7,
+          widthFt: 1,
+          xFt: 1,
+          yFt: 0,
+        },
+      ],
+    };
+
+    expect(scoreSunFootprintFit(tomato, layer, planting)).toBeLessThan(
+      scoreSunFit(tomato, 'fullSun'),
+    );
+  });
+
+  it('does not fake a trellis location when adjacent support space is blocked', () => {
+    const cucumber = getCropById('cucumber');
+
+    if (!cucumber) {
+      throw new Error('Expected cucumber in crop catalog.');
+    }
+
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      plot: {
+        ...createDefaultGarden('user-a').plot,
+        depthFt: 3,
+        widthFt: 4,
+      },
+    };
+    const cropFootprint = {
+      depthFt: 1,
+      id: 'cucumber-row',
+      itemType: 'planting' as const,
+      label: 'Cucumber row',
+      widthFt: 2,
+      xFt: 1,
+      yFt: 0,
+    };
+    const blockedFootprint = {
+      ...cropFootprint,
+      id: 'blocked-row',
+      label: 'Blocked row',
+      yFt: 1,
+    };
+
+    expect(
+      getLegalSupportFootprint(garden, cucumber, cropFootprint, 'trellis', [
+        blockedFootprint,
+      ]),
+    ).toBeNull();
+  });
+
+  it('keeps unsupported trellis crops out of illegal layouts', () => {
     const garden = createLayoutFixture({
       supportAllowed: false,
     });
@@ -164,7 +256,12 @@ describe('auto layout engine', () => {
       sunLayer: createSunLayer(garden),
     });
 
-    expect(candidate?.unplaced.some((entry) => entry.required)).toBe(true);
+    expect(candidate?.unplaced).toContainEqual(
+      expect.objectContaining({
+        cropName: 'Tomato',
+        reason: 'Support was disabled for a crop that needs it.',
+      }),
+    );
     expect(candidate?.hardConstraintViolations).toEqual([]);
   });
 
@@ -240,9 +337,8 @@ describe('auto layout engine', () => {
           makeSeasonSelection({
             cropId: 'basil',
             id: 'season-basil',
-            modePreference: 'single',
-            rank: 0,
-            targetQuantity: 1,
+            plantingForm: 'single',
+            quantity: 1,
           }),
         ],
       },

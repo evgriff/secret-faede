@@ -1,7 +1,7 @@
 import type { CropSuitabilityScore } from '../../domain/crops/cropSuitability';
 import type { CropProfile } from '../../domain/gardens/GardenRepository';
 import {
-  formatConfidence,
+  formatProfileCompleteness,
   formatCropFamilyLine,
   formatCropSpacing,
   formatGlyph,
@@ -84,7 +84,7 @@ export function CropDetailCard({
         <Stat label="Family" value={crop.family} />
         <Stat
           label="Catalog"
-          value={formatConfidence(crop.profileConfidence)}
+          value={formatProfileCompleteness(crop.profileCompleteness)}
         />
       </dl>
       <p className={cropStyles.cropNotes}>{crop.notes}</p>
@@ -129,10 +129,10 @@ export function CropComparePanel({
 
 export function formatSuitabilityLevel(suitability: CropSuitabilityScore) {
   if (suitability.level === 'fit') {
-    return 'Good fit';
+    return 'Ready to place';
   }
 
-  return suitability.level === 'watch' ? 'Check fit' : 'Risky';
+  return suitability.level === 'watch' ? 'Check details' : 'Needs review';
 }
 
 export function CropResultFacts({ crop }: { crop: CropProfile }) {
@@ -152,16 +152,15 @@ function SuitabilityPanel({
 }) {
   const lead =
     suitability.level === 'fit'
-      ? 'Good fit'
+      ? 'Ready to place'
       : suitability.level === 'watch'
-        ? 'Worth checking'
-        : 'Risky fit';
+        ? 'Check details'
+        : 'Needs review';
 
   return (
     <section className={cropStyles.suitabilityPanel}>
       <div>
         <strong>{lead}</strong>
-        <span>{suitability.score}/100 suitability</span>
       </div>
       <ul>
         {[...suitability.reasons, ...suitability.warnings]

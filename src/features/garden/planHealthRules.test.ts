@@ -91,6 +91,24 @@ describe('planHealthRules', () => {
         }),
       ]),
     );
+    expect(report.decisionGroups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: 'pathway',
+          label: 'Pathway',
+          mustFixCount: 1,
+        }),
+        expect.objectContaining({
+          category: 'support',
+          label: 'Support',
+          recommendedCount: 1,
+        }),
+        expect.objectContaining({
+          category: 'care',
+          label: 'Season care',
+        }),
+      ]),
+    );
   });
 
   it('surfaces bed capacity, rotation caution, and seasonal row cover from real layout data', () => {
@@ -195,6 +213,12 @@ describe('planHealthRules', () => {
           unit: 'sq ft',
         }),
       ]),
+    );
+    expect(report.decisionGroups[0]).toEqual(
+      expect.objectContaining({
+        category: 'bedFit',
+        mustFixCount: 1,
+      }),
     );
   });
 

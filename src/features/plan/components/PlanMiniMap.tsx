@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 
 import type { Garden } from '../../../domain/gardens/GardenRepository';
+import { getPlantingInstances } from '../../../domain/gardens/plantingInstances';
 import styles from './PlanCanvasTools.module.css';
 
 export function PlanMiniMap({
@@ -16,15 +17,15 @@ export function PlanMiniMap({
     <aside
       className={styles.miniMap}
       style={{ '--mini-map-ratio': String(ratio) } as CSSProperties}
-      aria-label="Plot mini map"
+      aria-label="Plot overview"
     >
       <button
-        aria-label="Collapse mini map"
+        aria-label="Collapse overview"
         className={styles.miniMapClose}
         onClick={onCollapse}
         type="button"
       >
-        Map
+        Overview
       </button>
       <div className={styles.miniPlot}>
         {garden.structures.map((structure) => (
@@ -39,16 +40,18 @@ export function PlanMiniMap({
             }}
           />
         ))}
-        {garden.plantings.map((planting) => (
-          <span
-            className={styles.miniPlant}
-            key={planting.id}
-            style={{
-              left: `${(planting.xFt / garden.plot.widthFt) * 100}%`,
-              top: `${(planting.yFt / garden.plot.depthFt) * 100}%`,
-            }}
-          />
-        ))}
+        {garden.plantings.flatMap((planting) =>
+          getPlantingInstances(planting).map((instance) => (
+            <span
+              className={styles.miniPlant}
+              key={`${planting.id}:${instance.id}`}
+              style={{
+                left: `${(instance.xFt / garden.plot.widthFt) * 100}%`,
+                top: `${(instance.yFt / garden.plot.depthFt) * 100}%`,
+              }}
+            />
+          )),
+        )}
         <span
           className={styles.miniNorth}
           style={{

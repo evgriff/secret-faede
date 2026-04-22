@@ -6,6 +6,8 @@ import {
 } from '../../domain/gardens/GardenRepository';
 import {
   findPlanWarnings,
+  formatPlanWarningDecisionSummary,
+  getPlanWarningDecisionCategory,
   getPlanWarningTaxonomy,
   getPlantingFootprint,
   isCanvasPlanWarning,
@@ -127,6 +129,10 @@ describe('gardenPlanning', () => {
     expect(getPlanWarningTaxonomy(spacingWarning)).toBe(
       'recommendedImprovement',
     );
+    expect(getPlanWarningDecisionCategory(spacingWarning)).toBe('spacing');
+    expect(formatPlanWarningDecisionSummary(spacingWarnings)).toEqual([
+      'Spacing: 1 decision',
+    ]);
     expect(isCanvasPlanWarning(spacingWarning)).toBe(false);
   });
 
@@ -242,10 +248,10 @@ describe('gardenPlanning', () => {
       sunLayer: createSunLayer('partShade', [
         {
           heightFt: 12,
-          itemId: 'shade-maple',
+          itemId: 'saved-shade-source',
           itemType: 'structure',
           kind: 'treeObstacle',
-          label: 'Shade maple',
+          label: 'Saved shade pocket',
         },
       ]),
       sunSeason: 'summer',
@@ -257,13 +263,20 @@ describe('gardenPlanning', () => {
     const sunWarning = warnings.find((warning) => warning.kind === 'sun');
 
     expect(sunWarning).toMatchObject({
-      fix: expect.stringContaining('tree shade from Shade maple'),
-      message: expect.stringContaining('tree shade from Shade maple'),
+      fix: expect.stringContaining(
+        'saved-source shade from Saved shade pocket',
+      ),
+      message: expect.stringContaining(
+        'saved-source shade from Saved shade pocket',
+      ),
       severity: 'info',
       uncertainty: 'modeled',
     });
     expect(sunWarning ? getPlanWarningTaxonomy(sunWarning) : null).toBe(
       'informationalCaution',
+    );
+    expect(sunWarning ? getPlanWarningDecisionCategory(sunWarning) : null).toBe(
+      'sun',
     );
   });
 

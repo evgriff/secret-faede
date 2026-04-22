@@ -4,6 +4,8 @@ import overlayStyles from './DesignOverlays.module.css';
 import styles from './DesignPrimitives.module.css';
 
 type ButtonTone = 'danger' | 'primary' | 'secondary';
+type ActionIntent = 'danger' | 'neutral' | 'success' | 'warning';
+type ActionPriority = 'ghost' | 'primary' | 'secondary';
 
 export function Panel({
   children,
@@ -76,11 +78,36 @@ export function StatusBadge({
           ? styles.badgeDanger
           : '';
 
-  return <span className={`${styles.badge} ${toneClass}`}>{children}</span>;
+  return (
+    <span className={`${styles.badge} ${toneClass}`} data-ui="status">
+      {children}
+    </span>
+  );
+}
+
+export function InfoChip({
+  children,
+  tone = 'neutral',
+}: {
+  children: ReactNode;
+  tone?: 'neutral' | 'success' | 'warning';
+}) {
+  const toneClass =
+    tone === 'success'
+      ? styles.infoChipSuccess
+      : tone === 'warning'
+        ? styles.infoChipWarning
+        : '';
+
+  return (
+    <span className={`${styles.infoChip} ${toneClass}`} data-ui="info">
+      {children}
+    </span>
+  );
 }
 
 export function Chip({ children }: { children: ReactNode }) {
-  return <span className={styles.chip}>{children}</span>;
+  return <InfoChip>{children}</InfoChip>;
 }
 
 export function Button({
@@ -100,6 +127,48 @@ export function Button({
   return (
     <button
       className={`${styles.button} ${toneClass} ${className ?? ''}`}
+      type={type}
+      {...buttonProps}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function ActionButton({
+  children,
+  className,
+  intent = 'neutral',
+  priority = 'secondary',
+  type = 'button',
+  ...buttonProps
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  intent?: ActionIntent;
+  priority?: ActionPriority;
+}) {
+  const intentClass =
+    intent === 'success'
+      ? styles.actionSuccess
+      : intent === 'warning'
+        ? styles.actionWarning
+        : intent === 'danger'
+          ? styles.actionDanger
+          : styles.actionNeutral;
+  const priorityClass =
+    priority === 'primary'
+      ? styles.actionPrimary
+      : priority === 'ghost'
+        ? styles.actionGhost
+        : styles.actionSecondary;
+
+  return (
+    <button
+      className={`${styles.actionButton} ${intentClass} ${priorityClass} ${
+        className ?? ''
+      }`}
+      data-action-intent={intent}
+      data-action-priority={priority}
+      data-ui="action"
       type={type}
       {...buttonProps}
     >
@@ -146,6 +215,7 @@ export function SegmentedControl<TValue extends string>({
           }`}
           key={option.value}
           onClick={() => onChange(option.value)}
+          data-ui="filter"
           type="button"
         >
           {option.label}

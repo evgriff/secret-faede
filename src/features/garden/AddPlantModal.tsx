@@ -2,10 +2,8 @@ import { useMemo, useState, type FormEvent } from 'react';
 
 import {
   cropCatalog,
-  cropCatalogFilterOptions,
   filterCropCatalog,
   getCropById,
-  type CropCatalogFilters,
 } from '../../domain/crops/cropCatalog';
 import {
   inferPlotType,
@@ -25,12 +23,23 @@ import {
   CropResultButton,
   formatSuitabilityLevel,
 } from './CropPickerPanels';
+import {
+  CropPickerFilters,
+  type CategoryFilter,
+  type GrowthFormFilter,
+  type SowMethodFilter,
+  type SunRequirementFilter,
+  type WaterNeedsFilter,
+} from './CropPickerFilters';
 import cropStyles from './CropPickerPanels.module.css';
 import {
   calculatePlantCount,
   calculateRequestedAreaSqFt,
+  coercePlantQuantity,
+  formatFeetInput,
   formatLabel,
-  formatSowMethod,
+  getPlantingArrangementDefaults,
+  getRecommendedPlantingMode,
   parsePositiveNumber,
 } from './cropPickerHelpers';
 import { PlantingModeControls } from './PlantingModeControls';
@@ -43,12 +52,6 @@ interface AddPlantModalProps {
   sunExposureAtPlacement: SunExposure | null;
   sunSeason: SunSeason;
 }
-
-type CategoryFilter = NonNullable<CropCatalogFilters['category']>;
-type GrowthFormFilter = NonNullable<CropCatalogFilters['growthForm']>;
-type SowMethodFilter = NonNullable<CropCatalogFilters['sowMethod']>;
-type SunRequirementFilter = NonNullable<CropCatalogFilters['sunRequirement']>;
-type WaterNeedsFilter = NonNullable<CropCatalogFilters['waterNeeds']>;
 
 export function AddPlantModal({
   garden,
@@ -67,9 +70,10 @@ export function AddPlantModal({
     useState<SunRequirementFilter>('any');
   const [waterNeeds, setWaterNeeds] = useState<WaterNeedsFilter>('any');
   const [quantity, setQuantity] = useState('1');
-  const [rowLengthFt, setRowLengthFt] = useState('6');
-  const [blockWidthFt, setBlockWidthFt] = useState('4');
-  const [blockDepthFt, setBlockDepthFt] = useState('3');
+  const [rowLengthFt, setRowLengthFt] = useState('');
+  const [blockWidthFt, setBlockWidthFt] = useState('');
+  const [blockDepthFt, setBlockDepthFt] = useState('');
+  const [clusterRadiusFt, setClusterRadiusFt] = useState('');
 
   const filteredCrops = useMemo(
     () =>
@@ -88,19 +92,46 @@ export function AddPlantModal({
     filteredCrops[0] ??
     getCropById(selectedCropId) ??
     getDefaultCrop();
+  const requestedQuantity = coercePlantQuantity(quantity);
+  const recommendedMode = getRecommendedPlantingMode(
+    selectedCrop,
+    requestedQuantity,
+  );
   const selectedMode = selectedCrop.supportedPlantingModes.includes(mode)
     ? mode
-    : (selectedCrop.supportedPlantingModes[0] ?? 'single');
+    : recommendedMode;
   const plantCount = calculatePlantCount(selectedCrop, selectedMode, {
     blockDepthFt,
     blockWidthFt,
     quantity,
     rowLengthFt,
   });
-  const requestedAreaSqFt = calculateRequestedAreaSqFt(selectedMode, {
+  const arrangementDefaults = getPlantingArrangementDefaults(
+    selectedCrop,
+    selectedMode,
+    plantCount,
+  );
+  const effectiveBlockDepthFt = parsePositiveNumber(
     blockDepthFt,
+    arrangementDefaults.blockDepthFt ?? 1,
+  );
+  const effectiveBlockWidthFt = parsePositiveNumber(
     blockWidthFt,
+    arrangementDefaults.blockWidthFt ?? 1,
+  );
+  const effectiveRowLengthFt = parsePositiveNumber(
     rowLengthFt,
+    arrangementDefaults.rowLengthFt ?? 1,
+  );
+  const effectiveClusterRadiusFt = parsePositiveNumber(
+    clusterRadiusFt,
+    arrangementDefaults.clusterRadiusFt ?? 1,
+  );
+  const requestedAreaSqFt = calculateRequestedAreaSqFt(selectedMode, {
+    blockDepthFt: String(effectiveBlockDepthFt),
+    blockWidthFt: String(effectiveBlockWidthFt),
+    clusterRadiusFt: String(effectiveClusterRadiusFt),
+    rowLengthFt: String(effectiveRowLengthFt),
   });
   const suitability = scoreCropSuitability({
     climateProfile: garden.climateProfile,
@@ -125,18 +156,61 @@ export function AddPlantModal({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onAddPlant({
-      blockDepthFt:
-        selectedMode === 'block' ? parsePositiveNumber(blockDepthFt, 3) : null,
-      blockWidthFt:
-        selectedMode === 'block' ? parsePositiveNumber(blockWidthFt, 4) : null,
+      blockDepthFt: selectedMode === 'block' ? effectiveBlockDepthFt : null,
+      blockWidthFt: selectedMode === 'block' ? effectiveBlockWidthFt : null,
+      clusterRadiusFt:
+        selectedMode === 'cluster' ? effectiveClusterRadiusFt : null,
       crop: selectedCrop,
       mode: selectedMode,
       plantCount,
       rowLengthFt:
         selectedMode === 'row' || selectedMode === 'trellisLine'
-          ? parsePositiveNumber(rowLengthFt, 6)
+          ? effectiveRowLengthFt
           : null,
     });
+  }
+
+  function handleQuantityChange(value: string) {
+    const currentRecommendedMode = getRecommendedPlantingMode(
+      selectedCrop,
+      requestedQuantity,
+    );
+    const nextQuantity = coercePlantQuantity(value);
+    const nextRecommendedMode = getRecommendedPlantingMode(
+      selectedCrop,
+      nextQuantity,
+    );
+
+    setQuantity(value);
+    setMode((currentMode) =>
+      currentMode === currentRecommendedMode
+        ? nextRecommendedMode
+        : currentMode,
+    );
+    clearCustomArrangement();
+  }
+
+  function handleModeChange(nextMode: PlantingMode) {
+    setMode(nextMode);
+    clearCustomArrangement();
+  }
+
+  function handleSelectCrop(cropId: string) {
+    const nextCrop = getCropById(cropId);
+
+    setSelectedCropId(cropId);
+
+    if (nextCrop) {
+      setMode(getRecommendedPlantingMode(nextCrop, requestedQuantity));
+      clearCustomArrangement();
+    }
+  }
+
+  function clearCustomArrangement() {
+    setRowLengthFt('');
+    setBlockWidthFt('');
+    setBlockDepthFt('');
+    setClusterRadiusFt('');
   }
 
   return (
@@ -162,108 +236,20 @@ export function AddPlantModal({
         <form className={styles.cropPickerForm} onSubmit={handleSubmit}>
           <div className={styles.cropPickerLayout}>
             <div className={styles.cropSearchPanel}>
-              <label className={styles.field}>
-                <span>Search crops</span>
-                <input
-                  autoFocus
-                  onChange={(event) => setQuery(event.currentTarget.value)}
-                  type="search"
-                  value={query}
-                />
-              </label>
-
-              <div className={styles.filterGrid}>
-                <label className={styles.field}>
-                  <span>Category</span>
-                  <select
-                    onChange={(event) =>
-                      setCategory(event.currentTarget.value as CategoryFilter)
-                    }
-                    value={category}
-                  >
-                    <option value="any">Any</option>
-                    {cropCatalogFilterOptions.categories.map((option) => (
-                      <option key={option} value={option}>
-                        {formatLabel(option)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className={styles.field}>
-                  <span>Sun</span>
-                  <select
-                    onChange={(event) =>
-                      setSunRequirement(
-                        event.currentTarget.value as SunRequirementFilter,
-                      )
-                    }
-                    value={sunRequirement}
-                  >
-                    <option value="any">Any</option>
-                    {cropCatalogFilterOptions.sunRequirements.map((option) => (
-                      <option key={option} value={option}>
-                        {formatLabel(option)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className={styles.field}>
-                  <span>Water</span>
-                  <select
-                    onChange={(event) =>
-                      setWaterNeeds(
-                        event.currentTarget.value as WaterNeedsFilter,
-                      )
-                    }
-                    value={waterNeeds}
-                  >
-                    <option value="any">Any</option>
-                    {cropCatalogFilterOptions.waterNeeds.map((option) => (
-                      <option key={option} value={option}>
-                        {formatLabel(option)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className={styles.field}>
-                  <span>Form</span>
-                  <select
-                    onChange={(event) =>
-                      setGrowthForm(
-                        event.currentTarget.value as GrowthFormFilter,
-                      )
-                    }
-                    value={growthForm}
-                  >
-                    <option value="any">Any</option>
-                    {cropCatalogFilterOptions.growthForms.map((option) => (
-                      <option key={option} value={option}>
-                        {formatLabel(option)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className={styles.field}>
-                  <span>Sow</span>
-                  <select
-                    onChange={(event) =>
-                      setSowMethod(event.currentTarget.value as SowMethodFilter)
-                    }
-                    value={sowMethod}
-                  >
-                    <option value="any">Any</option>
-                    {cropCatalogFilterOptions.sowMethods.map((option) => (
-                      <option key={option} value={option}>
-                        {formatSowMethod(option)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+              <CropPickerFilters
+                category={category}
+                growthForm={growthForm}
+                onCategoryChange={setCategory}
+                onGrowthFormChange={setGrowthForm}
+                onQueryChange={setQuery}
+                onSowMethodChange={setSowMethod}
+                onSunRequirementChange={setSunRequirement}
+                onWaterNeedsChange={setWaterNeeds}
+                query={query}
+                sowMethod={sowMethod}
+                sunRequirement={sunRequirement}
+                waterNeeds={waterNeeds}
+              />
 
               <VirtualCropResultList
                 className={cropStyles.cropResults}
@@ -272,25 +258,34 @@ export function AddPlantModal({
                   <p className={cropStyles.emptyResults}>No matching crops.</p>
                 }
                 itemHeightPx={92}
-                renderCrop={(crop) => (
-                  <CropResultButton
-                    crop={crop}
-                    isSelected={crop.id === selectedCrop.id}
-                    key={crop.id}
-                    onSelect={() => setSelectedCropId(crop.id)}
-                    suitabilityLabel={formatSuitabilityLevel(
-                      scoreCropSuitability({
-                        climateProfile: garden.climateProfile,
-                        crop,
-                        mode: crop.supportedPlantingModes[0] ?? 'single',
-                        plantCount: null,
-                        plotType: inferPlotType(garden),
-                        requestedAreaSqFt: null,
-                        sunExposureAtPlacement,
-                      }),
-                    )}
-                  />
-                )}
+                renderCrop={(crop) => {
+                  const cropMode = getRecommendedPlantingMode(crop, plantCount);
+                  const cropArrangement = getPlantingArrangementDefaults(
+                    crop,
+                    cropMode,
+                    plantCount,
+                  );
+
+                  return (
+                    <CropResultButton
+                      crop={crop}
+                      isSelected={crop.id === selectedCrop.id}
+                      key={crop.id}
+                      onSelect={() => handleSelectCrop(crop.id)}
+                      suitabilityLabel={formatSuitabilityLevel(
+                        scoreCropSuitability({
+                          climateProfile: garden.climateProfile,
+                          crop,
+                          mode: cropMode,
+                          plantCount,
+                          plotType: inferPlotType(garden),
+                          requestedAreaSqFt: cropArrangement.requestedAreaSqFt,
+                          sunExposureAtPlacement,
+                        }),
+                      )}
+                    />
+                  );
+                }}
               />
             </div>
 
@@ -303,21 +298,34 @@ export function AddPlantModal({
 
               <CropComparePanel
                 crops={compareCrops}
-                onSelect={setSelectedCropId}
+                onSelect={handleSelectCrop}
                 selectedCropId={selectedCrop.id}
               />
 
               <PlantingModeControls
                 blockDepthFt={blockDepthFt}
+                blockDepthPlaceholder={formatFeetInput(
+                  arrangementDefaults.blockDepthFt,
+                )}
                 blockWidthFt={blockWidthFt}
+                blockWidthPlaceholder={formatFeetInput(
+                  arrangementDefaults.blockWidthFt,
+                )}
+                clusterRadiusFt={clusterRadiusFt}
+                clusterRadiusPlaceholder={formatFeetInput(
+                  arrangementDefaults.clusterRadiusFt,
+                )}
                 onBlockDepthChange={setBlockDepthFt}
                 onBlockWidthChange={setBlockWidthFt}
-                onModeChange={setMode}
-                onQuantityChange={setQuantity}
+                onClusterRadiusChange={setClusterRadiusFt}
+                onModeChange={handleModeChange}
+                onQuantityChange={handleQuantityChange}
                 onRowLengthChange={setRowLengthFt}
                 plantCount={plantCount}
-                quantity={quantity}
                 rowLengthFt={rowLengthFt}
+                rowLengthPlaceholder={formatFeetInput(
+                  arrangementDefaults.rowLengthFt,
+                )}
                 selectedCrop={selectedCrop}
                 selectedMode={selectedMode}
               />

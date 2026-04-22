@@ -76,6 +76,7 @@ describe('garden domain validation', () => {
       applied: [
         'legacy plants copied into plantings',
         'planner workspace defaults normalized',
+        'season plan inputs simplified',
       ],
       fromVersion: 0,
       toVersion: CURRENT_GARDEN_SCHEMA_VERSION,
@@ -93,6 +94,54 @@ describe('garden domain validation', () => {
       },
       structures: [],
     });
+  });
+
+  it('migrates season plans away from hidden weighting fields', () => {
+    const migration = migrateGardenRecord({
+      schemaVersion: 2,
+      seasonPlan: {
+        updatedAtIso: '2026-04-21T12:00:00.000Z',
+        wantedCrops: [
+          {
+            commitment: 'mustGrow',
+            containerAllowed: false,
+            cropId: 'tomato',
+            id: 'season-tomato',
+            modePreference: 'row',
+            notes: 'Sauce crop',
+            priority: 'high',
+            rank: 0,
+            sowPreference: 'transplant',
+            supportAllowed: true,
+            targetQuantity: 3,
+            varietyName: 'Roma',
+          },
+        ],
+      },
+    });
+
+    expect(migration).toMatchObject({
+      applied: ['season plan inputs simplified'],
+      fromVersion: 2,
+      toVersion: CURRENT_GARDEN_SCHEMA_VERSION,
+    });
+    expect(migration.record.seasonPlan).toMatchObject({
+      wantedCrops: [
+        {
+          cropId: 'tomato',
+          id: 'season-tomato',
+          notes: 'Sauce crop',
+          plantingForm: 'row',
+          quantity: 3,
+          supportAllowed: true,
+          varietyName: 'Roma',
+        },
+      ],
+    });
+    expect(
+      (migration.record.seasonPlan as { wantedCrops: Array<object> })
+        .wantedCrops[0],
+    ).not.toHaveProperty('priority');
   });
 
   it('parses structure planner types and keeps footprints inside the plot', () => {
@@ -228,19 +277,23 @@ describe('garden domain validation', () => {
       updatedAtIso: '2026-04-21T12:00:00.000Z',
       wantedCrops: [
         {
-          commitment: 'mustGrow',
-          containerAllowed: false,
           cropId: 'tomato',
-          modePreference: 'row',
-          priority: 'high',
-          rank: 2,
-          sowPreference: 'transplant',
+          plantingForm: 'row',
+          quantity: 1,
           supportAllowed: true,
-          targetQuantity: 1,
           varietyName: 'Sungold',
         },
       ],
     });
+    expect(garden.seasonPlan.wantedCrops[0]).not.toHaveProperty('commitment');
+    expect(garden.seasonPlan.wantedCrops[0]).not.toHaveProperty('priority');
+    expect(garden.seasonPlan.wantedCrops[0]).not.toHaveProperty('rank');
+    expect(garden.seasonPlan.wantedCrops[0]).not.toHaveProperty(
+      'sowPreference',
+    );
+    expect(garden.seasonPlan.wantedCrops[0]).not.toHaveProperty(
+      'containerAllowed',
+    );
   });
 
   it('provides Detroit climate and notification defaults', () => {
@@ -261,6 +314,41 @@ describe('garden domain validation', () => {
       timezone: 'America/Detroit',
       wateringAlertThresholdIn: 0.25,
     });
+  });
+
+  it('ignores unsupported legacy notification preference fields', () => {
+    const preferences = parseNotificationPreference({
+      channelConsent: {
+        email: {
+          consentCopyVersion: 'legacy',
+          grantedAtIso: '2026-04-20T11:00:00.000Z',
+          revokedAtIso: null,
+          status: 'granted',
+        },
+        carrier messaging: {
+          consentCopyVersion: 'legacy',
+          grantedAtIso: '2026-04-20T11:00:00.000Z',
+          revokedAtIso: null,
+          status: 'granted',
+        },
+      },
+      channels: {
+        email: true,
+        inApp: false,
+        push: true,
+        carrier messaging: true,
+      },
+      email: 'alerts@example.com',
+      phoneE164: '+17345550123',
+    });
+
+    expect(preferences.channels).toMatchObject({ inApp: true, push: true });
+    expect(preferences.channels).not.toHaveProperty('email');
+    expect(preferences.channels).not.toHaveProperty('carrier messaging');
+    expect(preferences.channelConsent).not.toHaveProperty('email');
+    expect(preferences.channelConsent).not.toHaveProperty('carrier messaging');
+    expect(preferences).not.toHaveProperty('email');
+    expect(preferences).not.toHaveProperty('phoneE164');
   });
 
   it('parses harvest delay metadata on tasks', () => {
@@ -303,6 +391,44 @@ describe('garden domain validation', () => {
       snoozedUntilIso: '2026-06-22T11:00:00.000Z',
       type: 'watering',
     });
+  });
+
+  it('drops retired delivery notification logs instead of surfacing them', () => {
+    expect(
+      parseNotificationLog({
+        body: 'Legacy email alert.',
+        channel: 'email',
+        createdAtIso: '2026-06-21T11:00:00.000Z',
+        dryRun: true,
+        id: 'email-log',
+        messageSummary: 'Legacy email alert',
+        provider: null,
+        recipientRedacted: 'e***@example.com',
+        sentAtIso: null,
+        status: 'skipped',
+        taskId: null,
+        type: 'weather',
+        userId: 'user-a',
+      }),
+    ).toBeNull();
+
+    expect(
+      parseNotificationLog({
+        body: 'Legacy delivery alert.',
+        channel: 'carrier messaging',
+        createdAtIso: '2026-06-21T11:00:00.000Z',
+        dryRun: true,
+        id: 'carrier messaging-log',
+        messageSummary: 'Legacy delivery alert',
+        provider: 'retiredDeliveryProvider',
+        recipientRedacted: '***0123',
+        sentAtIso: null,
+        status: 'skipped',
+        taskId: null,
+        type: 'weather',
+        userId: 'user-a',
+      }),
+    ).toBeNull();
   });
 
   it('parses issue journals with photo metadata and freeform harvests', () => {

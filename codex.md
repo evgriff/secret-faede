@@ -34,7 +34,7 @@ Core principles:
 - `MediaStorageService` active for journal photo uploads
 - Firestore path `gardens/{uid}` in Firebase mode
 - plot dimensions stored in feet
-- plant centers stored as `xFt` and `yFt`, never pixels
+- plant and planting-instance centers stored as `xFt` and `yFt`, never pixels
 - authenticated shell with durable Plan, Today, Feed, and Settings routes
 
 ## Boundaries
@@ -51,7 +51,7 @@ Active now:
 - in-app notification logs for watering and weather alerts
 - task engine and `/app/today` timeline for generated garden work
 - journal, issue tracking, photo attachments, harvest logging, and in-season
-  analytics
+  summaries
 - Cloud Functions source for scheduled watering checks and weather-driven alert
   dispatch
 - authenticated app shell
@@ -61,8 +61,8 @@ Deferred until the local product model needs them:
 
 - multiple gardens
 - runtime external plant metadata and species libraries
-- maps, collaboration, carrier messaging, dashboards, AI, and onboarding
-- production email notification delivery
+- maps, collaboration, dashboards, AI, onboarding, and carrier messaging
+- email delivery
 
 ## Repo navigation
 
@@ -80,8 +80,10 @@ Deferred until the local product model needs them:
 
 `src/features/plan`
 
-- Plan page, toolbar, canvas, inspector, and operations panel
-- pointer interaction hook for plot drag/resize
+- Plan page, compact tool launcher, canvas-first workspace, overlays,
+  inspector, review/optimizer walkthroughs, and operations panel
+- pointer interaction hook for explicit pan, plot drag/resize, and stable
+  feet-based object movement
 
 `src/features/garden`
 
@@ -90,7 +92,8 @@ Deferred until the local product model needs them:
 
 `src/features/today`
 
-- Today page, task groups, calendar strip, and succession sidebar
+- Today page, field action cards, task groups, calendar strip, and succession
+  context
 
 `src/features/tasks`
 
@@ -98,14 +101,14 @@ Deferred until the local product model needs them:
 
 `src/features/log`
 
-- Feed route implementation, entry and harvest forms, cards, and analytics
-  panel
+- Feed route implementation, New entry composer, harvest forms, private memory
+  cards, and compact season summaries
 
 `src/features/journal`
 
-- compatibility export plus journal analytics
+- compatibility export plus Feed summary helpers
 - harvest logging
-- in-season analytics
+- compact in-season summaries
 
 `src/features/settings`
 
@@ -122,8 +125,8 @@ Deferred until the local product model needs them:
 `functions`
 
 - scheduled and event-driven notification dispatch
-- legacy notification code that should be kept behind explicit seams until the
-  carrier messaging cleanup prompt removes de-scoped paths
+- notification code stays focused on in-app and push delivery; carrier-message
+  paths are outside product scope
 
 `src/shared`
 
@@ -159,5 +162,5 @@ Do not add a dependency until all answers are yes:
 6. Store plot and plant data in feet, not pixels.
 7. Update docs when runtime, scripts, persistence, or deployment requirements change.
 8. Re-run `npm run lint`, `npm run typecheck`, `npm run test:unit`, `npm run test:e2e`, `npm run build`, and `npm run ci`.
-9. Do not reintroduce carrier messaging/notification provider as product scope; remove old references during
-   the carrier messaging cleanup prompt instead of expanding them.
+9. Do not reintroduce carrier messaging as product scope; treat any new carrier
+   delivery path as a scope regression.

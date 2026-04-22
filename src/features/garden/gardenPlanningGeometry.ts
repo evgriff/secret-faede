@@ -1,5 +1,6 @@
 import type {
   Planting,
+  PlantingInstance,
   Plot,
   Structure,
 } from '../../domain/gardens/GardenRepository';
@@ -62,6 +63,30 @@ export function getPlantingFootprint(planting: Planting): FootRect {
     planting,
     Math.max(spacingFt, minimumPlantingFootprintFt),
     Math.max(spacingFt, minimumPlantingFootprintFt),
+  );
+}
+
+export function getPlantingInstanceFootprint(
+  planting: Planting,
+  instance: PlantingInstance,
+): FootRect {
+  const sizeFt = getPlantingInstanceSizeFt(planting);
+
+  return {
+    depthFt: sizeFt,
+    id: instance.id,
+    itemType: 'planting',
+    label: instance.label,
+    widthFt: sizeFt,
+    xFt: instance.xFt - sizeFt / 2,
+    yFt: instance.yFt - sizeFt / 2,
+  };
+}
+
+function getPlantingInstanceSizeFt(planting: Planting) {
+  return Math.max(
+    inchesToFeet(planting.matureSpreadInches ?? planting.spacingInches ?? 12),
+    minimumPlantingFootprintFt,
   );
 }
 

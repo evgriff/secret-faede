@@ -10,18 +10,22 @@ export interface PlanCanvasLayers {
 }
 
 export function PlanCanvasControls({
+  isPanMode,
   layers,
   onLayersChange,
   onFitView,
+  onPanModeChange,
   onResetView,
   onZoomIn,
   onZoomOut,
   zoom,
   zoomState,
 }: {
+  isPanMode: boolean;
   layers: PlanCanvasLayers;
   onLayersChange(layers: PlanCanvasLayers): void;
   onFitView(): void;
+  onPanModeChange(value: boolean): void;
   onResetView(): void;
   onZoomIn(): void;
   onZoomOut(): void;
@@ -35,6 +39,14 @@ export function PlanCanvasControls({
       aria-label="Canvas controls"
     >
       <div className={styles.zoomControls} aria-label="Zoom controls">
+        <button
+          aria-label="Pan canvas"
+          aria-pressed={isPanMode}
+          onClick={() => onPanModeChange(!isPanMode)}
+          type="button"
+        >
+          Pan
+        </button>
         <button
           aria-pressed={zoomState === 'fit'}
           onClick={onFitView}
@@ -77,14 +89,14 @@ export function PlanCanvasControls({
         />
         <LayerButton
           active={layers.warnings}
-          label="Warnings"
+          label="Checks"
           onClick={() =>
             onLayersChange({ ...layers, warnings: !layers.warnings })
           }
         />
         <LayerButton
           active={layers.miniMap}
-          label="Map"
+          label="Overview"
           onClick={() =>
             onLayersChange({ ...layers, miniMap: !layers.miniMap })
           }

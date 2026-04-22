@@ -1,0 +1,243 @@
+.card {
+  position: absolute;
+  z-index: 20;
+  top: 8.9rem;
+  left: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+  width: min(24rem, calc(100% - 2rem));
+  border: 1px solid rgba(76, 85, 70, 0.18);
+  border-radius: var(--radius-card);
+  background: rgba(255, 253, 247, 0.9);
+  color: var(--color-text-strong);
+  padding: var(--space-3);
+  pointer-events: auto;
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: blur(12px);
+  transform-origin: top left;
+  animation: cfIn var(--motion-short) var(--ease-out);
+}
+
+.header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.kicker {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.header h2 {
+  margin: 0.1rem 0 0;
+  font-size: 1rem;
+}
+
+.header p {
+  margin: 0.12rem 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  font-weight: 720;
+}
+
+.iconButton {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-solid);
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.tabs button,
+.actions button {
+  min-height: 2.15rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: rgba(255, 253, 247, 0.92);
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: 850;
+  padding: 0 0.6rem;
+}
+
+.tabs button[aria-selected='true'],
+.activeTab {
+  border-color: rgba(36, 71, 46, 0.42);
+  background: rgba(232, 244, 225, 0.94);
+}
+
+.body {
+  min-height: 5.2rem;
+}
+
+.view {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.view strong {
+  font-size: 0.95rem;
+}
+
+.view p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.view dl {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.view dl div {
+  display: grid;
+  grid-template-columns: minmax(5rem, auto) minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.view dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.view dd {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-small);
+  font-weight: 750;
+}
+
+.needList {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0 0 0 1rem;
+}
+
+.needList li {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-small);
+}
+
+.influenceSummary {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid rgba(36, 71, 46, 0.16);
+  border-radius: var(--radius-control);
+  background: rgba(232, 244, 225, 0.62);
+  padding: 0.55rem 0.65rem;
+}
+
+.influenceSummary strong {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-caption);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.influenceSummary p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.actions .detailsButton {
+  background: var(--color-text-strong);
+  color: var(--color-surface-solid);
+}
+
+.actions .influenceButton[aria-pressed='true'] {
+  border-color: rgba(36, 71, 46, 0.42);
+  background: rgba(232, 244, 225, 0.94);
+}
+
+.actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@keyframes cfIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.4rem) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
+  }
+}
+
+@media (max-width: 44rem) {
+  .card {
+    top: auto;
+    right: var(--space-2);
+    bottom: calc(7.25rem + env(safe-area-inset-bottom));
+    left: var(--space-2);
+    width: auto;
+    max-height: min(46dvh, 22rem);
+    overflow: auto;
+    gap: 0.55rem;
+    padding: 0.75rem;
+  }
+
+  .body {
+    min-height: auto;
+  }
+
+  .view dl div {
+    grid-template-columns: minmax(4rem, auto) minmax(0, 1fr);
+  }
+
+  .tabs button,
+  .actions button,
+  .iconButton {
+    min-height: 2.55rem;
+  }
+
+  .iconButton {
+    width: 2.55rem;
+    height: 2.55rem;
+  }
+
+  .actions {
+    gap: 0.45rem;
+  }
+}

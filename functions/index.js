@@ -3,7 +3,6 @@
 const admin = require('firebase-admin');
 const { logger } = require('firebase-functions');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const { onRequest } = require('firebase-functions/v2/https');
 const { onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const {
@@ -11,29 +10,10 @@ const {
   buildHeatNotification,
   buildSevereWeatherNotification,
   createNotificationLog,
-  isSmsFallbackNotificationType,
-  redactPhone,
   shouldSendNotification,
 } = require('./notificationLogic');
 const { createOperationRunner } = require('./operationRunner');
 const { createBackendWeatherProvider } = require('./weatherProviders');
-const {
-  createSmsConsent,
-  getSmsKeywordIntent,
-  getSmsRateLimitDecision,
-  normalizePhone,
-} = require('./notificationCompliance');
-const {
-  getnotification providerMessageStatus,
-  isSmsDryRun,
-  isValidnotification providerWebhook,
-  sendnotification providerMessageWithRetry,
-  retiredDeliveryProviderId,
-} = require('./notificationProvider');
-const {
-  parsenotification providerDeliveryWebhook,
-  parsenotification providerInboundMessageWebhook,
-} = require('./notificationProviderWebhooks');
 
 admin.initializeApp();
 
@@ -202,149 +182,6 @@ exports.onGardenWeatherSnapshotUpdated = onDocumentWritten(
   },
 );
 
-exports.sendTestSmsAlert = onCall(async (request) => {
-  if (!request.auth?.uid) {
-    throw new HttpsError(
-      'unauthenticated',
-      'Sign in before sending a test carrier messaging.',
-    );
-  }
-
-  if (!hasSecretFaedeAccess(request.auth)) {
-    throw new HttpsError(
-      'permission-denied',
-      'This account is not provisioned for Secret Faede.',
-    );
-  }
-
-  const uid = request.auth.uid;
-  const profileSnapshot = await db.collection('users').doc(uid).get();
-
-  if (!profileSnapshot.exists) {
-    throw new HttpsError('not-found', 'No notification profile exists.');
-  }
-
-  const profile = profileSnapshot.data();
-  const gardenSnapshot = await db.collection('gardens').doc(uid).get();
-  const garden = gardenSnapshot.exists
-    ? gardenSnapshot.data()
-    : { id: uid, userId: uid };
-  const title = 'Secret Faede frost test';
-  const body =
-    'Frost is possible tonight. This is a controlled carrier messaging fallback test.';
-
-  await sendSmsAndLog({
-    body,
-    garden,
-    profile,
-    title,
-    type: 'frost',
-    uid,
-  });
-
-  return { ok: true };
-});
-
-exports.retiredDeliveryWebhook = onRequest(async (request, response) => {
-  if (request.method !== 'POST') {
-    response.status(405).send('Method not allowed');
-    return;
-  }
-
-  if (!isValidnotification providerWebhook(request)) {
-    response.status(403).send('Invalid notification provider signature');
-    return;
-  }
-
-  const inboundMessage = parsenotification providerInboundMessageWebhook(request.body);
-  const from = normalizePhone(inboundMessage?.from);
-  const intent = getSmsKeywordIntent({
-    body: inboundMessage?.body,
-    optOutType: null,
-  });
-
-  if (!from || !intent) {
-    logger.info('Ignoring non-compliance carrier messaging webhook', {
-      hasFrom: Boolean(from),
-      intent,
-    });
-    response.status(204).send('');
-    return;
-  }
-
-  const usersSnapshot = await db
-    .collection('users')
-    .where('notificationPreference.phoneE164', '==', from)
-    .get();
-  const now = new Date().toISOString();
-
-  for (const userDocument of usersSnapshot.docs) {
-    await applySmsKeywordIntent({
-      intent,
-      now,
-      profile: userDocument.data(),
-      provider: retiredDeliveryProviderId,
-      source: 'retiredDeliveryWebhook',
-      uid: userDocument.id,
-    });
-  }
-
-  logger.info('Processed notification provider carrier messaging keyword webhook', {
-    matchedUsers: usersSnapshot.size,
-    smsIntent: intent,
-  });
-
-  response.status(204).send('');
-});
-
-exports.retiredDeliveryStatusWebhook = onRequest(async (request, response) => {
-  if (request.method !== 'POST') {
-    response.status(405).send('Method not allowed');
-    return;
-  }
-
-  if (!isValidnotification providerWebhook(request)) {
-    response.status(403).send('Invalid notification provider signature');
-    return;
-  }
-
-  const deliveryEvent = parsenotification providerDeliveryWebhook(request.body);
-
-  if (!deliveryEvent?.messageId) {
-    response.status(400).send('Missing notification provider message id');
-    return;
-  }
-
-  const logsSnapshot = await db
-    .collectionGroup('notifications')
-    .where('providerMessageId', '==', deliveryEvent.messageId)
-    .limit(10)
-    .get();
-  const status = String(deliveryEvent.providerStatus || 'unknown');
-  const errorMessage = getnotification providerDeliveryError(request.body);
-  const batch = db.batch();
-
-  for (const logDocument of logsSnapshot.docs) {
-    batch.set(
-      logDocument.ref,
-      {
-        errorMessage,
-        providerStatus: status,
-        sentAtIso:
-          status === 'delivered' || status === 'sent'
-            ? new Date().toISOString()
-            : logDocument.data().sentAtIso || null,
-        status: mapnotification providerDeliveryStatus(status),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true },
-    );
-  }
-
-  await batch.commit();
-  response.status(204).send('');
-});
-
 async function dispatchNotification({
   body,
   garden,
@@ -391,7 +228,7 @@ async function dispatchNotification({
     uid,
   );
 
-  const pushResult = await sendPushAndLog({
+  await sendPushAndLog({
     body,
     garden,
     profile,
@@ -399,77 +236,6 @@ async function dispatchNotification({
     type,
     uid,
   });
-
-  if (shouldAttemptSmsFallback({ pushResult, type })) {
-    await sendSmsAndLog({
-      body,
-      fallbackReason: pushResult.reason,
-      garden,
-      profile,
-      title,
-      type,
-      uid,
-    });
-  }
-}
-
-async function applySmsKeywordIntent({
-  intent,
-  now,
-  profile,
-  provider,
-  source,
-  uid,
-}) {
-  const smsConsent =
-    intent === 'stop'
-      ? createSmsConsent('revoked', now)
-      : intent === 'start'
-        ? createSmsConsent('granted', now)
-        : profile.notificationPreference?.channelConsent?.carrier messaging;
-  const smsEnabled =
-    intent === 'start'
-      ? true
-      : intent === 'stop'
-        ? false
-        : profile.notificationPreference?.channels?.carrier messaging === true;
-
-  await db
-    .collection('users')
-    .doc(uid)
-    .set(
-      {
-        notificationPreference: {
-          ...profile.notificationPreference,
-          channelConsent: {
-            ...profile.notificationPreference?.channelConsent,
-            carrier messaging: smsConsent,
-          },
-          channels: {
-            ...profile.notificationPreference?.channels,
-            carrier messaging: smsEnabled,
-          },
-          smsLastKeywordAtIso: now,
-          smsLastKeywordType: intent,
-        },
-        updatedAtIso: now,
-      },
-      { merge: true },
-    );
-
-  await db
-    .collection('users')
-    .doc(uid)
-    .collection('smsEvents')
-    .doc(`carrier messaging-${intent}-${Date.now()}`)
-    .set({
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      createdAtIso: now,
-      eventType: intent,
-      provider,
-      source,
-      userId: uid,
-    });
 }
 
 async function sendPushAndLog({ body, garden, profile, title, type, uid }) {
@@ -613,131 +379,6 @@ async function sendPushAndLog({ body, garden, profile, title, type, uid }) {
   };
 }
 
-async function sendSmsAndLog({
-  body,
-  fallbackReason = null,
-  garden,
-  profile,
-  title,
-  type,
-  uid,
-}) {
-  const decision = shouldSendNotification({ channel: 'carrier messaging', profile, type });
-  const phoneE164 = profile.notificationPreference?.phoneE164;
-  const dryRun = isSmsDryRun();
-
-  if (!decision.allowed) {
-    await writeNotificationLog(
-      createNotificationLog({
-        body,
-        channel: 'carrier messaging',
-        decisionReason: decision.reason,
-        dryRun,
-        errorMessage: decision.reason,
-        gardenId: garden.id || uid,
-        provider: retiredDeliveryProviderId,
-        recipientRedacted: redactPhone(phoneE164),
-        status: 'skipped',
-        title,
-        type,
-        userId: uid,
-      }),
-      uid,
-    );
-    return;
-  }
-
-  const rateLimitDecision = await getSmsRateLimitDecisionForUser(uid);
-
-  if (!rateLimitDecision.allowed) {
-    await writeNotificationLog(
-      createNotificationLog({
-        body,
-        channel: 'carrier messaging',
-        decisionReason: rateLimitDecision.reason,
-        dryRun,
-        errorMessage: rateLimitDecision.reason,
-        gardenId: garden.id || uid,
-        provider: retiredDeliveryProviderId,
-        recipientRedacted: redactPhone(phoneE164),
-        status: 'skipped',
-        title,
-        type,
-        userId: uid,
-      }),
-      uid,
-    );
-    return;
-  }
-
-  if (dryRun) {
-    await writeNotificationLog(
-      createNotificationLog({
-        body,
-        channel: 'carrier messaging',
-        decisionReason: 'dry-run mode',
-        dryRun: true,
-        gardenId: garden.id || uid,
-        provider: retiredDeliveryProviderId,
-        recipientRedacted: redactPhone(phoneE164),
-        status: 'skipped',
-        title,
-        type,
-        userId: uid,
-      }),
-      uid,
-    );
-    return;
-  }
-
-  try {
-    const { attempts, message } = await sendnotification providerMessageWithRetry({
-      body,
-      to: phoneE164,
-    });
-
-    await writeNotificationLog(
-      createNotificationLog({
-        attemptCount: attempts,
-        body,
-        channel: 'carrier messaging',
-        decisionReason: fallbackReason,
-        dryRun: false,
-        gardenId: garden.id || uid,
-        provider: retiredDeliveryProviderId,
-        providerMessageId: message.id,
-        providerStatus: getnotification providerMessageStatus(message),
-        recipientRedacted: redactPhone(phoneE164),
-        retryPolicy: 'retry once on notification provider 429/5xx',
-        status: 'sent',
-        title,
-        type,
-        userId: uid,
-      }),
-      uid,
-    );
-  } catch (error) {
-    await writeNotificationLog(
-      createNotificationLog({
-        attemptCount: 2,
-        body,
-        channel: 'carrier messaging',
-        dryRun: false,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        gardenId: garden.id || uid,
-        provider: retiredDeliveryProviderId,
-        recipientRedacted: redactPhone(phoneE164),
-        retryPolicy: 'retry once on notification provider 429/5xx',
-        status: 'failed',
-        title,
-        type,
-        userId: uid,
-      }),
-      uid,
-    );
-  }
-}
-
 async function writeNotificationLog(log, uid, extra = {}) {
   const payload = {
     ...log,
@@ -795,19 +436,6 @@ function getLatestSnapshot(garden) {
   )[0];
 }
 
-async function getSmsRateLimitDecisionForUser(uid) {
-  const snapshot = await db
-    .collection('gardens')
-    .doc(uid)
-    .collection('notifications')
-    .limit(100)
-    .get();
-
-  return getSmsRateLimitDecision(
-    snapshot.docs.map((document) => document.data()),
-  );
-}
-
 function isInvalidFcmTokenCode(code) {
   return [
     'messaging/invalid-registration-token',
@@ -821,41 +449,4 @@ function getDeepLinkForNotification(type) {
   }
 
   return '/app/today';
-}
-
-function shouldAttemptSmsFallback({ pushResult, type }) {
-  return (
-    isSmsFallbackNotificationType(type) &&
-    pushResult &&
-    pushResult.status !== 'sent'
-  );
-}
-
-function mapnotification providerDeliveryStatus(status) {
-  if (['delivered', 'delivery_unconfirmed', 'sent'].includes(status)) {
-    return 'sent';
-  }
-
-  if (['delivery_failed', 'failed'].includes(status)) {
-    return 'failed';
-  }
-
-  return 'queued';
-}
-
-function getnotification providerDeliveryError(payload) {
-  const errors = payload?.data?.payload?.errors;
-
-  if (!Array.isArray(errors) || errors.length === 0) {
-    return null;
-  }
-
-  const firstError = errors[0];
-
-  return firstError?.detail || firstError?.title || firstError?.code || null;
-}
-
-function redactEmail(value) {
-  const [name = '', domain = ''] = String(value).split('@');
-  return `${name.slice(0, 2)}***@${domain}`;
 }

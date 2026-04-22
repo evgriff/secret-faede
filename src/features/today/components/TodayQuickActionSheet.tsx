@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 
 import type {
   Garden,
@@ -9,6 +9,7 @@ import type {
 import type { TodayTarget } from '../todayActions';
 import { getTodayTarget } from '../todaySelectors';
 import type { TodayQuickActionState } from './TodayQuickActionRail';
+import { TodayQuickPhotoFields } from './TodayQuickPhotoFields';
 import {
   defaultQuickBody,
   defaultQuickTitle,
@@ -83,7 +84,7 @@ export function TodayQuickActionSheet({
   const [unit, setUnit] = useState<HarvestEvent['unit']>('count');
 
   useEffect(() => {
-    setBody(defaultQuickBody(action?.kind));
+    setBody(defaultQuickBody());
     setCategory('general');
     setCropFinished(false);
     setDate(todayDate);
@@ -104,7 +105,7 @@ export function TodayQuickActionSheet({
   const selectedTarget = getTodayTarget(targets, targetId);
   const heading = getQuickActionHeading(action.kind);
   const canAttachPhoto = action.kind === 'photo' || action.kind === 'issue';
-
+  const hasOfflinePhotos = isOffline && photoFiles.length > 0;
   async function handleJournalSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -152,30 +153,17 @@ export function TodayQuickActionSheet({
       unit,
     });
 
-    if (saved) {
-      onClose();
-    }
-  }
-
-  function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
-    setPhotoFiles(Array.from(event.currentTarget.files ?? []));
-    setPhotoMessage(null);
-  }
-
-  async function handleCapturePhoto() {
-    const photo = await onCapturePhoto();
-
-    if (!photo) {
-      setPhotoMessage('Camera did not return a photo.');
+    if (!saved) {
       return;
     }
-
-    setPhotoFiles((current) => [...current, photo]);
-    setPhotoMessage('Photo ready to attach.');
   }
 
   return (
-    <section aria-label={heading} className={styles.quickSheet}>
+    <section
+      aria-label={heading}
+      className={styles.quickSheet}
+      data-action-kind={action.kind}
+    >
       <div className={styles.sheetHeader}>
         <div>
           <p className={styles.kicker}>Quick action</p>
@@ -353,39 +341,22 @@ export function TodayQuickActionSheet({
             />
           </label>
           {canAttachPhoto ? (
-            <label className={styles.fullField}>
-              <span>Photo</span>
-              <input
-                accept="image/*"
-                capture="environment"
-                disabled={isOffline}
-                onChange={handlePhotoChange}
-                type="file"
-              />
-              <small>
-                {isOffline
-                  ? 'Photo upload needs a connection. Text saves locally.'
-                  : `${photoFiles.length} photo selected`}
-              </small>
-            </label>
+            <TodayQuickPhotoFields
+              canUseNativeCamera={canUseNativeCamera}
+              isOffline={isOffline}
+              onCapturePhoto={onCapturePhoto}
+              onPhotoFilesChange={setPhotoFiles}
+              onPhotoMessageChange={setPhotoMessage}
+              photoFiles={photoFiles}
+              photoMessage={photoMessage}
+            />
           ) : null}
-          {canAttachPhoto && canUseNativeCamera ? (
-            <div className={styles.fullField}>
-              <button
-                disabled={isOffline}
-                onClick={() => void handleCapturePhoto()}
-                type="button"
-              >
-                Use camera
-              </button>
-              {photoMessage ? <small>{photoMessage}</small> : null}
-            </div>
-          ) : null}
-          <button
-            disabled={!body.trim() && action.kind !== 'photo'}
-            type="submit"
-          >
-            {action.kind === 'issue' ? 'Create issue task' : 'Save entry'}
+          <button disabled={!body.trim() || hasOfflinePhotos} type="submit">
+            {hasOfflinePhotos
+              ? 'Reconnect to upload photos'
+              : action.kind === 'issue'
+                ? 'Create issue task'
+                : 'Save entry'}
           </button>
         </form>
       )}

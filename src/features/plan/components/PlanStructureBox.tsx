@@ -112,7 +112,11 @@ function shouldShowStructureLabel(structure: Structure) {
   if (
     structure.type === 'fence' ||
     structure.type === 'fenceWall' ||
+    structure.type === 'compost' ||
     structure.type === 'hoseBib' ||
+    structure.type === 'path' ||
+    structure.type === 'pathway' ||
+    structure.type === 'treeObstacle' ||
     structure.type === 'trellis' ||
     structure.type === 'waterSource'
   ) {
@@ -129,6 +133,13 @@ function getStructureGlyph(structure: Structure) {
       return 'F';
     case 'hoseBib':
       return 'H';
+    case 'path':
+    case 'pathway':
+      return 'A';
+    case 'compost':
+      return 'C';
+    case 'treeObstacle':
+      return 'S';
     case 'trellis':
       return 'T';
     case 'waterSource':

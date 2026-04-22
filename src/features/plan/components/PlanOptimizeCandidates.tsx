@@ -1,13 +1,9 @@
-import { useMemo } from 'react';
-
 import type {
   Garden,
   SunShadeLayer,
 } from '../../../domain/gardens/GardenRepository';
 import type { PlanWarning } from '../../garden/gardenPlanning';
 import type { SunSeason } from '../../garden/sunShadeEngine';
-import { StatusBadge } from '../../shared/design/DesignPrimitives';
-import { buildAutoLayoutProposalPreview } from '../autoLayoutProposalDiff';
 import type { AutoLayoutCandidate } from '../autoLayoutTypes';
 import { PlanOptimizePreview } from './PlanOptimizePreview';
 import styles from './PlanOptimizeCandidates.module.css';
@@ -19,8 +15,10 @@ export function PlanOptimizeCandidates({
   onApplyAutoLayoutCandidate,
   onRejectAutoLayoutCandidate,
   onSelectAutoLayoutCandidate,
+  onSnoozeAutoLayoutCandidate,
   rejectedAutoLayoutCandidateIds,
   selectedAutoLayoutCandidateId,
+  snoozedAutoLayoutCandidateIds,
   sunLayer,
   sunSeason,
 }: {
@@ -30,12 +28,15 @@ export function PlanOptimizeCandidates({
   onApplyAutoLayoutCandidate(): void;
   onRejectAutoLayoutCandidate(candidateId: string): void;
   onSelectAutoLayoutCandidate(candidateId: string): void;
+  onSnoozeAutoLayoutCandidate(candidateId: string): void;
   rejectedAutoLayoutCandidateIds: string[];
   selectedAutoLayoutCandidateId: string | null;
+  snoozedAutoLayoutCandidateIds: string[];
   sunLayer: SunShadeLayer | null;
   sunSeason: SunSeason;
 }) {
   const rejectedCandidateIds = new Set(rejectedAutoLayoutCandidateIds);
+  const snoozedCandidateIds = new Set(snoozedAutoLayoutCandidateIds);
   const selectedCandidate =
     autoLayoutCandidates.find(
       (candidate) => candidate.id === selectedAutoLayoutCandidateId,
@@ -43,192 +44,184 @@ export function PlanOptimizeCandidates({
   const selectedCandidateRejected = Boolean(
     selectedCandidate && rejectedCandidateIds.has(selectedCandidate.id),
   );
-  const candidateImpacts = useMemo(
-    () =>
-      new Map(
-        autoLayoutCandidates.map((candidate) => [
-          candidate.id,
-          buildAutoLayoutProposalPreview({
-            candidate,
-            currentWarnings,
-            garden,
-            sunLayer,
-            sunSeason,
-          }).summary,
-        ]),
-      ),
-    [autoLayoutCandidates, currentWarnings, garden, sunLayer, sunSeason],
+  const selectedCandidateSnoozed = Boolean(
+    selectedCandidate && snoozedCandidateIds.has(selectedCandidate.id),
   );
 
   return (
-    <div className={styles.proposalStack}>
-      <div className={styles.proposalGrid}>
+    <div className={styles.walkthroughPanel}>
+      <header className={styles.walkthroughHeader}>
+        <div>
+          <span className={styles.kicker}>Proposal walkthrough</span>
+          <h4>Choose a strategy, inspect movement, then decide.</h4>
+          <p>
+            Preview keeps the draft unchanged until you explicitly apply a
+            selected proposal.
+          </p>
+        </div>
+      </header>
+
+      <div className={styles.strategyRail} aria-label="Candidate strategies">
         {autoLayoutCandidates.map((candidate) => {
           const isRejected = rejectedCandidateIds.has(candidate.id);
+          const isSnoozed = snoozedCandidateIds.has(candidate.id);
           const isSelected = candidate.id === selectedAutoLayoutCandidateId;
-          const impact = candidateImpacts.get(candidate.id);
 
           return (
-            <article
-              className={`${styles.proposalCard} ${
-                isSelected ? styles.selectedProposalCard : ''
-              } ${isRejected ? styles.rejectedProposalCard : ''}`}
+            <button
+              aria-pressed={isSelected}
+              className={`${styles.strategyCard} ${
+                isSelected ? styles.selectedStrategyCard : ''
+              } ${isRejected || isSnoozed ? styles.decidedStrategyCard : ''}`}
+              disabled={isRejected || isSnoozed}
               key={candidate.id}
+              onClick={() => onSelectAutoLayoutCandidate(candidate.id)}
+              type="button"
             >
-              <div className={styles.proposalHeader}>
-                <div>
-                  <strong>{candidate.label}</strong>
-                  <span>{formatStrategy(candidate.strategy)}</span>
-                </div>
-                <div className={styles.proposalBadges}>
-                  <StatusBadge
-                    tone={candidate.score >= 70 ? 'success' : 'warning'}
-                  >
-                    {candidate.score}/100
-                  </StatusBadge>
-                  {isRejected ? (
-                    <StatusBadge tone="neutral">rejected</StatusBadge>
-                  ) : null}
-                </div>
-              </div>
-              <dl className={styles.scoreGrid}>
-                <ScoreTerm
-                  label="Sun"
-                  value={candidate.scoreBreakdown.sunFit}
-                />
-                <ScoreTerm
-                  label="Access"
-                  value={candidate.scoreBreakdown.access}
-                />
-                <ScoreTerm
-                  label="Support"
-                  value={candidate.scoreBreakdown.support}
-                />
-                <ScoreTerm
-                  label="Shade"
-                  value={candidate.scoreBreakdown.shadeManagement}
-                />
-                <ScoreTerm
-                  label="Season"
-                  value={candidate.scoreBreakdown.seasonalSuitability}
-                />
-                <ScoreTerm
-                  label="Spacing"
-                  value={candidate.scoreBreakdown.spacingQuality}
-                />
-              </dl>
-              <div className={styles.proposalImpact}>
-                <span>Avoids {impact?.avoidedWarnings.length ?? 0}</span>
-                <span>Introduces {impact?.introducedWarnings.length ?? 0}</span>
-                <span>Support adds {impact?.supportAdditions ?? 0}</span>
-              </div>
-              <ul>
-                {candidate.explanations.slice(0, 2).map((reason) => (
-                  <li key={reason}>{reason}</li>
-                ))}
-                {candidate.tradeoffs.slice(0, 2).map((tradeoff) => (
-                  <li key={tradeoff}>{tradeoff}</li>
-                ))}
-              </ul>
-              <small>
-                {candidate.materials.length > 0
-                  ? candidate.materials.slice(0, 3).join('; ')
-                  : 'No new support materials.'}
-              </small>
-              {candidate.hardConstraintViolations.length > 0 ? (
-                <p className={styles.error}>
-                  {candidate.hardConstraintViolations.length} hard constraint
-                  issue
-                  {candidate.hardConstraintViolations.length === 1 ? '' : 's'}
-                </p>
-              ) : null}
-              {candidate.unplaced.length > 0 ? (
-                <small>
-                  Unplaced:{' '}
-                  {candidate.unplaced
-                    .map((entry) => entry.cropName)
-                    .slice(0, 3)
-                    .join(', ')}
-                </small>
-              ) : null}
-              <div className={styles.proposalActions}>
-                <button
-                  className={styles.secondaryButton}
-                  disabled={isRejected}
-                  onClick={() => onSelectAutoLayoutCandidate(candidate.id)}
-                  type="button"
-                >
-                  {isSelected ? 'Previewing' : 'Preview'}
-                </button>
-                <button
-                  className={styles.rejectButton}
-                  disabled={isRejected}
-                  onClick={() => onRejectAutoLayoutCandidate(candidate.id)}
-                  type="button"
-                >
-                  Reject
-                </button>
-              </div>
-            </article>
+              <span>{formatStrategy(candidate.strategy)}</span>
+              <strong>{candidate.label}</strong>
+              <em>{getProposalStateLabel(candidate, isRejected, isSnoozed)}</em>
+            </button>
           );
         })}
       </div>
       {selectedCandidate ? (
-        <PlanOptimizePreview
-          candidate={selectedCandidate}
-          currentWarnings={currentWarnings}
-          garden={garden}
-          sunLayer={sunLayer}
-          sunSeason={sunSeason}
-        />
+        <section className={styles.walkthroughFocus}>
+          <div className={styles.focusHeader}>
+            <div>
+              <span className={styles.kicker}>Selected strategy</span>
+              <h4>{selectedCandidate.label}</h4>
+              <p>{selectedCandidate.explanations[0]}</p>
+            </div>
+            <div className={styles.proposalBadges}>
+              <span>
+                {getProposalStateLabel(
+                  selectedCandidate,
+                  selectedCandidateRejected,
+                  selectedCandidateSnoozed,
+                )}
+              </span>
+            </div>
+          </div>
+          <PlanOptimizePreview
+            candidate={selectedCandidate}
+            currentWarnings={currentWarnings}
+            garden={garden}
+            sunLayer={sunLayer}
+            sunSeason={sunSeason}
+          />
+          <div className={styles.walkthroughDetailGrid}>
+            <DetailBlock
+              items={selectedCandidate.explanations}
+              title="Why this strategy"
+            />
+            <DetailBlock
+              fallback="No new support materials."
+              items={selectedCandidate.materials}
+              title="Support and materials"
+            />
+            <DetailBlock
+              items={[
+                ...selectedCandidate.tradeoffs,
+                ...selectedCandidate.hardConstraintViolations,
+                ...selectedCandidate.unplaced.map(
+                  (entry) => `${entry.cropName}: ${entry.reason}`,
+                ),
+              ]}
+              title="Warnings and tradeoffs"
+            />
+          </div>
+          <div className={styles.applyBar}>
+            <button
+              className={styles.decisionButton}
+              disabled={
+                selectedCandidateRejected ||
+                selectedCandidateSnoozed ||
+                selectedCandidate.hardConstraintViolations.length > 0
+              }
+              onClick={onApplyAutoLayoutCandidate}
+              type="button"
+            >
+              Apply selected proposal to draft
+            </button>
+            <button
+              className={styles.decisionButton}
+              disabled={selectedCandidateRejected || selectedCandidateSnoozed}
+              onClick={() => onRejectAutoLayoutCandidate(selectedCandidate.id)}
+              type="button"
+            >
+              Reject selected proposal
+            </button>
+            <button
+              className={styles.decisionButton}
+              disabled={selectedCandidateRejected || selectedCandidateSnoozed}
+              onClick={() => onSnoozeAutoLayoutCandidate(selectedCandidate.id)}
+              type="button"
+            >
+              Snooze selected proposal
+            </button>
+          </div>
+        </section>
       ) : (
         <p className={styles.helpText}>
-          Select a candidate to preview the draft change.
+          Select a strategy to preview the draft change.
         </p>
       )}
-      <div className={styles.applyBar}>
-        <button
-          className={styles.secondaryButton}
-          disabled={
-            !selectedCandidate ||
-            selectedCandidateRejected ||
-            selectedCandidate.hardConstraintViolations.length > 0
-          }
-          onClick={onApplyAutoLayoutCandidate}
-          type="button"
-        >
-          Apply selected proposal to draft
-        </button>
-        {selectedCandidate ? (
-          <button
-            className={styles.rejectButton}
-            disabled={selectedCandidateRejected}
-            onClick={() => onRejectAutoLayoutCandidate(selectedCandidate.id)}
-            type="button"
-          >
-            Reject selected proposal
-          </button>
-        ) : null}
-      </div>
     </div>
   );
 }
 
-function ScoreTerm({ label, value }: { label: string; value: number }) {
+function DetailBlock({
+  fallback,
+  items,
+  title,
+}: {
+  fallback?: string;
+  items: string[];
+  title: string;
+}) {
+  const visibleItems = items.filter(Boolean).slice(0, 4);
+
   return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{Math.round(value * 100)}%</dd>
-    </div>
+    <section className={styles.detailBlock}>
+      <h5>{title}</h5>
+      {visibleItems.length > 0 ? (
+        <ul>
+          {visibleItems.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p>{fallback ?? 'No issues created by this proposal.'}</p>
+      )}
+    </section>
   );
 }
 
 function formatStrategy(strategy: AutoLayoutCandidate['strategy']) {
   if (strategy === 'accessFirst') {
-    return 'Access-first strategy';
+    return 'Path access';
   }
 
-  return strategy === 'supportFirst'
-    ? 'Support-first strategy'
-    : 'Sun-first strategy';
+  return strategy === 'supportFirst' ? 'Support clearance' : 'Sun exposure';
+}
+
+function getProposalStateLabel(
+  candidate: AutoLayoutCandidate,
+  isRejected = false,
+  isSnoozed = false,
+) {
+  if (isRejected) {
+    return 'Rejected';
+  }
+
+  if (isSnoozed) {
+    return 'Snoozed';
+  }
+
+  if (candidate.hardConstraintViolations.length > 0) {
+    return 'Needs review';
+  }
+
+  return candidate.unplaced.length > 0 ? 'Partial layout' : 'Ready layout';
 }

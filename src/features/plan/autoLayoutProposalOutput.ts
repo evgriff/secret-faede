@@ -3,6 +3,7 @@ import {
   getPlantingFootprint,
   getStructureFootprint,
   rectsOverlap,
+  type FootRect,
 } from '../garden/gardenPlanning';
 import {
   isRectInsidePlot,
@@ -28,8 +29,11 @@ export function buildSupportStructures(
   garden: Garden,
   placements: Placement[],
   strategy: AutoLayoutStrategy,
+  referenceDate: Date,
 ): Structure[] {
-  return placements.flatMap((placement): Structure[] => {
+  const structures: Structure[] = [];
+
+  for (const placement of placements) {
     const crop = placement.unit.crop;
     const supportNeed = getCropSupportNeed(crop);
 
@@ -38,49 +42,57 @@ export function buildSupportStructures(
       !cropNeedsSupport(crop) ||
       !placement.unit.request.supportAllowed
     ) {
-      return [];
+      continue;
     }
 
     const footprint = getPlantingFootprint(placement.planting);
     const supportKind: CropSupportKind =
       placement.planting.mode === 'trellisLine' ? 'trellis' : supportNeed.kind;
+    const blockedRects = getSupportBlockedRects(
+      garden,
+      placement,
+      placements,
+      structures,
+      referenceDate,
+    );
     const supportFootprint = getLegalSupportFootprint(
       garden,
       crop,
       footprint,
       supportKind,
+      blockedRects,
     );
 
     if (hasExistingSupport(garden, footprint) || !supportFootprint) {
-      return [];
+      continue;
     }
 
     const supportLabel = getSupportLabel(supportKind);
-    return [
-      {
-        accessiblePath: false,
-        canopyRadiusFt: null,
-        continuousPath: false,
-        depthFt: supportFootprint.depthFt,
-        drainageProfile: 'normal',
-        heightFt: Math.max((crop.matureHeightInches ?? 72) / 12, 5),
-        id: `${autoLayoutProposalMarker}-${strategy}-${supportKind}-${placement.unit.id}`,
-        irrigationZone: null,
-        label: `${crop.commonName} ${supportLabel}`,
-        locked: false,
-        material: supportKind === 'stake' ? 'lumber' : 'wire',
-        mulched: false,
-        notes: `${autoLayoutProposalMarker} ${capitalize(supportLabel)} support proposed for ${crop.commonName}.`,
-        rotationDegrees: 0,
-        soilType: 'unknown',
-        type: 'trellis',
-        widthFt: supportFootprint.widthFt,
-        workingClearanceFt: 1,
-        xFt: supportFootprint.xFt,
-        yFt: supportFootprint.yFt,
-      },
-    ];
-  });
+    structures.push({
+      accessiblePath: false,
+      canopyRadiusFt: null,
+      continuousPath: false,
+      depthFt: supportFootprint.depthFt,
+      drainageProfile: 'normal',
+      heightFt: Math.max((crop.matureHeightInches ?? 72) / 12, 5),
+      id: `${autoLayoutProposalMarker}-${strategy}-${supportKind}-${placement.unit.id}`,
+      irrigationZone: null,
+      label: `${crop.commonName} ${supportLabel}`,
+      locked: false,
+      material: supportKind === 'stake' ? 'lumber' : 'wire',
+      mulched: false,
+      notes: `${autoLayoutProposalMarker} ${capitalize(supportLabel)} support proposed for ${crop.commonName}.`,
+      rotationDegrees: 0,
+      soilType: 'unknown',
+      type: 'trellis',
+      widthFt: supportFootprint.widthFt,
+      workingClearanceFt: 1,
+      xFt: supportFootprint.xFt,
+      yFt: supportFootprint.yFt,
+    });
+  }
+
+  return structures;
 }
 
 export function findHardConstraintViolations(
@@ -108,13 +120,16 @@ export function findHardConstraintViolations(
 
     if (reservedRects.some((reserved) => rectsOverlap(footprint, reserved))) {
       violations.push(
-        `${footprint.label} overlaps a saved path, obstacle, or crop.`,
+        `${footprint.label} overlaps a saved path, support, or crop.`,
       );
     }
 
     if (
       cropNeedsSupport(placement.unit.crop) &&
-      !canSupportFootprint(garden, placement.unit.crop, footprint) &&
+      !canSupportFootprint(garden, placement.unit.crop, footprint, [
+        ...reservedRects,
+        ...footprints.filter((candidate) => candidate.id !== footprint.id),
+      ]) &&
       !structures.some(
         (structure) =>
           structure.type === 'trellis' &&
@@ -161,6 +176,22 @@ export function findHardConstraintViolations(
   }
 
   return violations;
+}
+
+function getSupportBlockedRects(
+  garden: Garden,
+  placement: Placement,
+  placements: Placement[],
+  structures: Structure[],
+  referenceDate: Date,
+): FootRect[] {
+  return [
+    ...buildReservedRects(garden, placement.planting, referenceDate),
+    ...placements
+      .filter((candidate) => candidate !== placement)
+      .map((candidate) => getPlantingFootprint(candidate.planting)),
+    ...structures.map(getStructureFootprint),
+  ];
 }
 
 function capitalize(value: string) {

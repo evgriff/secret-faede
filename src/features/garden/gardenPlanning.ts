@@ -21,6 +21,7 @@ import type { SunSeason } from './sunShadeEngine';
 export {
   describeFootprint,
   getPlantingFootprint,
+  getPlantingInstanceFootprint,
   getStructureFootprint,
   rectsOverlap,
   type FootRect,
@@ -49,6 +50,22 @@ export type PlanWarningVisibility =
   | 'inspector'
   | 'internal'
   | 'planHealth';
+export type PlanWarningDecisionCategory =
+  | 'bedFit'
+  | 'boundary'
+  | 'care'
+  | 'pathway'
+  | 'rotation'
+  | 'spacing'
+  | 'structure'
+  | 'sun'
+  | 'support';
+
+export interface PlanWarningDecisionCategoryMeta {
+  category: PlanWarningDecisionCategory;
+  label: string;
+  prompt: string;
+}
 
 export interface PlanWarning {
   acknowledgeable: boolean;
@@ -119,6 +136,106 @@ export function hasWarningForItem(
   return Boolean(
     itemId && warnings.some((warning) => warning.itemIds.includes(itemId)),
   );
+}
+
+export function getPlanWarningDecisionCategory(
+  warning: PlanWarning,
+): PlanWarningDecisionCategory {
+  switch (warning.kind) {
+    case 'bedFit':
+    case 'container':
+      return 'bedFit';
+    case 'bounds':
+      return 'boundary';
+    case 'pathway':
+      return 'pathway';
+    case 'rotation':
+      return 'rotation';
+    case 'spacing':
+      return 'spacing';
+    case 'structure':
+      return 'structure';
+    case 'sun':
+      return 'sun';
+    case 'trellis':
+      return 'support';
+  }
+}
+
+export function getPlanWarningDecisionCategoryMeta(
+  category: PlanWarningDecisionCategory,
+): PlanWarningDecisionCategoryMeta {
+  switch (category) {
+    case 'bedFit':
+      return {
+        category,
+        label: 'Bed fit',
+        prompt: 'Resize, move, or confirm the bed/container.',
+      };
+    case 'boundary':
+      return {
+        category,
+        label: 'Plot boundary',
+        prompt: 'Move or resize items inside the plot.',
+      };
+    case 'care':
+      return {
+        category,
+        label: 'Season care',
+        prompt: 'Choose useful add-ons.',
+      };
+    case 'pathway':
+      return {
+        category,
+        label: 'Pathway',
+        prompt: 'Keep water and harvest routes usable.',
+      };
+    case 'rotation':
+      return {
+        category,
+        label: 'Rotation',
+        prompt: 'Use saved history to decide if crop families move.',
+      };
+    case 'spacing':
+      return {
+        category,
+        label: 'Spacing',
+        prompt: 'Move, thin, or reschedule shared mature space.',
+      };
+    case 'structure':
+      return {
+        category,
+        label: 'Structure conflict',
+        prompt: 'Separate crop footprints from structures.',
+      };
+    case 'sun':
+      return {
+        category,
+        label: 'Sun mismatch',
+        prompt: 'Use sun context to decide if the crop moves.',
+      };
+    case 'support':
+      return {
+        category,
+        label: 'Support',
+        prompt: 'Add a cage, stake, or trellis before it is needed.',
+      };
+  }
+}
+
+export function formatPlanWarningDecisionSummary(warnings: PlanWarning[]) {
+  const categories = new Map<PlanWarningDecisionCategory, number>();
+
+  for (const warning of warnings) {
+    const category = getPlanWarningDecisionCategory(warning);
+    categories.set(category, (categories.get(category) ?? 0) + 1);
+  }
+
+  return [...categories.entries()].map(([category, count]) => {
+    const meta = getPlanWarningDecisionCategoryMeta(category);
+
+    return `${meta.label}: ${count} ${count === 1 ? 'decision' : 'decisions'}`;
+  });
 }
 
 function isActivePlanting(planting: Planting) {

@@ -7,6 +7,7 @@ import {
   formatPriority,
   formatTaskType,
 } from '../todayFormatters';
+import { ActionButton } from '../../shared/design/DesignPrimitives';
 import { getTaskTargetLink } from '../todayTaskLinks';
 import styles from '../TodayPage.module.css';
 
@@ -71,7 +72,9 @@ function TaskCard({
   return (
     <article className={styles.taskCard}>
       <div className={styles.taskMain}>
-        <span className={styles.type}>{formatTaskType(task.type)}</span>
+        <span className={styles.taskTypeLabel}>
+          {formatTaskType(task.type)}
+        </span>
         <strong className={styles.taskTitle}>{task.title}</strong>
         {task.notes ? <p>{task.notes}</p> : null}
         <div className={styles.meta}>
@@ -87,16 +90,24 @@ function TaskCard({
         </div>
       </div>
       <div className={styles.taskActions}>
-        <button onClick={() => onComplete(task.id)} type="button">
+        <ActionButton
+          intent="success"
+          onClick={() => onComplete(task.id)}
+          priority="primary"
+        >
           Task done
-        </button>
-        <button onClick={() => onSnooze(task.id)} type="button">
+        </ActionButton>
+        <ActionButton onClick={() => onSnooze(task.id)} priority="secondary">
           Snooze
-        </button>
-        <button onClick={() => onDefer(task.id)} type="button">
+        </ActionButton>
+        <ActionButton onClick={() => onDefer(task.id)} priority="secondary">
           Defer
-        </button>
-        {targetLink ? <Link to={targetLink.to}>{targetLink.label}</Link> : null}
+        </ActionButton>
+        {targetLink ? (
+          <Link className={styles.taskActionLink} to={targetLink.to}>
+            {targetLink.label}
+          </Link>
+        ) : null}
       </div>
     </article>
   );

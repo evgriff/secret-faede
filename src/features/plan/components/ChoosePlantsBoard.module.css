@@ -43,7 +43,7 @@
 }
 
 .boardStats span,
-.fitPill {
+.stateBadge {
   border-radius: 999px;
   background: rgba(54, 48, 40, 0.08);
   color: var(--color-text-muted);
@@ -52,7 +52,7 @@
   padding: 0.18rem 0.45rem;
 }
 
-.fitPill {
+.stateBadge {
   display: inline-flex;
   justify-self: flex-start;
   max-width: max-content;
@@ -76,12 +76,20 @@
   padding: 0.7rem;
 }
 
-.boardItem[data-commitment='mustGrow'] {
+.boardItem[data-fit-level='greatFit'] {
   border-left-color: #24472e;
 }
 
-.boardItem[data-commitment='niceToHave'] {
-  border-left-color: rgba(54, 48, 40, 0.2);
+.boardItem[data-fit-level='workable'] {
+  border-left-color: #164f52;
+}
+
+.boardItem[data-fit-level='caution'] {
+  border-left-color: #704211;
+}
+
+.boardItem[data-fit-level='unlikelyFit'] {
+  border-left-color: #6d2037;
 }
 
 .boardItemHeader {
@@ -160,52 +168,24 @@
   font-size: var(--font-size-small);
 }
 
-.fitPill[data-fit-level='greatFit'] {
+.stateBadge[data-fit-level='greatFit'] {
   background: #eef7ea;
   color: #24472e;
 }
 
-.fitPill[data-fit-level='workable'] {
+.stateBadge[data-fit-level='workable'] {
   background: #e8f5f4;
   color: #164f52;
 }
 
-.fitPill[data-fit-level='caution'] {
+.stateBadge[data-fit-level='caution'] {
   background: #fff3df;
   color: #704211;
 }
 
-.fitPill[data-fit-level='unlikelyFit'] {
+.stateBadge[data-fit-level='unlikelyFit'] {
   background: #f9edf0;
   color: #6d2037;
-}
-
-.reasonTags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-.reasonTags span {
-  border: 1px solid rgba(54, 48, 40, 0.12);
-  border-radius: 999px;
-  background: #fffdf7;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-caption);
-  font-weight: 780;
-  padding: 0.14rem 0.42rem;
-}
-
-.reasonTags span[data-reason-severity='blocker'] {
-  border-color: rgba(150, 56, 82, 0.24);
-  background: #f9edf0;
-  color: #6d2037;
-}
-
-.reasonTags span[data-reason-severity='watch'] {
-  border-color: rgba(147, 87, 29, 0.24);
-  background: #fff3df;
-  color: #704211;
 }
 
 .rowActions {
@@ -241,7 +221,7 @@
 }
 
 .primaryGrid {
-  grid-template-columns: 0.65fr 1fr 1fr 0.8fr;
+  grid-template-columns: minmax(8rem, 0.75fr) minmax(10rem, 1fr);
 }
 
 .secondaryGrid {
@@ -249,6 +229,7 @@
 }
 
 .compactField,
+.formIntent,
 .notesField {
   display: grid;
   gap: 0.25rem;
@@ -256,6 +237,17 @@
   color: var(--color-text-strong);
   font-size: var(--font-size-caption);
   font-weight: 780;
+}
+
+.formIntent {
+  border: 1px solid rgba(54, 48, 40, 0.12);
+  border-radius: var(--radius-control);
+  background: rgba(246, 242, 233, 0.55);
+  padding: 0.5rem 0.6rem;
+}
+
+.formIntent strong {
+  font-size: var(--font-size-small);
 }
 
 .compactField input,
@@ -338,7 +330,7 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .fitPill,
+  .stateBadge,
   .rowActions {
     grid-column: 1 / -1;
   }

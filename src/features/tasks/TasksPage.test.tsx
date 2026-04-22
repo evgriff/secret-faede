@@ -1,9 +1,10 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import {
   createDefaultGarden,
   createDefaultPlanting,
+  type Task,
 } from '../../domain/gardens/GardenRepository';
 import { renderRoute } from '../../test/render';
 import { createTestServices } from '../../test/testServices';
@@ -35,9 +36,8 @@ describe('TodayPage', () => {
 
     renderRoute('/app/today', services);
 
-    await user.click(
-      await screen.findByRole('button', { name: 'Report issue' }),
-    );
+    await user.click(await screen.findByText('Field entry'));
+    await user.click(screen.getByRole('button', { name: 'Report issue' }));
     await user.selectOptions(screen.getByLabelText('Severity'), 'high');
     await user.type(
       screen.getByPlaceholderText(
@@ -93,4 +93,76 @@ describe('TodayPage', () => {
     ).toBeVisible();
     expect(await screen.findByText('Marked Tomato planted')).toBeVisible();
   });
+
+  it('logs a harvest from Today with one tap', async () => {
+    const user = userEvent.setup();
+    const services = await createTestServices({
+      signedInEmail: 'primary.gardener@example.com',
+    });
+    const authUser = services.authService.getCurrentUser();
+
+    if (!authUser) {
+      throw new Error('Expected a signed-in test user.');
+    }
+
+    await services.gardenRepository.saveGarden({
+      ...createDefaultGarden(authUser.uid),
+      plantings: [
+        {
+          ...createDefaultPlanting({
+            id: 'tomato-1',
+            label: 'Tomato',
+            xFt: 3,
+            yFt: 3,
+          }),
+          cropId: 'tomato',
+          status: 'harvest-ready',
+        },
+      ],
+      tasks: [createHarvestTask(authUser.uid)],
+    });
+
+    renderRoute('/app/today', services);
+
+    const detailsButton = await screen.findByRole('button', {
+      name: 'Details',
+    });
+    const harvestCard = detailsButton.closest('article');
+
+    if (!harvestCard) {
+      throw new Error('Expected the harvest card to render.');
+    }
+
+    await user.click(
+      within(harvestCard).getByRole('button', { name: 'Log harvest' }),
+    );
+
+    expect(await screen.findByText('Harvest logged: Picked')).toBeVisible();
+    expect(await screen.findByText('Task done: Harvest Tomato')).toBeVisible();
+    expect(
+      await screen.findByRole('region', { name: 'Add photo' }),
+    ).toBeVisible();
+  });
 });
+
+function createHarvestTask(gardenId: string): Task {
+  return {
+    bedLabel: 'Main bed',
+    completedAtIso: null,
+    createdAtIso: '2026-06-21T11:00:00.000Z',
+    deferredUntilDate: null,
+    dueDate: null,
+    gardenId,
+    id: 'planting-tomato-1-harvest',
+    notes: 'Pick ripe fruit.',
+    plantingId: 'tomato-1',
+    priority: 'medium',
+    snoozedUntilDate: null,
+    source: 'generated',
+    sourceId: 'tomato-1',
+    status: 'open',
+    structureId: null,
+    title: 'Harvest Tomato',
+    type: 'harvest',
+  };
+}

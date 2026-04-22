@@ -97,13 +97,13 @@ test.describe('Plan workflow visual baselines', () => {
       await generateLayoutCandidates(page);
       await expect(
         page
-          .getByRole('region', { name: 'Layout candidates' })
-          .getByRole('button', { name: 'Preview' })
-          .first(),
+          .getByRole('region', { name: 'Layout walkthrough' })
+          .getByText('Proposal walkthrough'),
       ).toBeVisible();
       await expect(
         page.getByRole('region', { name: 'Before and after preview' }),
       ).toBeVisible();
+      await expect(page.getByLabel(/Proposal diff overlay/)).toBeVisible();
       await stabilizeVisualState(page);
       await expect(page).toHaveScreenshot(
         `optimize-results-${viewport.name}.png`,
@@ -151,9 +151,13 @@ async function setVisualViewport(
 
 async function signInAndLoadDemo(page: Page) {
   await signInAndCreateBlankPlan(page);
-  await page.getByRole('link', { name: 'Settings' }).click();
-  await page.getByRole('button', { name: 'Load demo garden' }).click();
-  await expect(page.getByText('Demo garden loaded.')).toBeVisible();
+  await page.getByRole('button', { name: 'Enter demo' }).click();
+  await expect(
+    page.getByLabel('Demo controls').getByRole('button', { name: 'Exit demo' }),
+  ).toBeVisible();
+  await expect(page.getByText('20 ft by 16 ft')).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 async function signInAndCreateBlankPlan(page: Page) {
@@ -170,7 +174,7 @@ async function signInAndCreateBlankPlan(page: Page) {
 }
 
 async function openChoosePlants(page: Page) {
-  await page.getByRole('button', { name: 'Choose plants' }).first().click();
+  await clickVisibleOrLauncherTool(page, 'Choose plants');
   await expect(
     page.getByRole('dialog', { name: 'Choose Plants' }),
   ).toBeVisible();
@@ -196,12 +200,27 @@ async function addTomatoToSeasonList(page: Page) {
 }
 
 async function generateLayoutCandidates(page: Page) {
-  await page.getByRole('button', { name: 'Optimize' }).first().click();
+  await clickVisibleOrLauncherTool(page, 'Optimize');
 
   await expect(
     page.getByRole('heading', { name: 'Review proposals' }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Generate layouts' }).first().click();
+}
+
+async function clickVisibleOrLauncherTool(page: Page, name: string) {
+  const visibleButton = page.getByRole('button', { name }).first();
+
+  if (await visibleButton.isVisible().catch(() => false)) {
+    await visibleButton.click();
+    return;
+  }
+
+  await page.getByRole('button', { name: 'Open Plan tools' }).click();
+  const launcher = page.getByLabel('Plan tool launcher');
+
+  await expect(launcher).toBeVisible();
+  await launcher.getByRole('button', { name }).click();
 }
 
 async function stabilizeVisualState(page: Page) {

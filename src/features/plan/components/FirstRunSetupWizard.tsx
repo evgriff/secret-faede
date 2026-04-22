@@ -21,17 +21,14 @@ import {
   maxPlotFeet,
   minPlotFeet,
 } from '../../garden/gardenMath';
-import { geocodeLocation } from '../../garden/geocoding';
 import { FirstRunTemplateOption } from './FirstRunTemplateOption';
 import styles from './FirstRunSetupWizard.module.css';
 
 export function FirstRunSetupWizard({
   garden,
-  geocodingApiKey,
   onComplete,
 }: {
   garden: Garden;
-  geocodingApiKey: string | null;
   onComplete(request: GardenSetupRequest): void;
 }) {
   const [gardenName, setGardenName] = useState(garden.name);
@@ -69,9 +66,6 @@ export function FirstRunSetupWizard({
     garden.climateProfile.averageFirstFrost ||
       annArborClimateProfile.averageFirstFrost,
   );
-  const [geocodeStatus, setGeocodeStatus] = useState<
-    'error' | 'idle' | 'loading'
-  >('idle');
   const climateEstimate = useMemo(
     () =>
       findKnownClimateProfile(
@@ -97,29 +91,6 @@ export function FirstRunSetupWizard({
       setPlotType(template.plotType);
       setPlotWidthFt(String(template.plotWidthFt));
       setPlotDepthFt(String(template.plotDepthFt));
-    }
-  }
-
-  async function handleGeocode() {
-    if (!geocodingApiKey || !locationQuery.trim()) {
-      return;
-    }
-
-    setGeocodeStatus('loading');
-
-    try {
-      const result = await geocodeLocation(locationQuery, geocodingApiKey);
-      setLatitude(String(result.latitude));
-      setLongitude(String(result.longitude));
-      setLocationName(result.locationName);
-      applyClimateEstimate(
-        result.locationName,
-        result.latitude,
-        result.longitude,
-      );
-      setGeocodeStatus('idle');
-    } catch {
-      setGeocodeStatus('error');
     }
   }
 
@@ -180,17 +151,16 @@ export function FirstRunSetupWizard({
     <section className={styles.setup} aria-labelledby="setup-title">
       <form className={styles.card} onSubmit={handleSubmit}>
         <header className={styles.header}>
-          <span>First run</span>
+          <span>New garden</span>
           <h1 id="setup-title">Set up your garden</h1>
           <p>
-            Start with a real plot, editable climate defaults, and a template
-            you can change later.
+            Start with a name, plot size, and starter layout. Location and
+            climate use editable Detroit defaults until you refine them.
           </p>
         </header>
 
-        <div className={styles.grid}>
-          <section className={styles.panel} aria-label="Garden basics">
-            <h2>Basics</h2>
+        <section className={styles.panel} aria-label="Garden quick setup">
+          <div className={styles.setupGrid}>
             <label className={styles.field}>
               <span>Garden name</span>
               <input
@@ -198,122 +168,6 @@ export function FirstRunSetupWizard({
                 value={gardenName}
               />
             </label>
-            <label className={styles.field}>
-              <span>Location or address</span>
-              <input
-                onChange={(event) =>
-                  setLocationQuery(event.currentTarget.value)
-                }
-                value={locationQuery}
-              />
-            </label>
-            <div className={styles.actionRow}>
-              <button
-                disabled={!geocodingApiKey || geocodeStatus === 'loading'}
-                onClick={() => void handleGeocode()}
-                type="button"
-              >
-                {geocodeStatus === 'loading' ? 'Geocoding...' : 'Geocode'}
-              </button>
-              <button onClick={() => applyClimateEstimate()} type="button">
-                Estimate climate
-              </button>
-            </div>
-            {!geocodingApiKey ? (
-              <p className={styles.helpText}>
-                Geocoding needs VITE_GOOGLE_MAPS_API_KEY. Manual latitude and
-                longitude work offline.
-              </p>
-            ) : null}
-            {geocodeStatus === 'error' ? (
-              <p className={styles.error} role="alert">
-                Unable to geocode this location. Enter coordinates manually.
-              </p>
-            ) : null}
-            <label className={styles.field}>
-              <span>Location label</span>
-              <input
-                onChange={(event) => setLocationName(event.currentTarget.value)}
-                value={locationName}
-              />
-            </label>
-            <label className={styles.field}>
-              <span>Timezone</span>
-              <input
-                onChange={(event) => setTimezone(event.currentTarget.value)}
-                value={timezone}
-              />
-            </label>
-            <div className={styles.twoColumn}>
-              <label className={styles.field}>
-                <span>Latitude</span>
-                <input
-                  inputMode="decimal"
-                  onChange={(event) => setLatitude(event.currentTarget.value)}
-                  type="number"
-                  value={latitude}
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Longitude</span>
-                <input
-                  inputMode="decimal"
-                  onChange={(event) => setLongitude(event.currentTarget.value)}
-                  type="number"
-                  value={longitude}
-                />
-              </label>
-            </div>
-          </section>
-
-          <section className={styles.panel} aria-label="Climate profile">
-            <h2>Climate profile</h2>
-            <p className={styles.helpText}>
-              USDA zone and frost dates are editable. Use your microclimate or
-              local extension dates if they differ.
-            </p>
-            <label className={styles.field}>
-              <span>USDA hardiness zone</span>
-              <input
-                onChange={(event) =>
-                  setHardinessZone(event.currentTarget.value)
-                }
-                value={hardinessZone}
-              />
-            </label>
-            <div className={styles.twoColumn}>
-              <label className={styles.field}>
-                <span>Average last frost</span>
-                <input
-                  onChange={(event) =>
-                    setAverageLastFrost(event.currentTarget.value)
-                  }
-                  placeholder="MM-DD"
-                  value={averageLastFrost}
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Average first frost</span>
-                <input
-                  onChange={(event) =>
-                    setAverageFirstFrost(event.currentTarget.value)
-                  }
-                  placeholder="MM-DD"
-                  value={averageFirstFrost}
-                />
-              </label>
-            </div>
-            <p className={styles.estimate}>
-              {climateEstimate
-                ? `Using ${climateEstimate.locationName}: zone ${climateEstimate.hardinessZone}.`
-                : 'No local preset found; keep the editable defaults or enter your own.'}
-            </p>
-          </section>
-        </div>
-
-        <section className={styles.panel} aria-label="Plot setup">
-          <h2>Plot and template</h2>
-          <div className={styles.plotGrid}>
             <label className={styles.field}>
               <span>Plot type</span>
               <select
@@ -349,7 +203,122 @@ export function FirstRunSetupWizard({
               />
             </label>
           </div>
+        </section>
 
+        <details className={styles.optionalDetails}>
+          <summary>
+            <span>Optional location and climate</span>
+            <small>
+              Using {locationName || annArborLocation.locationName}, zone{' '}
+              {hardinessZone || annArborClimateProfile.hardinessZone}; refine
+              now or later in Settings.
+            </small>
+          </summary>
+          <div className={styles.optionalGrid}>
+            <section className={styles.panel} aria-label="Location details">
+              <h2>Location</h2>
+              <label className={styles.field}>
+                <span>Location or address</span>
+                <input
+                  onChange={(event) =>
+                    setLocationQuery(event.currentTarget.value)
+                  }
+                  value={locationQuery}
+                />
+              </label>
+              <div className={styles.actionRow}>
+                <button onClick={() => applyClimateEstimate()} type="button">
+                  Estimate climate
+                </button>
+              </div>
+              <label className={styles.field}>
+                <span>Location label</span>
+                <input
+                  onChange={(event) =>
+                    setLocationName(event.currentTarget.value)
+                  }
+                  value={locationName}
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Timezone</span>
+                <input
+                  onChange={(event) => setTimezone(event.currentTarget.value)}
+                  value={timezone}
+                />
+              </label>
+              <div className={styles.twoColumn}>
+                <label className={styles.field}>
+                  <span>Latitude</span>
+                  <input
+                    inputMode="decimal"
+                    onChange={(event) => setLatitude(event.currentTarget.value)}
+                    type="number"
+                    value={latitude}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span>Longitude</span>
+                  <input
+                    inputMode="decimal"
+                    onChange={(event) =>
+                      setLongitude(event.currentTarget.value)
+                    }
+                    type="number"
+                    value={longitude}
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section className={styles.panel} aria-label="Climate profile">
+              <h2>Climate profile</h2>
+              <p className={styles.helpText}>
+                USDA zone and frost dates are editable. Use your microclimate or
+                local extension dates if they differ.
+              </p>
+              <label className={styles.field}>
+                <span>USDA hardiness zone</span>
+                <input
+                  onChange={(event) =>
+                    setHardinessZone(event.currentTarget.value)
+                  }
+                  value={hardinessZone}
+                />
+              </label>
+              <div className={styles.twoColumn}>
+                <label className={styles.field}>
+                  <span>Average last frost</span>
+                  <input
+                    onChange={(event) =>
+                      setAverageLastFrost(event.currentTarget.value)
+                    }
+                    placeholder="MM-DD"
+                    value={averageLastFrost}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span>Average first frost</span>
+                  <input
+                    onChange={(event) =>
+                      setAverageFirstFrost(event.currentTarget.value)
+                    }
+                    placeholder="MM-DD"
+                    value={averageFirstFrost}
+                  />
+                </label>
+              </div>
+              <p className={styles.estimate}>
+                {climateEstimate
+                  ? `Using ${climateEstimate.locationName}: zone ${climateEstimate.hardinessZone}.`
+                  : 'No local preset found; keep the editable defaults or enter your own.'}
+              </p>
+            </section>
+          </div>
+        </details>
+
+        <section className={styles.panel} aria-label="Starter layout">
+          <h2>Starter layout</h2>
           <div className={styles.templates}>
             <FirstRunTemplateOption
               checked={templateId === blankTemplateId}
@@ -374,7 +343,7 @@ export function FirstRunSetupWizard({
         </section>
 
         <div className={styles.footer}>
-          <p>Detroit, MI remains the default demo profile.</p>
+          <p>Climate, location, and alerts stay editable after setup.</p>
           <button type="submit">Create plan</button>
         </div>
       </form>

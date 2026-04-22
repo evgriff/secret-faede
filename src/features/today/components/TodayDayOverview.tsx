@@ -2,32 +2,38 @@ import type {
   IssueStatus,
   PlantingLifecycleStatus,
   Task,
-  WaterRecommendation,
 } from '../../../domain/gardens/GardenRepository';
-import { StatusBadge } from '../../shared/design/DesignPrimitives';
+import {
+  ActionButton,
+  StatusBadge,
+} from '../../shared/design/DesignPrimitives';
 import {
   formatMonthDay,
   formatPriority,
   formatTaskType,
 } from '../todayFormatters';
-import type { TodayFieldModel } from '../todayFieldModel';
-import type { TodayQuickActionState } from './TodayQuickActionRail';
+import type {
+  TodayFieldModel,
+  TodayHarvestReadyItem,
+} from '../todayFieldModel';
 import { WeatherPanel } from './TodayFieldCards';
 import styles from '../TodayPage.module.css';
 
+type PriorityActionIntent = 'danger' | 'neutral' | 'success' | 'warning';
+
 interface PriorityAction {
   id: string;
+  intent: PriorityActionIntent;
   label: string;
   meta: string;
   onSelect(): void;
-  tone: 'danger' | 'neutral' | 'success' | 'warning';
   verb: string;
 }
 
 export function TodayDayOverview({
   model,
   onCompleteTask,
-  onOpenAction,
+  onLogHarvest,
   onUpdateIssue,
   onUpdatePlantingStatus,
   onWaterDone,
@@ -36,7 +42,7 @@ export function TodayDayOverview({
 }: {
   model: TodayFieldModel;
   onCompleteTask(taskId: string): void;
-  onOpenAction(action: TodayQuickActionState): void;
+  onLogHarvest(item: TodayHarvestReadyItem): void;
   onUpdateIssue(entryId: string, status: IssueStatus): void;
   onUpdatePlantingStatus(
     plantingId: string,
@@ -49,7 +55,7 @@ export function TodayDayOverview({
   const priorityActions = buildPriorityActions({
     model,
     onCompleteTask,
-    onOpenAction,
+    onLogHarvest,
     onUpdateIssue,
     onUpdatePlantingStatus,
     onWaterDone,
@@ -79,15 +85,18 @@ export function TodayDayOverview({
             {priorityActions.map((action) => (
               <article className={styles.priorityItem} key={action.id}>
                 <div>
-                  <StatusBadge tone={action.tone}>{action.verb}</StatusBadge>
                   <strong className={styles.priorityTitle}>
                     {action.label}
                   </strong>
                   <p>{action.meta}</p>
                 </div>
-                <button onClick={action.onSelect} type="button">
+                <ActionButton
+                  intent={action.intent}
+                  onClick={action.onSelect}
+                  priority="primary"
+                >
                   {action.verb}
-                </button>
+                </ActionButton>
               </article>
             ))}
           </div>
@@ -104,7 +113,7 @@ export function TodayDayOverview({
 function buildPriorityActions({
   model,
   onCompleteTask,
-  onOpenAction,
+  onLogHarvest,
   onUpdateIssue,
   onUpdatePlantingStatus,
   onWaterDone,
@@ -112,7 +121,7 @@ function buildPriorityActions({
 }: {
   model: TodayFieldModel;
   onCompleteTask(taskId: string): void;
-  onOpenAction(action: TodayQuickActionState): void;
+  onLogHarvest(item: TodayHarvestReadyItem): void;
   onUpdateIssue(entryId: string, status: IssueStatus): void;
   onUpdatePlantingStatus(
     plantingId: string,
@@ -129,7 +138,7 @@ function buildPriorityActions({
       label: recommendation.targetLabel,
       meta: `${recommendation.recommendedWaterInches} in water. ${recommendation.reason}`,
       onSelect: () => onWaterDone(recommendation.id),
-      tone: waterTone(recommendation),
+      intent: 'success' as const,
       verb: 'Water done',
     }));
   const issueActions = model.unresolvedIssues
@@ -140,19 +149,15 @@ function buildPriorityActions({
       label: issue.title,
       meta: `${issue.targetLabel}. ${issue.issueCategory ?? 'field check'}`,
       onSelect: () => onUpdateIssue(issue.id, 'inProgress'),
-      tone: 'danger' as const,
+      intent: 'warning' as const,
       verb: 'Start check',
     }));
   const harvestActions = model.harvestReady.slice(0, 1).map((item) => ({
     id: `harvest-${item.planting.id}`,
     label: item.planting.label,
     meta: `${item.cropName}${item.dueDate ? ` due ${formatMonthDay(item.dueDate)}` : ''}`,
-    onSelect: () =>
-      onOpenAction({
-        kind: 'harvest',
-        plantingId: item.planting.id,
-      }),
-    tone: 'success' as const,
+    onSelect: () => onLogHarvest(item),
+    intent: 'success' as const,
     verb: 'Log harvest',
   }));
   const cropStageActions = model.cropStageActions.slice(0, 1).map((action) => ({
@@ -161,7 +166,7 @@ function buildPriorityActions({
     meta: action.summary,
     onSelect: () =>
       onUpdatePlantingStatus(action.planting.id, action.nextStatus),
-    tone: 'neutral' as const,
+    intent: 'success' as const,
     verb: 'Update',
   }));
   const taskActions = selectedTasks
@@ -172,7 +177,7 @@ function buildPriorityActions({
       label: task.title,
       meta: `${formatTaskType(task.type)}. ${task.bedLabel ?? 'Open plot'}. ${formatPriority(task.priority)}`,
       onSelect: () => onCompleteTask(task.id),
-      tone: 'warning' as const,
+      intent: 'success' as const,
       verb: 'Task done',
     }));
 
@@ -183,10 +188,4 @@ function buildPriorityActions({
     ...cropStageActions,
     ...taskActions,
   ].slice(0, 4);
-}
-
-function waterTone(recommendation: WaterRecommendation) {
-  return recommendation.urgency === 'high'
-    ? ('warning' as const)
-    : ('neutral' as const);
 }

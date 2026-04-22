@@ -137,7 +137,10 @@ describe('todayActions', () => {
 
   it('logs harvests and only finishes a crop when requested', () => {
     const partial = logFieldHarvest(
-      createFieldGarden(),
+      {
+        ...createFieldGarden(),
+        tasks: [createHarvestTask()],
+      },
       {
         amountText: '3 count',
         cropFinished: false,
@@ -165,6 +168,12 @@ describe('todayActions', () => {
 
     expect(partial.plantings[0]).toMatchObject({
       status: 'harvest-ready',
+    });
+    expect(
+      partial.tasks.find((task) => task.id === 'planting-tomato-1-harvest'),
+    ).toMatchObject({
+      completedAtIso: '2026-07-15T12:00:00.000Z',
+      status: 'done',
     });
     expect(finished.plantings[0]).toMatchObject({
       status: 'harvested',

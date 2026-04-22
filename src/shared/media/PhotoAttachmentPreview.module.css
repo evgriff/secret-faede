@@ -1,0 +1,90 @@
+.previewPanel {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--space-2);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-card);
+  background: rgba(255, 253, 247, 0.62);
+  padding: var(--space-2);
+}
+
+.previewDetail {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.previewGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.55rem;
+}
+
+.previewItem {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.previewItem img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  object-fit: cover;
+}
+
+.previewItem figcaption {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+}
+
+.previewItem span {
+  color: var(--color-text-strong);
+  overflow-wrap: anywhere;
+}
+
+.previewItem strong {
+  font-weight: 760;
+}
+
+.previewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.previewActions button {
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-solid);
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 760;
+  padding: 0.65rem 0.85rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .previewActions button:hover {
+    border-color: var(--color-accent-strong);
+    background: var(--color-surface-alt);
+  }
+}
+
+@media (max-width: 48rem) {
+  .previewActions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .previewActions button {
+    width: 100%;
+  }
+}

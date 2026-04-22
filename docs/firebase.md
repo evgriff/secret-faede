@@ -14,7 +14,8 @@
 Not included now:
 
 - blocking triggers
-- production email delivery
+- email delivery
+- carrier messaging
 
 ## Required web-app setup
 
@@ -96,9 +97,9 @@ APP_LOGIN_PARTNER_TEMP_PASSWORD=...
 FIREBASE_PROJECT_ID=...
 ```
 
-carrier messaging/notification provider is no longer product scope. Do not configure phone-number seed values
-or notification provider secrets for new work; legacy runtime code should be removed in the
-dedicated carrier messaging cleanup prompt.
+Carrier messaging is no longer product scope. Do not configure phone-number
+seed values, carrier provider secrets, dry-run flags, or carrier webhooks for
+new work.
 
 `VITE_ALLOWED_EMAILS` rules:
 
@@ -211,12 +212,12 @@ Harvest events are stored in `gardens/{uid}/harvests/{harvestId}`. Harvests can
 attach to plantings and support count, pounds, ounces, bunches, or freeform
 amount text.
 
-Notification preferences are stored on `users/{uid}`. The production UI exposes
-channel toggles for in-app and push; alert-type toggles for watering, frost,
-heat stress, severe weather, and task due; quiet hours; daily check time;
-thresholds; timezone; consent records; and push permission metadata.
-The data model still parses the older email channel flag for compatibility, but
-no production email delivery is implemented or exposed.
+Notification preferences are stored on `users/{uid}`. In-app history is always
+available. The production UI exposes push delivery, alert-type toggles for
+watering, frost, heat stress, severe weather, and task due; quiet hours; daily
+check time; thresholds; timezone; push consent; and push permission metadata.
+Legacy carrier-message, email delivery, and phone fields are ignored during
+parsing and are not exposed.
 
 Push tokens are stored in `users/{uid}/pushTokens/{tokenId}`. The browser writes
 these through Firebase Messaging registration after the user grants permission.
@@ -225,10 +226,10 @@ Notification decisions are logged in
 `gardens/{uid}/notifications/{notificationId}` with the channel, type, body,
 provider, redacted recipient, status, dry-run flag, and optional error message.
 
-Plantings are stored in `gardens/{uid}/plantings/{plantingId}`. Planting
-positions are always `xFt` from the left plot edge and `yFt` from the top plot
-edge. Planting modes are `single`, `row`, `block`, `cluster`, and
-`trellisLine`.
+Plantings are stored in `gardens/{uid}/plantings/{plantingId}`. Parent planting
+positions and child plant-instance positions are always `xFt` from the left
+plot edge and `yFt` from the top plot edge. Planting modes are `single`, `row`,
+`block`, `cluster`, and `trellisLine`.
 
 Offline behavior:
 
@@ -289,13 +290,11 @@ Firebase Functions:
 - `onGardenWeatherSnapshotUpdated` dispatches frost, heat-stress, and
   severe-weather alerts when a new weather snapshot changes risk state.
 
-carrier messaging/notification provider:
+Carrier messaging:
 
 - Removed from product scope for the current product overhaul.
-- Do not add setup steps, demo paths, phone-number seed values, or new tests for
-  carrier messaging behavior.
-- Existing legacy implementation paths should be treated as removal targets in
-  the dedicated cleanup prompt.
+- Do not add setup steps, demo paths, phone-number seed values, dry-run flags,
+  provider secrets, webhooks, or new tests for carrier delivery behavior.
 
 ## Dev seed
 
@@ -337,7 +336,7 @@ Seeded data:
   derived from the same curated crop catalog used by the editor
 
 Use `node scripts/seed-dev.mjs --dry-run` to validate the seed payload without
-writing to Firestore. Do not seed demo phone numbers.
+writing to Firestore. Do not seed phone-number delivery data.
 
 Weather provider notes:
 

@@ -62,7 +62,7 @@ export type TaskType =
   | 'water'
   | 'weed'
   | 'other';
-export type NotificationChannel = 'email' | 'inApp' | 'push' | 'carrier messaging';
+export type NotificationChannel = 'inApp' | 'push';
 export type NotificationAlertType =
   | 'frost'
   | 'heatStress'
@@ -123,15 +123,9 @@ export type CropGrowthForm =
   | 'upright'
   | 'vining';
 export type CropLifecycle = 'annual' | 'biennial' | 'perennial';
-export type CropProfileConfidence = 'complete' | 'needsReview' | 'partial';
+export type CropProfileCompleteness = 'complete' | 'needsReview' | 'partial';
 export type CropSowMethod = 'both' | 'directSow' | 'transplant';
 export type CropWaterNeed = 'high' | 'low' | 'medium';
-export type SeasonCropCommitment = 'mustGrow' | 'niceToHave';
-export type SeasonCropPriority = 'high' | 'low' | 'medium';
-export type SeasonCropSowPreference =
-  | 'directSow'
-  | 'noPreference'
-  | 'transplant';
 export type PlantingLifecycleStatus =
   | 'growing'
   | 'harvest-ready'
@@ -190,9 +184,7 @@ export interface NotificationPreference {
   channelConsent: Partial<Record<NotificationChannel, NotificationConsent>>;
   channels: Record<NotificationChannel, boolean>;
   defaultWateringCheckTime: LocalTimeString;
-  email: string | null;
   frostAlertThresholdF: number;
-  phoneE164: string | null;
   pushPermission: NotificationPushPermission;
   pushTokenLastRegisteredAtIso: IsoDateString | null;
   quietHours: {
@@ -277,7 +269,7 @@ export interface CropProfile {
   notes: string;
   perennialSuitability: string;
   pollinatorRole: string | null;
-  profileConfidence: CropProfileConfidence;
+  profileCompleteness: CropProfileCompleteness;
   rowSpacingInches: number | null;
   rootDepthInches: number | null;
   roles: string[];
@@ -304,6 +296,7 @@ export interface Planting {
   clusterRadiusFt: number | null;
   cropId: string | null;
   id: string;
+  instances: PlantingInstance[];
   irrigationZone?: string | null;
   label: string;
   locked: boolean;
@@ -328,18 +321,20 @@ export interface Planting {
   yFt: number;
 }
 
+export interface PlantingInstance {
+  id: string;
+  label: string;
+  xFt: number;
+  yFt: number;
+}
+
 export interface SeasonCropSelection {
-  commitment: SeasonCropCommitment;
-  containerAllowed: boolean;
   cropId: string;
   id: string;
-  modePreference: PlantingMode;
   notes: string;
-  priority: SeasonCropPriority;
-  rank: number;
-  sowPreference: SeasonCropSowPreference;
+  plantingForm: PlantingMode;
+  quantity: number;
   supportAllowed: boolean;
-  targetQuantity: number;
   varietyName: string;
 }
 
@@ -517,7 +512,7 @@ export interface NotificationLog {
   gardenId: string | null;
   id: string;
   messageSummary: string;
-  provider: 'firebaseCloudMessaging' | 'inApp' | 'retiredDeliveryProvider' | null;
+  provider: 'firebaseCloudMessaging' | 'inApp' | null;
   providerMessageId?: string | null;
   providerStatus?: string | null;
   recipientRedacted: string;
@@ -580,19 +575,7 @@ export const defaultNotificationPreference: NotificationPreference = {
     watering: true,
   },
   channelConsent: {
-    email: {
-      consentCopyVersion: '2026-04-20',
-      grantedAtIso: null,
-      revokedAtIso: null,
-      status: 'notRequested',
-    },
     push: {
-      consentCopyVersion: '2026-04-20',
-      grantedAtIso: null,
-      revokedAtIso: null,
-      status: 'notRequested',
-    },
-    carrier messaging: {
       consentCopyVersion: '2026-04-20',
       grantedAtIso: null,
       revokedAtIso: null,
@@ -600,15 +583,11 @@ export const defaultNotificationPreference: NotificationPreference = {
     },
   },
   channels: {
-    email: false,
     inApp: true,
     push: false,
-    carrier messaging: false,
   },
   defaultWateringCheckTime: '07:00',
-  email: null,
   frostAlertThresholdF: 36,
-  phoneE164: null,
   pushPermission: 'unknown',
   pushTokenLastRegisteredAtIso: null,
   quietHours: {
@@ -671,6 +650,14 @@ export function createDefaultPlanting({
     clusterRadiusFt: null,
     cropId: null,
     id,
+    instances: [
+      {
+        id: `${id}-plant-1`,
+        label: label,
+        xFt,
+        yFt,
+      },
+    ],
     irrigationZone: null,
     label,
     locked: false,
@@ -822,7 +809,7 @@ function getDefaultStructureFootprint(
         continuousPath: false,
         depthFt: 3,
         heightFt: 18,
-        label: 'Tree/obstacle',
+        label: 'Legacy shade source',
         material: 'none' as const,
         widthFt: 3,
         workingClearanceFt: 3,
@@ -870,7 +857,6 @@ function getDefaultStructureFootprint(
 export function createDefaultUserProfile(
   uid: string,
   email: string,
-  phoneE164: string | null = null,
 ): UserProfile {
   return {
     alertLocationQuery: annArborLocation.locationQuery,
@@ -881,8 +867,6 @@ export function createDefaultUserProfile(
     email,
     notificationPreference: {
       ...defaultNotificationPreference,
-      email,
-      phoneE164,
     },
     timezone: annArborLocation.timezone,
     uid,

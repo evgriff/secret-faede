@@ -1,4 +1,4 @@
-export const CURRENT_GARDEN_SCHEMA_VERSION = 2;
+export const CURRENT_GARDEN_SCHEMA_VERSION = 3;
 export const LEGACY_GARDEN_SCHEMA_VERSION = 0;
 
 export interface GardenMigrationResult {
@@ -19,6 +19,10 @@ export function migrateGardenRecord(value: unknown): GardenMigrationResult {
 
   if (fromVersion < 2) {
     migratePlannerWorkspaceDefaults(record, applied);
+  }
+
+  if (fromVersion < 3) {
+    migrateSimplifiedSeasonPlan(record, applied);
   }
 
   record.schemaVersion = CURRENT_GARDEN_SCHEMA_VERSION;
@@ -101,6 +105,63 @@ function migrateSeasonPlanDefaults(value: unknown) {
       ? seasonPlan.wantedCrops
       : [],
   };
+}
+
+function migrateSimplifiedSeasonPlan(
+  record: Record<string, unknown>,
+  applied: string[],
+) {
+  const seasonPlan = isPlainRecord(record.seasonPlan)
+    ? { ...record.seasonPlan }
+    : {};
+  const wantedCrops = Array.isArray(seasonPlan.wantedCrops)
+    ? seasonPlan.wantedCrops.flatMap(simplifySeasonCropSelection)
+    : [];
+
+  record.seasonPlan = {
+    ...seasonPlan,
+    wantedCrops,
+  };
+
+  applied.push('season plan inputs simplified');
+}
+
+function simplifySeasonCropSelection(value: unknown) {
+  if (!isPlainRecord(value) || typeof value.id !== 'string') {
+    return [];
+  }
+
+  const cropId = typeof value.cropId === 'string' ? value.cropId.trim() : '';
+
+  if (!cropId) {
+    return [];
+  }
+
+  const quantity = readNumber(
+    value.quantity,
+    readNumber(value.targetQuantity, 1),
+  );
+
+  return [
+    {
+      cropId,
+      id: value.id,
+      notes: typeof value.notes === 'string' ? value.notes : '',
+      plantingForm:
+        typeof value.plantingForm === 'string'
+          ? value.plantingForm
+          : value.modePreference,
+      quantity,
+      supportAllowed:
+        typeof value.supportAllowed === 'boolean' ? value.supportAllowed : true,
+      varietyName:
+        typeof value.varietyName === 'string' ? value.varietyName : '',
+    },
+  ];
+}
+
+function readNumber(value: unknown, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

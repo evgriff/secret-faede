@@ -11,13 +11,17 @@ import type { LogFeedItem } from '../logFeedItems';
 import styles from './LogCards.module.css';
 
 export function LogFeed({
+  hasActiveFilters,
   focusedItemId,
   items,
   onUpdateIssue,
+  totalItemCount,
 }: {
+  hasActiveFilters: boolean;
   focusedItemId: string | null;
   items: LogFeedItem[];
   onUpdateIssue(entryId: string, status: IssueStatus): void;
+  totalItemCount: number;
 }) {
   const pinnedIssues = items
     .filter((item) => item.issue && item.issue.issueStatus !== 'resolved')
@@ -60,7 +64,16 @@ export function LogFeed({
           ))}
         </div>
       ) : (
-        <p className={styles.empty}>No feed items match these filters.</p>
+        <div className={styles.empty} role="status">
+          <h3>
+            {hasActiveFilters ? 'No matching memories' : 'No memories yet'}
+          </h3>
+          <p>
+            {hasActiveFilters && totalItemCount > 0
+              ? 'Clear or loosen filters to return to the full garden stream.'
+              : 'Add a note, issue, photo, or harvest when something changes in the garden.'}
+          </p>
+        </div>
       )}
     </section>
   );
@@ -90,18 +103,23 @@ function FeedItemCard({
       <div className={styles.feedContent}>
         <div className={styles.feedHeader}>
           <span>
-            {getTypeLabel(item)} · {item.targetLabel}
+            {getTypeLabel(item)} ·{' '}
+            {item.plantingId ? (
+              <a href={`/app/plan?p=${item.plantingId}`}>{item.targetLabel}</a>
+            ) : (
+              item.targetLabel
+            )}
           </span>
           <time dateTime={item.date}>{formatDate(item.date)}</time>
         </div>
         <h3>{item.title}</h3>
+        {item.photos.length > 0 ? <PhotoPreview item={item} /> : null}
         {item.body ? <p>{item.body}</p> : null}
         <div className={styles.meta}>
           {formatItemMeta(item).map((value) => (
             <span key={value}>{value}</span>
           ))}
         </div>
-        {item.photos.length > 0 ? <PhotoPreview item={item} /> : null}
         {item.issue ? (
           <IssueActions item={item} onUpdateIssue={onUpdateIssue} />
         ) : null}
@@ -176,7 +194,7 @@ function getTypeLabel(item: LogFeedItem) {
   const labels: Record<LogFeedItem['type'], string> = {
     harvest: 'Harvest',
     issue: 'Issue',
-    note: 'Post',
+    note: 'Note',
     photo: 'Photo update',
     publish: 'Publish',
     task: 'Task done',

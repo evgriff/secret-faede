@@ -11,7 +11,11 @@ import {
   canManuallyMovePlanting,
   canManuallyMoveStructure,
 } from '../../garden/gardenImmutability';
-import { clientPointToPlotFeet, type PlotPoint } from '../../garden/gardenMath';
+import {
+  clientPointToPlotFeet,
+  type PlotClientRect,
+  type PlotPoint,
+} from '../../garden/gardenMath';
 import type { SelectedGardenItem } from '../../garden/useGarden';
 import type { PlanMode } from '../planModes';
 import {
@@ -35,7 +39,9 @@ type DragState = {
   item: PlanItemRef;
   moved: boolean;
   originalPoints: PlanItemPositionUpdate[];
+  plotRect: PlotClientRect;
   pointerOffset: PlotPoint;
+  scrollLock: ScrollLock | null;
   selection: PlanItemRef[];
   sourceRect: NonNullable<ReturnType<typeof getItemRect>>;
   startClientX: number;
@@ -46,6 +52,8 @@ type ResizeState = {
   checkpointed: boolean;
   handle: ResizeHandle;
   originalRect: NonNullable<ReturnType<typeof getItemRect>>;
+  plotRect: PlotClientRect;
+  scrollLock: ScrollLock | null;
   startClientX: number;
   startClientY: number;
   structureId: string;
@@ -53,7 +61,15 @@ type ResizeState = {
 
 type MarqueeState = {
   additive: boolean;
+  plotRect: PlotClientRect;
+  scrollLock: ScrollLock | null;
   start: PlotPoint;
+};
+
+type ScrollLock = {
+  element: HTMLElement;
+  scrollLeft: number;
+  scrollTop: number;
 };
 
 type PlanPointerInteractionContext = {
@@ -77,14 +93,17 @@ type PlanPointerInteractionHandlers = {
   handlePlantPointerDown(
     event: PointerEvent<HTMLButtonElement>,
     plantId: string,
+    instanceId?: string,
   ): void;
   handlePlantPointerEnd(
     event: PointerEvent<HTMLButtonElement>,
     plantId: string,
+    instanceId?: string,
   ): void;
   handlePlantPointerMove(
     event: PointerEvent<HTMLButtonElement>,
     plantId: string,
+    instanceId?: string,
   ): void;
   handleResizePointerDown(
     event: PointerEvent<HTMLSpanElement>,
@@ -188,13 +207,14 @@ export function usePlanPointerInteractions({
       return;
     }
 
-    const rect = plotRef.current?.getBoundingClientRect();
+    const rect = getFrozenPlotRect(plotRef.current);
     const sourceRect = getItemRect(garden, item);
 
     if (!rect || !sourceRect) {
       return;
     }
 
+    const scrollLock = captureScrollLock(event.currentTarget);
     const pointerPoint = clientPointToPlotFeet(event, rect, garden.plot);
     const itemPoint = getItemPointFromRect(item, sourceRect);
     const dragSelection =
@@ -227,10 +247,12 @@ export function usePlanPointerInteractions({
       item,
       moved: false,
       originalPoints,
+      plotRect: rect,
       pointerOffset: {
         xFt: pointerPoint.xFt - itemPoint.xFt,
         yFt: pointerPoint.yFt - itemPoint.yFt,
       },
+      scrollLock,
       selection: dragSelection,
       sourceRect,
       startClientX: event.clientX,
@@ -238,7 +260,7 @@ export function usePlanPointerInteractions({
     };
 
     if (item.type === 'planting') {
-      setDraggingPlantId(item.id);
+      setDraggingPlantId(item.instanceId ?? item.id);
     } else {
       setDraggingStructureId(item.id);
     }
@@ -260,6 +282,10 @@ export function usePlanPointerInteractions({
       return;
     }
 
+    event.preventDefault();
+    event.stopPropagation();
+    restoreScrollLock(dragState.scrollLock);
+
     if (!markMoved(event, dragState)) {
       return;
     }
@@ -275,10 +301,14 @@ export function usePlanPointerInteractions({
       return;
     }
 
+    event.preventDefault();
+    event.stopPropagation();
+
     if (dragState.moved) {
       updateDraggedItems(event, dragState, true);
     }
 
+    restoreScrollLock(dragState.scrollLock);
     releasePointerCapture(event);
     dragStateRef.current = null;
     setDraggingPlantId(null);
@@ -297,13 +327,12 @@ export function usePlanPointerInteractions({
       return;
     }
 
-    const rect = plotRef.current?.getBoundingClientRect();
-
-    if (!rect) {
-      return;
-    }
-
-    const pointerPoint = clientPointToPlotFeet(event, rect, garden.plot);
+    restoreScrollLock(dragState.scrollLock);
+    const pointerPoint = clientPointToPlotFeet(
+      event,
+      dragState.plotRect,
+      garden.plot,
+    );
     const nextPoint = {
       xFt: pointerPoint.xFt - dragState.pointerOffset.xFt,
       yFt: pointerPoint.yFt - dragState.pointerOffset.yFt,
@@ -337,6 +366,7 @@ export function usePlanPointerInteractions({
     }));
 
     updateItemPositions(updates, false);
+    restoreScrollLock(dragState.scrollLock);
     setSnapGuides(isFinal || event.altKey ? [] : snapResult.guides);
   }
 
@@ -358,20 +388,24 @@ export function usePlanPointerInteractions({
       return;
     }
 
+    const plotRect = getFrozenPlotRect(plotRef.current);
     const originalRect = getItemRect(garden, {
       id: structureId,
       type: 'structure',
     });
 
-    if (!originalRect) {
+    if (!plotRect || !originalRect) {
       return;
     }
 
+    const scrollLock = captureScrollLock(event.currentTarget);
     event.currentTarget.setPointerCapture?.(event.pointerId);
     resizeStateRef.current = {
       checkpointed: false,
       handle,
       originalRect,
+      plotRect,
+      scrollLock,
       startClientX: event.clientX,
       startClientY: event.clientY,
       structureId,
@@ -388,6 +422,7 @@ export function usePlanPointerInteractions({
 
     event.preventDefault();
     event.stopPropagation();
+    restoreScrollLock(resizeStateRef.current.scrollLock);
 
     if (!markMoved(event, resizeStateRef.current)) {
       return;
@@ -409,6 +444,7 @@ export function usePlanPointerInteractions({
     event.preventDefault();
     event.stopPropagation();
     updateResizedStructure(event, resizeStateRef.current, true);
+    restoreScrollLock(resizeStateRef.current.scrollLock);
     releasePointerCapture(event);
     resizeStateRef.current = null;
     setResizingStructureId(null);
@@ -426,13 +462,12 @@ export function usePlanPointerInteractions({
       return;
     }
 
-    const rect = plotRef.current?.getBoundingClientRect();
-
-    if (!rect) {
-      return;
-    }
-
-    const point = clientPointToPlotFeet(event, rect, garden.plot);
+    restoreScrollLock(resizeState.scrollLock);
+    const point = clientPointToPlotFeet(
+      event,
+      resizeState.plotRect,
+      garden.plot,
+    );
     const baseRect = calculateResizeRect({
       currentPoint: point,
       garden,
@@ -458,6 +493,7 @@ export function usePlanPointerInteractions({
       },
       false,
     );
+    restoreScrollLock(resizeState.scrollLock);
     setSnapGuides(isFinal || event.altKey ? [] : snapResult.guides);
   }
 
@@ -479,7 +515,7 @@ export function usePlanPointerInteractions({
       return;
     }
 
-    const rect = plotRef.current?.getBoundingClientRect();
+    const rect = getFrozenPlotRect(plotRef.current);
 
     if (!rect) {
       return;
@@ -487,9 +523,12 @@ export function usePlanPointerInteractions({
 
     event.preventDefault();
     event.stopPropagation();
+    const scrollLock = captureScrollLock(event.currentTarget);
     const start = clientPointToPlotFeet(event, rect, garden.plot);
     marqueeStateRef.current = {
       additive: event.shiftKey,
+      plotRect: rect,
+      scrollLock,
       start,
     };
     setMarqueeRect(rectFromPoints(start, start));
@@ -503,18 +542,17 @@ export function usePlanPointerInteractions({
       return;
     }
 
-    const rect = plotRef.current?.getBoundingClientRect();
-
-    if (!rect) {
-      return;
-    }
-
     event.preventDefault();
     event.stopPropagation();
+    restoreScrollLock(marqueeStateRef.current.scrollLock);
     setMarqueeRect(
       rectFromPoints(
         marqueeStateRef.current.start,
-        clientPointToPlotFeet(event, rect, garden.plot),
+        clientPointToPlotFeet(
+          event,
+          marqueeStateRef.current.plotRect,
+          garden.plot,
+        ),
       ),
     );
   }
@@ -528,16 +566,14 @@ export function usePlanPointerInteractions({
 
     event.preventDefault();
     event.stopPropagation();
-    const rect = plotRef.current?.getBoundingClientRect();
     const state = marqueeStateRef.current;
 
-    if (rect) {
-      const selectionRect = rectFromPoints(
-        state.start,
-        clientPointToPlotFeet(event, rect, garden.plot),
-      );
-      onMarqueeSelect(getItemsInRect(garden, selectionRect), state.additive);
-    }
+    restoreScrollLock(state.scrollLock);
+    const selectionRect = rectFromPoints(
+      state.start,
+      clientPointToPlotFeet(event, state.plotRect, garden.plot),
+    );
+    onMarqueeSelect(getItemsInRect(garden, selectionRect), state.additive);
 
     releasePointerCapture(event);
     marqueeStateRef.current = null;
@@ -556,14 +592,14 @@ export function usePlanPointerInteractions({
       handleMarqueePointerMove(event) {
         continueMarquee(event);
       },
-      handlePlantPointerDown(event, plantId) {
-        beginItemDrag(event, { id: plantId, type: 'planting' });
+      handlePlantPointerDown(event, plantId, instanceId) {
+        beginItemDrag(event, createPlantingRef(plantId, instanceId));
       },
-      handlePlantPointerEnd(event, plantId) {
-        endItemDrag(event, { id: plantId, type: 'planting' });
+      handlePlantPointerEnd(event, plantId, instanceId) {
+        endItemDrag(event, createPlantingRef(plantId, instanceId));
       },
-      handlePlantPointerMove(event, plantId) {
-        continueItemDrag(event, { id: plantId, type: 'planting' });
+      handlePlantPointerMove(event, plantId, instanceId) {
+        continueItemDrag(event, createPlantingRef(plantId, instanceId));
       },
       handleResizePointerDown(event, structureId, handle) {
         beginResize(event, structureId, handle);
@@ -597,6 +633,12 @@ export function usePlanPointerInteractions({
     resizingStructureId,
     snapGuides,
   };
+}
+
+function createPlantingRef(plantId: string, instanceId?: string): PlanItemRef {
+  return instanceId
+    ? { id: plantId, instanceId, type: 'planting' }
+    : { id: plantId, type: 'planting' };
 }
 
 function markMoved(
@@ -653,6 +695,48 @@ function canStructureBeMoved(garden: Garden, structureId: string) {
 
 function roundFeet(value: number) {
   return Number(value.toFixed(3));
+}
+
+function getFrozenPlotRect(element: HTMLElement | null): PlotClientRect | null {
+  const rect = element?.getBoundingClientRect();
+
+  if (!rect) {
+    return null;
+  }
+
+  return {
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+  };
+}
+
+function captureScrollLock(element: HTMLElement): ScrollLock | null {
+  const scrollport = element.closest<HTMLElement>('[data-plan-scrollport]');
+
+  if (!scrollport) {
+    return null;
+  }
+
+  return {
+    element: scrollport,
+    scrollLeft: scrollport.scrollLeft,
+    scrollTop: scrollport.scrollTop,
+  };
+}
+
+function restoreScrollLock(scrollLock: ScrollLock | null) {
+  if (!scrollLock) {
+    return;
+  }
+
+  if (scrollLock.element.scrollLeft !== scrollLock.scrollLeft) {
+    scrollLock.element.scrollLeft = scrollLock.scrollLeft;
+  }
+
+  if (scrollLock.element.scrollTop !== scrollLock.scrollTop) {
+    scrollLock.element.scrollTop = scrollLock.scrollTop;
+  }
 }
 
 function releasePointerCapture(event: PointerEvent<HTMLElement>) {

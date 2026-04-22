@@ -72,7 +72,6 @@ async function main() {
       {
         dryRun,
         gardenId: user.uid,
-        hasSmsPhone: Boolean(process.env.DEFAULT_ALERT_PHONE_E164),
         projectId,
         seededDocuments: documents.length,
         userEmail: user.email,
@@ -84,7 +83,6 @@ async function main() {
 }
 
 function createSeedDocuments(uid, email, now) {
-  const phoneE164 = process.env.DEFAULT_ALERT_PHONE_E164 || null;
   const userProfile = {
     alertLocationQuery: annArborLocation.locationQuery,
     climateProfile: annArborClimateProfile,
@@ -101,35 +99,19 @@ function createSeedDocuments(uid, email, now) {
         watering: true,
       },
       channelConsent: {
-        email: {
-          consentCopyVersion: '2026-04-20',
-          grantedAtIso: null,
-          revokedAtIso: null,
-          status: 'notRequested',
-        },
         push: {
           consentCopyVersion: '2026-04-20',
           grantedAtIso: null,
           revokedAtIso: null,
           status: 'notRequested',
         },
-        carrier messaging: {
-          consentCopyVersion: '2026-04-20',
-          grantedAtIso: phoneE164 ? now : null,
-          revokedAtIso: null,
-          status: phoneE164 ? 'granted' : 'notRequested',
-        },
       },
       channels: {
-        email: false,
         inApp: true,
         push: false,
-        carrier messaging: Boolean(phoneE164),
       },
       defaultWateringCheckTime: '07:15',
-      email,
       frostAlertThresholdF: 36,
-      phoneE164,
       pushPermission: 'unknown',
       pushTokenLastRegisteredAtIso: null,
       quietHours: {
@@ -155,39 +137,29 @@ function createSeedDocuments(uid, email, now) {
       snapUnitFt: 0.25,
       widthFt: 20,
     },
-    schemaVersion: 2,
+    schemaVersion: 3,
     seasonPlan: {
       updatedAtIso: now,
       wantedCrops: [
-        createSeasonSelection('tomato', 0, {
-          commitment: 'mustGrow',
-          modePreference: 'single',
-          priority: 'high',
-          targetQuantity: 4,
+        createSeasonSelection('tomato', {
+          plantingForm: 'single',
+          quantity: 4,
         }),
-        createSeasonSelection('cucumber', 1, {
-          commitment: 'mustGrow',
-          modePreference: 'trellisLine',
-          priority: 'high',
-          targetQuantity: 6,
+        createSeasonSelection('cucumber', {
+          plantingForm: 'trellisLine',
+          quantity: 6,
         }),
-        createSeasonSelection('basil', 2, {
-          commitment: 'niceToHave',
-          modePreference: 'cluster',
-          priority: 'medium',
-          targetQuantity: 4,
+        createSeasonSelection('basil', {
+          plantingForm: 'cluster',
+          quantity: 4,
         }),
-        createSeasonSelection('pepper-sweet', 3, {
-          commitment: 'niceToHave',
-          modePreference: 'single',
-          priority: 'medium',
-          targetQuantity: 2,
+        createSeasonSelection('pepper-sweet', {
+          plantingForm: 'single',
+          quantity: 2,
         }),
-        createSeasonSelection('carrot', 4, {
-          commitment: 'niceToHave',
-          modePreference: 'block',
-          priority: 'medium',
-          targetQuantity: 36,
+        createSeasonSelection('carrot', {
+          plantingForm: 'block',
+          quantity: 36,
         }),
       ],
     },
@@ -356,20 +328,6 @@ function createSeedDocuments(uid, email, now) {
       widthFt: 3,
       xFt: 1,
       yFt: 12,
-    },
-    {
-      canopyRadiusFt: 3,
-      depthFt: 4,
-      heightFt: 12,
-      id: 'maple-shade',
-      label: 'Neighbor maple shade',
-      mulched: false,
-      notes: 'Afternoon shade source along the west edge.',
-      rotationDegrees: 0,
-      type: 'treeObstacle',
-      widthFt: 4,
-      xFt: 0,
-      yFt: 0,
     },
   ];
   const plantings = [
@@ -855,36 +813,6 @@ function createSeedDocuments(uid, email, now) {
     },
     {
       acknowledgedAtIso: null,
-      attemptCount: 0,
-      body: 'carrier messaging dry run: water alert would have been sent if live carrier messaging were enabled.',
-      channel: 'carrier messaging',
-      createdAtIso: now,
-      decisionReason: phoneE164
-        ? 'carrier messaging dry-run mode prevents live delivery.'
-        : 'No carrier messaging phone configured for this demo seed.',
-      dedupeKey: 'seed-water-carrier messaging',
-      deepLink: '/app/settings',
-      dismissedAtIso: null,
-      dryRun: true,
-      errorMessage: null,
-      gardenId: uid,
-      id: 'seed-log-water-carrier messaging',
-      messageSummary: 'carrier messaging water alert dry-run',
-      provider: 'retiredDeliveryProvider',
-      providerMessageId: null,
-      providerStatus: 'dry-run',
-      recipientRedacted: phoneE164
-        ? 'configured phone redacted'
-        : 'not configured',
-      retryPolicy: 'dedupe by alert class and day',
-      sentAtIso: null,
-      status: 'skipped',
-      taskId: 'seed-task-water-main-bed',
-      type: 'watering',
-      userId: uid,
-    },
-    {
-      acknowledgedAtIso: null,
       attemptCount: 1,
       body: 'Slug pressure in lettuce still needs a quick field check.',
       channel: 'inApp',
@@ -999,19 +927,14 @@ function readSeedCrop(cropId) {
   };
 }
 
-function createSeasonSelection(cropId, rank, overrides = {}) {
+function createSeasonSelection(cropId, overrides = {}) {
   return {
-    commitment: 'niceToHave',
-    containerAllowed: true,
     cropId,
     id: `seed-season-${cropId}`,
-    modePreference: 'single',
+    plantingForm: 'single',
     notes: '',
-    priority: 'medium',
-    rank,
-    sowPreference: 'noPreference',
     supportAllowed: true,
-    targetQuantity: 1,
+    quantity: 1,
     varietyName: '',
     ...overrides,
   };
@@ -1030,26 +953,18 @@ function createSeedSunShadeLayers(gardenId, now) {
       {
         depthFt: 4,
         exposure: season === 'summer' ? 'partSun' : 'fullSun',
-        id: `seed-${season}-west-maple`,
+        id: `seed-${season}-pepper-observation`,
         microclimateNotes: [
           {
-            description: 'Cooler afternoon pocket from the maple canopy.',
+            description: 'Observed cooler afternoon pocket near pepper starts.',
             id: `seed-${season}-cool-shade`,
             kind: 'coolShadePocket',
             label: 'Cool shade pocket',
-            source: 'modeled',
+            source: 'manual',
           },
         ],
-        shadeSources: [
-          {
-            heightFt: 12,
-            itemId: 'maple-shade',
-            itemType: 'structure',
-            kind: 'treeObstacle',
-            label: 'Neighbor maple shade',
-          },
-        ],
-        source: 'modeled',
+        shadeSources: [],
+        source: 'manual',
         sunHours: season === 'summer' ? 4.5 : 6.5,
         updatedAtIso,
         widthFt: 5,

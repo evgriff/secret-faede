@@ -1,8 +1,9 @@
 .page {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   width: min(100%, 64rem);
   margin-inline: auto;
+  animation: feedRouteIn var(--motion-short) var(--ease-out);
 }
 
 .header {
@@ -60,15 +61,21 @@
   gap: var(--space-2);
 }
 
-.quickActions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: end;
-  gap: 0.45rem;
+.saveState {
+  display: grid;
+  justify-items: end;
+  gap: 0.22rem;
+  max-width: 20rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  line-height: 1.25;
 }
 
-.quickActions a,
-.quickActions button {
+.saveState span:last-child {
+  overflow-wrap: anywhere;
+}
+
+.composeButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -82,40 +89,47 @@
   font-weight: 720;
   padding: 0.55rem 0.85rem;
   text-decoration: none;
+  transition:
+    background-color var(--motion-micro) var(--ease-standard),
+    border-color var(--motion-micro) var(--ease-standard),
+    color var(--motion-micro) var(--ease-standard),
+    transform var(--motion-instant) var(--ease-standard);
 }
 
 .pulseBar {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.8rem;
+  align-items: center;
+  border-block: 1px solid rgba(76, 85, 70, 0.12);
+  padding-block: 0.55rem;
+  animation: feedSurfaceIn var(--motion-short) var(--ease-out);
 }
 
 .pulseBar span {
-  display: grid;
-  gap: 0.15rem;
-  border: 1px solid rgba(76, 85, 70, 0.14);
-  border-radius: var(--radius-control);
-  background: rgba(255, 253, 247, 0.72);
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: baseline;
+  border-left: 1px solid rgba(76, 85, 70, 0.18);
   color: var(--color-text-muted);
   font-size: var(--font-size-caption);
-  padding: 0.6rem 0.75rem;
+  padding-left: 0.8rem;
 }
 
 .pulseBar strong {
   color: var(--color-text-strong);
-  font-size: var(--font-size-title);
+  font-size: var(--font-size-body);
   line-height: 1;
 }
 
 .pulseBar .pulseWarning {
-  border-color: var(--color-warning-border);
-  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
 }
 
 .main,
 .panel {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .panel {
@@ -131,10 +145,26 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .quickActions a:hover,
-  .quickActions button:hover {
+  .composeButton:hover {
     border-color: var(--color-accent-strong);
     background: var(--color-surface-alt);
+  }
+}
+
+.composeButton:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+@keyframes feedRouteIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes feedSurfaceIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.3rem);
   }
 }
 
@@ -152,30 +182,37 @@
     width: 100%;
   }
 
-  .quickActions {
-    justify-content: start;
+  .saveState {
+    justify-items: start;
   }
 
-  .pulseBar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .composeButton {
+    justify-self: start;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .pulseBar,
+  .composeButton {
+    animation: none;
+    transition-duration: 1ms;
+    transform: none;
   }
 }
 
 @media (max-width: 48rem) {
-  .quickActions {
-    position: sticky;
-    bottom: calc(5.2rem + env(safe-area-inset-bottom));
-    z-index: 8;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-card);
-    background: rgba(255, 253, 247, 0.96);
-    padding: 0.55rem;
-    box-shadow: 0 10px 24px rgba(31, 27, 24, 0.1);
+  .page {
+    gap: var(--space-2);
   }
 
   .pulseBar {
     gap: 0.5rem;
+    padding-block: 0.45rem;
+  }
+
+  .pulseBar span {
+    padding-left: 0.55rem;
   }
 }

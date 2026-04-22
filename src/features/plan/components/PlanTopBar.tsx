@@ -1,4 +1,5 @@
 import type { Garden } from '../../../domain/gardens/GardenRepository';
+import { getSaveFeedback } from '../../../shared/sync/syncFeedback';
 import { StatusBadge } from '../../shared/design/DesignPrimitives';
 import styles from './PlanTopBar.module.css';
 
@@ -31,7 +32,12 @@ export function PlanTopBar({
   saveStatus: 'error' | 'idle' | 'queued' | 'saved' | 'saving';
   workspaceState: 'draft' | 'published' | 'stale';
 }) {
-  const cloudState = getCloudState({ dirty, isOffline, saveStatus });
+  const cloudState = getSaveFeedback({
+    hasUnsavedChanges: dirty,
+    isOffline,
+    status: saveStatus,
+    surface: 'plan',
+  });
   const workspaceStatus = getWorkspaceStatus(workspaceState);
 
   return (
@@ -43,14 +49,21 @@ export function PlanTopBar({
             {garden.plot.widthFt} ft by {garden.plot.depthFt} ft
           </span>
         </div>
-        <div className={styles.statusGroup} aria-label="Plan sync state">
-          <StatusBadge tone={isOffline ? 'warning' : 'success'}>
-            {isOffline ? 'Offline' : 'Online'}
-          </StatusBadge>
-          <StatusBadge tone={cloudState.tone}>{cloudState.label}</StatusBadge>
+        <div
+          aria-label="Plan sync state"
+          aria-live="polite"
+          className={styles.statusGroup}
+          role="status"
+        >
+          {cloudState.shouldRender ? (
+            <StatusBadge tone={cloudState.tone}>{cloudState.label}</StatusBadge>
+          ) : null}
           <StatusBadge tone={workspaceStatus.tone}>
             {workspaceStatus.label}
           </StatusBadge>
+          {cloudState.detail ? (
+            <span className={styles.syncHint}>{cloudState.detail}</span>
+          ) : null}
         </div>
       </div>
 
@@ -123,39 +136,4 @@ function getWorkspaceStatus(workspaceState: 'draft' | 'published' | 'stale') {
   }
 
   return { label: 'Matches published', tone: 'success' as const };
-}
-
-function getCloudState({
-  dirty,
-  isOffline,
-  saveStatus,
-}: {
-  dirty: boolean;
-  isOffline: boolean;
-  saveStatus: 'error' | 'idle' | 'queued' | 'saved' | 'saving';
-}) {
-  if (saveStatus === 'error') {
-    return { label: 'Save error', tone: 'danger' as const };
-  }
-
-  if (saveStatus === 'saving') {
-    return { label: 'Saving', tone: 'neutral' as const };
-  }
-
-  if (saveStatus === 'queued') {
-    return { label: 'Queued', tone: 'warning' as const };
-  }
-
-  if (dirty) {
-    return {
-      label: isOffline ? 'Local edits' : 'Unsaved',
-      tone: 'warning' as const,
-    };
-  }
-
-  if (saveStatus === 'saved') {
-    return { label: 'Saved', tone: 'success' as const };
-  }
-
-  return { label: 'Cloud ready', tone: 'success' as const };
 }

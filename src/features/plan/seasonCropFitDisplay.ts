@@ -4,15 +4,19 @@ import type {
   SeasonCropFitSignal,
 } from './seasonCropPlan';
 
-export function formatSeasonCropFitLabel(level: SeasonCropFitLevel) {
+export function formatSeasonCropPlanningState(level: SeasonCropFitLevel) {
   const labels: Record<SeasonCropFitLevel, string> = {
-    caution: 'Caution',
-    greatFit: 'Great fit',
-    unlikelyFit: 'Unlikely fit',
-    workable: 'Workable',
+    caution: 'Review',
+    greatFit: 'Ready',
+    unlikelyFit: 'Hold',
+    workable: 'Check',
   };
 
   return labels[level];
+}
+
+export function needsSeasonCropReview(fit: SeasonCropFitSignal) {
+  return fit.level !== 'greatFit';
 }
 
 export function formatSeasonCropFitReasonGroup(
@@ -29,8 +33,8 @@ export function formatSeasonCropFitReasonGroup(
   return labels[group];
 }
 
-export function getSeasonCropFitEaseScore(fit: SeasonCropFitSignal) {
-  const levelScores: Record<SeasonCropFitLevel, number> = {
+export function getSeasonCropPlanningRank(fit: SeasonCropFitSignal) {
+  const levelRanks: Record<SeasonCropFitLevel, number> = {
     caution: 45,
     greatFit: 100,
     unlikelyFit: 10,
@@ -44,5 +48,5 @@ export function getSeasonCropFitEaseScore(fit: SeasonCropFitSignal) {
     return total + (reason.severity === 'watch' ? 8 : 3);
   }, 0);
 
-  return Math.max(0, levelScores[fit.level] - penalty);
+  return Math.max(0, levelRanks[fit.level] - penalty);
 }

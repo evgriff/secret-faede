@@ -180,7 +180,6 @@ export function logFieldHarvest(
   };
   const nowIso = now.toISOString();
   const tasks = garden.tasks.map((task) =>
-    input.cropFinished &&
     task.type === 'harvest' &&
     task.status === 'open' &&
     task.plantingId === planting?.id

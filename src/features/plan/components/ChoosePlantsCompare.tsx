@@ -1,7 +1,7 @@
 import {
-  formatSeasonCropFitLabel,
   formatSeasonCropFitReasonGroup,
-  getSeasonCropFitEaseScore,
+  formatSeasonCropPlanningState,
+  getSeasonCropPlanningRank,
 } from '../seasonCropFitDisplay';
 import type { SeasonCropLayoutRequest } from '../seasonCropPlan';
 import sharedStyles from '../PlanModal.module.css';
@@ -18,21 +18,21 @@ export function CropComparePanel({
 }) {
   const rankedRequests = [...layoutRequests].sort(
     (left, right) =>
-      getSeasonCropFitEaseScore(right.fit) -
-        getSeasonCropFitEaseScore(left.fit) ||
+      getSeasonCropPlanningRank(right.fit) -
+        getSeasonCropPlanningRank(left.fit) ||
       left.estimatedAreaSqFt - right.estimatedAreaSqFt,
   );
   const easiestRequest = rankedRequests[0] ?? null;
 
   return (
     <section
-      aria-label="Crop fit compare"
+      aria-label="Crop planning compare"
       className={`${styles.panelSlot} ${styles.comparePanel}`}
     >
       <div className={styles.compareHeader}>
         <div>
           <span className={styles.kicker}>Compare</span>
-          <h3>Fit confidence</h3>
+          <h3>Plan tradeoffs</h3>
         </div>
         {explicitCompareCount > 0 ? (
           <button
@@ -56,15 +56,14 @@ export function CropComparePanel({
               <div>
                 <strong>{request.crop.commonName}</strong>
                 <span>
-                  {request.targetQuantity} target - {request.estimatedAreaSqFt}{' '}
-                  sq ft
+                  {request.quantity} plants - {request.estimatedAreaSqFt} sq ft
                 </span>
               </div>
               <span
                 className={styles.fitPill}
                 data-fit-level={request.fit.level}
               >
-                {formatSeasonCropFitLabel(request.fit.level)}
+                {formatSeasonCropPlanningState(request.fit.level)}
               </span>
               <small>{getCompareLine(request, easiestRequest)}</small>
               {request.fit.groupedReasons.length > 0 ? (
@@ -84,7 +83,7 @@ export function CropComparePanel({
         </ul>
       ) : (
         <p className={styles.emptyText}>
-          Select up to 3 crops from the library to compare fit confidence.
+          Select up to 3 crops to compare space, timing, and support.
         </p>
       )}
     </section>
@@ -96,7 +95,7 @@ function getCompareLine(
   easiestRequest: SeasonCropLayoutRequest | null,
 ) {
   if (!easiestRequest || request.cropId === easiestRequest.cropId) {
-    return `Easiest in this set: ${request.fit.summary}`;
+    return `Best planning match in this set: ${request.fit.summary}`;
   }
 
   const tradeoffs = getTradeoffGroups(request, easiestRequest);
@@ -111,7 +110,7 @@ function getCompareLine(
     return `Harder than ${easiestRequest.crop.commonName}: needs more room at this quantity.`;
   }
 
-  return `Similar fit to ${easiestRequest.crop.commonName}; choose by priority and quantity.`;
+  return `Similar planning work to ${easiestRequest.crop.commonName}; choose by quantity and intent.`;
 }
 
 function getTradeoffGroups(

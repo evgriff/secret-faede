@@ -36,7 +36,7 @@ export async function delayHarvestReminderWithLocalNotification({
   );
 
   if (!saved || !mobileDeviceService.getCapabilities().localNotifications) {
-    return;
+    return saved;
   }
 
   await scheduleHarvestDelayLocalNotification({
@@ -44,6 +44,8 @@ export async function delayHarvestReminderWithLocalNotification({
     mobileDeviceService,
     plantingLabel,
   }).catch(() => undefined);
+
+  return saved;
 }
 
 export function scheduleHarvestDelayLocalNotification({

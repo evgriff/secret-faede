@@ -4,7 +4,11 @@ import type {
   Structure,
 } from '../../../domain/gardens/GardenRepository';
 import { describePlantingMobility } from '../../garden/gardenImmutability';
-import type { PlanWarning } from '../../garden/gardenPlanning';
+import {
+  getPlanWarningDecisionCategory,
+  getPlanWarningDecisionCategoryMeta,
+  type PlanWarning,
+} from '../../garden/gardenPlanning';
 import { readOptionalNumber } from './planFormatters';
 import styles from './PlanInspector.module.css';
 
@@ -79,8 +83,11 @@ export function WarningList({ warnings }: { warnings: PlanWarning[] }) {
 
   return (
     <ul className={styles.warningList}>
-      {warnings.map((warning) => (
-        <li key={warning.id}>{warning.message}</li>
+      {groupWarnings(warnings).map((group) => (
+        <li key={group.category}>
+          <strong>{group.label}</strong>
+          <span>{group.messages.join(' ')}</span>
+        </li>
       ))}
     </ul>
   );
@@ -182,4 +189,26 @@ function describeItemMobility(item: GardenPlant | Structure | null) {
   }
 
   return item.locked ? 'Installed and locked' : 'Unlocked structure';
+}
+
+function groupWarnings(warnings: PlanWarning[]) {
+  const groups = new Map<
+    ReturnType<typeof getPlanWarningDecisionCategory>,
+    string[]
+  >();
+
+  for (const warning of warnings) {
+    const category = getPlanWarningDecisionCategory(warning);
+    groups.set(category, [...(groups.get(category) ?? []), warning.message]);
+  }
+
+  return [...groups.entries()].map(([category, messages]) => {
+    const meta = getPlanWarningDecisionCategoryMeta(category);
+
+    return {
+      category,
+      label: meta.label,
+      messages: messages.slice(0, 2),
+    };
+  });
 }

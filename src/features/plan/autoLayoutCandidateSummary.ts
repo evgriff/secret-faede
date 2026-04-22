@@ -21,14 +21,14 @@ export function buildExplanations(
   ).length;
 
   return [
-    `${getStrategyLabel(strategy)} placed ${placements.length} crop footprint${placements.length === 1 ? '' : 's'} using deterministic greedy placement plus local search.`,
-    'Sun fit, seasonal suitability, crop height, access paths, saved beds, spacing, water grouping, and support needs all contribute to the score.',
+    `${getStrategyLabel(strategy)} placed ${placements.length} crop footprint${placements.length === 1 ? '' : 's'}.`,
+    'Checked plot bounds, saved structures, anchors, spacing, sun, and support clearance.',
     tallCount > 0
-      ? `${tallCount} tall/support crop${tallCount === 1 ? '' : 's'} biased toward the north side to reduce shade penalties.`
-      : 'No tall-crop shade risk dominated this candidate.',
+      ? `${tallCount} tall or trellised crop${tallCount === 1 ? '' : 's'} kept north where possible.`
+      : 'No tall crop drove the layout.',
     structures.length > 0
-      ? `${structures.length} support structure${structures.length === 1 ? '' : 's'} proposed instead of leaving trellis needs implicit.`
-      : 'Existing structures or selected crops did not require new support structures.',
+      ? `${structures.length} support structure${structures.length === 1 ? '' : 's'} proposed.`
+      : 'No new support structures needed.',
   ];
 }
 
@@ -40,26 +40,26 @@ export function buildTradeoffs(
 ) {
   return [
     strategy === 'accessFirst'
-      ? 'Access-first may give up a little sun score for easier harvest and watering.'
+      ? 'This favors open paths and reachable edges over perfect sun.'
       : strategy === 'supportFirst'
-        ? 'Support-first keeps tall and trellised crops disciplined, even if some shorter crops move farther from paths.'
-        : 'Sun-first maximizes light fit first, then resolves support and access.',
+        ? 'This favors crops with support needs before filling remaining space.'
+        : 'This favors the sunniest legal cells, then checks support and access.',
     breakdown.waterGrouping < 0.72
-      ? 'Water grouping is mixed; similar water needs were kept together only where space allowed.'
-      : 'Water needs are grouped where practical without forcing bad sun placement.',
+      ? 'Water grouping is mixed where space was tight.'
+      : 'Water needs are grouped where practical.',
     breakdown.spacingQuality < 0.82
-      ? 'Spacing is legal but tight in places; inspect quantities before accepting.'
-      : 'Mature spacing has legal clearance for the generated footprints.',
+      ? 'Spacing is legal but tight; inspect quantities.'
+      : 'Mature spacing has legal clearance.',
     breakdown.seasonalSuitability < 0.72
-      ? 'At least one crop has season or climate caution carried through from Choose Plants.'
-      : 'Season fit is strong enough for the selected crop list.',
+      ? 'At least one crop keeps a season or climate caution.'
+      : 'Season fit is strong enough.',
     unplaced.length > 0
-      ? `${unplaced.length} requested crop footprint${unplaced.length === 1 ? '' : 's'} could not be placed legally.`
-      : 'All requested crop footprints found legal positions.',
+      ? `${unplaced.length} crop footprint${unplaced.length === 1 ? '' : 's'} could not be placed.`
+      : 'All crop footprints found legal positions.',
     anchoredPlantings.length > 0
-      ? `${anchoredPlantings.length} planted or growing crop${anchoredPlantings.length === 1 ? '' : 's'} stayed anchored, so the proposal works around real garden positions.`
+      ? `${anchoredPlantings.length} planted/growing crop${anchoredPlantings.length === 1 ? '' : 's'} stayed anchored.`
       : 'No planted or growing crop constrained this proposal.',
-    'This is a heuristic proposal, not a precision yield guarantee.',
+    'Review the plot before applying; this is a practical layout proposal, not a yield promise.',
   ];
 }
 
@@ -101,8 +101,8 @@ export function getUnplacedReason(
   }
 
   if (anchoredPlantings.length > 0) {
-    return 'No legal open cell had enough space around already planted or growing crops.';
+    return 'No legal open cell fit around anchored crops.';
   }
 
-  return 'No legal bed, container, or open cell had enough space.';
+  return 'No legal bed, container, or open cell had space.';
 }

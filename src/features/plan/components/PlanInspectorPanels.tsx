@@ -1,12 +1,18 @@
 import { getCropById } from '../../../domain/crops/cropCatalog';
+import { getPlantingInstances } from '../../../domain/gardens/plantingInstances';
 import type {
   Garden,
   GardenPlant,
+  PlantingMode,
   PlantingLifecycleStatus,
   Structure,
   StructureMaterial,
   SunShadeLayer,
 } from '../../../domain/gardens/GardenRepository';
+import {
+  PlantingArrangementEditor,
+  type PlantingArrangementChange,
+} from '../../garden/PlantingArrangementEditor';
 import { formatFeet } from '../../garden/gardenMath';
 import {
   describePlantingOptimizerMobility,
@@ -77,6 +83,7 @@ export function PlantingPanel({
         onDuplicatePlanting={onDuplicatePlanting}
         onUpdatePlanting={onUpdatePlanting}
         plant={plant}
+        warnings={warnings}
       />
     );
   }
@@ -165,14 +172,17 @@ function PlantingDetails({
   onDuplicatePlanting,
   onUpdatePlanting,
   plant,
+  warnings,
 }: {
   onDeleteSelected(): void;
   onDuplicatePlanting(id: string): void;
   onUpdatePlanting(id: string, values: Partial<GardenPlant>): void;
   plant: GardenPlant;
+  warnings: PlanWarning[];
 }) {
   const crop = getCropById(plant.cropId);
   const footprint = getPlantingFootprint(plant);
+  const instances = getPlantingInstances(plant);
 
   return (
     <section className={styles.section}>
@@ -199,6 +209,22 @@ function PlantingDetails({
           ['Footprint', describeFootprint(footprint)],
         ]}
       />
+      <PlantingArrangementEditor
+        crop={crop ?? null}
+        mode={plant.mode}
+        onChange={(values) =>
+          onUpdatePlanting(plant.id, toPlantingArrangementUpdate(plant, values))
+        }
+        planWarnings={warnings}
+        plantCount={plant.plantCount ?? instances.length}
+        showQuantity={instances.length > 1}
+        values={{
+          blockDepthFt: plant.blockDepthFt,
+          blockWidthFt: plant.blockWidthFt,
+          clusterRadiusFt: plant.clusterRadiusFt,
+          rowLengthFt: plant.rowLengthFt,
+        }}
+      />
       <ItemActions
         isLocked={plant.locked}
         onDelete={onDeleteSelected}
@@ -213,6 +239,39 @@ function PlantingDetails({
       />
     </section>
   );
+}
+
+function toPlantingArrangementUpdate(
+  plant: GardenPlant,
+  values: PlantingArrangementChange,
+): Partial<GardenPlant> {
+  const nextMode = values.mode ?? plant.mode;
+  const nextRowLengthFt =
+    values.rowLengthFt === undefined ? plant.rowLengthFt : values.rowLengthFt;
+  const update: Partial<GardenPlant> = {
+    ...values,
+    rowCount: isRowLikeMode(nextMode) ? 1 : null,
+    trellisLengthFt: nextMode === 'trellisLine' ? nextRowLengthFt : null,
+  };
+
+  if (values.mode) {
+    update.blockDepthFt =
+      nextMode === 'block' ? (values.blockDepthFt ?? plant.blockDepthFt) : null;
+    update.blockWidthFt =
+      nextMode === 'block' ? (values.blockWidthFt ?? plant.blockWidthFt) : null;
+    update.clusterRadiusFt =
+      nextMode === 'cluster'
+        ? (values.clusterRadiusFt ?? plant.clusterRadiusFt)
+        : null;
+    update.rowLengthFt =
+      nextMode === 'row' || nextMode === 'trellisLine' ? nextRowLengthFt : null;
+  }
+
+  return update;
+}
+
+function isRowLikeMode(mode: PlantingMode) {
+  return mode === 'row' || mode === 'block' || mode === 'trellisLine';
 }
 
 function PlantingRelocationControl({
@@ -300,7 +359,7 @@ function PlantingCare({
         rows={[
           ['Spacing', formatNullableInches(plant.spacingInches)],
           ['Water', formatNullableInches(plant.weeklyWaterNeedInches)],
-          ['Sun need', formatSun(plant.sunRequirement)],
+          ['Sun requirement', formatSun(plant.sunRequirement)],
           ['Height', formatNullableInches(plant.matureHeightInches)],
           [
             `${formatSeason(sunSeason)} sun`,
@@ -468,7 +527,7 @@ function StructureCare({
         />
         {structure.type === 'treeObstacle' ? (
           <StructureNumberField
-            label="Canopy radius feet"
+            label="Shade radius feet"
             nullable
             onChange={(value) =>
               onUpdateStructureShade(structure.id, { canopyRadiusFt: value })

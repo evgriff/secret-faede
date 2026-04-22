@@ -14,19 +14,22 @@ export function TodayQuickActionRail({
   onOpenAction(action: TodayQuickActionState): void;
 }) {
   return (
-    <nav aria-label="Field quick actions" className={styles.quickRail}>
-      <button onClick={() => onOpenAction({ kind: 'note' })} type="button">
-        Add note
-      </button>
-      <button onClick={() => onOpenAction({ kind: 'photo' })} type="button">
-        Add photo
-      </button>
-      <button onClick={() => onOpenAction({ kind: 'issue' })} type="button">
-        Report issue
-      </button>
-      <button onClick={() => onOpenAction({ kind: 'harvest' })} type="button">
-        Log harvest
-      </button>
-    </nav>
+    <details className={styles.quickRail}>
+      <summary>Field entry</summary>
+      <div className={styles.actionMenu}>
+        <button onClick={() => onOpenAction({ kind: 'note' })} type="button">
+          Add note
+        </button>
+        <button onClick={() => onOpenAction({ kind: 'photo' })} type="button">
+          Add photo
+        </button>
+        <button onClick={() => onOpenAction({ kind: 'issue' })} type="button">
+          Report issue
+        </button>
+        <button onClick={() => onOpenAction({ kind: 'harvest' })} type="button">
+          Log harvest
+        </button>
+      </div>
+    </details>
   );
 }

@@ -1,8 +1,9 @@
 .page {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   width: min(100%, 82rem);
   margin-inline: auto;
+  animation: todayRouteIn var(--motion-short) var(--ease-out);
 }
 
 .header {
@@ -61,9 +62,23 @@
   font-size: 0.9rem;
 }
 
+.saveState {
+  display: grid;
+  justify-items: end;
+  gap: 0.22rem;
+  max-width: 20rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  line-height: 1.25;
+}
+
+.saveState span:last-child {
+  overflow-wrap: anywhere;
+}
+
 .secondaryButton,
 .taskActions a,
-.taskActions button,
+.taskActions button:not([data-ui='action']),
 .successionCard button {
   display: inline-flex;
   align-items: center;
@@ -79,22 +94,32 @@
   font-weight: 720;
   padding: 0.55rem 0.75rem;
   text-decoration: none;
+  transition:
+    background-color var(--motion-micro) var(--ease-standard),
+    border-color var(--motion-micro) var(--ease-standard),
+    color var(--motion-micro) var(--ease-standard),
+    transform var(--motion-instant) var(--ease-standard);
 }
 
-.type {
-  border: 1px solid rgba(76, 85, 70, 0.14);
+.taskActionLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.65rem;
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-control);
-  background: var(--color-surface-alt);
+  background: var(--color-surface-solid);
   color: var(--color-text-strong);
-  font-size: 0.82rem;
-  font-weight: 760;
-  padding: 0.25rem 0.5rem;
+  font-size: var(--font-size-small);
+  font-weight: 780;
+  padding: 0.55rem 0.8rem;
+  text-decoration: none;
 }
 
 .calendar {
   display: grid;
-  grid-template-columns: repeat(14, minmax(5.2rem, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(14, minmax(4.8rem, 1fr));
+  gap: 0.45rem;
   overflow-x: auto;
   padding-bottom: 0.25rem;
 }
@@ -102,15 +127,20 @@
 .calendarDay {
   display: grid;
   gap: 0.1rem;
-  min-height: 5rem;
+  min-height: 4.55rem;
   border: 1px solid rgba(76, 85, 70, 0.14);
   border-radius: var(--radius-card);
   background: rgba(255, 253, 247, 0.66);
   color: inherit;
   cursor: pointer;
   font: inherit;
-  padding: 0.65rem;
+  padding: 0.55rem;
   text-align: left;
+  transition:
+    background-color var(--motion-micro) var(--ease-standard),
+    border-color var(--motion-micro) var(--ease-standard),
+    box-shadow var(--motion-micro) var(--ease-standard),
+    transform var(--motion-instant) var(--ease-standard);
 }
 
 .calendarDay span,
@@ -132,11 +162,12 @@
 .selectedDay {
   border-color: var(--color-text-strong);
   box-shadow: 0 0 0 3px rgba(95, 149, 102, 0.16);
+  animation: todaySelectedIn var(--motion-short) var(--ease-emphasis);
 }
 
 .overviewGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(18rem, 0.95fr);
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.86fr);
   gap: var(--space-3);
   align-items: stretch;
 }
@@ -144,12 +175,13 @@
 .priorityPanel,
 .clearDay {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
   border: 1px solid rgba(76, 85, 70, 0.14);
   border-radius: var(--radius-card);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
   padding: var(--space-3);
+  animation: todaySurfaceIn var(--motion-short) var(--ease-out);
 }
 
 .priorityHeader {
@@ -167,15 +199,20 @@
 .priorityItem {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-3);
+  gap: var(--space-2);
   align-items: center;
-  border-bottom: 1px solid rgba(76, 85, 70, 0.12);
-  padding-bottom: var(--space-2);
+  border: 1px solid rgba(76, 85, 70, 0.14);
+  padding: 0.65rem;
+  animation: todaySurfaceIn var(--motion-short) var(--ease-out);
+  transition:
+    border-color var(--motion-micro) var(--ease-standard),
+    box-shadow var(--motion-micro) var(--ease-standard),
+    transform var(--motion-micro) var(--ease-standard);
 }
 
-.priorityItem div {
+.priorityItem > div {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.22rem;
 }
 
 .priorityTitle {
@@ -186,21 +223,6 @@
 
 .priorityItem p {
   color: var(--color-text);
-  font-size: 0.92rem;
-}
-
-.priorityItem button,
-.addTaskDisclosure summary {
-  min-height: 2.75rem;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  background: var(--color-surface-solid);
-  color: var(--color-text-strong);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 720;
-  padding: 0.55rem 0.75rem;
 }
 
 .clearNotice {
@@ -214,19 +236,14 @@
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
-  gap: var(--space-4);
+  gap: var(--space-3);
   align-items: start;
 }
 
 .timeline,
 .sidebar {
   display: grid;
-  gap: var(--space-4);
-}
-
-.sectionTitle {
-  border-bottom: 1px solid rgba(76, 85, 70, 0.12);
-  padding-bottom: 0.45rem;
+  gap: var(--space-3);
 }
 
 .group {
@@ -267,12 +284,17 @@
 .taskCard,
 .successionCard {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
   border: 1px solid rgba(76, 85, 70, 0.14);
   border-radius: var(--radius-card);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
-  padding: var(--space-3);
+  padding: var(--space-2);
+  animation: todaySurfaceIn var(--motion-short) var(--ease-out);
+  transition:
+    border-color var(--motion-micro) var(--ease-standard),
+    box-shadow var(--motion-micro) var(--ease-standard),
+    transform var(--motion-micro) var(--ease-standard);
 }
 
 .taskCard {
@@ -291,6 +313,11 @@
   line-height: 1.2;
 }
 
+.taskTypeLabel {
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+
 .taskMain p,
 .successionCard p {
   color: var(--color-text);
@@ -300,8 +327,9 @@
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem 0.7rem;
-  font-size: 0.82rem;
+  gap: 0.25rem 0.65rem;
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
 }
 
 .taskActions {
@@ -309,6 +337,26 @@
   flex-wrap: wrap;
   justify-content: end;
   gap: 0.45rem;
+}
+
+.actionNotice {
+  width: fit-content;
+  max-width: min(100%, 34rem);
+  border: 1px solid rgba(31, 107, 58, 0.24);
+  border-radius: var(--radius-control);
+  background: rgba(115, 163, 107, 0.14);
+  color: #1f6b3a;
+  font-size: var(--font-size-small);
+  font-weight: 780;
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  animation: todayConfirmIn var(--motion-short) var(--ease-emphasis);
+}
+
+.actionNoticeWarning {
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
 }
 
 .panel {
@@ -343,12 +391,44 @@
 @media (hover: hover) and (pointer: fine) {
   .secondaryButton:hover,
   .taskActions a:hover,
-  .taskActions button:hover,
+  .taskActions button:not([data-ui='action']):hover,
   .successionCard button:hover,
-  .priorityItem button:hover,
   .calendarDay:hover {
     border-color: var(--color-accent-strong);
     background: var(--color-surface-alt);
+  }
+
+  .calendarDay:hover,
+  .taskCard:hover,
+  .successionCard:hover,
+  .priorityItem:hover {
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes todayRouteIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes todaySurfaceIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+}
+
+@keyframes todayConfirmIn {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+}
+
+@keyframes todaySelectedIn {
+  from {
+    transform: scale(0.985);
   }
 }
 
@@ -357,6 +437,17 @@
   .taskCard {
     align-items: stretch;
     grid-template-columns: 1fr;
+  }
+
+  .priorityItem,
+  .priorityItem button,
+  .taskCard,
+  .taskCard a,
+  .taskCard button,
+  .successionCard,
+  .successionCard button {
+    scroll-margin-block: calc(5.25rem + env(safe-area-inset-top))
+      calc(5.75rem + env(safe-area-inset-bottom));
   }
 
   .header {
@@ -368,6 +459,10 @@
     justify-content: start;
   }
 
+  .saveState {
+    justify-items: start;
+  }
+
   .layout {
     grid-template-columns: 1fr;
   }
@@ -375,11 +470,31 @@
   .overviewGrid {
     grid-template-columns: 1fr;
   }
+
+  .priorityPanel {
+    order: -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .selectedDay,
+  .priorityPanel,
+  .clearDay,
+  .priorityItem,
+  .taskCard,
+  .successionCard,
+  .actionNotice {
+    animation: none;
+    transition-duration: 1ms;
+    transform: none;
+  }
 }
 
 @media (max-width: 48rem) {
   .taskActions a,
-  .taskActions button {
+  .taskActions button,
+  .taskActions [data-ui='action'] {
     width: 100%;
   }
 

@@ -65,45 +65,8 @@
   color: var(--color-text-muted);
 }
 
-.primaryButton,
-.secondaryButton {
-  min-height: 2.7rem;
-  border-radius: var(--radius-control);
-  cursor: pointer;
-  font: inherit;
-  font-weight: 800;
-  padding: 0 0.95rem;
-}
-
-.primaryButton {
-  border: 1px solid var(--color-text-strong);
-  background: var(--color-text-strong);
-  color: var(--color-background);
-}
-
-.secondaryButton {
-  border: 1px solid var(--color-border-strong);
-  background: #ffffff;
-  color: var(--color-text-strong);
-}
-
-.primaryButton:disabled,
-.secondaryButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
 .error {
   margin: 0;
   color: #a33428;
   font-weight: 800;
-}
-
-@media (max-width: 42rem) {
-  .decisionList li,
-  .revisionItem,
-  .revisionTitle {
-    align-items: flex-start;
-    flex-direction: column;
-  }
 }

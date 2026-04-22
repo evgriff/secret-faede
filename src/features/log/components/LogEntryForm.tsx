@@ -5,6 +5,8 @@ import type {
   JournalEntryType,
   JournalIssueCategory,
 } from '../../../domain/gardens/GardenRepository';
+import { getMediaCaptureCopy } from '../../../shared/media/mediaCaptureCopy';
+import { PhotoAttachmentPreview } from '../../../shared/media/PhotoAttachmentPreview';
 import type { TargetOption } from '../logHelpers';
 import styles from './LogForms.module.css';
 
@@ -65,6 +67,13 @@ export function LogEntryForm({
   targetId: string;
   targetOptions: TargetOption[];
 }) {
+  const hasOfflinePhotos = isOffline && photoFiles.length > 0;
+  const mediaCopy = getMediaCaptureCopy({
+    canUseNativeCamera,
+    isOffline,
+    surface: 'feed',
+  });
+
   return (
     <form className={styles.form} onSubmit={onSubmit}>
       {showTypeField ? (
@@ -139,54 +148,36 @@ export function LogEntryForm({
         />
       </label>
       <label className={styles.fullWidth}>
-        <span>Photos</span>
-        <input accept="image/*" multiple onChange={onPhotoChange} type="file" />
+        <span>{mediaCopy.pickerLabel}</span>
+        <input
+          accept="image/*"
+          capture="environment"
+          multiple
+          onChange={onPhotoChange}
+          type="file"
+        />
+        <small>{mediaCopy.pickerHint}</small>
       </label>
       {canUseNativeCamera ? (
         <div className={styles.inlineActions}>
           <button onClick={onCapturePhoto} type="button">
-            Use camera
+            {mediaCopy.cameraLabel}
           </button>
+          <small>{mediaCopy.cameraHint}</small>
         </div>
       ) : null}
-      {photoFiles.length > 0 ? (
-        <div className={styles.fileQueue}>
-          <p className={styles.fileHint}>
-            {photoFiles.length} photo{photoFiles.length === 1 ? '' : 's'} ready
-            to attach
-            {isOffline ? '; reconnect to upload or save text only' : ''}
-          </p>
-          <ul>
-            {photoFiles.map((file) => (
-              <li key={`${file.name}-${file.size}`}>
-                <span>{file.name || 'Photo'}</span>
-                <strong>{formatFileSize(file.size)}</strong>
-              </li>
-            ))}
-          </ul>
-          <div className={styles.inlineActions}>
-            {isOffline ? (
-              <button onClick={onSaveWithoutPhotos} type="button">
-                Save text only
-              </button>
-            ) : null}
-            <button onClick={onClearPhotos} type="button">
-              Remove photos
-            </button>
-          </div>
-        </div>
-      ) : null}
-      <button type="submit">{submitLabel}</button>
+      <PhotoAttachmentPreview
+        files={photoFiles}
+        isOffline={isOffline}
+        onClear={onClearPhotos}
+        onSaveTextOnly={onSaveWithoutPhotos}
+        surface="feed"
+      />
+      <button disabled={hasOfflinePhotos} type="submit">
+        {hasOfflinePhotos ? 'Reconnect to upload photos' : submitLabel}
+      </button>
     </form>
   );
-}
-
-function formatFileSize(size: number) {
-  if (size < 1024 * 1024) {
-    return `${Math.max(1, Math.round(size / 1024))} KB`;
-  }
-
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function TargetOptionGroup({

@@ -60,7 +60,6 @@ export function buildSplitSuggestion(
       },
     ],
     canBatchAccept: false,
-    confidence: 'medium',
     id: `review:split-overcrowded:${warning.id}`,
     itemIds: warning.itemIds,
     preview: {
@@ -112,7 +111,6 @@ export function buildReassignCropSuggestion(
       },
     ],
     canBatchAccept: false,
-    confidence: 'medium',
     id: `review:reassign-bed:${planting.id}:${target.bed.id}`,
     itemIds: [planting.id, target.bed.id],
     preview: {
@@ -169,7 +167,6 @@ export function buildSunMoveSuggestion(
       },
     ],
     canBatchAccept: false,
-    confidence: 'medium',
     id: `review:move-sun:${planting.id}`,
     itemIds: [planting.id],
     preview: {
@@ -222,7 +219,6 @@ export function createFlagSuggestion(
   return {
     actions: [action],
     canBatchAccept: false,
-    confidence: warning.severity === 'critical' ? 'high' : 'medium',
     id: `review:${resolvedType}:${warning.id}`,
     itemIds: warning.itemIds,
     preview: {

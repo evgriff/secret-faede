@@ -7,11 +7,8 @@ import type {
   SeasonCropSelection,
   SunExposure,
 } from '../../../domain/gardens/GardenRepository';
-import {
-  buildSeasonCropLayoutRequests,
-  type SeasonCropFitLevel,
-  type SeasonCropLayoutRequest,
-} from '../seasonCropPlan';
+import { buildSeasonCropLayoutRequests } from '../seasonCropPlan';
+import { needsSeasonCropReview } from '../seasonCropFitDisplay';
 import sharedStyles from '../PlanModal.module.css';
 import { SeasonCropBoard } from './ChoosePlantsBoard';
 import { CropComparePanel } from './ChoosePlantsCompare';
@@ -19,7 +16,7 @@ import { ChoosePlantsLibrary } from './ChoosePlantsLibrary';
 import styles from './ChoosePlantsModal.module.css';
 import {
   createSeasonCropSelection,
-  normalizeSelectionRanks,
+  normalizeSeasonCropSelections,
 } from './choosePlantsSelection';
 
 type MobileTab = 'board' | 'compare' | 'library';
@@ -67,8 +64,14 @@ export function ChoosePlantsModal({
     },
     sunExposureAtPlacement,
   );
-  const fitSummary = getFitSummary(layoutRequests);
   const hasSelections = selections.length > 0;
+  const plantCount = selections.reduce(
+    (total, selection) => total + coerceTargetQuantity(selection.quantity),
+    0,
+  );
+  const reviewCount = layoutRequests.filter((request) =>
+    needsSeasonCropReview(request.fit),
+  ).length;
 
   function addCrop(crop: CropProfile) {
     if (selectedCropIds.has(crop.id)) {
@@ -77,7 +80,7 @@ export function ChoosePlantsModal({
 
     setSelections((currentSelections) => [
       ...currentSelections,
-      createSeasonCropSelection(crop, currentSelections.length),
+      createSeasonCropSelection(crop),
     ]);
   }
 
@@ -96,11 +99,11 @@ export function ChoosePlantsModal({
   }
 
   function handleSave() {
-    onSave(normalizeSelectionRanks(selections));
+    onSave(normalizeSeasonCropSelections(selections));
   }
 
   function handleOptimize() {
-    onOptimize(normalizeSelectionRanks(selections));
+    onOptimize(normalizeSeasonCropSelections(selections));
   }
 
   function updateSelection(
@@ -114,10 +117,10 @@ export function ChoosePlantsModal({
               ...selection,
               ...values,
               id: selection.id,
-              targetQuantity:
-                values.targetQuantity === undefined
-                  ? selection.targetQuantity
-                  : coerceTargetQuantity(values.targetQuantity),
+              quantity:
+                values.quantity === undefined
+                  ? selection.quantity
+                  : coerceTargetQuantity(values.quantity),
             }
           : selection,
       ),
@@ -143,7 +146,7 @@ export function ChoosePlantsModal({
       }
 
       nextSelections.splice(nextIndex, 0, selection);
-      return normalizeSelectionRanks(nextSelections);
+      return normalizeSeasonCropSelections(nextSelections);
     });
   }
 
@@ -159,14 +162,16 @@ export function ChoosePlantsModal({
           <div>
             <h2 id="choose-plants-title">Choose Plants</h2>
             <p className={styles.headerMeta}>
-              {selections.length} selected - {fitSummary.confidence}
+              {selections.length} selected - {plantCount} plants
             </p>
           </div>
-          <div className={styles.headerSummary} aria-label="Season fit summary">
-            <span>{layoutRequests.length} crop candidates</span>
-            <span>{fitSummary.good} great fit</span>
-            <span>{fitSummary.workable} workable</span>
-            <span>{fitSummary.caution + fitSummary.unlikely} need review</span>
+          <div
+            className={styles.headerSummary}
+            aria-label="Season planning summary"
+          >
+            <span>{layoutRequests.length} crops</span>
+            <span>{plantCount} plants</span>
+            <span>{reviewCount} review</span>
           </div>
           <button
             aria-label="Close"
@@ -221,7 +226,7 @@ export function ChoosePlantsModal({
               onMoveSelection={moveSelection}
               onRemoveSelection={(selectionId) =>
                 setSelections((currentSelections) =>
-                  normalizeSelectionRanks(
+                  normalizeSeasonCropSelections(
                     currentSelections.filter(
                       (selection) => selection.id !== selectionId,
                     ),
@@ -245,7 +250,8 @@ export function ChoosePlantsModal({
 
         <div className={`${sharedStyles.modalActions} ${styles.footer}`}>
           <p className={styles.footerSummary}>
-            {layoutRequests.length} crop candidates - {fitSummary.confidence}
+            {layoutRequests.length} crops - {plantCount} plants - {reviewCount}{' '}
+            review
           </p>
           <button
             className={sharedStyles.secondaryButton}
@@ -299,51 +305,14 @@ function TabButton({
   );
 }
 
-function getFitSummary(layoutRequests: SeasonCropLayoutRequest[]) {
-  const counts = layoutRequests.reduce(
-    (summary, request) => ({
-      ...summary,
-      [toFitBucket(request.fit.level)]:
-        summary[toFitBucket(request.fit.level)] + 1,
-    }),
-    { caution: 0, good: 0, unlikely: 0, workable: 0 },
-  );
-
-  return {
-    ...counts,
-    confidence:
-      layoutRequests.length === 0
-        ? 'No crops selected'
-        : counts.unlikely > 0
-          ? 'Needs fit review'
-          : counts.caution > 0
-            ? 'Mixed confidence'
-            : 'High confidence',
-  };
-}
-
-function toFitBucket(
-  level: SeasonCropFitLevel,
-): 'caution' | 'good' | 'unlikely' | 'workable' {
-  if (level === 'greatFit') {
-    return 'good';
-  }
-
-  if (level === 'unlikelyFit') {
-    return 'unlikely';
-  }
-
-  return level;
-}
-
 function coerceTargetQuantity(value: number) {
   return Math.max(1, Math.min(999, Math.round(value || 1)));
 }
 
 function buildCompareSelections(cropIds: string[]) {
-  return cropIds.flatMap((cropId, index): SeasonCropSelection[] => {
+  return cropIds.flatMap((cropId): SeasonCropSelection[] => {
     const crop = getCropById(cropId);
 
-    return crop ? [createSeasonCropSelection(crop, index)] : [];
+    return crop ? [createSeasonCropSelection(crop)] : [];
   });
 }

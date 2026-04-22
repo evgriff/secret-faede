@@ -6,165 +6,167 @@
   text-transform: uppercase;
 }
 
-.secondaryButton,
-.rejectButton {
-  min-height: 2.75rem;
-  border-radius: var(--radius-control);
-  cursor: pointer;
-  font: inherit;
-  font-weight: 720;
-  padding: 0 0.9rem;
-}
-
-.secondaryButton {
-  border: 1px solid var(--color-border-strong);
-  background: #fffdf7;
-  color: var(--color-text-strong);
-}
-
-.rejectButton {
-  border: 1px solid rgba(163, 52, 40, 0.34);
-  background: rgba(163, 52, 40, 0.08);
-  color: #a33428;
-}
-
-.secondaryButton:disabled,
-.rejectButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.56;
+.helpText,
+.walkthroughHeader p,
+.focusHeader p,
+.detailBlock p {
+  margin: 0;
+  color: var(--color-text-muted);
 }
 
 .helpText {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 0.86rem;
+  font-size: var(--font-size-small);
 }
 
-.error {
-  color: #a33428;
-}
-
-.proposalStack,
-.proposalCard,
+.walkthroughPanel,
+.walkthroughHeader,
+.strategyRail,
+.walkthroughFocus,
+.walkthroughDetailGrid,
+.detailBlock,
 .previewPanel,
 .previewFrame {
   display: grid;
 }
 
-.proposalStack {
+.walkthroughPanel,
+.walkthroughFocus {
+  gap: 0.7rem;
+  animation: proposalSurfaceIn var(--motion-short) var(--ease-out);
+}
+
+.walkthroughHeader {
+  grid-template-columns: 1fr;
   gap: 0.65rem;
-}
-
-.proposalGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: 0.6rem;
-}
-
-.proposalCard {
-  gap: 0.55rem;
-  border: 1px solid rgba(54, 48, 40, 0.12);
-  border-radius: var(--radius-card);
-  background: #ffffff;
-  padding: 0.65rem;
-}
-
-.selectedProposalCard {
-  border-color: rgba(31, 107, 58, 0.44);
-  box-shadow: 0 0 0 3px rgba(31, 107, 58, 0.12);
-}
-
-.rejectedProposalCard {
-  opacity: 0.68;
-}
-
-.proposalHeader,
-.previewHeader {
-  display: flex;
   align-items: start;
-  justify-content: space-between;
-  gap: 0.65rem;
+  border: 1px solid rgba(31, 107, 58, 0.14);
+  border-radius: var(--radius-card);
+  background: rgba(31, 107, 58, 0.06);
+  padding: 0.7rem;
+  animation: proposalSurfaceIn var(--motion-short) var(--ease-out);
 }
 
-.proposalHeader strong,
-.proposalHeader span {
-  display: block;
+.walkthroughHeader h4,
+.focusHeader h4,
+.detailBlock h5,
+.previewHeader h4,
+.previewFrame {
+  margin: 0;
 }
 
-.proposalHeader span,
-.proposalCard small {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-small);
+.walkthroughHeader h4,
+.focusHeader h4,
+.previewHeader h4 {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-body);
 }
 
-.proposalBadges,
-.previewBadges,
-.proposalActions,
-.applyBar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.proposalBadges {
-  justify-content: end;
-}
-
-.proposalCard ul {
-  padding-left: 1rem;
-  font-size: var(--font-size-small);
-}
-
-.proposalImpact {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.35rem;
-}
-
-.proposalImpact span,
-.scoreGrid div,
+.strategyCard,
+.detailBlock,
 .previewImpactGrid div {
   border: 1px solid rgba(54, 48, 40, 0.1);
   border-radius: var(--radius-control);
-  background: rgba(255, 253, 247, 0.72);
+  background: rgba(255, 253, 247, 0.78);
 }
 
-.proposalImpact span {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-caption);
-  font-weight: 800;
-  padding: 0.35rem;
+.strategyRail {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.1rem 0.15rem 0.35rem;
 }
 
-.proposalActions {
-  justify-content: space-between;
-}
-
-.scoreGrid {
+.strategyCard {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(3.2rem, 1fr));
-  gap: 0.3rem;
-  margin: 0;
+  gap: 0.16rem;
+  flex: 0 0 min(11rem, 78vw);
+  min-height: 4rem;
+  cursor: pointer;
+  color: var(--color-text-strong);
+  font: inherit;
+  padding: 0.58rem;
+  text-align: left;
+  transition:
+    background-color var(--motion-micro) var(--ease-standard),
+    border-color var(--motion-micro) var(--ease-standard),
+    box-shadow var(--motion-micro) var(--ease-standard),
+    opacity var(--motion-micro) var(--ease-standard),
+    transform var(--motion-instant) var(--ease-standard);
 }
 
-.scoreGrid div {
-  padding: 0.35rem;
+.strategyCard:disabled {
+  cursor: not-allowed;
 }
 
-.scoreGrid dt,
-.previewImpactGrid dt {
+.strategyCard span,
+.strategyCard em,
+.previewImpactGrid dt,
+.previewFrame figcaption {
   color: var(--color-text-muted);
   font-size: var(--font-size-caption);
-  font-weight: 800;
+  font-weight: 820;
   text-transform: uppercase;
 }
 
-.scoreGrid dd,
-.previewImpactGrid dd {
-  margin: 0;
+.strategyCard em {
+  text-transform: none;
+}
+
+.selectedStrategyCard {
+  border-color: rgba(31, 107, 58, 0.44);
+  box-shadow: 0 0 0 3px rgba(31, 107, 58, 0.12);
+  animation: proposalSelectedIn var(--motion-short) var(--ease-emphasis);
+}
+
+.decidedStrategyCard {
+  opacity: 0.64;
+}
+
+.focusHeader,
+.previewHeader,
+.proposalBadges,
+.previewBadges,
+.applyBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.55rem;
+}
+
+.proposalBadges,
+.previewBadges {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 820;
+  text-transform: uppercase;
+}
+
+.walkthroughDetailGrid {
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.5rem;
+}
+
+.detailBlock {
+  align-content: start;
+  gap: 0.35rem;
+  padding: 0.58rem;
+  animation: proposalSurfaceIn var(--motion-short) var(--ease-out);
+}
+
+.detailBlock h5 {
   color: var(--color-text-strong);
-  font-weight: 850;
+}
+
+.detailBlock ul,
+.previewImpactGrid {
+  margin: 0;
+}
+
+.detailBlock ul {
+  padding-left: 1rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
 }
 
 .previewPanel {
@@ -173,16 +175,7 @@
   border-radius: var(--radius-card);
   background: #ffffff;
   padding: 0.75rem;
-}
-
-.previewHeader h4,
-.previewFrame {
-  margin: 0;
-}
-
-.previewHeader h4 {
-  color: var(--color-text-strong);
-  font-size: var(--font-size-body);
+  animation: proposalPreviewIn var(--motion-short) var(--ease-out);
 }
 
 .previewSwitch {
@@ -206,12 +199,18 @@
   font-size: var(--font-size-small);
   font-weight: 780;
   padding: 0.3rem 0.65rem;
+  transition:
+    background-color var(--motion-micro) var(--ease-standard),
+    box-shadow var(--motion-micro) var(--ease-standard),
+    color var(--motion-micro) var(--ease-standard),
+    transform var(--motion-instant) var(--ease-standard);
 }
 
 .previewSwitchActive {
   background: #fffdf7 !important;
   color: var(--color-text-strong) !important;
   box-shadow: 0 1px 5px rgba(31, 27, 24, 0.1);
+  animation: proposalSelectedIn var(--motion-short) var(--ease-emphasis);
 }
 
 .previewFrames {
@@ -229,13 +228,7 @@
 
 .previewFrame {
   gap: 0.35rem;
-}
-
-.previewFrame figcaption {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-caption);
-  font-weight: 820;
-  text-transform: uppercase;
+  animation: proposalPreviewIn var(--motion-short) var(--ease-out);
 }
 
 .previewSvg {
@@ -292,8 +285,7 @@
 .previewImpactGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.4rem;
-  margin: 0;
+  padding: 0;
 }
 
 .previewImpactGrid div {
@@ -301,7 +293,8 @@
 }
 
 .previewImpactGrid dd {
-  margin-top: 0.1rem;
+  margin: 0.1rem 0 0;
+  color: var(--color-text-strong);
   font-size: var(--font-size-small);
   font-weight: 760;
 }
@@ -317,16 +310,64 @@
   padding-top: 0.65rem;
 }
 
+.decisionButton {
+  min-height: 2.6rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: #fffdf7;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 760;
+  padding: 0 0.8rem;
+  transition:
+    background-color var(--motion-micro) var(--ease-standard),
+    border-color var(--motion-micro) var(--ease-standard),
+    color var(--motion-micro) var(--ease-standard),
+    transform var(--motion-instant) var(--ease-standard);
+}
+
+.decisionButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.strategyCard:active:not(:disabled),
+.previewSwitch button:active:not(:disabled),
+.decisionButton:active:not(:disabled) {
+  transform: translateY(1px) scale(0.99);
+}
+
+@keyframes proposalSurfaceIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+}
+
+@keyframes proposalPreviewIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+}
+
+@keyframes proposalSelectedIn {
+  from {
+    transform: scale(0.99);
+  }
+}
+
 @media (max-width: 44rem) {
-  .proposalGrid,
-  .proposalImpact,
+  .walkthroughHeader,
+  .walkthroughDetailGrid,
   .previewImpactGrid,
   .previewSplit {
     grid-template-columns: 1fr;
   }
 
-  .previewHeader,
-  .proposalHeader {
+  .focusHeader,
+  .previewHeader {
     align-items: stretch;
     flex-direction: column;
   }
@@ -335,5 +376,23 @@
   .previewBadges,
   .applyBar {
     justify-content: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .walkthroughPanel,
+  .walkthroughFocus,
+  .walkthroughHeader,
+  .strategyCard,
+  .selectedStrategyCard,
+  .detailBlock,
+  .previewPanel,
+  .previewSwitch button,
+  .previewSwitchActive,
+  .previewFrame,
+  .decisionButton {
+    animation: none;
+    transition-duration: 1ms;
+    transform: none;
   }
 }

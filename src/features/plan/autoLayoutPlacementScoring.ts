@@ -2,13 +2,12 @@ import type {
   Garden,
   SunShadeLayer,
 } from '../../domain/gardens/GardenRepository';
-import { getSunAreaAtPoint } from '../garden/sunShadeEngine';
 import {
   scoreAccess,
   scoreNorthTallPlacement,
   scoreSeasonalSuitability,
   scoreSpacingQuality,
-  scoreSunAreaFit,
+  scoreSunFootprintFit,
   scoreSupportPlacement,
   type ScoredPlacement,
 } from './autoLayoutScoring';
@@ -25,9 +24,10 @@ export function scorePlacement(
 ) {
   const scoredPlacement = toScoredPlacement(placement);
   const scoredPlacedPlacements = placedPlacements.map(toScoredPlacement);
-  const sunFit = scoreSunAreaFit(
+  const sunFit = scoreSunFootprintFit(
     placement.unit.crop,
-    sunLayer ? getSunAreaAtPoint(sunLayer, placement.planting) : null,
+    sunLayer,
+    placement.planting,
   );
   const access = scoreAccess(garden, placement.planting);
   const support = scoreSupportPlacement(garden, scoredPlacement);
@@ -42,13 +42,6 @@ export function scorePlacement(
     scoredPlacement,
     ...scoredPlacedPlacements,
   ]);
-  const priority =
-    placement.unit.request.mustGrow ||
-    placement.unit.request.priority === 'high'
-      ? 1
-      : placement.unit.request.priority === 'medium'
-        ? 0.82
-        : 0.68;
   const weights = getPlacementWeights(strategy);
 
   return (
@@ -59,7 +52,6 @@ export function scorePlacement(
     seasonal * weights.seasonal +
     shadeDiscipline * weights.shade +
     spacing * weights.spacing +
-    priority * weights.priority +
     getStrategyBias(garden, placement, strategy) * 0.04
   );
 }
@@ -69,7 +61,6 @@ export function toScoredPlacement(placement: Placement): ScoredPlacement {
     crop: placement.unit.crop,
     fitLevel: placement.unit.request.fit.level,
     planting: placement.planting,
-    required: placement.unit.request.mustGrow,
   };
 }
 
@@ -77,7 +68,6 @@ function getPlacementWeights(strategy: AutoLayoutStrategy) {
   if (strategy === 'accessFirst') {
     return {
       access: 0.28,
-      priority: 0.13,
       seasonal: 0.08,
       shade: 0.13,
       spacing: 0.08,
@@ -90,7 +80,6 @@ function getPlacementWeights(strategy: AutoLayoutStrategy) {
   if (strategy === 'supportFirst') {
     return {
       access: 0.1,
-      priority: 0.1,
       seasonal: 0.08,
       shade: 0.18,
       spacing: 0.08,
@@ -102,7 +91,6 @@ function getPlacementWeights(strategy: AutoLayoutStrategy) {
 
   return {
     access: 0.1,
-    priority: 0.1,
     seasonal: 0.1,
     shade: 0.14,
     spacing: 0.08,

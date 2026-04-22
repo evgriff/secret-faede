@@ -57,14 +57,14 @@ export function defaultQuickTitle(kind: TodayQuickActionKind | undefined) {
   }
 
   if (kind === 'photo') {
-    return 'Field photo';
+    return 'Photo';
   }
 
   return 'Field note';
 }
 
-export function defaultQuickBody(kind: TodayQuickActionKind | undefined) {
-  return kind === 'photo' ? 'Photo from the garden.' : '';
+export function defaultQuickBody() {
+  return '';
 }
 
 export function formatHarvestUnit(unit: HarvestEvent['unit']) {

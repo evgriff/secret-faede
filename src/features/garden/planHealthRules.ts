@@ -7,9 +7,12 @@ import type {
 } from '../../domain/gardens/GardenRepository';
 import type { GardenSuggestionDecision } from '../../domain/gardens/gardenWorkspace';
 import {
+  getPlanWarningDecisionCategory,
+  getPlanWarningDecisionCategoryMeta,
   getPlantingFootprint,
   getStructureFootprint,
   rectsOverlap,
+  type PlanWarningDecisionCategory,
   type PlanWarning,
 } from './gardenPlanning';
 import { buildRotationGuidance } from './gardenRotation';
@@ -61,6 +64,7 @@ export interface PlanMaterialAddOn {
 }
 
 export interface PlanHealthIssue {
+  decisionCategory: PlanWarningDecisionCategory;
   dismissible: boolean;
   dismissed: boolean;
   id: string;
@@ -74,7 +78,19 @@ export interface PlanHealthIssue {
   type: PlanHealthIssueType;
 }
 
+export interface PlanHealthDecisionGroup {
+  category: PlanWarningDecisionCategory;
+  cautionCount: number;
+  issues: PlanHealthIssue[];
+  label: string;
+  mustFixCount: number;
+  prompt: string;
+  recommendedCount: number;
+  totalCount: number;
+}
+
 export interface PlanHealthReport {
+  decisionGroups: PlanHealthDecisionGroup[];
   dismissedCautions: PlanHealthIssue[];
   materialAddOns: PlanMaterialAddOn[];
   mustFixIssues: PlanHealthIssue[];
@@ -121,6 +137,7 @@ export function buildPlanHealthReport({
   );
 
   return {
+    decisionGroups: buildDecisionGroups(activeIssues),
     dismissedCautions,
     materialAddOns,
     mustFixIssues,
@@ -150,6 +167,7 @@ function buildWarningIssues(
       {
         dismissible: warning.acknowledgeable,
         dismissed,
+        decisionCategory: getPlanWarningDecisionCategory(warning),
         id: `warning:${warning.id}`,
         itemIds: warning.itemIds,
         materialAddOns: [],
@@ -185,6 +203,7 @@ function buildSupportIssues(garden: Garden): PlanHealthIssue[] {
         {
           dismissible: false,
           dismissed: false,
+          decisionCategory: 'support',
           id: `health:trellis:${planting.id}`,
           itemIds: [planting.id],
           materialAddOns: [
@@ -218,6 +237,7 @@ function buildSupportIssues(garden: Garden): PlanHealthIssue[] {
       {
         dismissible: false,
         dismissed: false,
+        decisionCategory: 'support',
         id: `health:${supportNeed.kind}:${planting.id}`,
         itemIds: [planting.id],
         materialAddOns: [
@@ -265,6 +285,7 @@ function buildPathAndIrrigationIssues(garden: Garden): PlanHealthIssue[] {
       {
         dismissible: false,
         dismissed: false,
+        decisionCategory: 'pathway',
         id: `health:path-width:${path.id}`,
         itemIds: [path.id],
         materialAddOns: [],
@@ -287,6 +308,7 @@ function buildPathAndIrrigationIssues(garden: Garden): PlanHealthIssue[] {
           {
             dismissible: false,
             dismissed: false,
+            decisionCategory: 'pathway' as const,
             id: `health:irrigation-access:${bed.id}`,
             itemIds: [bed.id],
             materialAddOns: [],
@@ -310,6 +332,7 @@ function buildPathAndIrrigationIssues(garden: Garden): PlanHealthIssue[] {
       {
         dismissible: false,
         dismissed: false,
+        decisionCategory: 'pathway',
         id: `health:water-distance:${bed.id}`,
         itemIds: [bed.id],
         materialAddOns: [],
@@ -328,6 +351,7 @@ function buildPathAndIrrigationIssues(garden: Garden): PlanHealthIssue[] {
           {
             dismissible: false,
             dismissed: false,
+            decisionCategory: 'pathway' as const,
             id: 'health:water-source-missing',
             itemIds: beds.map((bed) => bed.id),
             materialAddOns: [],
@@ -360,6 +384,7 @@ function buildRotationIssues(garden: Garden, now: Date): PlanHealthIssue[] {
       {
         dismissible: true,
         dismissed: false,
+        decisionCategory: 'rotation',
         id: `health:rotation:${guidance.plantingId}`,
         itemIds: [guidance.plantingId],
         materialAddOns: [],
@@ -398,6 +423,7 @@ function buildBedCapacityIssues(garden: Garden): PlanHealthIssue[] {
       {
         dismissible: false,
         dismissed: false,
+        decisionCategory: 'bedFit',
         id: `health:bed-capacity:${bed.id}`,
         itemIds: [bed.id],
         materialAddOns: [],
@@ -426,6 +452,7 @@ function buildMulchIssues(garden: Garden): PlanHealthIssue[] {
         {
           dismissible: false,
           dismissed: false,
+          decisionCategory: 'care',
           id: `health:mulch:${bed.id}`,
           itemIds: [bed.id],
           materialAddOns: [
@@ -482,6 +509,7 @@ function buildSeasonProtectionIssues(
       {
         dismissible: false,
         dismissed: false,
+        decisionCategory: 'care',
         id: `health:season-protection:${planting.id}`,
         itemIds: [planting.id],
         materialAddOns: [
@@ -520,6 +548,7 @@ function toDismissedDecisionIssue(
     {
       dismissible: false,
       dismissed: true,
+      decisionCategory: 'care',
       id: `decision:${decision.id}`,
       itemIds: [],
       materialAddOns: [],
@@ -568,6 +597,108 @@ function pointInsideStructure(
 
 function uniqueById(items: PlanHealthIssue[]) {
   return [...new Map(items.map((item) => [item.id, item])).values()];
+}
+
+function buildDecisionGroups(
+  issues: PlanHealthIssue[],
+): PlanHealthDecisionGroup[] {
+  const groups = new Map<PlanWarningDecisionCategory, PlanHealthIssue[]>();
+
+  for (const issue of issues) {
+    groups.set(issue.decisionCategory, [
+      ...(groups.get(issue.decisionCategory) ?? []),
+      issue,
+    ]);
+  }
+
+  return [...groups.entries()]
+    .map(([category, groupIssues]) => {
+      const meta = getPlanWarningDecisionCategoryMeta(category);
+      const sortedIssues = [...groupIssues].sort(compareIssues);
+
+      return {
+        category,
+        cautionCount: sortedIssues.filter(
+          (issue) => issue.severity === 'caution',
+        ).length,
+        issues: sortedIssues,
+        label: meta.label,
+        mustFixCount: sortedIssues.filter(
+          (issue) => issue.severity === 'mustFix',
+        ).length,
+        prompt: meta.prompt,
+        recommendedCount: sortedIssues.filter(
+          (issue) => issue.severity === 'recommended',
+        ).length,
+        totalCount: sortedIssues.length,
+      };
+    })
+    .sort(compareDecisionGroups);
+}
+
+function compareDecisionGroups(
+  left: PlanHealthDecisionGroup,
+  right: PlanHealthDecisionGroup,
+) {
+  const leftRank = groupRank(left);
+  const rightRank = groupRank(right);
+
+  if (leftRank !== rightRank) {
+    return rightRank - leftRank;
+  }
+
+  return categoryOrder(left.category) - categoryOrder(right.category);
+}
+
+function compareIssues(left: PlanHealthIssue, right: PlanHealthIssue) {
+  const leftRank = issueRank(left);
+  const rightRank = issueRank(right);
+
+  if (leftRank !== rightRank) {
+    return rightRank - leftRank;
+  }
+
+  return left.title.localeCompare(right.title);
+}
+
+function groupRank(group: PlanHealthDecisionGroup) {
+  if (group.mustFixCount > 0) {
+    return 4;
+  }
+
+  if (group.recommendedCount > 0) {
+    return 3;
+  }
+
+  return 2;
+}
+
+function issueRank(issue: PlanHealthIssue) {
+  if (issue.severity === 'mustFix') {
+    return 4;
+  }
+
+  if (issue.severity === 'recommended') {
+    return 3;
+  }
+
+  return 2;
+}
+
+function categoryOrder(category: PlanWarningDecisionCategory) {
+  const order: Record<PlanWarningDecisionCategory, number> = {
+    boundary: 0,
+    spacing: 1,
+    support: 2,
+    sun: 3,
+    pathway: 4,
+    bedFit: 5,
+    structure: 6,
+    rotation: 7,
+    care: 8,
+  };
+
+  return order[category];
 }
 
 function uniqueAddOns(items: PlanMaterialAddOn[]) {

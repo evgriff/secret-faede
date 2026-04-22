@@ -29,8 +29,50 @@ export async function signInWithMockPassword(
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
 }
 
+export async function enterDemoFromShell(page: Page) {
+  await page.getByRole('button', { name: 'Enter demo' }).click();
+
+  await expect(
+    page.getByLabel('Demo controls').getByRole('button', { name: 'Exit demo' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { exact: true, name: 'Plan' }),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('20 ft by 16 ft')).toBeVisible();
+}
+
+export async function expectSampleSettings(page: Page) {
+  await expect(
+    page.getByRole('region', { name: 'sample garden' }),
+  ).toContainText('Demo workspace active.');
+  await expect(page.getByLabel('Watering check time')).toHaveValue('07:15');
+  await expect(
+    page
+      .getByLabel('Active alerts')
+      .getByRole('heading', { name: 'Water roots and salad bed today' }),
+  ).toBeVisible();
+}
+
+export async function resetAndExitSample(page: Page) {
+  const demoPanel = page.getByRole('region', { name: 'sample garden' });
+
+  await demoPanel.getByRole('button', { name: 'Reset seeded demo' }).click();
+  await expect(page.getByText('Seeded demo reset.')).toBeVisible();
+  await expect(page.getByLabel('Watering check time')).toHaveValue('07:15');
+  await demoPanel.getByRole('button', { name: 'Exit demo' }).click();
+  await expect(page.getByText('Real garden restored.')).toBeVisible();
+}
+
 export async function savePlan(page: Page) {
   await page.getByRole('button', { name: 'Save' }).first().click();
+}
+
+export async function openPlanTool(page: Page, name: string) {
+  await page.getByRole('button', { name: 'Open Plan tools' }).click();
+  const launcher = page.getByLabel('Plan tool launcher');
+
+  await expect(launcher).toBeVisible();
+  await launcher.getByRole('button', { exact: true, name }).click();
 }
 
 export async function addTomatoToSeasonList(page: Page) {
@@ -55,26 +97,29 @@ export async function generateAndApplyFirstLayout(page: Page) {
     page.getByRole('heading', { name: 'Review proposals' }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Generate layouts' }).first().click();
-  const layoutCandidates = page.getByRole('region', {
-    name: 'Layout candidates',
+  const layoutWalkthrough = page.getByRole('region', {
+    name: 'Layout walkthrough',
   });
   await expect(
-    layoutCandidates.getByRole('button', { name: 'Preview' }).first(),
+    layoutWalkthrough.getByText('Proposal walkthrough'),
   ).toBeVisible();
   await expect(
     page.getByRole('region', { name: 'Before and after preview' }),
   ).toBeVisible();
-  await layoutCandidates
-    .getByRole('button', { name: 'Preview' })
-    .first()
+  await expect(page.getByLabel(/Proposal diff overlay/)).toBeVisible();
+  await layoutWalkthrough
+    .getByRole('button', { name: 'Snooze selected proposal' })
     .click();
-  await layoutCandidates
+  await expect(
+    layoutWalkthrough.getByRole('button', { name: /Snoozed/ }),
+  ).toBeVisible();
+  await layoutWalkthrough
     .getByRole('button', { name: 'Reject selected proposal' })
     .click();
   await expect(
-    layoutCandidates.getByText('rejected', { exact: true }),
+    layoutWalkthrough.getByText('Rejected', { exact: true }),
   ).toBeVisible();
-  await layoutCandidates
+  await layoutWalkthrough
     .getByRole('button', { name: 'Apply selected proposal to draft' })
     .click();
 }

@@ -66,6 +66,7 @@ export function canSupportFootprint(
   garden: Garden,
   crop: CropProfile,
   footprint: FootRect,
+  blockedRects: FootRect[] = [],
 ) {
   if (!cropNeedsSupport(crop)) {
     return true;
@@ -73,7 +74,15 @@ export function canSupportFootprint(
 
   return (
     hasExistingSupport(garden, footprint) ||
-    Boolean(getLegalSupportFootprint(garden, crop, footprint))
+    Boolean(
+      getLegalSupportFootprint(
+        garden,
+        crop,
+        footprint,
+        undefined,
+        blockedRects,
+      ),
+    )
   );
 }
 
@@ -82,6 +91,7 @@ export function getLegalSupportFootprint(
   crop: CropProfile,
   cropFootprint: FootRect,
   supportKind?: CropSupportKind,
+  blockedRects: FootRect[] = [],
 ): SupportFootprint | null {
   const supportNeed = getCropSupportNeed(crop);
   const kind = supportKind ?? supportNeed?.kind;
@@ -99,23 +109,30 @@ export function getLegalSupportFootprint(
   );
   const heightFt = Math.max((crop.matureHeightInches ?? 72) / 12, 5);
   const xFt = clamp(cropFootprint.xFt, 0, garden.plot.widthFt - widthFt);
-  const options = [
+  const edgeOptions = [
     { xFt, yFt: cropFootprint.yFt - depthFt },
     { xFt, yFt: cropFootprint.yFt + cropFootprint.depthFt },
-    {
-      xFt: clamp(
-        cropFootprint.xFt + cropFootprint.widthFt / 2 - widthFt / 2,
-        0,
-        garden.plot.widthFt - widthFt,
-      ),
-      yFt: clamp(
-        cropFootprint.yFt + cropFootprint.depthFt / 2 - depthFt / 2,
-        0,
-        garden.plot.depthFt - depthFt,
-      ),
-    },
   ];
-  const blockedRects = garden.structures
+  const options = [
+    ...edgeOptions,
+    ...(kind === 'trellis'
+      ? []
+      : [
+          {
+            xFt: clamp(
+              cropFootprint.xFt + cropFootprint.widthFt / 2 - widthFt / 2,
+              0,
+              garden.plot.widthFt - widthFt,
+            ),
+            yFt: clamp(
+              cropFootprint.yFt + cropFootprint.depthFt / 2 - depthFt / 2,
+              0,
+              garden.plot.depthFt - depthFt,
+            ),
+          },
+        ]),
+  ];
+  const occupiedRects = garden.structures
     .filter(isBlockingStructure)
     .map(getStructureFootprint);
 
@@ -133,7 +150,9 @@ export function getLegalSupportFootprint(
 
     if (
       isRectInsidePlot(supportFootprint, garden.plot) &&
-      !blockedRects.some((rect) => rectsOverlap(rect, supportFootprint))
+      ![...occupiedRects, ...blockedRects].some((rect) =>
+        rectsOverlap(rect, supportFootprint),
+      )
     ) {
       return {
         depthFt,

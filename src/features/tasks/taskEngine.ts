@@ -1,5 +1,6 @@
 import { getCropById } from '../../domain/crops/cropCatalog';
 import { createDefaultPlanting } from '../../domain/gardens/GardenRepository';
+import { withPlantingInstances } from '../../domain/gardens/plantingInstances';
 import type {
   CropProfile,
   Garden,
@@ -291,7 +292,7 @@ export function addSuccessionPlanting(
     : 'single';
   const rowLengthFt =
     mode === 'row' ? Math.min(sourcePlanting.rowLengthFt ?? 4, 6) : null;
-  const planting = {
+  const planting = withPlantingInstances({
     ...createDefaultPlanting({
       id,
       label: `${crop.commonName} succession`,
@@ -310,7 +311,7 @@ export function addSuccessionPlanting(
     spacingInches: crop.spacingInches,
     sunRequirement: crop.sunRequirement,
     weeklyWaterNeedInches: crop.weeklyWaterNeedInches,
-  };
+  });
 
   return synchronizeGardenTasks(
     {

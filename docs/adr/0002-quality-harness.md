@@ -32,7 +32,6 @@ Committed screenshot baselines live in `e2e/__screenshots__/`.
 
 - `npm run ci` now includes dependency and large-file checks plus bundle summary
   generation after the build.
-- Visual regression is a separate command for now, not part of `npm run ci`,
-  because first-viewport baselines need human review before becoming a hard
-  cloud gate.
+- Visual regression is now part of `npm run ci`; baseline updates still require
+  human review before refreshed screenshots land.
 - Bundle analysis output is generated locally and in CI but is not committed.

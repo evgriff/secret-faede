@@ -26,6 +26,10 @@ export function MobileDevicePanel({
             : 'Web/PWA mode active'}
           {capabilities.quickUnlockReady ? ', quick unlock ready' : ''}
         </p>
+        <p className={styles.metaText}>
+          Local reminders stay on this device. Native push shares the same push
+          preference as web push when the shell supports it.
+        </p>
       </div>
       <div className={styles.inlineButtonRow}>
         {capabilities.nativePush ? (

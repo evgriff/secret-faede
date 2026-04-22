@@ -1,6 +1,6 @@
 .fieldStack {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .panel {
@@ -10,7 +10,12 @@
   border-radius: var(--radius-card);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
-  padding: var(--space-3);
+  padding: var(--space-2);
+  animation: fieldPanelIn var(--motion-short) var(--ease-out);
+  transition:
+    border-color var(--motion-micro) var(--ease-standard),
+    box-shadow var(--motion-micro) var(--ease-standard),
+    transform var(--motion-micro) var(--ease-standard);
 }
 
 .panel h2,
@@ -39,7 +44,6 @@
   text-transform: uppercase;
 }
 
-.panelCopy,
 .miniCard p {
   color: var(--color-text);
 }
@@ -51,19 +55,10 @@
   padding: var(--space-3);
 }
 
-.clearNotice {
-  border: 1px solid rgba(76, 85, 70, 0.14);
-  border-radius: var(--radius-control);
-  background: var(--color-surface-alt);
-  color: var(--color-text-muted);
-  padding: var(--space-2);
-}
-
-.alertList,
 .compactList,
 .weatherFacts {
   display: grid;
-  gap: var(--space-2);
+  gap: 0.55rem;
 }
 
 .alertItem {
@@ -72,6 +67,7 @@
   gap: var(--space-2);
   border-bottom: 1px solid rgba(76, 85, 70, 0.12);
   padding-bottom: 0.45rem;
+  animation: fieldItemIn var(--motion-short) var(--ease-out);
 }
 
 .weatherPanel {
@@ -87,7 +83,7 @@
 
 .weatherBody {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .weatherHero {
@@ -99,13 +95,13 @@
 
 .weatherHero strong {
   color: var(--color-text-strong);
-  font-size: 1.2rem;
+  font-size: 1.08rem;
   line-height: 1.1;
 }
 
 .weatherHero span {
   color: var(--color-text-strong);
-  font-size: 2.35rem;
+  font-size: 2rem;
   font-weight: 850;
   line-height: 0.95;
 }
@@ -119,8 +115,8 @@
   gap: 0.15rem;
   border-top: 1px solid rgba(76, 85, 70, 0.14);
   color: var(--color-text);
-  font-size: 0.92rem;
-  padding-top: 0.45rem;
+  font-size: 0.88rem;
+  padding-top: 0.38rem;
 }
 
 .weatherFacts strong {
@@ -137,8 +133,7 @@
 }
 
 .miniCard small,
-.bedList small,
-.weatherSource {
+.bedList small {
   color: var(--color-text-muted);
   font-size: 0.82rem;
 }
@@ -148,8 +143,13 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-3);
   align-items: start;
-  border-bottom: 1px solid rgba(76, 85, 70, 0.12);
-  padding-bottom: var(--space-2);
+  border: 1px solid rgba(76, 85, 70, 0.14);
+  padding: 0.65rem;
+  animation: fieldItemIn var(--motion-short) var(--ease-out);
+  transition:
+    border-color var(--motion-micro) var(--ease-standard),
+    box-shadow var(--motion-micro) var(--ease-standard),
+    transform var(--motion-micro) var(--ease-standard);
 }
 
 .activityItem {
@@ -159,6 +159,7 @@
   align-items: start;
   border-bottom: 1px solid rgba(76, 85, 70, 0.12);
   padding-bottom: var(--space-2);
+  animation: fieldItemIn var(--motion-short) var(--ease-out);
 }
 
 .activityItem h3,
@@ -180,9 +181,8 @@
 
 .harvestActions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.45rem;
-  min-width: min(20rem, 100%);
 }
 
 .delayControls {
@@ -194,6 +194,7 @@
   border-radius: var(--radius-control);
   background: var(--color-surface-alt);
   padding: 0.5rem;
+  animation: fieldControlsIn var(--motion-short) var(--ease-out);
 }
 
 .delayControls label {
@@ -201,13 +202,10 @@
   grid-column: 1 / -1;
   gap: 0.25rem;
   color: var(--color-text-strong);
-  font-size: 0.82rem;
-  font-weight: 760;
 }
 
 .delayControls input {
   min-height: 2.75rem;
-  min-width: 0;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-control);
   background: var(--color-surface-solid);
@@ -217,9 +215,9 @@
 }
 
 .cardActions a,
-.cardActions button,
-.harvestActions button,
-.miniCard button {
+.cardActions button:not([data-ui='action']),
+.harvestActions button:not([data-ui='action']),
+.miniCard button:not([data-ui='action']) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -234,11 +232,17 @@
   font-weight: 720;
   padding: 0.55rem 0.75rem;
   text-decoration: none;
+  transition:
+    background-color var(--motion-micro) var(--ease-standard),
+    border-color var(--motion-micro) var(--ease-standard),
+    color var(--motion-micro) var(--ease-standard),
+    transform var(--motion-instant) var(--ease-standard);
 }
 
-.harvestActions button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
+.harvestActions > button:first-child {
+  border-color: #1f6b3a;
+  background: #1f6b3a;
+  color: #fffdf7;
 }
 
 .bedList {
@@ -269,17 +273,58 @@
 
 @media (hover: hover) and (pointer: fine) {
   .cardActions a:hover,
-  .cardActions button:hover,
-  .harvestActions button:hover,
-  .miniCard button:hover {
+  .cardActions button:not([data-ui='action']):hover,
+  .harvestActions button:not([data-ui='action']):hover,
+  .miniCard button:not([data-ui='action']):hover {
     border-color: var(--color-accent-strong);
     background: var(--color-surface-alt);
+  }
+
+  .miniCard:hover {
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes fieldPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+}
+
+@keyframes fieldItemIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+}
+
+@keyframes fieldControlsIn {
+  from {
+    opacity: 0;
+    transform: translateY(-0.2rem);
   }
 }
 
 @media (max-width: 58rem) {
   .fieldStack {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .alertItem,
+  .miniCard,
+  .activityItem,
+  .delayControls,
+  .cardActions a,
+  .cardActions button:not([data-ui='action']),
+  .harvestActions button:not([data-ui='action']),
+  .miniCard button:not([data-ui='action']) {
+    animation: none;
+    transition-duration: 1ms;
+    transform: none;
   }
 }
 
@@ -291,7 +336,7 @@
 
   .weatherPanel {
     gap: var(--space-2);
-    padding: 0.75rem;
+    padding: 0.65rem;
   }
 
   .weatherBody {
@@ -307,7 +352,7 @@
   }
 
   .weatherHero span {
-    font-size: 1.85rem;
+    font-size: 1.7rem;
   }
 
   .weatherFacts {
@@ -325,8 +370,7 @@
   }
 
   .weatherFacts .weatherNextDay,
-  .weatherFacts .weatherObserved,
-  .weatherSource {
+  .weatherFacts .weatherObserved {
     display: none;
   }
 
@@ -338,6 +382,10 @@
   .harvestActions,
   .delayControls {
     grid-template-columns: 1fr;
+  }
+
+  .harvestActions > button:not([data-ui='action']) {
+    min-height: 6.25rem;
   }
 
   .miniCard button {

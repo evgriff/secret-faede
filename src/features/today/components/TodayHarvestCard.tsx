@@ -15,6 +15,7 @@ const delayOptions = [
 export function TodayHarvestCard({
   item,
   onDelayHarvest,
+  onLogHarvest,
   onOpenAction,
   todayDate,
 }: {
@@ -24,6 +25,7 @@ export function TodayHarvestCard({
     delayUntilDate: string,
     reason: string,
   ): void;
+  onLogHarvest(item: TodayHarvestReadyItem): void;
   onOpenAction(action: TodayQuickActionState): void;
   todayDate: string;
 }) {
@@ -60,6 +62,9 @@ export function TodayHarvestCard({
         {item.delayReason ? <small>{item.delayReason}</small> : null}
       </div>
       <div className={styles.harvestActions}>
+        <button onClick={() => onLogHarvest(item)} type="button">
+          Log harvest
+        </button>
         <button
           onClick={() =>
             onOpenAction({
@@ -69,7 +74,7 @@ export function TodayHarvestCard({
           }
           type="button"
         >
-          Log harvest
+          Details
         </button>
         <button
           aria-expanded={showDelayControls}

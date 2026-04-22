@@ -23,6 +23,7 @@ import {
   trellis,
   trellisStructure,
 } from './gardenTemplateHelpers';
+import { withPlantingInstances } from './plantingInstances';
 
 export type GardenSetupPlotType =
   | 'containers'
@@ -37,7 +38,7 @@ export interface GardenTemplate {
   plotDepthFt: number;
   plotType: GardenSetupPlotType;
   plotWidthFt: number;
-  starterLevel: 'beginner' | 'confident';
+  starterLevel: 'beginner' | 'experienced';
   structures: TemplateStructure[];
   summary: string;
 }
@@ -139,7 +140,7 @@ export const gardenTemplates: GardenTemplate[] = [
     plotDepthFt: 18,
     plotType: 'mixed',
     plotWidthFt: 24,
-    starterLevel: 'confident',
+    starterLevel: 'experienced',
     structures: [
       bed('Tomato and basil bed', 1, 1, [
         trellis('tomato', 8, 3, 2),
@@ -264,7 +265,7 @@ function createTemplatePlanting(
     yFt: template.yFt,
   });
 
-  return {
+  return withPlantingInstances({
     ...plant,
     blockDepthFt: template.blockDepthFt ?? null,
     blockWidthFt: template.blockWidthFt ?? null,
@@ -282,7 +283,7 @@ function createTemplatePlanting(
     trellisLengthFt:
       template.mode === 'trellisLine' ? (template.rowLengthFt ?? 6) : null,
     weeklyWaterNeedInches: crop?.weeklyWaterNeedInches ?? null,
-  };
+  });
 }
 
 function inferPlantCount(crop: CropProfile | null, template: TemplatePlanting) {

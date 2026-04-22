@@ -139,12 +139,12 @@ Required before TestFlight, Google Play testing, or real native push:
    - Do not store Firebase passwords, refresh tokens, or long-lived secrets in
      Capacitor Preferences.
 
-## carrier messaging
+## Carrier Messaging
 
-carrier messaging/notification provider is no longer in scope. Do not set carrier messaging secrets, add
-phone-number seed values, configure carrier messaging webhooks, or run carrier messaging smoke tests for the
-current product prompt chain. Existing carrier messaging runtime paths are legacy cleanup targets
-for a later prompt.
+Carrier messaging is no longer in scope. Do not set carrier delivery secrets,
+add phone-number seed values, configure carrier webhooks, or run carrier
+delivery smoke tests for the current product prompt chain. Any new
+carrier-message code should be treated as scope regression.
 
 ## Optional Provider Keys
 

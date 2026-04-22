@@ -28,17 +28,17 @@ Current foundation scope:
 - in-app, web push, and native/local alert pipeline for garden operations
 - generated task timeline and succession suggestions from the saved garden plan
 - journal notes, issue tracking, photo attachments, harvest logs, and in-season
-  analytics
+  summaries
 - plot dimensions in feet
-- plant center positions in plot coordinates
+- plant and planting-instance center positions in plot coordinates
 - tests
 - CI
 - docs
 
 Guardrails:
 
-- do not add dashboards, charts, maps, collaboration, lore, AI, carrier messaging, or
-  onboarding flows
+- do not add dashboards, charts, maps, collaboration, lore, AI, carrier
+  messaging, or onboarding flows
 - add weather, tasks, journal, notifications, and operations features only when
   they directly support the real plot editor workflow
 - do not add dependencies unless they clearly reduce code for the current
@@ -47,8 +47,8 @@ Guardrails:
 - use `xFt` from the left edge and `yFt` from the top edge as canonical plant coordinates
 - store garden positions in feet, never raw pixels
 - prefer small files, named exports, plain TypeScript, and readable route guards
-- treat carrier messaging/notification provider as de-scoped legacy cleanup only; do not expand or depend on
-  carrier messaging behavior in new prompt-chain work
+- treat carrier messaging as removed scope; do not expand, depend on, or
+  reintroduce it in new prompt-chain work
 
 Source control protocol:
 

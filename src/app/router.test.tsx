@@ -1,9 +1,11 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import {
   annArborClimateProfile,
   createDefaultGarden,
 } from '../domain/gardens/GardenRepository';
+import { sampleGardenName } from '../domain/gardens/sampleGarden';
 import type { AppServices } from '../infrastructure/runtime/services';
 import { rememberAppRoute } from '../features/auth/sessionResume';
 import { routePaths } from '../shared/lib/routes';
@@ -29,6 +31,11 @@ describe('app routing', () => {
     renderRoute('/', services);
 
     expect(await screen.findByRole('heading', { name: 'Plan' })).toBeVisible();
+    expect(screen.getByLabelText('Shell status')).toHaveTextContent('Online');
+    expect(screen.getByTitle('primary.gardener@example.com')).toHaveTextContent(
+      'Primary Gardener',
+    );
+    expect(screen.queryByText(/Primary Gardener ·/)).not.toBeInTheDocument();
   });
 
   it('redirects allowlisted users from the root to their last workspace route', async () => {
@@ -70,6 +77,7 @@ describe('app routing', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: 'Today' }),
     ).toBeVisible();
+    expect(screen.getByText('Field entry')).toBeVisible();
   });
 
   it('renders the authenticated Feed workspace', async () => {
@@ -85,7 +93,7 @@ describe('app routing', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: 'Feed' }),
     ).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Post' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'New entry' })).toBeVisible();
     expect(screen.getByText(/memories shown/i)).toBeVisible();
   });
 
@@ -158,6 +166,45 @@ describe('app routing', () => {
     );
   });
 
+  it('enters, resets, and exits demo mode from the shell controls', async () => {
+    const user = userEvent.setup();
+    const services = await createConfiguredGardenServices();
+    const currentUser = services.authService.getCurrentUser();
+
+    if (!currentUser) {
+      throw new Error('Expected signed-in test user.');
+    }
+
+    renderRoute('/app/plan', services);
+
+    await user.click(await screen.findByRole('button', { name: 'Enter demo' }));
+
+    await waitFor(async () => {
+      await expectDemoGardenName(services, currentUser.uid);
+    });
+    expect(screen.getByText('Demo mode')).toBeVisible();
+    const shellDemoControls = screen.getByLabelText('Demo controls');
+
+    await user.click(
+      within(shellDemoControls).getByRole('button', {
+        name: 'Reset seeded demo',
+      }),
+    );
+    await waitFor(async () => {
+      await expectDemoGardenName(services, currentUser.uid);
+    });
+
+    await user.click(
+      within(shellDemoControls).getByRole('button', { name: 'Exit demo' }),
+    );
+
+    await waitFor(async () => {
+      const garden = await services.gardenRepository.getGarden(currentUser.uid);
+
+      expect(garden?.name).toBe('Home garden');
+    });
+  });
+
   it('redirects non-allowlisted users from the root to access denied', async () => {
     const services = await createTestServices({
       signedInEmail: 'blocked@example.com',
@@ -172,6 +219,12 @@ describe('app routing', () => {
     ).toBeVisible();
   });
 });
+
+async function expectDemoGardenName(services: AppServices, uid: string) {
+  const garden = await services.gardenRepository.getGarden(uid);
+
+  expect(garden?.name).toBe(sampleGardenName);
+}
 
 async function createConfiguredGardenServices(): Promise<AppServices> {
   const services = await createTestServices({

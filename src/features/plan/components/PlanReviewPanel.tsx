@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+
 import type { GardenSuggestionDecision } from '../../../domain/gardens/gardenWorkspace';
 import type { ReviewSuggestion } from '../../garden/reviewSuggestions';
 import { StatusBadge } from '../../shared/design/DesignPrimitives';
@@ -5,24 +7,29 @@ import {
   buildReviewProposalInbox,
   getReviewProposalCategory,
   getReviewProposalChangeSummary,
+  getReviewProposalNextAction,
   getReviewProposalUrgency,
 } from '../reviewProposalInbox';
 import styles from './PlanModeDrawer.module.css';
 
 export function PlanReviewPanel({
+  activeSuggestionId,
   onAcceptBatch,
   onAcceptSuggestion,
   onGenerateAutoLayoutCandidates,
   onJumpToSuggestion,
+  onPreviewSuggestion,
   onRejectSuggestion,
   onSnoozeSuggestion,
   reviewSuggestions,
   suggestionDecisions,
 }: {
+  activeSuggestionId: string | null;
   onAcceptBatch(suggestions: ReviewSuggestion[]): void;
   onAcceptSuggestion(suggestion: ReviewSuggestion): void;
   onGenerateAutoLayoutCandidates(): void;
   onJumpToSuggestion(suggestion: ReviewSuggestion): void;
+  onPreviewSuggestion(suggestion: ReviewSuggestion): void;
   onRejectSuggestion(suggestion: ReviewSuggestion): void;
   onSnoozeSuggestion(suggestion: ReviewSuggestion): void;
   reviewSuggestions: ReviewSuggestion[];
@@ -32,23 +39,32 @@ export function PlanReviewPanel({
     reviewSuggestions,
     suggestionDecisions,
   });
+  const nextAction = getReviewProposalNextAction(inbox);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    panelRef.current?.scrollIntoView?.({ block: 'start' });
+  }, [suggestionDecisions.length]);
 
   return (
-    <div className={styles.reviewPanel}>
+    <div className={styles.reviewPanel} ref={panelRef}>
       <section className={styles.reviewHero}>
         <div>
           <span className={styles.kicker}>Proposal inbox</span>
           <h3>
-            {inbox.openSuggestions.length} change
+            {inbox.openSuggestions.length} decision
             {inbox.openSuggestions.length === 1 ? '' : 's'} waiting
           </h3>
-          <p>Accept, reject, or snooze draft changes before they happen.</p>
-          <div className={styles.reviewStats} aria-label="Proposal summary">
-            <span>{inbox.stats.layoutCount} layout</span>
-            <span>{inbox.stats.supportCount} support</span>
-            <span>{inbox.stats.placementCount} placement</span>
-            <span>{inbox.stats.physicalMoveCount} physical</span>
-          </div>
+          <p>{nextAction.detail}</p>
+          <p className={styles.reviewDecisionSummary}>
+            {inbox.batchableSuggestions.length} low-risk support /{' '}
+            {inbox.stats.physicalMoveCount} physical /{' '}
+            {inbox.stats.layoutCount + inbox.stats.placementCount} layout work
+          </p>
+        </div>
+        <div className={styles.reviewNextAction}>
+          <span>Next safe action</span>
+          <strong>{nextAction.label}</strong>
         </div>
         <div className={styles.reviewHeroActions}>
           <button
@@ -59,7 +75,11 @@ export function PlanReviewPanel({
             Generate layouts
           </button>
           <button
-            className={styles.primaryButton}
+            className={
+              inbox.stats.physicalMoveCount > 0
+                ? styles.secondaryButton
+                : styles.primaryButton
+            }
             disabled={inbox.batchableSuggestions.length === 0}
             onClick={() => onAcceptBatch(inbox.batchableSuggestions)}
             type="button"
@@ -71,11 +91,16 @@ export function PlanReviewPanel({
 
       {inbox.openSuggestions.length > 0 ? (
         <section className={styles.reviewGroup}>
-          <h3>Ready to review</h3>
+          <div className={styles.reviewGroupHeader}>
+            <h3>Decision queue</h3>
+            <p>Review the top proposal, then accept, reject, or snooze.</p>
+          </div>
           <SuggestionCards
+            activeSuggestionId={activeSuggestionId}
             decisionById={inbox.decisionById}
             onAcceptSuggestion={onAcceptSuggestion}
             onJumpToSuggestion={onJumpToSuggestion}
+            onPreviewSuggestion={onPreviewSuggestion}
             onRejectSuggestion={onRejectSuggestion}
             onSnoozeSuggestion={onSnoozeSuggestion}
             suggestions={inbox.openSuggestions}
@@ -92,11 +117,16 @@ export function PlanReviewPanel({
 
       {inbox.decidedSuggestions.length > 0 ? (
         <section className={styles.reviewGroup}>
-          <h3>Accepted, rejected, and snoozed</h3>
+          <div className={styles.reviewGroupHeader}>
+            <h3>Accepted, rejected, and snoozed</h3>
+            <p>Recorded for this private draft.</p>
+          </div>
           <SuggestionCards
+            activeSuggestionId={activeSuggestionId}
             decisionById={inbox.decisionById}
             onAcceptSuggestion={onAcceptSuggestion}
             onJumpToSuggestion={onJumpToSuggestion}
+            onPreviewSuggestion={onPreviewSuggestion}
             onRejectSuggestion={onRejectSuggestion}
             onSnoozeSuggestion={onSnoozeSuggestion}
             suggestions={inbox.decidedSuggestions}
@@ -108,16 +138,20 @@ export function PlanReviewPanel({
 }
 
 function SuggestionCards({
+  activeSuggestionId,
   decisionById,
   onAcceptSuggestion,
   onJumpToSuggestion,
+  onPreviewSuggestion,
   onRejectSuggestion,
   onSnoozeSuggestion,
   suggestions,
 }: {
+  activeSuggestionId: string | null;
   decisionById: Map<string, GardenSuggestionDecision>;
   onAcceptSuggestion(suggestion: ReviewSuggestion): void;
   onJumpToSuggestion(suggestion: ReviewSuggestion): void;
+  onPreviewSuggestion(suggestion: ReviewSuggestion): void;
   onRejectSuggestion(suggestion: ReviewSuggestion): void;
   onSnoozeSuggestion(suggestion: ReviewSuggestion): void;
   suggestions: ReviewSuggestion[];
@@ -127,12 +161,15 @@ function SuggestionCards({
       {suggestions.map((suggestion) => {
         const decision = decisionById.get(suggestion.id);
         const urgency = getReviewProposalUrgency(suggestion);
+        const isActive = suggestion.id === activeSuggestionId;
+        const needsPhysicalPreview =
+          suggestion.relocationImpact === 'physicalMove' && !isActive;
 
         return (
           <li
             className={`${styles.reviewCard} ${
               decision ? styles.reviewCardDecided : ''
-            }`}
+            } ${isActive ? styles.reviewCardActive : ''}`}
             key={suggestion.id}
           >
             <div className={styles.reviewCardHeader}>
@@ -141,12 +178,10 @@ function SuggestionCards({
                   {getReviewProposalCategory(suggestion)}
                 </span>
                 <strong>{suggestion.title}</strong>
+                <p>{suggestion.preview?.after ?? suggestion.rationale}</p>
               </div>
               <div className={styles.reviewBadges}>
                 <StatusBadge tone={urgency.tone}>{urgency.label}</StatusBadge>
-                <StatusBadge>
-                  {formatConfidence(suggestion.confidence)}
-                </StatusBadge>
                 {suggestion.relocationImpact &&
                 suggestion.relocationImpact !== 'none' ? (
                   <StatusBadge
@@ -170,20 +205,14 @@ function SuggestionCards({
                 ) : null}
               </div>
             </div>
-            <dl className={styles.reviewMetaGrid}>
-              <div>
-                <dt>Change</dt>
-                <dd>{getReviewProposalChangeSummary(suggestion)}</dd>
-              </div>
-              <div>
-                <dt>Why</dt>
-                <dd>{suggestion.rationale}</dd>
-              </div>
-            </dl>
+            <div className={styles.reviewDecisionLine}>
+              <span>Decision</span>
+              <strong>{getReviewProposalChangeSummary(suggestion)}</strong>
+            </div>
+            <p className={styles.reviewRationale}>{suggestion.rationale}</p>
             {suggestion.relocationImpact === 'physicalMove' ? (
               <p className={styles.physicalMoveText}>
-                Accepting this updates the plan for a crop already planted in
-                the garden.
+                Preview the plot diff before accepting a physical move.
               </p>
             ) : null}
             {suggestion.preview ? (
@@ -204,8 +233,19 @@ function SuggestionCards({
               </p>
             ) : null}
             <div className={styles.reviewActions}>
+              <button
+                aria-pressed={isActive}
+                className={
+                  isActive ? styles.primaryButton : styles.secondaryButton
+                }
+                onClick={() => onPreviewSuggestion(suggestion)}
+                type="button"
+              >
+                {isActive ? 'Diff on plot' : 'Show diff'}
+              </button>
               {suggestion.itemIds.length > 0 ? (
                 <button
+                  className={styles.secondaryButton}
                   onClick={() => onJumpToSuggestion(suggestion)}
                   type="button"
                 >
@@ -217,23 +257,31 @@ function SuggestionCards({
                   <button
                     className={
                       suggestion.relocationImpact === 'physicalMove'
-                        ? styles.physicalMoveButton
-                        : undefined
+                        ? `${styles.secondaryButton} ${styles.physicalMoveButton}`
+                        : styles.primaryButton
                     }
-                    onClick={() => onAcceptSuggestion(suggestion)}
+                    onClick={() =>
+                      needsPhysicalPreview
+                        ? onPreviewSuggestion(suggestion)
+                        : onAcceptSuggestion(suggestion)
+                    }
                     type="button"
                   >
-                    {suggestion.relocationImpact === 'physicalMove'
-                      ? 'Accept physical move'
-                      : 'Accept'}
+                    {needsPhysicalPreview
+                      ? 'Show diff first'
+                      : suggestion.relocationImpact === 'physicalMove'
+                        ? 'Accept physical move'
+                        : 'Accept'}
                   </button>
                   <button
+                    className={styles.secondaryButton}
                     onClick={() => onRejectSuggestion(suggestion)}
                     type="button"
                   >
                     Reject
                   </button>
                   <button
+                    className={styles.secondaryButton}
                     onClick={() => onSnoozeSuggestion(suggestion)}
                     type="button"
                   >
@@ -247,10 +295,6 @@ function SuggestionCards({
       })}
     </ul>
   );
-}
-
-function formatConfidence(confidence: ReviewSuggestion['confidence']) {
-  return `${confidence} confidence`;
 }
 
 function formatRelocationImpact(

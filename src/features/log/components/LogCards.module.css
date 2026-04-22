@@ -1,21 +1,16 @@
-.entryList {
-  display: grid;
-  gap: var(--space-3);
-}
-
 .feedSection,
 .feedList {
   display: grid;
-  gap: 0.7rem;
+  gap: 0.65rem;
 }
 
 .pinnedIssues {
-  display: grid;
-  grid-template-columns: auto repeat(3, minmax(0, 1fr));
-  gap: 0.55rem;
-  align-items: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
   border-bottom: 1px solid rgba(76, 85, 70, 0.12);
-  padding-bottom: 0.7rem;
+  padding-bottom: 0.6rem;
 }
 
 .pinLabel {
@@ -32,9 +27,10 @@
   display: grid;
   gap: 0.15rem;
   border: 1px solid var(--color-warning-border);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-control);
   background: var(--color-warning-bg);
-  padding: 0.6rem 0.7rem;
+  padding: 0.45rem 0.6rem;
+  animation: feedItemIn var(--motion-short) var(--ease-out);
 }
 
 .issuePin strong {
@@ -49,12 +45,17 @@
 
 .feedCard {
   display: grid;
-  gap: 0.7rem;
+  gap: 0.55rem;
   border: 1px solid rgba(76, 85, 70, 0.13);
   border-radius: var(--radius-control);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
   padding: 0.7rem;
+  animation: feedItemIn var(--motion-short) var(--ease-out);
+  transition:
+    border-color var(--motion-micro) var(--ease-standard),
+    box-shadow var(--motion-micro) var(--ease-standard),
+    transform var(--motion-micro) var(--ease-standard);
 }
 
 .unresolvedCard {
@@ -64,6 +65,7 @@
 .focusedCard {
   outline: 2px solid var(--color-accent-strong);
   outline-offset: 2px;
+  animation: feedFocusIn var(--motion-short) var(--ease-emphasis);
 }
 
 .feedContent {
@@ -105,30 +107,27 @@
 }
 
 .compactPhotoRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.compactPhotoRow img,
-.compactPhotoRow span {
-  width: 4rem;
-  height: 3rem;
-  border-radius: var(--radius-control);
+  display: grid;
+  gap: 0.45rem;
 }
 
 .compactPhotoRow img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
   border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
   object-fit: cover;
+  animation: feedMediaIn var(--motion-short) var(--ease-out);
 }
 
 .compactPhotoRow span {
-  display: grid;
-  place-items: center;
+  width: fit-content;
   border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
   background: var(--color-surface-alt);
   color: var(--color-text-muted);
   font-weight: 760;
+  padding: 0.3rem 0.55rem;
 }
 
 .issueFooter {
@@ -140,52 +139,23 @@
   color: var(--color-text-muted);
 }
 
-.entryCard,
-.issueCard,
-.mediaCard,
-.metric {
+.entryCard {
+  display: grid;
+  gap: var(--space-2);
   border: 1px solid rgba(76, 85, 70, 0.14);
   border-radius: var(--radius-card);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
   padding: var(--space-3);
-}
-
-.entryCard,
-.issueCard {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.issueBoard,
-.summaryColumns {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-
-.issueColumn,
-.summaryList {
-  display: grid;
-  align-content: start;
-  gap: var(--space-2);
-}
-
-.issueColumn h3,
-.summaryList h3 {
-  color: var(--color-text-strong);
-  font-size: var(--font-size-small);
-}
-
-.issueCard h4 {
-  margin: 0;
-  color: var(--color-text-strong);
-  font-size: var(--font-size-body);
+  animation: feedItemIn var(--motion-short) var(--ease-out);
+  transition:
+    border-color var(--motion-micro) var(--ease-standard),
+    box-shadow var(--motion-micro) var(--ease-standard),
+    transform var(--motion-micro) var(--ease-standard);
 }
 
 .cardHeader,
-.meta,
-.simpleList li {
+.meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -195,9 +165,7 @@
 
 .cardHeader,
 .meta,
-.empty,
-.disclosure,
-.mediaCard figcaption span {
+.empty {
   color: var(--color-text-muted);
 }
 
@@ -210,21 +178,13 @@
   justify-content: start;
 }
 
-.meta span,
-.cardHeader span {
-  border: 1px solid rgba(76, 85, 70, 0.14);
-  border-radius: var(--radius-control);
-  background: var(--color-surface-alt);
-  padding: 0.2rem 0.45rem;
-}
-
 .statusActions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
 
-.statusActions button {
+.statusActions button:not([data-ui='action']) {
   min-height: 2.5rem;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-control);
@@ -234,15 +194,20 @@
   font: inherit;
   font-weight: 720;
   padding: 0.5rem 0.75rem;
+  transition:
+    background-color var(--motion-micro) var(--ease-standard),
+    border-color var(--motion-micro) var(--ease-standard),
+    color var(--motion-micro) var(--ease-standard),
+    transform var(--motion-instant) var(--ease-standard);
 }
 
-.statusActions button[aria-pressed='true'] {
+.statusActions button[aria-pressed='true']:not([data-ui='action']) {
   border-color: var(--color-accent-strong);
   background: var(--color-surface-alt);
+  animation: feedSelectedIn var(--motion-short) var(--ease-emphasis);
 }
 
-.linkedTaskList,
-.timeline {
+.linkedTaskList {
   display: grid;
   gap: 0.45rem;
   margin: 0;
@@ -258,8 +223,7 @@
   padding-bottom: 0.45rem;
 }
 
-.linkedTaskList li:last-child,
-.simpleList li:last-child {
+.linkedTaskList li:last-child {
   border-bottom: 0;
   padding-bottom: 0;
 }
@@ -282,108 +246,86 @@
   object-fit: cover;
 }
 
-.mediaGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: var(--space-2);
-}
-
-.mediaCard {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  overflow: hidden;
-  padding: 0;
-}
-
-.mediaCard img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-}
-
-.mediaCard figcaption {
+.empty {
   display: grid;
   gap: 0.25rem;
-  padding: 0 var(--space-2) var(--space-2);
-}
-
-.mediaCard figcaption span,
-.disclosure {
-  font-size: 0.84rem;
-}
-
-.metricGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-
-.metric {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.metric span {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-caption);
-}
-
-.metric strong {
-  color: var(--color-text-strong);
-  font-size: var(--font-size-heading);
-  line-height: 1;
-}
-
-.simpleList {
-  display: grid;
-  gap: 0.45rem;
-  margin: 0;
-  padding: 0;
-}
-
-.simpleList li {
-  border-bottom: 1px solid var(--color-border);
-  padding-bottom: 0.45rem;
-}
-
-.simpleList span {
-  color: var(--color-text);
-}
-
-.simpleList strong {
-  color: var(--color-text-strong);
-}
-
-.timeline {
-  border-left: 2px solid var(--color-border);
-  padding-left: var(--space-2);
-}
-
-.timeline li {
-  color: var(--color-text-muted);
-  font-size: 0.84rem;
-}
-
-.empty {
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-card);
-  padding: var(--space-3);
+  background: rgba(255, 253, 247, 0.54);
+  color: var(--color-text-muted);
+  padding: var(--space-2);
+  animation: feedItemIn var(--motion-short) var(--ease-out);
+}
+
+.empty h3,
+.empty p {
+  margin: 0;
+}
+
+.empty h3 {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-body);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .statusActions button:hover {
+  .statusActions button:not([data-ui='action']):hover {
     border-color: var(--color-accent-strong);
     background: var(--color-surface-alt);
+  }
+
+  .feedCard:hover,
+  .entryCard:hover {
+    transform: translateY(-1px);
+  }
+}
+
+.statusActions button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.99);
+}
+
+@keyframes feedItemIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+}
+
+@keyframes feedFocusIn {
+  from {
+    transform: scale(0.99);
+  }
+}
+
+@keyframes feedMediaIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes feedSelectedIn {
+  from {
+    transform: scale(0.985);
   }
 }
 
 @media (max-width: 62rem) {
-  .pinnedIssues,
-  .issueBoard,
-  .metricGrid,
-  .summaryColumns {
+  .pinnedIssues {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .issuePin,
+  .feedCard,
+  .focusedCard,
+  .compactPhotoRow img,
+  .entryCard,
+  .statusActions button:not([data-ui='action']),
+  .statusActions button[aria-pressed='true']:not([data-ui='action']),
+  .empty {
+    animation: none;
+    transition-duration: 1ms;
+    transform: none;
   }
 }
 
@@ -393,7 +335,8 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .statusActions button {
+  .statusActions button,
+  .statusActions [data-ui='action'] {
     width: 100%;
   }
 }

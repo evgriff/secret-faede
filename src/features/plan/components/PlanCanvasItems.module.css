@@ -5,6 +5,89 @@
   pointer-events: none;
 }
 
+.influenceOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.diffOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.diffArrowLayer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.diffArrow {
+  stroke: #1f6b3a;
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.diffRect {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 6px;
+}
+
+.diffBefore {
+  border: 1px dashed rgba(138, 90, 0, 0.72);
+  background: rgba(138, 90, 0, 0.12);
+}
+
+.diffAfter {
+  border: 2px solid rgba(31, 107, 58, 0.82);
+  background: rgba(31, 107, 58, 0.18);
+}
+
+.diffRemoved {
+  border-color: rgba(163, 52, 40, 0.72);
+  background: rgba(163, 52, 40, 0.14);
+}
+
+.influenceZone {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+  animation: iIn var(--motion-short) var(--ease-out);
+}
+
+.spacingInfluence {
+  border: 1px dashed rgba(36, 71, 46, 0.62);
+  border-radius: 999px;
+  background: rgba(232, 244, 225, 0.26);
+  box-shadow: inset 0 0 0 1px rgba(255, 253, 247, 0.35);
+}
+
+.shadeInfluence {
+  border: 1px solid rgba(52, 79, 83, 0.24);
+  border-radius: 2px;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(52, 79, 83, 0.2) 0,
+      rgba(52, 79, 83, 0.2) 4px,
+      rgba(52, 79, 83, 0.08) 4px,
+      rgba(52, 79, 83, 0.08) 8px
+    ),
+    rgba(64, 93, 90, 0.1);
+}
+
+.warningInfluence {
+  border-color: rgba(179, 90, 63, 0.72);
+  background-color: rgba(179, 90, 63, 0.13);
+}
+
 .sunCell {
   position: absolute;
   display: grid;
@@ -60,26 +143,33 @@
 }
 
 .plant {
+  --plant-status-color: #2f6f43;
+  --plant-status-bg: rgba(248, 251, 241, 0.86);
   position: absolute;
-  z-index: 4;
+  z-index: 5;
   display: grid;
-  grid-template-rows: auto auto;
-  place-items: center;
-  min-width: 1.7rem;
-  min-height: 1.7rem;
-  border: 2px solid #24472e;
-  border-radius: var(--radius-pill);
-  background: rgba(248, 251, 241, 0.72);
-  color: #2f6f43;
+  grid-template-rows: 0.24rem minmax(0, 1fr) auto;
+  place-items: stretch;
+  min-width: 2.75rem;
+  min-height: 2.15rem;
+  border: 1px solid rgba(36, 71, 46, 0.86);
+  border-radius: 6px;
+  background: var(--plant-status-bg);
+  color: #24472e;
   cursor: grab;
   font: inherit;
-  font-size: 0.68rem;
+  font-size: 0.64rem;
   font-weight: 750;
-  line-height: 1;
+  line-height: 1.05;
   overflow: hidden;
-  padding: 0.12rem;
+  padding: 0;
   touch-action: none;
-  box-shadow: 0 8px 16px rgba(31, 27, 24, 0.18);
+  box-shadow:
+    0 10px 18px rgba(31, 27, 24, 0.16),
+    inset 0 0 0 1px rgba(255, 253, 247, 0.28);
+  transition:
+    opacity var(--motion-micro) var(--ease-standard),
+    transform var(--motion-micro) var(--ease-emphasis);
 }
 
 .plant::before,
@@ -90,8 +180,8 @@
 }
 
 .plant svg {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 0.92rem;
+  height: 0.92rem;
 }
 
 .plant span,
@@ -101,12 +191,90 @@
   text-overflow: ellipsis;
 }
 
-.plant span {
-  padding: 0 0.2rem;
+.plantStatusStrip {
+  display: block;
+  min-height: 0.24rem;
+  background: var(--plant-status-color);
+}
+
+.plantBody {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  min-width: 0;
+  gap: 0.18rem;
+  padding: 0.14rem 0.18rem 0.08rem;
+}
+
+.plantIcon {
+  flex: 0 0 auto;
+  color: var(--plant-status-color);
+}
+
+.plantLabel {
+  min-width: 0;
+  color: rgba(31, 27, 24, 0.86);
+  font-weight: 860;
+  text-align: left;
   white-space: nowrap;
 }
 
-.plant small,
+.plantStatusText {
+  max-width: 3.6rem;
+  overflow: hidden;
+  color: rgba(31, 27, 24, 0.66);
+  font-size: 0.48rem;
+  font-weight: 940;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.plantSignals {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.12rem;
+  overflow: hidden;
+  padding: 0 0.16rem 0.14rem;
+}
+
+.plantSignal {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgba(255, 253, 247, 0.66);
+  color: rgba(31, 27, 24, 0.72);
+  font-size: 0.48rem;
+  font-weight: 920;
+  line-height: 1;
+  padding: 0.1rem 0.16rem;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.anchorSignal {
+  background: rgba(36, 71, 46, 0.12);
+  color: #24472e;
+}
+
+.lockSignal {
+  background: rgba(31, 27, 24, 0.72);
+  color: #fffdf7;
+}
+
+.supportSignal {
+  background: rgba(95, 145, 174, 0.18);
+  color: #1f566f;
+}
+
+.warningSignal {
+  background: rgba(179, 90, 63, 0.14);
+  color: #8a3d2b;
+}
+
 .structure small {
   position: absolute;
   right: 0.2rem;
@@ -123,33 +291,37 @@
 
 .row,
 .trellisLine {
-  border-radius: var(--radius-pill);
+  border-radius: 6px;
 }
 
 .block {
-  border-radius: var(--radius-card);
+  border-radius: 6px;
 }
 
 .cluster {
-  border-radius: 40%;
+  border-radius: 6px;
 }
 
 .planned {
-  background: rgba(248, 251, 241, 0.68);
+  --plant-status-color: #6f7f5a;
+  --plant-status-bg: rgba(248, 251, 241, 0.86);
 }
 
 .planted,
 .growing {
-  background: rgba(214, 239, 202, 0.76);
+  --plant-status-color: #2f6f43;
+  --plant-status-bg: rgba(222, 241, 212, 0.88);
 }
 
 .harvest-ready {
+  --plant-status-color: #8a5a00;
+  --plant-status-bg: rgba(250, 223, 134, 0.88);
   border-color: #8a5a00;
-  background: rgba(250, 223, 134, 0.78);
 }
 
 .harvested {
-  background: rgba(225, 218, 204, 0.78);
+  --plant-status-color: #746b5f;
+  --plant-status-bg: rgba(225, 218, 204, 0.84);
 }
 
 .removed {
@@ -158,7 +330,6 @@
 
 .trellisLine {
   border-style: dashed;
-  background: rgba(238, 247, 234, 0.76);
 }
 
 .selectedPlant {
@@ -166,12 +337,27 @@
   box-shadow:
     0 0 0 4px rgba(179, 90, 63, 0.22),
     0 10px 18px rgba(31, 27, 24, 0.2);
+  transform: scale(1.015);
+}
+
+.cropFocusedPlant {
+  z-index: 6;
+  border-color: #24472e;
+  box-shadow:
+    0 0 0 5px rgba(36, 71, 46, 0.2),
+    0 12px 22px rgba(31, 27, 24, 0.22);
+}
+
+.cropFocusDimmed {
+  opacity: 0.38;
+  filter: grayscale(0.25) saturate(0.72);
 }
 
 .draggingPlant {
   cursor: grabbing;
-  z-index: 3;
+  z-index: 7;
   transform: scale(1.02);
+  transition: none;
 }
 
 .warningItem {
@@ -181,12 +367,20 @@
     0 10px 18px rgba(31, 27, 24, 0.2);
 }
 
+.cropFocusedPlant.warningItem {
+  border-color: #24472e;
+  box-shadow:
+    0 0 0 5px rgba(36, 71, 46, 0.2),
+    0 0 0 8px rgba(179, 90, 63, 0.1),
+    0 12px 22px rgba(31, 27, 24, 0.22);
+}
+
 .lockedItem {
   cursor: default;
   filter: saturate(0.82);
 }
 
-.lockedItem::after {
+.structure.lockedItem::after {
   content: 'lock';
   position: absolute;
   top: 0.15rem;
@@ -205,7 +399,7 @@
   filter: saturate(0.92);
 }
 
-.anchoredItem::after {
+.structure.anchoredItem::after {
   content: 'anchored';
   position: absolute;
   top: 0.15rem;
@@ -219,7 +413,7 @@
   text-transform: uppercase;
 }
 
-.lockedItem.anchoredItem::after {
+.structure.lockedItem.anchoredItem::after {
   content: 'lock';
 }
 
@@ -239,15 +433,15 @@
 
 .structure {
   position: absolute;
-  z-index: 3;
+  z-index: 2;
   display: grid;
   place-items: center;
   min-width: 1.4rem;
   min-height: 1.4rem;
-  border: 2px solid rgba(78, 63, 45, 0.8);
+  border: 1px solid rgba(78, 63, 45, 0.42);
   border-radius: var(--radius-card);
-  background: rgba(210, 190, 150, 0.76);
-  color: #2d271f;
+  background: rgba(210, 190, 150, 0.34);
+  color: rgba(45, 39, 31, 0.74);
   cursor: grab;
   font-size: var(--font-size-caption);
   font-weight: 800;
@@ -256,15 +450,21 @@
   padding: 0.2rem;
   text-align: center;
   touch-action: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 253, 247, 0.24);
+}
+
+.structure span:first-child {
+  color: rgba(45, 39, 31, 0.72);
+  font-size: 0.68rem;
 }
 
 .raisedBed,
 .bed {
-  background: rgba(144, 112, 72, 0.62);
+  background: rgba(144, 112, 72, 0.3);
 }
 
 .inGroundBed {
-  background: rgba(120, 145, 89, 0.46);
+  background: rgba(120, 145, 89, 0.24);
 }
 
 .container,
@@ -275,42 +475,47 @@
 }
 
 .container {
-  background: rgba(184, 193, 121, 0.62);
+  background: rgba(184, 193, 121, 0.28);
 }
 
 .pathway,
 .path {
   border-style: dashed;
-  border-color: rgba(78, 63, 45, 0.48);
-  background: rgba(196, 188, 174, 0.44);
-  box-shadow: inset 0 0 0 1px rgba(255, 253, 247, 0.34);
+  border-color: rgba(78, 63, 45, 0.28);
+  background: rgba(196, 188, 174, 0.2);
+  box-shadow: none;
 }
 
 .trellis {
   border-style: dashed;
-  background: rgba(128, 159, 151, 0.55);
+  border-color: rgba(36, 71, 46, 0.48);
+  background: rgba(128, 159, 151, 0.22);
 }
 
 .fenceWall,
 .fence {
-  background: rgba(112, 105, 96, 0.55);
+  border-style: dotted;
+  background: rgba(112, 105, 96, 0.18);
 }
 
 .treeObstacle {
-  background: rgba(92, 120, 82, 0.62);
+  border-style: dotted;
+  background: rgba(92, 120, 82, 0.2);
 }
 
 .compost {
-  background: rgba(122, 92, 65, 0.66);
+  border-style: dotted;
+  background: rgba(122, 92, 65, 0.2);
 }
 
 .waterSource {
-  background: rgba(95, 145, 174, 0.58);
+  border-style: dotted;
+  background: rgba(95, 145, 174, 0.2);
 }
 
 .hoseBib {
   border-style: dashed;
-  background: rgba(75, 132, 156, 0.62);
+  background: rgba(75, 132, 156, 0.2);
 }
 
 .structureGlyph {
@@ -319,26 +524,38 @@
   width: 1.35rem;
   height: 1.35rem;
   border-radius: var(--radius-pill);
-  background: rgba(255, 253, 247, 0.7);
+  background: rgba(255, 253, 247, 0.52);
+  color: rgba(45, 39, 31, 0.62);
   font-size: 0.68rem;
   font-weight: 950;
   line-height: 1;
 }
 
+.fenceWall,
+.fence,
+.treeObstacle,
+.compost,
+.waterSource,
+.hoseBib {
+  opacity: 0.62;
+}
+
 .selectedStructure {
-  border-color: #24472e;
+  border-color: rgba(36, 71, 46, 0.72);
   box-shadow:
-    0 0 0 4px rgba(36, 71, 46, 0.2),
-    0 10px 18px rgba(31, 27, 24, 0.18);
+    0 0 0 3px rgba(36, 71, 46, 0.16),
+    inset 0 0 0 1px rgba(255, 253, 247, 0.36);
 }
 
 .draggingStructure {
   cursor: grabbing;
-  z-index: 3;
+  z-index: 4;
+  opacity: 0.9;
+  transition: none;
 }
 
 .resizingStructure {
-  z-index: 3;
+  z-index: 4;
 }
 
 .resizeHandle {
@@ -462,8 +679,32 @@
   }
 }
 
+@keyframes iIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .influenceZone {
+    animation: none;
+  }
+
+  .plant {
+    transition-duration: 1ms;
+  }
+
+  .selectedPlant {
+    transform: none;
+  }
+}
+
 @media (pointer: coarse) {
-  .plant,
+  .plant {
+    min-width: 3.35rem;
+    min-height: 2.95rem;
+  }
+
   .structure {
     min-width: 2.75rem;
     min-height: 2.75rem;

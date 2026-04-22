@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { useEffect, useRef } from 'react';
 
 import type {
   Garden,
@@ -22,13 +22,8 @@ import {
   formatWeatherSummary,
   getLatestWeatherSnapshot,
 } from './planFormatters';
+import { PlanOptimizeCandidates } from './PlanOptimizeCandidates';
 import styles from './PlanOperationsPanel.module.css';
-
-const PlanOptimizeCandidates = lazy(() =>
-  import('./PlanOptimizeCandidates').then((module) => ({
-    default: module.PlanOptimizeCandidates,
-  })),
-);
 
 export function PlanOperationsPanel({
   autoLayoutCandidates,
@@ -42,11 +37,13 @@ export function PlanOperationsPanel({
   onGenerateAutoLayoutCandidates,
   onRefresh,
   onSelectAutoLayoutCandidate,
+  onSnoozeAutoLayoutCandidate,
   optimizerMessage,
   optimizerStatus,
   rejectedAutoLayoutCandidateIds,
   refreshError,
   selectedAutoLayoutCandidateId,
+  snoozedAutoLayoutCandidateIds,
   successionRecommendations,
   sunLayer,
   sunSeason,
@@ -62,11 +59,13 @@ export function PlanOperationsPanel({
   onRejectAutoLayoutCandidate(candidateId: string): void;
   onRefresh(): void;
   onSelectAutoLayoutCandidate(candidateId: string): void;
+  onSnoozeAutoLayoutCandidate(candidateId: string): void;
   optimizerMessage: string | null;
   optimizerStatus: AutoLayoutRunStatus;
   rejectedAutoLayoutCandidateIds: string[];
   refreshError: string | null;
   selectedAutoLayoutCandidateId: string | null;
+  snoozedAutoLayoutCandidateIds: string[];
   successionRecommendations: SuccessionRecommendation[];
   sunLayer: SunShadeLayer | null;
   sunSeason: SunSeason;
@@ -92,10 +91,20 @@ export function PlanOperationsPanel({
     .slice(0, 3);
   const materials = buildMaterialsList(garden);
   const layoutRequests = buildSeasonCropLayoutRequests(garden);
-  const mustGrowCount = layoutRequests.filter(
-    (request) => request.mustGrow,
-  ).length;
+  const requestedPlantCount = layoutRequests.reduce(
+    (total, request) => total + request.quantity,
+    0,
+  );
   const isOptimizing = optimizerStatus === 'running';
+  const layoutSectionRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (autoLayoutCandidates.length === 0) {
+      return;
+    }
+
+    layoutSectionRef.current?.scrollIntoView?.({ block: 'start' });
+  }, [autoLayoutCandidates]);
 
   return (
     <section className={styles.panel} aria-label="Garden operations">
@@ -114,19 +123,14 @@ export function PlanOperationsPanel({
         </button>
       </div>
       <div className={styles.metricGrid}>
-        <OperationMetric
-          label="Current weather"
-          value={formatWeatherSummary(latestSnapshot)}
-        />
-        <OperationMetric
-          label="Next rain"
-          value={formatNextRain(latestSnapshot)}
-        />
-        <OperationMetric label="Alerts" value={formatAlerts(latestSnapshot)} />
-        <OperationMetric
-          label="Watering"
-          value={formatWateringSummary(activeRecommendations)}
-        />
+        {Object.entries({
+          'Current weather': formatWeatherSummary(latestSnapshot),
+          'Next rain': formatNextRain(latestSnapshot),
+          Alerts: formatAlerts(latestSnapshot),
+          Watering: formatWateringSummary(activeRecommendations),
+        }).map(([label, value]) => (
+          <OperationMetric key={label} label={label} value={value} />
+        ))}
       </div>
       {visibleRecommendations.length > 0 ? (
         <ul className={styles.recommendationList}>
@@ -170,11 +174,15 @@ export function PlanOperationsPanel({
           {refreshError}
         </p>
       ) : null}
-      <section className={styles.materials} aria-label="Layout candidates">
+      <section
+        className={styles.materials}
+        aria-label="Layout walkthrough"
+        ref={layoutSectionRef}
+      >
         <div className={styles.sectionHeader}>
           <div>
             <span className={styles.kicker}>Optimizer input</span>
-            <h3>Wanted crops</h3>
+            <h3>Generated layout walkthrough</h3>
           </div>
           <button
             className={styles.secondaryButton}
@@ -198,40 +206,49 @@ export function PlanOperationsPanel({
         {layoutRequests.length > 0 ? (
           <>
             <p className={styles.helpText}>
-              {layoutRequests.length} layout candidate
-              {layoutRequests.length === 1 ? '' : 's'}; {mustGrowCount}{' '}
-              must-grow.
+              {layoutRequests.length} crop request
+              {layoutRequests.length === 1 ? '' : 's'}; {requestedPlantCount}{' '}
+              plant{requestedPlantCount === 1 ? '' : 's'}. Previewing does not
+              change the draft.
             </p>
-            <ul className={styles.candidateList}>
-              {layoutRequests.slice(0, 5).map((request) => (
-                <li key={request.cropId}>
-                  <strong>{request.crop.commonName}</strong>
-                  <span>
-                    {request.targetQuantity} target - {request.fit.label}
-                  </span>
-                  <small>{request.fit.summary}</small>
-                </li>
-              ))}
-            </ul>
+            {autoLayoutCandidates.length === 0 ? (
+              <ul className={styles.candidateList}>
+                {layoutRequests.slice(0, 5).map((request) => (
+                  <li key={request.cropId}>
+                    <strong>{request.crop.commonName}</strong>
+                    <span>
+                      {request.quantity} target - {request.fit.label}
+                    </span>
+                    <small>{request.fit.summary}</small>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className={styles.helpText}>
+                {layoutRequests
+                  .slice(0, 3)
+                  .map(
+                    (request) =>
+                      `${request.crop.commonName} ${request.quantity} target - ${request.fit.label}`,
+                  )
+                  .join('; ')}
+              </p>
+            )}
             {autoLayoutCandidates.length > 0 ? (
-              <Suspense
-                fallback={<p className={styles.helpText}>Loading preview.</p>}
-              >
-                <PlanOptimizeCandidates
-                  autoLayoutCandidates={autoLayoutCandidates}
-                  currentWarnings={currentWarnings}
-                  garden={garden}
-                  onApplyAutoLayoutCandidate={onApplyAutoLayoutCandidate}
-                  onRejectAutoLayoutCandidate={onRejectAutoLayoutCandidate}
-                  onSelectAutoLayoutCandidate={onSelectAutoLayoutCandidate}
-                  rejectedAutoLayoutCandidateIds={
-                    rejectedAutoLayoutCandidateIds
-                  }
-                  selectedAutoLayoutCandidateId={selectedAutoLayoutCandidateId}
-                  sunLayer={sunLayer}
-                  sunSeason={sunSeason}
-                />
-              </Suspense>
+              <PlanOptimizeCandidates
+                autoLayoutCandidates={autoLayoutCandidates}
+                currentWarnings={currentWarnings}
+                garden={garden}
+                onApplyAutoLayoutCandidate={onApplyAutoLayoutCandidate}
+                onRejectAutoLayoutCandidate={onRejectAutoLayoutCandidate}
+                onSelectAutoLayoutCandidate={onSelectAutoLayoutCandidate}
+                onSnoozeAutoLayoutCandidate={onSnoozeAutoLayoutCandidate}
+                rejectedAutoLayoutCandidateIds={rejectedAutoLayoutCandidateIds}
+                selectedAutoLayoutCandidateId={selectedAutoLayoutCandidateId}
+                snoozedAutoLayoutCandidateIds={snoozedAutoLayoutCandidateIds}
+                sunLayer={sunLayer}
+                sunSeason={sunSeason}
+              />
             ) : null}
           </>
         ) : (

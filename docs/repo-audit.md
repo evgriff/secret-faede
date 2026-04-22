@@ -42,7 +42,8 @@
 ## 4. Preserved seams
 
 - `AuthService` for password auth
-- `GardenRepository` for one saved garden per user
+- `GardenRepository` for one shared published garden plus one private draft per
+  provisioned user
 - mock/runtime split
 - Firebase Auth, Firestore, Hosting, and emulator scaffolding
 - GitHub Actions quality and Hosting workflows
@@ -58,11 +59,11 @@
 
 ## 6. Current product boundary
 
-- one garden per authenticated user
+- one shared published garden workspace with private per-user drafts
 - plot dimensions in feet
-- plant center positions in feet
-- manual save to `gardens/{uid}` in Firebase mode
-- authenticated shell routes for garden, tasks, journal, and settings
+- plant and planting-instance center positions in feet
+- shared draft/publish save through `gardenWorkspaces/main` in Firebase mode
+- authenticated shell routes for Plan, Today, Feed, and Settings
 - weather reads and watering recommendations are scoped to garden operations
-- no multiple garden management, notifications, maps, collaboration,
-  onboarding, or AI features yet
+- no multiple garden management, maps, collaboration, carrier messaging,
+  onboarding-heavy flows, or AI features

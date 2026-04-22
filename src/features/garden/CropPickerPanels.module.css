@@ -62,7 +62,6 @@
 .cropOption small,
 .cropCardHeader p,
 .cropNotes,
-.cropEstimate,
 .emptyResults {
   color: var(--color-text-muted);
 }
@@ -172,7 +171,6 @@
 .cropCardHeader h3,
 .cropCardHeader p,
 .cropNotes,
-.cropEstimate,
 .emptyResults {
   margin: 0;
 }
@@ -206,48 +204,6 @@
 .cropStats dd {
   margin: 0.15rem 0 0;
   color: var(--color-text-strong);
-}
-
-.modeFieldset {
-  display: grid;
-  gap: 0.5rem;
-  min-width: 0;
-  border: 0;
-  margin: 0;
-  padding: 0;
-}
-
-.modeFieldset legend {
-  color: var(--color-text-strong);
-  font-weight: 700;
-}
-
-.modeGrid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.modeButton {
-  min-height: 2.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: #ffffff;
-  color: var(--color-text-strong);
-  cursor: pointer;
-  font: inherit;
-  padding: 0 0.7rem;
-}
-
-.selectedModeButton {
-  border-color: #24472e;
-  background: #24472e;
-  color: #fffdf7;
-}
-
-.plantingControls {
-  display: grid;
-  gap: 0.75rem;
 }
 
 .warningText {
@@ -364,15 +320,13 @@
   min-height: 100%;
 }
 
-.cropOption:focus-visible,
-.modeButton:focus-visible {
+.cropOption:focus-visible {
   outline: 2px solid var(--color-plant-sky);
   outline-offset: 2px;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .cropOption:hover,
-  .modeButton:hover {
+  .cropOption:hover {
     border-color: rgba(54, 48, 40, 0.38);
     background: #f6f0e5;
   }

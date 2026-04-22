@@ -1,8 +1,9 @@
 # Secret Faede
 
-Secret Faede is a small garden plot planner PWA. It uses Firebase
-email/password auth for two provisioned accounts, then routes the signed-in user
-into one saved real-world garden editor.
+Secret Faede is a private Garden OS for one real home food garden. It uses
+Firebase email/password auth for exactly two provisioned accounts, then routes
+the signed-in user into Plan, Today, Feed, and Settings around one shared
+published garden with private drafts.
 
 ## MVP
 
@@ -17,11 +18,17 @@ Included:
 - mock runtime and Firebase runtime from one env parser
 - application-level allowlist for exactly two configured email addresses
 - one shared published garden with one private draft per authenticated user
+- canvas-first Plan workspace with compact tool launchers, stable overlays, and
+  publish/revert review
 - plot width/depth in feet with a 1 square foot visual grid
-- plant center positions stored as `xFt` and `yFt`
+- plant and planting-instance positions stored as `xFt` and `yFt`
+- quantity-first Add Plant and Choose Plants flows that create individual plant
+  nodes inside arrangement-aware groups
+- guided optimizer walkthroughs with before/after plot diff overlays and
+  proposal decisions, without decorative scoring surfaces
 - authenticated app shell for Plan, Today, Feed, and Settings
-- editable settings for alert location, timezone, check time, thresholds, and
-  notification channels
+- editable settings for alert location, timezone, check time, thresholds, push
+  delivery, quiet hours, and local/native notification support
 - weather provider layer with NWS default, optional Tomorrow.io, and watering
   recommendations
 - in-app notification logs, FCM web/native push registration, and local native
@@ -29,8 +36,13 @@ Included:
 - generated task timeline for planting, trellising, thinning, pruning,
   fertilizing, mulching, watering, harvest windows, and succession prompts
 - journal, issue tracking, photo attachments, harvest logging, and in-season
-  analytics
-- sample garden mode with a stable Detroit garden loaded from Settings
+  summaries
+- one-tap Today field actions and contextual photo follow-up for harvest/photo
+  workflows
+- Feed memory cards with a single New entry launcher and image-led photo
+  updates
+- sample garden mode with shell and Settings controls to enter, reset, return
+  to the current workspace, and exit a stable Detroit garden
 - Firebase Cloud Functions source for daily watering checks and weather-driven
   frost, heat, and severe-weather alerts
 - Firebase Storage for authenticated journal photos
@@ -41,8 +53,9 @@ Not implemented in this foundation pass:
 
 - multiple gardens
 - runtime external plant APIs
-- maps, collaboration, carrier messaging, onboarding, dashboards, and AI features
-- production email notification delivery
+- maps, collaboration, public onboarding, dashboards, AI features, and carrier
+  messaging
+- email delivery
 
 ## Quick start
 
@@ -129,7 +142,13 @@ See:
 - [docs/ux-architecture.md](docs/ux-architecture.md)
 - [docs/release-roadmap.md](docs/release-roadmap.md)
 - [docs/release-ledger.md](docs/release-ledger.md)
+- [docs/release-acceptance-matrix.md](docs/release-acceptance-matrix.md)
+- [docs/release-redesign-plan.md](docs/release-redesign-plan.md)
+- [docs/motion-guidelines.md](docs/motion-guidelines.md)
+- [docs/release-baseline-audit.md](docs/release-baseline-audit.md)
+- [docs/release-simplification-backlog.md](docs/release-simplification-backlog.md)
 - [docs/release-checklist.md](docs/release-checklist.md)
+- [docs/release-candidate-checklist.md](docs/release-candidate-checklist.md)
 - [docs/release-hypothesis.md](docs/release-hypothesis.md)
 - [docs/testing-plan.md](docs/testing-plan.md)
 - [docs/demo-script.md](docs/demo-script.md)

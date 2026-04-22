@@ -14,26 +14,45 @@ Date: 2026-04-21
 `/app` redirects to `/app/plan`. Auth stays deliberately small: email,
 password, sign in, optional show-password, and default-on remember-device.
 
+## Cross-Route Target Contract
+
+- Plan accepts targeted route state with `?p=<planting-or-structure-id>`. When
+  the target still exists, Plan enters select mode and highlights the relevant
+  object without mutating the draft.
+- Today task links use those Plan targets for planting/structure work. Manual
+  issue follow-up tasks link back to `/app/feed?entry=journal-<id>` so the
+  originating issue opens in context.
+- Feed cards link planting target labels back to Plan, including harvests,
+  watering notes, issues, and completed item-linked tasks. Whole-garden and
+  published-plan entries remain normal Feed records.
+- Missing or removed targets must degrade gracefully to the route shell. Do not
+  add public sharing, social permalinks, or multi-garden routing behavior.
+
 ## Layout Patterns
+
+Motion must follow `docs/motion-guidelines.md`: use CSS/native browser
+capabilities first, keep Plan geometry stable, and respect reduced-motion
+preferences before adding any new choreography.
 
 Desktop:
 
 - Authenticated shell uses a persistent left navigation rail.
 - Main content stays centered and scrollable.
-- Plan uses a tool workspace: left mode rail, central zoomable plot canvas, and
-  right contextual inspector.
+- Plan uses a canvas-first workspace: a stable zoomable plot, compact tool
+  launcher, contextual overlays, and reopenable panels that do not resize the
+  grid.
 - Today uses a field-mode command surface first, followed by due work and a
   right-side context panel when the viewport allows.
-- Feed uses a centered primary stream with a compact summary strip; analytics
+- Feed uses a centered primary stream with a compact summary strip; deeper
   rollups stay out of the default route unless they directly support the feed.
 - Settings remains a readable single-column control surface.
 
 Mobile:
 
 - Shell uses bottom navigation for Plan, Today, Feed, and Settings.
-- Plan keeps the plot canvas first, exposes large floating mode actions, and
-  moves mode-specific controls and selected-item details into route-owned bottom
-  panels.
+- Plan keeps the plot canvas first, exposes a compact thumb-friendly launcher,
+  and moves mode-specific controls and selected-item details into route-owned
+  bottom panels.
 - Today is thumb-first: sticky quick action rail, compact field cards, crop
   stage buttons, and a route-owned quick-action sheet for note/photo/issue/
   harvest capture.
@@ -54,14 +73,16 @@ Desktop structure:
   plot settings, history, save, and publish. It stays global and compact;
   selection coordinates, warning counts, undo/redo, sun tools, and placement
   controls do not live in this bar.
-- Left rail: compact entry points for explicit editor modes only.
+- Tool launcher: compact entry points for Select, Plant, Structure, Review,
+  Optimize, Sun/Climate, Measure, and reopenable panel recovery. The launcher is
+  subordinate to the canvas and should not read as the page's main layout.
 - Canvas: foot-based plot grid, structures, plantings, north/orientation marker,
   scale legend, sun layer, warning overlays, zoom controls, layer toggles, pan,
   and an optional mini-map. The mini-map defaults off so it does not cover the
   plot.
-- Context panel: appears only when the active mode needs controls or a garden
-  item is selected. It owns placement controls, optimizer/review work, plan
-  health, and selected-item inspection.
+- Context overlays and panels: appear only when the active workflow needs
+  controls. They own placement controls, optimizer/review work, plan health, and
+  selected-item inspection without changing the plot viewport dimensions.
 - No default below-canvas control dumps. The canvas column owns the normal
   workspace height and the plot viewport is the primary pannable area.
 
@@ -69,20 +90,26 @@ Mobile structure:
 
 - Canvas appears before secondary controls and uses the first viewport as the
   primary planning surface.
-- The compact Plan action bar carries save, publish, history, plot settings, and
-  status after the canvas. The bottom action rail keeps Crops, Optimize, and
-  editor modes reachable above the fixed mobile nav.
+- Canvas controls collapse into one horizontal HUD so Pan/Fit/100%, zoom, layer
+  toggles, and Overview do not push the plot down the phone viewport.
+- The compact launcher keeps Crops, Review/Optimize, and editor modes reachable
+  above the fixed mobile nav with thumb-sized controls.
 - Mode controls, optimizer/review work, and selected-item inspection appear as
-  route-owned bottom sheet panels only when invoked.
-- Mobile layer controls stay compact; the mini-map toggle is hidden on mobile
-  because the overlay competes with the plot.
+  route-owned bottom sheet panels only when invoked and should stay capped below
+  roughly three-fifths of the viewport.
+- Crop focus remains a compact card above the bottom rail. It may show Plant,
+  Crop, Needs, and influence actions, but deeper editing moves behind the
+  explicit **Open details** path.
+- The Overview mini-map remains off by default and must stay subordinate when
+  toggled so it never blocks normal planting work.
 
-Editor modes:
+Editor workflows:
 
 - Select: choose, drag, inspect, lock, duplicate, and delete garden items.
 - Plant: open crop placement while preserving the central canvas.
 - Structure: place beds, paths, trellises, compost areas, irrigation, and
-  obstacles.
+  other planting-support context only when it materially affects crop placement
+  or field operations.
 - Optimize: review spacing, trellis, shade, rotation, succession, weather, and
   material guidance without keeping those panels always visible.
 - Sun/Climate: show, recalculate, and manually paint sun exposure when the model
@@ -105,28 +132,48 @@ Choose Plants flow:
 - The flow is a route-owned modal/sheet pattern: searchable/filterable library
   on one side, compact season board on the other, and persistent footer actions
   that remain reachable on small screens.
-- Each wanted crop stores target quantity, planting mode preference,
-  must-grow/nice-to-have, direct-sow/transplant preference, container allowance,
-  support allowance, priority, variety, notes, and rank.
-- Quick fit signals stay compact: likely good fit, caution, or hard to fit, with
-  plain reasons for sun mismatch, space pressure, season/climate mismatch, and
-  support requirements.
+- The board card is quantity and intent first: crop identity, desired plant
+  count, recommended planting form, variety or notes, and only the review state
+  needed to make a human decision.
+- Planting form remains the main secondary adjustment. Support allowance appears
+  only for crops where support materially changes layout. Former sow, container,
+  and legacy weighting inputs are compatibility-read from old saves but are no
+  longer persisted or used to weight optimizer output.
+- Planning review copy uses plain reasons for sun mismatch, space pressure,
+  season/climate mismatch, support, and bed/container issues. It must not use
+  score-like persuasion.
 - Optimize reads the season board as layout candidates before crops are placed
   on the canvas. This keeps "interested in growing" separate from saved
   planting geometry.
 
 Auto-layout proposal flow:
 
-- Optimize generates three editable proposals from the season board: Sun fit,
-  Support disciplined, and Access balanced.
+- Optimize generates three editable proposals from the season board: Best sun
+  exposure, Support-ready, and Keep paths clear.
 - The compact Plan action bar opens Optimize. Optimize work lives in the
   contextual panel or mobile bottom sheet. Review proposals appear before
   passive health diagnostics so the user sees decisions before noise.
-- Each proposal shows a score, score components, plain-language explanations,
-  tradeoffs, and required seed/start/support materials.
+- Generate layouts opens a guided proposal walkthrough rather than only filling
+  an inbox. The walkthrough keeps the plot visible, lets the gardener choose a
+  strategy, and makes previewing clearly draft-safe.
+- Each proposal shows plain-language readiness, before/after context,
+  tradeoffs, and required seed/start/support materials without exposing raw
+  scores as product copy.
+- Proposal generation must enforce practical garden constraints before polish:
+  plot bounds, saved paths and blocking structures, planted/growing anchors,
+  crop spacing footprints, whole-footprint sun context, tall-crop shade
+  discipline, legal support clearance, and trellis placements that are adjacent
+  rather than faked through the crop footprint.
+- The selected proposal also paints a non-mutating diff overlay on the real
+  plot. The overlay uses feet-based ghost positions, proposed positions,
+  movement connectors, support additions, removals, and introduced-warning
+  labels so the generated layout is visible before it is applied.
 - Choosing a proposal only selects it. The user must explicitly apply the
   selected proposal before the draft receives generated plantings and support
   structures.
+- The walkthrough supports apply, reject, and snooze decisions for the selected
+  candidate. Rejected or snoozed candidates are removed from the immediate apply
+  path but remain recorded in the draft's proposal decisions.
 - Applying a proposal replaces prior auto-layout proposal items marked
   `[auto-layout]` while preserving user-created plantings and structures.
 - Generated layouts are intentionally explainable and editable. The UI must not
@@ -136,6 +183,9 @@ Review proposal inbox:
 
 - Review is an active proposal inbox, not a passive warning list or raw
   diagnostic dump.
+- The inbox leads with the number of waiting decisions, a human-readable next
+  safe action, quiet decision metrics, and concise payoff copy so it reads like
+  a decision workspace instead of a chip-heavy card stack.
 - Queue cards come from optimizer proposals and self-fixing suggestions derived
   from crop, structure, sun/shade, path, and support data. Note-only diagnostics
   stay in Plan health until the app can offer a concrete draft change.
@@ -143,9 +193,19 @@ Review proposal inbox:
   mutate the private draft through explicit actions such as adding support,
   widening a path, moving a crop, converting a crop to a trellised layout,
   or applying an optimizer proposal.
+- Queue cards can show their proposed change on the plot before acceptance.
+  Review diff overlays use the same feet-based visual language as generated
+  layouts so physical moves, support additions, and low-risk placement changes
+  are inspectable without turning Review into a text-only inbox.
+- Physical-move proposals require a plot diff preview before acceptance. The
+  user should understand the proposed move and either have completed it in the
+  garden or be deliberately updating the plan for real-world work.
 - Rejected and snoozed decisions remain visible in the decided section, stay out
   of the open queue for the current draft, and are persisted so they can appear
   in publish review.
+- Accepted/rejected/snoozed decisions persist a simple impact class:
+  low-risk support, planned change, or physical move. This is audit metadata for
+  publish review, not a new scoring surface.
 - Non-controversial support/material fixes can be batch accepted. Layout
   candidates, geometry-moving fixes, and physical-move requests stay
   one-at-a-time decisions.
@@ -153,7 +213,11 @@ Review proposal inbox:
   context and canvas highlighting. Review cards are the place where decisions
   happen.
 - Publish confirmation separates suggestions accepted into the draft from
-  rejected or snoozed proposals.
+  rejected or snoozed proposals, summarizes low-risk support, physical moves,
+  and deferred decisions, and requires explicit confirmation before accepted
+  physical moves can be published.
+- Revision history uses a two-step revert. Revert publishes the selected older
+  garden as a new revision and resets the current user's private draft.
 
 Selection model:
 
@@ -235,17 +299,24 @@ Top-level structure:
 - First-viewport overview: premium weather surface plus a "Do now" priority
   queue for watering, high-severity issues, harvests, crop-stage changes, and
   high-priority tasks.
+- Do Now cards should read as a professional field checklist: one clear primary
+  action, passive context as text rather than action-like chips, and enough
+  spacing for outdoor touch use without wasting the first viewport.
 - Main field order: watering today, critical checks, harvest-ready items, task
   list, quick actions, and recent Feed highlights when there is useful content.
 - Empty/low-value sections collapse to compact clear states or disappear; Today
   must not leave large empty task boxes on the page.
-- Quick action rail: Add note, Add photo, Report issue, and Log harvest, placed
-  after the selected-day task list while remaining thumb-friendly on mobile.
-- Quick action sheet: route-owned form that preserves bed/planting context and
-  uses the existing journal, media storage, task, and harvest records.
+- Field entry launcher: one compact **Field entry** control placed after
+  the selected-day task list, expanding to Add note, Add photo, Report issue,
+  and Log harvest choices without leaving four peer buttons on the page.
+- Quick action sheet: route-owned form for secondary detail capture. It
+  preserves bed/planting context and uses the existing journal, media storage,
+  task, and harvest records without becoming the default path for common field
+  completion.
 - Task list: selected-day work grouped by action type and bed, with task done,
-  snooze, and defer actions plus the task reason.
-- Context sidebar: selected-day task counts by bed and succession
+  snooze, and defer actions plus the task reason. Metadata such as date, bed,
+  and priority stays visually passive so it cannot be mistaken for a button.
+- Context panel: selected-day task counts by bed and succession
   recommendations, shown only when useful.
 
 Implemented command behavior:
@@ -257,10 +328,16 @@ Implemented command behavior:
   follow-up task. Resolving the issue completes the linked follow-up task.
 - Add note writes a normal journal entry against the garden, structure, or
   planting target.
-- Add photo uses the existing media storage seam when online and makes the
-  network requirement explicit when offline.
-- Log harvest writes a harvest event and moves the planting to harvest-ready or
-  harvested depending on whether the user marks the crop finished.
+- Add photo uses the existing media storage seam when online. The quick sheet
+  shows the same preview and media caveats as Feed, distinguishes native camera
+  capture from the browser picker, and makes clear that selected photos are only
+  held in the form while offline.
+- Harvest card **Log harvest** is a one-tap field action. It writes a default
+  harvest event, completes the linked harvest task, and leaves the planting
+  harvest-ready for repeat picking. Only harvest completion opens the optional
+  Add Photo sheet; watering, task done, and crop-stage actions finish without
+  media prompts. The adjacent Details action opens the harvest sheet for
+  quantity, notes, or marking the crop finished.
 - Crop stage buttons move plantings through planted, growing, and
   harvest-ready from the field view, complete open setup tasks when
   appropriate, refresh generated tasks, and write a linked Feed note.
@@ -270,7 +347,9 @@ Offline posture:
 - Text garden-aggregate changes use the existing repository save path and show
   saved locally when offline.
 - Photo uploads still require a connection because there is no durable upload
-  queue yet.
+  queue yet. If the user selects or captures a photo while offline, the app may
+  preview that file in the current form, but it must not label the binary as
+  queued or durable.
 
 ## Feed Contract
 
@@ -279,18 +358,26 @@ stream, not like a database editor.
 
 Top-level structure:
 
-- Header: compact route copy plus Post, Issue, Photo, and Harvest composer
-  actions.
+- Header: compact route copy plus one **New entry** launcher. **New note**,
+  **New issue**, **New photo update**, and **Log harvest** stay available
+  inside the composer instead of competing as four peer header buttons.
 - Summary strip: memory count, unresolved issues, harvest count, and photo
-  count.
+  count, presented as a compact status rail rather than large metric cards.
 - Composer: route-owned centered desktop modal and full-screen mobile sheet for
   notes/posts, issues, photo updates, and harvests. The main feed never carries
   a giant inline form.
 - Filters: type, crop, bed, season, search text, and issue status.
+- Empty states: filtered-empty copy should tell the user to clear or loosen
+  filters; true-empty copy should lightly invite the next garden memory without
+  taking over the viewport.
 - Activity stream: concise cards for notes, watering events, issue reports,
   harvests, publish events, task completions, and photo updates.
+- Photo-update cards are image-led private memories: title first, one generous
+  central image, then the caption/body and quiet metadata. Non-photo activity
+  cards stay compact so Feed does not become a social stream or dashboard.
 - Pinned unresolved issues: open/in-progress issue cards stay highlighted above
-  the main feed when they match the current filters.
+  the main feed when they match the current filters, but they should remain
+  compact enough that the activity stream still starts quickly.
 - Secondary rollups should stay collapsed, modalized, or inspector-like. They
   should not compete with the default activity stream.
 
@@ -298,6 +385,12 @@ Composer behavior:
 
 - Notes and photo updates write normal journal entries through the existing
   media storage seam.
+- Photo and issue composers show local attachment previews before save. PWA
+  users get browser picker/camera copy, Capacitor users get a native camera
+  action, and both paths use the same upload honesty when offline.
+- Composer mode labels describe the object created rather than using legacy
+  generic action labels, and submit buttons use save/create/log verbs that match
+  the selected entry type.
 - Notes, issues, and photo updates use one grouped target selector for the
   whole garden, saved beds/structures, and saved plantings.
 - Issues capture issue type, severity, status, linked target, photos, and create
@@ -311,12 +404,13 @@ Composer behavior:
 
 Current feature ownership:
 
-- `src/features/plan/`: Plan page, mode rail, top bar, mode drawer, operations
-  panel, zoomable canvas, canvas controls, mini-map, inspector, modal styles,
-  and pointer-interaction hooks.
+- `src/features/plan/`: Plan page, compact launcher, top bar, mode drawer,
+  operations panel, proposal walkthroughs, diff overlays, zoomable canvas,
+  canvas controls, mini-map, crop focus, inspector, modal styles, and
+  pointer-interaction hooks.
 - `src/features/today/`: Today route orchestration, field-mode panels/cards,
-  quick actions, grouped task cards, sidebar, selectors, field model builders,
-  lifecycle actions, and pure Today action helpers.
+  quick actions, grouped task cards, context panels, selectors, field model
+  builders, lifecycle actions, and pure Today action helpers.
 - `src/features/log/`: Feed route implementation, compact activity cards,
   composer modal, entry form, harvest form, feed item builders, filters,
   summary strip, save state, and formatting helpers. Feed route styles are
@@ -336,12 +430,24 @@ Current posture:
 - Tasks, Today text actions, feed notes, issues, and harvest records use the same
   garden save path.
 - Firebase Storage photo upload is not queued offline.
-- Shell-level online/offline state is visible across all authenticated routes.
+- Shell-level online/offline state is visible across all authenticated routes as
+  passive status, not route content. The topbar shows one compact shell status
+  group, a quiet user label, and low-emphasis account actions; route headers
+  avoid duplicating default online/cloud-ready badges unless there is an
+  exception such as a queued edit, error, conflict, or draft state.
+- Plan, Today, and Feed use the same save-state language: **Saved** means the
+  current command wrote successfully, **Saved locally** or **Queued locally**
+  means the browser has the change and cloud sync is still pending, and photo
+  controls explicitly say media upload needs connection.
+- Media controls may keep selected photo files visible as a volatile in-form
+  draft while offline. Text can still save locally; photo binaries are not
+  queued and are dropped if the user saves text only or leaves the form.
 
 Target posture:
 
 - Keep optimistic field actions, but make "saved locally" versus cloud-saved
-  more specific per command.
+- more specific per command. Prompt 40 implemented this baseline for Plan
+  edits, Today actions, Feed text memories, and photo caveats.
 - Add conflict copy before adding multi-device expectations.
 - Treat offline photo queueing as a later feature because it requires a
   dedicated upload queue.
@@ -357,8 +463,9 @@ Manual override paths are required where model certainty is limited:
   controls remain future work.
 - Climate defaults: implemented in Settings, but copy should make assumptions
   more explicit.
-- Notifications: implemented through in-app, push, and alert-type toggles. carrier messaging
-  is de-scoped and should not appear in the current product UX.
+- Notifications: implemented through in-app history, push, local native
+  reminders, and alert-type toggles. Carrier messaging is outside product scope
+  and should not appear in the current product UX.
 
 ## Remaining UX Debt
 
@@ -388,8 +495,9 @@ desktop and mobile sizes.
 - Compare current UI against baselines:
   `npm run test:visual`
 
-Visual regression is intentionally separate from `npm run ci` until the
-committed baselines are reviewed and stabilized across developer machines.
+Visual regression is part of the current `npm run ci` gate. Update snapshots
+only for intentional UI changes and review the committed baselines before
+landing them.
 
 ## Release Readiness Contract
 

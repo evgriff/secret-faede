@@ -6,7 +6,6 @@ import type {
 } from '../../../domain/gardens/GardenRepository';
 import type { PlanWarning } from '../../garden/gardenPlanning';
 import type { SunSeason } from '../../garden/sunShadeEngine';
-import { StatusBadge } from '../../shared/design/DesignPrimitives';
 import {
   buildAutoLayoutProposalPreview,
   type AutoLayoutPreviewRect,
@@ -55,21 +54,9 @@ export function PlanOptimizePreview({
           <h4>{candidate.label} preview</h4>
         </div>
         <div className={styles.previewBadges}>
-          <StatusBadge
-            tone={preview.summary.addedCount > 0 ? 'success' : 'neutral'}
-          >
-            {preview.summary.addedCount} added
-          </StatusBadge>
-          <StatusBadge
-            tone={preview.summary.movedCount > 0 ? 'warning' : 'neutral'}
-          >
-            {preview.summary.movedCount} moved
-          </StatusBadge>
-          <StatusBadge
-            tone={preview.summary.removedCount > 0 ? 'danger' : 'neutral'}
-          >
-            {preview.summary.removedCount} removed
-          </StatusBadge>
+          <span>{preview.summary.addedCount} added</span>
+          <span>{preview.summary.movedCount} moved</span>
+          <span>{preview.summary.removedCount} removed</span>
         </div>
       </div>
 

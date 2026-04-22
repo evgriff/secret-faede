@@ -8,7 +8,7 @@ import {
   canSupportFootprint,
   getLayoutReferenceDate,
 } from './autoLayoutConstraints';
-import { buildScoreBreakdown, combineScore } from './autoLayoutScoring';
+import { buildScoreBreakdown } from './autoLayoutScoring';
 import {
   scorePlacement,
   toScoredPlacement,
@@ -95,7 +95,6 @@ function buildCandidate(
       unplaced.push({
         cropName: unit.crop.commonName,
         reason: getUnplacedReason(unit, anchoredPlantings),
-        required: unit.request.mustGrow,
       });
     }
   }
@@ -113,6 +112,7 @@ function buildCandidate(
     garden,
     improvedPlacements,
     strategy,
+    referenceDate,
   );
   const hardConstraintViolations = findHardConstraintViolations(
     garden,
@@ -123,9 +123,6 @@ function buildCandidate(
   const scoreBreakdown = buildScoreBreakdown({
     garden,
     placements: scoredPlacements,
-    requestedCount: units.length,
-    sunLayer,
-    unplacedRequiredCount: unplaced.filter((entry) => entry.required).length,
   });
 
   return {
@@ -135,10 +132,6 @@ function buildCandidate(
     label: getStrategyLabel(strategy),
     materials: buildMaterials(scoredPlacements, structures),
     plantings: improvedPlacements.map((placement) => placement.planting),
-    score: Math.max(
-      0,
-      combineScore(scoreBreakdown) - hardConstraintViolations.length * 12,
-    ),
     scoreBreakdown,
     strategy,
     structures,

@@ -7,14 +7,8 @@ const {
   buildWateringNotification,
   createGrantedConsent,
   isQuietHours,
-  redactPhone,
   shouldSendNotification,
 } = require('../notificationLogic');
-const {
-  getSmsKeywordIntent,
-  getSmsRateLimitDecision,
-  isRetryableSmsProviderError,
-} = require('../notificationCompliance');
 
 const profile = {
   notificationPreference: {
@@ -27,15 +21,11 @@ const profile = {
     },
     channelConsent: {
       push: createGrantedConsent('2026-04-20T11:00:00.000Z'),
-      carrier messaging: createGrantedConsent('2026-04-20T11:00:00.000Z'),
     },
     channels: {
-      email: false,
       inApp: true,
       push: true,
-      carrier messaging: true,
     },
-    phoneE164: '+17345550123',
     quietHours: {
       endLocalTime: '07:00',
       startLocalTime: '21:00',
@@ -59,28 +49,10 @@ assert.equal(
 
 assert.match(buildFrostNotification(garden).body, /Cover Basil/);
 assert.match(buildHeatNotification(garden).body, /Check water early/);
-assert.equal(redactPhone('+17345550123'), '***0123');
-assert.equal(getSmsKeywordIntent({ body: 'STOP', optOutType: '' }), 'stop');
-assert.equal(getSmsKeywordIntent({ body: 'help', optOutType: '' }), 'help');
-assert.equal(
-  getSmsKeywordIntent({ body: 'hello', optOutType: 'START' }),
-  'start',
-);
-assert.equal(isRetryableSmsProviderError({ status: 500 }), true);
-assert.equal(
-  getSmsRateLimitDecision(
-    Array.from({ length: 3 }, (_, index) => ({
-      channel: 'carrier messaging',
-      createdAtIso: new Date(Date.now() - index * 1000).toISOString(),
-      status: 'sent',
-    })),
-  ).allowed,
-  false,
-);
 
 assert.equal(
   shouldSendNotification({
-    channel: 'carrier messaging',
+    channel: 'push',
     now: new Date('2026-06-21T13:00:00-04:00'),
     profile,
     type: 'frost',
@@ -90,7 +62,7 @@ assert.equal(
 
 assert.equal(
   shouldSendNotification({
-    channel: 'carrier messaging',
+    channel: 'push',
     now: new Date('2026-06-21T22:00:00-04:00'),
     profile,
     type: 'frost',
@@ -100,12 +72,27 @@ assert.equal(
 
 assert.equal(
   shouldSendNotification({
-    channel: 'carrier messaging',
+    channel: 'inApp',
     now: new Date('2026-06-21T13:00:00-04:00'),
     profile,
     type: 'watering',
+  }).reason,
+  'allowed',
+);
+
+assert.equal(
+  shouldSendNotification({
+    channel: 'inApp',
+    now: new Date('2026-06-21T13:00:00-04:00'),
+    profile: {
+      notificationPreference: {
+        ...profile.notificationPreference,
+        channels: { inApp: false, push: false },
+      },
+    },
+    type: 'watering',
   }).allowed,
-  false,
+  true,
 );
 
 assert.equal(

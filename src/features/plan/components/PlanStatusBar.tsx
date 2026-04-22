@@ -2,6 +2,7 @@ import type {
   Garden,
   SunExposure,
 } from '../../../domain/gardens/GardenRepository';
+import { getSaveFeedback } from '../../../shared/sync/syncFeedback';
 import { formatFeet } from '../../garden/gardenMath';
 import {
   getPlanWarningTaxonomy,
@@ -55,6 +56,12 @@ export function PlanStatusBar({
   const recommendedCount = planWarnings.filter(
     (warning) => getPlanWarningTaxonomy(warning) === 'recommendedImprovement',
   ).length;
+  const saveFeedback = getSaveFeedback({
+    hasUnsavedChanges: dirty,
+    isOffline,
+    status: saveStatus,
+    surface: 'plan',
+  });
 
   return (
     <div className={styles.statusRow}>
@@ -80,9 +87,9 @@ export function PlanStatusBar({
             {mustFixCount} must-fix issue{mustFixCount === 1 ? '' : 's'}
           </p>
         ) : recommendedCount > 0 ? (
-          <p className={styles.warningText} role="status">
-            {recommendedCount} recommendation
-            {recommendedCount === 1 ? '' : 's'}
+          <p className={styles.reviewText} role="status">
+            {recommendedCount} planning note
+            {recommendedCount === 1 ? '' : 's'} in Review
           </p>
         ) : (
           <p className={styles.saved}>Plan checks quiet</p>
@@ -133,20 +140,22 @@ export function PlanStatusBar({
           <option value="fullShade">Full shade</option>
         </select>
       </div>
-      <div className={styles.saveState}>
-        {dirty ? <p className={styles.unsaved}>Unsaved changes</p> : null}
-        {!dirty && saveStatus === 'saved' ? (
-          <p className={styles.saved} role="status">
-            Saved
-          </p>
-        ) : null}
-        {saveStatus === 'queued' ? (
-          <p className={styles.queued} role="status">
-            Saved locally
-          </p>
-        ) : null}
-        {isOffline && saveStatus !== 'queued' ? (
-          <p className={styles.queued}>Offline edits will queue</p>
+      <div className={styles.saveState} aria-live="polite" role="status">
+        {saveFeedback.shouldRender ? (
+          <>
+            <p
+              className={
+                saveFeedback.tone === 'success'
+                  ? styles.saved
+                  : saveFeedback.tone === 'danger'
+                    ? styles.error
+                    : styles.queued
+              }
+            >
+              {saveFeedback.label}
+            </p>
+            {saveFeedback.detail ? <small>{saveFeedback.detail}</small> : null}
+          </>
         ) : null}
       </div>
     </div>

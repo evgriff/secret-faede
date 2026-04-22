@@ -6,7 +6,7 @@ import type {
   SunShadeArea,
   SunShadeLayer,
 } from '../../domain/gardens/GardenRepository';
-import { getPlantingFootprint } from '../garden/gardenPlanning';
+import { getPlantingFootprint, type FootRect } from '../garden/gardenPlanning';
 import { rectDistanceFt } from '../garden/gardenPlanningGeometry';
 import { getSunAreaAtPoint } from '../garden/sunShadeEngine';
 import { scoreShadeManagement } from './autoLayoutShadeScoring';
@@ -17,7 +17,6 @@ export interface ScoredPlacement {
   crop: CropProfile;
   fitLevel: SeasonCropFitLevel;
   planting: Planting;
-  required: boolean;
 }
 
 export function scoreSunFit(crop: CropProfile, actual: SunExposure | null) {
@@ -49,6 +48,26 @@ export function scoreSunAreaFit(crop: CropProfile, area: SunShadeArea | null) {
   }
 
   return base;
+}
+
+export function scoreSunFootprintFit(
+  crop: CropProfile,
+  layer: SunShadeLayer | null,
+  planting: Planting,
+) {
+  if (!layer) {
+    return scoreSunAreaFit(crop, null);
+  }
+
+  const footprint = getPlantingFootprint(planting);
+  const areas = layer.areas.filter((area) => rectsTouch(footprint, area));
+
+  return average(
+    (areas.length > 0
+      ? areas
+      : [getSunAreaAtPoint(layer, planting)].filter(Boolean)
+    ).map((area) => scoreSunAreaFit(crop, area)),
+  );
 }
 
 export function scoreAccess(garden: Garden, planting: Planting) {
@@ -220,76 +239,23 @@ export function scoreSpacingQuality(placements: ScoredPlacement[]) {
 export function buildScoreBreakdown({
   garden,
   placements,
-  requestedCount,
-  sunLayer,
-  unplacedRequiredCount,
 }: {
   garden: Garden;
   placements: ScoredPlacement[];
-  requestedCount: number;
-  sunLayer: SunShadeLayer | null;
-  unplacedRequiredCount: number;
 }): AutoLayoutScoreBreakdown {
-  const sunFit = average(
-    placements.map((placement) =>
-      scoreSunAreaFit(
-        placement.crop,
-        sunLayer ? getSunAreaAtPoint(sunLayer, placement.planting) : null,
-      ),
-    ),
-  );
-  const access = average(
-    placements.map((placement) => scoreAccess(garden, placement.planting)),
-  );
-  const support = average(
-    placements.map((placement) => scoreSupportPlacement(garden, placement)),
-  );
   const seasonalSuitability = average(
     placements.map((placement) => scoreSeasonalSuitability(placement.fitLevel)),
   );
   const shadeManagement = scoreShadeManagement(garden, placements);
   const spacingQuality = scoreSpacingQuality(placements);
   const waterGrouping = scoreWaterGrouping(placements);
-  const feasibility = clamp01(
-    (requestedCount ? placements.length / requestedCount : 1) -
-      unplacedRequiredCount * 0.3,
-  );
-  const usedArea = placements.reduce(
-    (total, placement) =>
-      total +
-      getPlantingFootprint(placement.planting).widthFt *
-        getPlantingFootprint(placement.planting).depthFt,
-    0,
-  );
-  const plotArea = garden.plot.widthFt * garden.plot.depthFt;
-  const spaceEfficiency = clamp01(1 - Math.max(usedArea / plotArea - 0.65, 0));
 
   return {
-    access,
-    feasibility,
     seasonalSuitability,
     shadeManagement,
     spacingQuality,
-    spaceEfficiency,
-    sunFit,
-    support,
     waterGrouping,
   };
-}
-
-export function combineScore(breakdown: AutoLayoutScoreBreakdown) {
-  return Math.round(
-    100 *
-      (breakdown.feasibility * 0.28 +
-        breakdown.sunFit * 0.18 +
-        breakdown.seasonalSuitability * 0.11 +
-        breakdown.shadeManagement * 0.12 +
-        breakdown.access * 0.1 +
-        breakdown.support * 0.09 +
-        breakdown.spacingQuality * 0.07 +
-        breakdown.waterGrouping * 0.03 +
-        breakdown.spaceEfficiency * 0.02),
-  );
 }
 
 function average(values: number[]) {
@@ -302,4 +268,16 @@ function average(values: number[]) {
 
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, value));
+}
+
+function rectsTouch(
+  left: FootRect,
+  right: Pick<FootRect, 'depthFt' | 'widthFt' | 'xFt' | 'yFt'>,
+) {
+  return (
+    left.xFt < right.xFt + right.widthFt &&
+    left.xFt + left.widthFt > right.xFt &&
+    left.yFt < right.yFt + right.depthFt &&
+    left.yFt + left.depthFt > right.yFt
+  );
 }

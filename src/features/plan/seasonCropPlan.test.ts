@@ -10,7 +10,7 @@ import {
 } from './seasonCropPlan';
 
 describe('season crop plan', () => {
-  it('sorts wanted crops into optimizer-ready layout requests', () => {
+  it('keeps wanted crop order while building optimizer-ready layout requests', () => {
     const garden = {
       ...createDefaultGarden('user-a'),
       climateProfile: {
@@ -23,14 +23,11 @@ describe('season crop plan', () => {
           makeSelection({
             cropId: 'basil',
             id: 'season-basil',
-            rank: 1,
           }),
           makeSelection({
-            commitment: 'mustGrow',
             cropId: 'tomato',
             id: 'season-tomato',
-            rank: 0,
-            targetQuantity: 4,
+            quantity: 4,
           }),
         ],
       },
@@ -39,23 +36,25 @@ describe('season crop plan', () => {
     const requests = buildSeasonCropLayoutRequests(garden, 'fullSun');
 
     expect(requests.map((request) => request.cropId)).toEqual([
-      'tomato',
       'basil',
+      'tomato',
     ]);
-    const firstRequest = requests[0];
+    const tomatoRequest = requests[1];
 
-    if (!firstRequest) {
-      throw new Error('Expected a first season crop layout request.');
+    if (!tomatoRequest) {
+      throw new Error('Expected the tomato season crop layout request.');
     }
 
-    expect(firstRequest).toMatchObject({
-      mustGrow: true,
-      targetQuantity: 4,
+    expect(tomatoRequest).toMatchObject({
+      quantity: 4,
     });
-    expect(firstRequest.estimatedAreaSqFt).toBeGreaterThan(0);
+    expect(tomatoRequest).not.toHaveProperty('mustGrow');
+    expect(tomatoRequest).not.toHaveProperty('priority');
+    expect(tomatoRequest).not.toHaveProperty('rank');
+    expect(tomatoRequest.estimatedAreaSqFt).toBeGreaterThan(0);
   });
 
-  it('marks unsupported trellis crops as unlikely fit', () => {
+  it('holds unsupported trellis crops for review', () => {
     const tomato = getCropById('tomato');
 
     expect(tomato?.trellisRequired).toBe(true);
@@ -104,13 +103,13 @@ describe('season crop plan', () => {
       crop: {
         ...lettuce,
         completenessScore: 0.78,
-        profileConfidence: 'partial',
+        profileCompleteness: 'partial',
       },
       garden,
       selection: makeSelection({
         cropId: 'lettuce',
         id: 'season-lettuce',
-        modePreference: lettuce.supportedPlantingModes[0] ?? 'single',
+        plantingForm: lettuce.supportedPlantingModes[0] ?? 'single',
       }),
       sunExposureAtPlacement: 'fullSun',
     });
@@ -151,8 +150,8 @@ describe('season crop plan', () => {
       selection: makeSelection({
         cropId: 'lettuce',
         id: 'season-lettuce',
-        modePreference: lettuce.supportedPlantingModes[0] ?? 'single',
-        targetQuantity: 6,
+        plantingForm: lettuce.supportedPlantingModes[0] ?? 'single',
+        quantity: 6,
       }),
       sunExposureAtPlacement: 'fullShade',
     });
@@ -173,17 +172,12 @@ function makeSelection(
   values: Partial<SeasonCropSelection>,
 ): SeasonCropSelection {
   return {
-    commitment: 'niceToHave',
-    containerAllowed: true,
     cropId: 'tomato',
     id: 'season-tomato',
-    modePreference: 'single',
+    plantingForm: 'single',
     notes: '',
-    priority: 'medium',
-    rank: 0,
-    sowPreference: 'noPreference',
     supportAllowed: true,
-    targetQuantity: 1,
+    quantity: 1,
     varietyName: '',
     ...values,
   };

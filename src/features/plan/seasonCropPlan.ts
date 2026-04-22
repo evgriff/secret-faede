@@ -7,15 +7,13 @@ import type {
   CropProfile,
   Garden,
   PlantingMode,
-  SeasonCropPriority,
   SeasonCropSelection,
-  SeasonCropSowPreference,
   SunExposure,
 } from '../../domain/gardens/GardenRepository';
 import { cropSunRequirementMet } from '../garden/sunShadeEngine';
 import {
-  formatSeasonCropFitLabel,
   formatSeasonCropFitReasonGroup,
+  formatSeasonCropPlanningState,
 } from './seasonCropFitDisplay';
 
 export type SeasonCropFitLevel =
@@ -49,19 +47,14 @@ export interface SeasonCropFitSignal {
 }
 
 export interface SeasonCropLayoutRequest {
-  containerAllowed: boolean;
   crop: CropProfile;
   cropId: string;
   estimatedAreaSqFt: number;
   fit: SeasonCropFitSignal;
-  modePreference: PlantingMode;
-  mustGrow: boolean;
+  plantingForm: PlantingMode;
   notes: string;
-  priority: SeasonCropPriority;
-  rank: number;
-  sowPreference: SeasonCropSowPreference;
   supportAllowed: boolean;
-  targetQuantity: number;
+  quantity: number;
   varietyName: string;
 }
 
@@ -71,9 +64,8 @@ export function buildSeasonCropLayoutRequests(
 ): SeasonCropLayoutRequest[] {
   const totalEstimatedAreaSqFt = estimateTotalWantedAreaSqFt(garden);
 
-  return [...garden.seasonPlan.wantedCrops]
-    .sort((left, right) => left.rank - right.rank)
-    .flatMap((selection): SeasonCropLayoutRequest[] => {
+  return garden.seasonPlan.wantedCrops.flatMap(
+    (selection): SeasonCropLayoutRequest[] => {
       const crop = getCropById(selection.cropId);
 
       if (!crop) {
@@ -82,7 +74,6 @@ export function buildSeasonCropLayoutRequests(
 
       return [
         {
-          containerAllowed: selection.containerAllowed,
           crop,
           cropId: selection.cropId,
           estimatedAreaSqFt: estimateSelectionAreaSqFt(selection, crop),
@@ -93,18 +84,15 @@ export function buildSeasonCropLayoutRequests(
             sunExposureAtPlacement,
             totalEstimatedAreaSqFt,
           }),
-          modePreference: selection.modePreference,
-          mustGrow: selection.commitment === 'mustGrow',
+          plantingForm: selection.plantingForm,
           notes: selection.notes,
-          priority: selection.priority,
-          rank: selection.rank,
-          sowPreference: selection.sowPreference,
           supportAllowed: selection.supportAllowed,
-          targetQuantity: selection.targetQuantity,
+          quantity: selection.quantity,
           varietyName: selection.varietyName,
         },
       ];
-    });
+    },
+  );
 }
 
 export function getSeasonCropFitSignal({
@@ -126,8 +114,8 @@ export function getSeasonCropFitSignal({
   const suitability = scoreCropSuitability({
     climateProfile: garden.climateProfile,
     crop,
-    mode: selection.modePreference,
-    plantCount: selection.targetQuantity,
+    mode: selection.plantingForm,
+    plantCount: selection.quantity,
     plotType: inferPlotType(garden),
     requestedAreaSqFt: estimatedAreaSqFt,
     sunExposureAtPlacement,
@@ -194,7 +182,7 @@ export function getSeasonCropFitSignal({
     });
   }
 
-  if (!crop.supportedPlantingModes.includes(selection.modePreference)) {
+  if (!crop.supportedPlantingModes.includes(selection.plantingForm)) {
     groupedReasons.push({
       group: 'bedContainer',
       label: 'Selected planting mode is not supported',
@@ -208,15 +196,6 @@ export function getSeasonCropFitSignal({
       label: 'Bed or container scale needs review',
       severity: 'watch',
     });
-  } else if (
-    !selection.containerAllowed &&
-    totalEstimatedAreaSqFt > plotAreaSqFt * 0.8
-  ) {
-    groupedReasons.push({
-      group: 'bedContainer',
-      label: 'Container overflow is turned off',
-      severity: 'notice',
-    });
   }
 
   const dedupedReasons = dedupeGroupedReasons(groupedReasons);
@@ -229,7 +208,7 @@ export function getSeasonCropFitSignal({
 
   return {
     groupedReasons: dedupedReasons,
-    label: formatSeasonCropFitLabel(level),
+    label: formatSeasonCropPlanningState(level),
     level,
     reasons: dedupedReasons.map(formatCompactReason).slice(0, 4),
     summary: formatFitSummary(level, dedupedReasons),
@@ -245,11 +224,11 @@ export function estimateSelectionAreaSqFt(
     (crop.spacingInches ?? crop.matureSpreadInches ?? 18) / 12,
     0.75,
   );
-  const count = Math.max(selection.targetQuantity, 1);
+  const count = Math.max(selection.quantity, 1);
 
   if (
-    selection.modePreference === 'row' ||
-    selection.modePreference === 'trellisLine'
+    selection.plantingForm === 'row' ||
+    selection.plantingForm === 'trellisLine'
   ) {
     const rowWidthFt = Math.max(
       (crop.rowSpacingInches ?? crop.spacingInches ?? 18) / 12,
@@ -331,7 +310,7 @@ function formatFitSummary(
     .map((reason) =>
       formatSeasonCropFitReasonGroup(reason.group).toLowerCase(),
     );
-  const groupText = groups.length > 0 ? groups.join(', ') : 'fit details';
+  const groupText = groups.length > 0 ? groups.join(', ') : 'placement details';
 
   if (level === 'workable') {
     return 'Likely workable; confirm details before layout.';
@@ -345,12 +324,12 @@ function formatFitSummary(
 }
 
 function getFitUncertainty(crop: CropProfile) {
-  if (crop.profileConfidence === 'needsReview') {
-    return 'Catalog data is limited; confirm spacing and timing before relying on the fit.';
+  if (crop.profileCompleteness === 'needsReview') {
+    return 'Catalog data is limited; confirm spacing and timing before relying on placement guidance.';
   }
 
-  if (crop.profileConfidence === 'partial' || crop.completenessScore < 0.9) {
-    return 'Catalog data is partial, so this fit is directional.';
+  if (crop.profileCompleteness === 'partial' || crop.completenessScore < 0.9) {
+    return 'Catalog data is partial, so this guidance is directional.';
   }
 
   return null;

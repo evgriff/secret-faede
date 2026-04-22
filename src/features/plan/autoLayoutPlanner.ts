@@ -6,6 +6,7 @@ import {
   type PlantingMode,
   type Structure,
 } from '../../domain/gardens/GardenRepository';
+import { withPlantingInstances } from '../../domain/gardens/plantingInstances';
 import {
   getStructureFootprint,
   rectsOverlap,
@@ -41,21 +42,13 @@ export interface LayoutZone {
 export function createLayoutUnits(
   request: SeasonCropLayoutRequest,
 ): LayoutUnit[] {
-  if (request.modePreference === 'single' && request.targetQuantity > 1) {
-    return Array.from(
-      { length: Math.min(request.targetQuantity, 12) },
-      (_, index) => createLayoutUnit(request, index + 1, 1, 'single'),
+  if (request.plantingForm === 'single' && request.quantity > 1) {
+    return Array.from({ length: Math.min(request.quantity, 12) }, (_, index) =>
+      createLayoutUnit(request, index + 1, 1, 'single'),
     );
   }
 
-  return [
-    createLayoutUnit(
-      request,
-      1,
-      request.targetQuantity,
-      request.modePreference,
-    ),
-  ];
+  return [createLayoutUnit(request, 1, request.quantity, request.plantingForm)];
 }
 
 export function createPlacementPlanting(
@@ -70,7 +63,7 @@ export function createPlacementPlanting(
     yFt: center.yFt,
   });
 
-  return {
+  return withPlantingInstances({
     ...planting,
     blockDepthFt: unit.mode === 'block' ? unit.size.depthFt : null,
     blockWidthFt: unit.mode === 'block' ? unit.size.widthFt : null,
@@ -100,7 +93,7 @@ export function createPlacementPlanting(
     sunRequirement: unit.crop.sunRequirement,
     trellisLengthFt: unit.mode === 'trellisLine' ? unit.size.widthFt : null,
     weeklyWaterNeedInches: unit.crop.weeklyWaterNeedInches,
-  };
+  });
 }
 
 export function buildLayoutZones(garden: Garden): LayoutZone[] {
@@ -138,7 +131,6 @@ export function zoneCanHost(zone: LayoutZone, unit: LayoutUnit) {
   }
 
   return (
-    unit.request.containerAllowed &&
     !unit.crop.trellisRequired &&
     unit.crop.growthForm !== 'vining' &&
     Math.max(unit.size.widthFt, unit.size.depthFt) <=
@@ -190,8 +182,6 @@ export function isLegalRect(
 export function sortUnits(units: LayoutUnit[], strategy: AutoLayoutStrategy) {
   return [...units].sort((left, right) => {
     const supportDelta = supportRank(right.crop) - supportRank(left.crop);
-    const priorityDelta =
-      priorityRank(right.request) - priorityRank(left.request);
     const sizeDelta =
       right.size.widthFt * right.size.depthFt -
       left.size.widthFt * left.size.depthFt;
@@ -199,28 +189,18 @@ export function sortUnits(units: LayoutUnit[], strategy: AutoLayoutStrategy) {
 
     if (strategy === 'supportFirst') {
       return (
-        supportDelta ||
-        priorityDelta ||
-        sizeDelta ||
-        left.id.localeCompare(right.id)
+        supportDelta || sizeDelta || sunDelta || left.id.localeCompare(right.id)
       );
     }
 
     if (strategy === 'accessFirst') {
       return (
-        priorityDelta ||
-        sizeDelta ||
-        supportDelta ||
-        left.id.localeCompare(right.id)
+        sizeDelta || supportDelta || sunDelta || left.id.localeCompare(right.id)
       );
     }
 
     return (
-      priorityDelta ||
-      sunDelta ||
-      sizeDelta ||
-      supportDelta ||
-      left.id.localeCompare(right.id)
+      sunDelta || sizeDelta || supportDelta || left.id.localeCompare(right.id)
     );
   });
 }
@@ -236,10 +216,10 @@ export function rectInsideRect(rect: FootRect, outer: FootRect) {
 
 export function getStrategyLabel(strategy: AutoLayoutStrategy) {
   if (strategy === 'accessFirst') {
-    return 'Access balanced';
+    return 'Keep paths clear';
   }
 
-  return strategy === 'supportFirst' ? 'Support disciplined' : 'Sun fit';
+  return strategy === 'supportFirst' ? 'Support-ready' : 'Best sun exposure';
 }
 
 export function snap(value: number, unit: number) {
@@ -259,7 +239,7 @@ function createLayoutUnit(
   );
   const size = getUnitSize(mode, spacingFt, rowSpacingFt, plantCount);
   const suffix =
-    request.modePreference === 'single' && request.targetQuantity > 1
+    request.plantingForm === 'single' && request.quantity > 1
       ? ` ${index}`
       : '';
 
@@ -330,16 +310,6 @@ function supportRank(crop: CropProfile) {
       : (crop.matureHeightInches ?? 0) >= 42
         ? 1
         : 0;
-}
-
-function priorityRank(request: SeasonCropLayoutRequest) {
-  return request.mustGrow
-    ? 4
-    : request.priority === 'high'
-      ? 3
-      : request.priority === 'medium'
-        ? 2
-        : 1;
 }
 
 function sunRank(crop: CropProfile) {

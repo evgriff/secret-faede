@@ -8,7 +8,10 @@ import type {
 } from '../../../domain/gardens/GardenRepository';
 import { StatusBadge } from '../../shared/design/DesignPrimitives';
 import { formatTaskType } from '../todayFormatters';
-import type { TodayFieldModel } from '../todayFieldModel';
+import type {
+  TodayFieldModel,
+  TodayHarvestReadyItem,
+} from '../todayFieldModel';
 import { getTaskTargetLink } from '../todayTaskLinks';
 import { getCriticalCheckTasks } from '../todaySelectors';
 import type { TodayQuickActionState } from './TodayQuickActionRail';
@@ -26,6 +29,7 @@ export function TodayFieldPanels({
   onCompleteTask,
   onDeferTask,
   onDelayHarvest,
+  onLogHarvest,
   onOpenAction,
   onSnoozeTask,
   onUpdatePlantingStatus,
@@ -42,6 +46,7 @@ export function TodayFieldPanels({
     delayUntilDate: string,
     reason: string,
   ): void;
+  onLogHarvest(item: TodayHarvestReadyItem): void;
   onOpenAction(action: TodayQuickActionState): void;
   onSnoozeTask(taskId: string): void;
   onUpdatePlantingStatus(
@@ -54,27 +59,36 @@ export function TodayFieldPanels({
   todayDate: string;
 }) {
   const criticalTasks = getCriticalCheckTasks(selectedTasks);
+  const hasWatering = model.activeWatering.length > 0;
   const hasCriticalChecks =
     model.urgentAlerts.length > 0 ||
     model.cropStageActions.length > 0 ||
     model.unresolvedIssues.length > 0 ||
     criticalTasks.length > 0;
+  const hasAnyFieldPanel =
+    hasWatering ||
+    hasCriticalChecks ||
+    model.harvestReady.length > 0 ||
+    model.bedAttention.length > 0 ||
+    model.recentActivity.length > 0;
+
+  if (!hasAnyFieldPanel) {
+    return null;
+  }
 
   return (
     <div className={styles.fieldStack}>
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <div>
-            <p className={styles.kicker}>Water</p>
-            <h2>Watering today</h2>
+      {hasWatering ? (
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <div>
+              <p className={styles.kicker}>Water</p>
+              <h2>Watering today</h2>
+            </div>
+            <StatusBadge tone="warning">
+              {model.activeWatering.length}
+            </StatusBadge>
           </div>
-          <StatusBadge
-            tone={model.activeWatering.length > 0 ? 'warning' : 'success'}
-          >
-            {model.activeWatering.length}
-          </StatusBadge>
-        </div>
-        {model.activeWatering.length > 0 ? (
           <div className={styles.compactList}>
             {model.activeWatering.map((recommendation) => (
               <WaterCard
@@ -90,12 +104,8 @@ export function TodayFieldPanels({
               />
             ))}
           </div>
-        ) : (
-          <p className={styles.clearNotice}>
-            No watering needed from saved recommendations.
-          </p>
-        )}
-      </section>
+        </section>
+      ) : null}
 
       {hasCriticalChecks ? (
         <section className={styles.panel}>
@@ -160,6 +170,7 @@ export function TodayFieldPanels({
                 item={item}
                 key={item.planting.id}
                 onDelayHarvest={onDelayHarvest}
+                onLogHarvest={onLogHarvest}
                 onOpenAction={onOpenAction}
                 todayDate={todayDate}
               />

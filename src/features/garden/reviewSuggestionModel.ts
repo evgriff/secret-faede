@@ -4,6 +4,7 @@ import type {
   Structure,
   SunExposure,
 } from '../../domain/gardens/GardenRepository';
+import type { GardenSuggestionDecisionImpact } from '../../domain/gardens/gardenWorkspace';
 import type { PlanWarning } from './gardenPlanning';
 import {
   canOptimizerMovePlanting,
@@ -25,8 +26,6 @@ export type ReviewSuggestionType =
   | 'reassignCropToBed'
   | 'splitOvercrowdedPlanting'
   | 'widenPath';
-
-export type ReviewSuggestionConfidence = 'high' | 'low' | 'medium';
 
 export interface ReviewSuggestionPreview {
   after: string;
@@ -57,7 +56,6 @@ export type ReviewSuggestionAction =
 export interface ReviewSuggestion {
   actions: ReviewSuggestionAction[];
   canBatchAccept: boolean;
-  confidence: ReviewSuggestionConfidence;
   id: string;
   itemIds: string[];
   preview: ReviewSuggestionPreview | null;
@@ -142,10 +140,25 @@ export function applyReviewSuggestionActions(
 
 export function describeSuggestionDecision(suggestion: ReviewSuggestion) {
   return {
+    impact: getSuggestionDecisionImpact(suggestion),
     id: suggestion.id,
     label: suggestion.title,
     note: suggestion.rationale,
   };
+}
+
+export function getSuggestionDecisionImpact(
+  suggestion: ReviewSuggestion,
+): GardenSuggestionDecisionImpact {
+  if (suggestion.relocationImpact === 'physicalMove') {
+    return 'move';
+  }
+
+  if (suggestion.canBatchAccept && isLowRiskSupportSuggestion(suggestion)) {
+    return 'support';
+  }
+
+  return 'planned';
 }
 
 export function hasDraftProposalAction(suggestion: ReviewSuggestion) {
@@ -233,6 +246,12 @@ function isAutoLayoutItem(item: { id: string; notes?: string }) {
   return (
     item.id.includes(autoLayoutProposalMarker) ||
     item.notes?.includes(autoLayoutProposalMarker)
+  );
+}
+
+function isLowRiskSupportSuggestion(suggestion: ReviewSuggestion) {
+  return ['addStakeCage', 'addSupportMaterial', 'addTrellis'].includes(
+    suggestion.type,
   );
 }
 

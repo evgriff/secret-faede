@@ -2,11 +2,14 @@ import type {
   Garden,
   GardenPlant,
   GardenPlot,
+  PlantingInstance,
   Structure,
 } from '../../domain/gardens/GardenRepository';
+import { getPlantingInstances } from '../../domain/gardens/plantingInstances';
 import { clamp, snapFeet } from '../garden/gardenMath';
 import {
   getPlantingFootprint,
+  getPlantingInstanceFootprint,
   getStructureFootprint,
   type FootRect,
 } from '../garden/gardenPlanning';
@@ -28,6 +31,7 @@ export type ResizeHandle =
 
 export interface PlanItemRef {
   id: string;
+  instanceId?: string;
   type: PlanItemType;
 }
 
@@ -91,9 +95,16 @@ export function getItemRect(
     return null;
   }
 
-  return item.type === 'planting'
-    ? getPlantingFootprint(found as GardenPlant)
-    : getStructureFootprint(found as Structure);
+  if (item.type === 'structure') {
+    return getStructureFootprint(found as Structure);
+  }
+
+  const planting = found as GardenPlant;
+  const instance = findPlantingInstance(planting, item.instanceId);
+
+  return instance
+    ? getPlantingInstanceFootprint(planting, instance)
+    : getPlantingFootprint(planting);
 }
 
 export function getItemPointFromRect(
@@ -360,15 +371,29 @@ export function getItemsInRect(garden: Garden, rect: FootRect): PlanItemRef[] {
       .map((structure) => getStructureFootprint(structure))
       .filter((itemRect) => rectsIntersect(itemRect, rect))
       .map((itemRect) => ({ id: itemRect.id, type: 'structure' as const })),
-    ...garden.plantings
-      .map((planting) => getPlantingFootprint(planting))
-      .filter((itemRect) => rectsIntersect(itemRect, rect))
-      .map((itemRect) => ({ id: itemRect.id, type: 'planting' as const })),
+    ...garden.plantings.flatMap((planting) =>
+      getPlantingInstances(planting)
+        .filter((instance) =>
+          rectsIntersect(
+            getPlantingInstanceFootprint(planting, instance),
+            rect,
+          ),
+        )
+        .map((instance) => ({
+          id: planting.id,
+          instanceId: instance.id,
+          type: 'planting' as const,
+        })),
+    ),
   ];
 }
 
 export function areSamePlanItem(left: PlanItemRef, right: PlanItemRef) {
-  return left.id === right.id && left.type === right.type;
+  return (
+    left.id === right.id &&
+    left.type === right.type &&
+    (left.instanceId ?? null) === (right.instanceId ?? null)
+  );
 }
 
 function buildSnapTargets(
@@ -391,7 +416,25 @@ function buildSnapTargets(
       continue;
     }
 
-    addRectTargets(targets, getPlantingFootprint(planting), planting.label);
+    for (const instance of getPlantingInstances(planting)) {
+      if (
+        excludedKeys.has(
+          getItemKey({
+            id: planting.id,
+            instanceId: instance.id,
+            type: 'planting',
+          }),
+        )
+      ) {
+        continue;
+      }
+
+      addRectTargets(
+        targets,
+        getPlantingInstanceFootprint(planting, instance),
+        instance.label,
+      );
+    }
   }
 
   targets.push(
@@ -569,7 +612,22 @@ function handleIncludesSouth(handle: ResizeHandle) {
 }
 
 function getItemKey(item: PlanItemRef) {
-  return `${item.type}:${item.id}`;
+  return `${item.type}:${item.id}:${item.instanceId ?? 'group'}`;
+}
+
+function findPlantingInstance(
+  planting: GardenPlant,
+  instanceId: string | undefined,
+): PlantingInstance | null {
+  if (!instanceId) {
+    return null;
+  }
+
+  return (
+    getPlantingInstances(planting).find(
+      (instance) => instance.id === instanceId,
+    ) ?? null
+  );
 }
 
 function roundFeet(value: number) {

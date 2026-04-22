@@ -5,8 +5,6 @@ import type {
   NotificationType,
 } from '../../domain/gardens/GardenRepository';
 
-export const channels: NotificationChannel[] = ['inApp', 'push', 'carrier messaging'];
-
 export const alertTypes: NotificationAlertType[] = [
   'watering',
   'frost',
@@ -22,19 +20,12 @@ export function readNumber(value: string, fallback: number) {
 }
 
 export function formatChannel(channel: NotificationChannel) {
-  if (channel === 'inApp') {
-    return 'In-app';
+  switch (channel) {
+    case 'inApp':
+      return 'In-app';
+    case 'push':
+      return 'Push';
   }
-
-  if (channel === 'push') {
-    return 'Push';
-  }
-
-  if (channel === 'carrier messaging') {
-    return 'carrier messaging fallback';
-  }
-
-  return channel.toUpperCase();
 }
 
 export function formatAlertType(alertType: NotificationAlertType) {

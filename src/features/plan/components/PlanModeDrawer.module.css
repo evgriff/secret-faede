@@ -3,31 +3,6 @@
   gap: var(--space-3);
 }
 
-.mobileModeStrip {
-  display: none;
-  gap: 0.45rem;
-  overflow-x: auto;
-  padding-bottom: 0.15rem;
-}
-
-.modePill {
-  flex: 0 0 auto;
-  min-height: 2.6rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: #fffdf7;
-  color: var(--color-text-strong);
-  cursor: pointer;
-  font: inherit;
-  font-weight: 800;
-  padding: 0 0.85rem;
-}
-
-.activePill {
-  border-color: rgba(36, 71, 46, 0.32);
-  background: rgba(36, 71, 46, 0.12);
-}
-
 .drawerBody {
   display: grid;
   gap: var(--space-3);
@@ -284,14 +259,6 @@
   padding: 0.65rem;
 }
 
-.warningList {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0;
-  padding-left: 1.1rem;
-  color: #8a5a00;
-}
-
 .successText,
 .mutedText {
   margin: 0;
@@ -310,19 +277,19 @@
 .reviewList,
 .reviewCard,
 .reviewHero,
-.healthPanel,
-.healthGroup {
+.healthPanel {
   display: grid;
   gap: 0.6rem;
 }
 
 .reviewHero {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.65fr);
   align-items: start;
   border: 1px solid rgba(36, 71, 46, 0.18);
   border-radius: var(--radius-card);
   background: rgba(36, 71, 46, 0.06);
   padding: 0.75rem;
+  animation: reviewSurfaceIn var(--motion-short) var(--ease-out);
 }
 
 .reviewHero h3,
@@ -335,21 +302,26 @@
   font-size: var(--font-size-title);
 }
 
-.reviewStats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.55rem;
+.reviewDecisionSummary {
+  color: var(--color-text-strong) !important;
+  font-size: var(--font-size-small);
 }
 
-.reviewStats span {
-  border: 1px solid rgba(54, 48, 40, 0.12);
-  border-radius: var(--radius-pill);
+.reviewNextAction {
+  display: grid;
+  gap: 0.28rem;
+  border: 1px solid rgba(36, 71, 46, 0.16);
+  border-radius: var(--radius-control);
   background: rgba(255, 253, 247, 0.78);
-  color: var(--color-text-strong);
+  padding: 0.6rem;
+  animation: reviewSurfaceIn var(--motion-short) var(--ease-out);
+}
+
+.reviewNextAction span {
+  color: var(--color-text-muted);
   font-size: var(--font-size-caption);
   font-weight: 850;
-  padding: 0.25rem 0.5rem;
+  text-transform: uppercase;
 }
 
 .reviewHeroActions,
@@ -360,13 +332,28 @@
 }
 
 .reviewHeroActions {
+  grid-column: 1 / -1;
   justify-content: start;
 }
 
-.reviewGroup h3 {
+.reviewGroupHeader {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.reviewGroup h3,
+.reviewGroupHeader p {
   margin: 0;
+}
+
+.reviewGroup h3 {
   color: var(--color-text-strong);
   font-size: var(--font-size-body);
+}
+
+.reviewGroupHeader p {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
 }
 
 .reviewList {
@@ -380,10 +367,23 @@
   border-radius: var(--radius-card);
   background: #ffffff;
   padding: 0.7rem;
+  animation: reviewSurfaceIn var(--motion-short) var(--ease-out);
+  transition:
+    background-color var(--motion-micro) var(--ease-standard),
+    border-color var(--motion-micro) var(--ease-standard),
+    box-shadow var(--motion-micro) var(--ease-standard),
+    transform var(--motion-micro) var(--ease-standard);
+}
+
+.reviewCardActive {
+  border-color: rgba(31, 107, 58, 0.42);
+  box-shadow: 0 0 0 3px rgba(31, 107, 58, 0.1);
+  animation: reviewActiveIn var(--motion-short) var(--ease-emphasis);
 }
 
 .reviewCardDecided {
   background: rgba(246, 242, 233, 0.64);
+  opacity: 0.78;
 }
 
 .reviewCardHeader {
@@ -398,48 +398,45 @@
   gap: 0.15rem;
 }
 
-.reviewCard span {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-caption);
-  font-weight: 850;
-  text-transform: uppercase;
-}
-
 .reviewCard strong {
   color: var(--color-text-strong);
 }
 
 .reviewCategory {
   color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 850;
+  text-transform: uppercase;
 }
 
 .reviewCard p {
   color: var(--color-text-muted);
 }
 
-.reviewMetaGrid {
+.reviewDecisionLine {
   display: grid;
-  gap: 0.45rem;
-  margin: 0;
+  gap: 0.14rem;
+  border: 1px solid rgba(36, 71, 46, 0.12);
+  border-radius: var(--radius-control);
+  background: rgba(36, 71, 46, 0.05);
+  padding: 0.5rem 0.6rem;
 }
 
-.reviewMetaGrid div {
-  display: grid;
-  gap: 0.1rem;
-}
-
-.reviewMetaGrid dt {
+.reviewDecisionLine span {
   color: var(--color-text-muted);
   font-size: var(--font-size-caption);
   font-weight: 850;
   text-transform: uppercase;
 }
 
-.reviewMetaGrid dd {
-  margin: 0;
+.reviewDecisionLine strong {
   color: var(--color-text-strong);
   font-size: var(--font-size-small);
-  font-weight: 700;
+  font-weight: 800;
+}
+
+.reviewRationale {
+  line-height: 1.45;
 }
 
 .reviewDecisionText {
@@ -447,6 +444,7 @@
   background: rgba(36, 71, 46, 0.08);
   color: var(--color-text-strong) !important;
   padding: 0.45rem 0.6rem;
+  animation: reviewDecisionIn var(--motion-short) var(--ease-emphasis);
 }
 
 .physicalMoveText {
@@ -459,10 +457,6 @@
 .physicalMoveButton {
   border-color: rgba(138, 90, 0, 0.42) !important;
   color: #6f4500 !important;
-}
-
-.fixText {
-  color: var(--color-text-strong) !important;
 }
 
 .previewGrid {
@@ -493,6 +487,8 @@
 }
 
 .healthPanel {
+  display: grid;
+  gap: 0.65rem;
   border: 1px solid rgba(54, 48, 40, 0.12);
   border-radius: var(--radius-card);
   background: rgba(246, 242, 233, 0.64);
@@ -512,8 +508,7 @@
   justify-content: space-between;
 }
 
-.healthHeader h3,
-.healthGroup h4 {
+.healthHeader h3 {
   margin: 0;
   color: var(--color-text-strong);
 }
@@ -522,15 +517,58 @@
   font-size: var(--font-size-body);
 }
 
-.healthGroup h4 {
+.healthHeader p {
+  margin: 0.15rem 0 0;
+  color: var(--color-text-muted);
   font-size: var(--font-size-small);
+}
+
+.healthDecisionGroups {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.healthDecisionGroup {
+  border: 1px solid rgba(54, 48, 40, 0.1);
+  border-radius: var(--radius-control);
+  background: rgba(255, 253, 247, 0.68);
+}
+
+.healthSummary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+  cursor: pointer;
+  padding: 0.6rem;
+}
+
+.healthSummary > span:first-child {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.healthSummary strong {
+  color: var(--color-text-strong);
+}
+
+.healthSummary small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.healthCounts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
 }
 
 .healthList {
   display: grid;
   gap: 0.35rem;
   margin: 0;
-  padding: 0;
+  padding: 0 0.6rem 0.6rem;
   list-style: none;
 }
 
@@ -556,22 +594,13 @@
   font-size: var(--font-size-small);
 }
 
+.reviewEmpty {
+  animation: reviewSurfaceIn var(--motion-short) var(--ease-out);
+}
+
 .healthActions {
   flex-wrap: wrap;
   justify-content: flex-end;
-}
-
-.healthActions button {
-  min-height: 2.15rem;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  background: #fffdf7;
-  color: var(--color-text-strong);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-caption);
-  font-weight: 800;
-  padding: 0 0.55rem;
 }
 
 .reviewActions {
@@ -580,17 +609,30 @@
   gap: 0.4rem;
 }
 
-.reviewActions button {
-  min-height: 2.25rem;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  background: #fffdf7;
-  color: var(--color-text-strong);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-small);
-  font-weight: 800;
-  padding: 0 0.65rem;
+@media (hover: hover) and (pointer: fine) {
+  .reviewCard:hover {
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes reviewSurfaceIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+}
+
+@keyframes reviewActiveIn {
+  from {
+    transform: scale(0.99);
+  }
+}
+
+@keyframes reviewDecisionIn {
+  from {
+    opacity: 0;
+    transform: translateY(-0.2rem);
+  }
 }
 
 @media (max-width: 58rem) {
@@ -598,14 +640,48 @@
     display: block;
   }
 
-  .mobileModeStrip {
-    display: none;
-  }
-
   .drawerBody {
     max-height: none;
     overflow: auto;
-    padding: var(--space-3);
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .drawerBody h2 {
+    font-size: 1.05rem;
+  }
+
+  .drawerBody p {
+    font-size: var(--font-size-small);
+  }
+
+  .primaryButton,
+  .secondaryButton,
+  .sunControls select,
+  .structureControls select,
+  .seasonTabs button {
+    min-height: 2.9rem;
+  }
+
+  .primaryButton {
+    width: 100%;
+  }
+
+  .sunControls,
+  .structureControls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sunControls label,
+  .structureControls label {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sunControls select,
+  .structureControls select {
+    width: 100%;
   }
 
   .measureGrid {
@@ -619,5 +695,18 @@
 
   .reviewHeroActions {
     justify-content: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reviewHero,
+  .reviewNextAction,
+  .reviewCard,
+  .reviewCardActive,
+  .reviewDecisionText,
+  .reviewEmpty {
+    animation: none;
+    transition-duration: 1ms;
+    transform: none;
   }
 }

@@ -1,4 +1,5 @@
 import type { Garden } from '../../domain/gardens/GardenRepository';
+import { getPlantingInstances } from '../../domain/gardens/plantingInstances';
 import {
   areSamePlanItem,
   getItemPointFromRect,
@@ -40,10 +41,13 @@ export function mergeSelection(
 
 export function selectAllForMode(garden: Garden, mode: PlanMode) {
   if (mode === 'plant') {
-    return garden.plantings.map((planting) => ({
-      id: planting.id,
-      type: 'planting' as const,
-    }));
+    return garden.plantings.flatMap((planting) =>
+      getPlantingInstances(planting).map((instance) => ({
+        id: planting.id,
+        instanceId: instance.id,
+        type: 'planting' as const,
+      })),
+    );
   }
 
   if (mode === 'structure') {
@@ -58,10 +62,13 @@ export function selectAllForMode(garden: Garden, mode: PlanMode) {
       id: structure.id,
       type: 'structure' as const,
     })),
-    ...garden.plantings.map((planting) => ({
-      id: planting.id,
-      type: 'planting' as const,
-    })),
+    ...garden.plantings.flatMap((planting) =>
+      getPlantingInstances(planting).map((instance) => ({
+        id: planting.id,
+        instanceId: instance.id,
+        type: 'planting' as const,
+      })),
+    ),
   ];
 }
 

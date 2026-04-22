@@ -21,7 +21,6 @@ export {
   describeSuggestionDecision,
   type ReviewSuggestion,
   type ReviewSuggestionAction,
-  type ReviewSuggestionConfidence,
   type ReviewSuggestionPreview,
   type ReviewSuggestionType,
 } from './reviewSuggestionModel';

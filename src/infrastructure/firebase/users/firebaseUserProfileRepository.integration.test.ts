@@ -64,13 +64,26 @@ describe('FirebaseUserProfileRepository integration seam', () => {
         defaultGardenId: 'garden-a',
         displayName: 'Primary Gardener',
         email: 'primary.gardener@example.com',
+        // Compatibility fixture: retired delivery fields may exist on old docs
+        // but must be dropped before app state can use them.
         notificationPreference: {
           ...defaultNotificationPreference,
+          channelConsent: {
+            ...defaultNotificationPreference.channelConsent,
+            email: {
+              consentCopyVersion: 'legacy',
+              grantedAtIso: '2026-04-20T11:00:00.000Z',
+              revokedAtIso: null,
+              status: 'granted',
+            },
+          },
           channels: {
             ...defaultNotificationPreference.channels,
+            email: true,
             push: true,
             carrier messaging: true,
           },
+          email: 'alerts@example.com',
           phoneE164: '+17345550123',
         },
         timezone: 'America/Detroit',
@@ -97,11 +110,18 @@ describe('FirebaseUserProfileRepository integration seam', () => {
       displayName: 'Primary Gardener',
       email: 'primary.gardener@example.com',
       notificationPreference: {
-        channels: expect.objectContaining({ push: true, carrier messaging: true }),
-        phoneE164: '+17345550123',
+        channels: expect.objectContaining({ push: true }),
       },
       uid: 'uid-evan',
     });
+    expect(profile?.notificationPreference.channels).not.toHaveProperty(
+      'email',
+    );
+    expect(profile?.notificationPreference.channels).not.toHaveProperty('carrier messaging');
+    expect(profile?.notificationPreference.channelConsent).not.toHaveProperty(
+      'email',
+    );
+    expect(profile?.notificationPreference).not.toHaveProperty('phoneE164');
   });
 
   it('saves profiles with server and ISO update timestamps', async () => {

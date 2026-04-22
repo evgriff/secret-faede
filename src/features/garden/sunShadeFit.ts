@@ -16,10 +16,11 @@ export function describeCropSunFit(
 ): { action: string; label: string; level: CropSunFitLevel; message: string } {
   if (!required || !area) {
     return {
-      action: 'Select a modeled or observed sun cell before trusting this fit.',
-      label: 'sun fit unknown',
+      action:
+        'Select a modeled or observed sun cell before trusting this placement guidance.',
+      label: 'sun unknown',
       level: 'unknown',
-      message: 'Sun fit needs a modeled or observed cell.',
+      message: 'Sun guidance needs a modeled or observed cell.',
     };
   }
 
@@ -37,7 +38,7 @@ export function describeCropSunFit(
   ) {
     return {
       action: 'Keep placement unless spacing or access suggests a move.',
-      label: 'good fit',
+      label: 'sun ready',
       level: 'good',
       message: `${hours} matches the crop preference.`,
     };
@@ -51,7 +52,7 @@ export function describeCropSunFit(
     action: underLit
       ? `${workable ? 'Move brighter' : 'Move much brighter'}${shadeSuffix}, or paint a field correction.`
       : 'Move to gentler exposure if heat stress appears.',
-    label: workable ? 'workable' : 'will likely underperform',
+    label: workable ? 'sun check' : 'sun mismatch',
     level: workable ? 'workable' : 'underperform',
     message: underLit
       ? `${hours} is ${workable ? 'close to' : 'below'} the crop preference.`
@@ -69,8 +70,10 @@ export function describeShadeSourceSummary(
   const tallCrop = sources.find((source) =>
     ['tallCrop', 'trellisedCrop'].includes(source.kind),
   );
-  const tree = sources.find((source) => source.kind === 'treeObstacle');
-  const source = tallCrop ?? tree ?? sources[0];
+  const savedShadeSource = sources.find(
+    (source) => source.kind === 'treeObstacle',
+  );
+  const source = tallCrop ?? savedShadeSource ?? sources[0];
 
   if (!source) {
     return '';
@@ -83,7 +86,7 @@ const shadeKindLabels: Record<SunShadeSource['kind'], string> = {
   fenceWall: 'wall/fence',
   structure: 'structure',
   tallCrop: 'tall-crop',
-  treeObstacle: 'tree',
+  treeObstacle: 'saved-source',
   trellisedCrop: 'trellised-crop',
   trellis: 'trellis',
 };

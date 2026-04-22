@@ -8,11 +8,13 @@ import {
 } from './validation';
 
 export type GardenRevisionAction = 'initial' | 'publish' | 'revert';
+export type GardenSuggestionDecisionImpact = 'move' | 'planned' | 'support';
 export type SuggestionDecisionStatus = 'accepted' | 'rejected' | 'snoozed';
 
 export interface GardenSuggestionDecision {
   decidedAtIso: string;
   id: string;
+  impact: GardenSuggestionDecisionImpact;
   label: string;
   note: string | null;
   status: SuggestionDecisionStatus;
@@ -327,6 +329,11 @@ export function parseGardenSuggestionDecisions(
       {
         decidedAtIso: readString(entry.decidedAtIso),
         id: entry.id,
+        impact: readStringUnion(
+          entry.impact,
+          ['move', 'planned', 'support'] as const,
+          'planned',
+        ),
         label: readString(entry.label, 'Review suggestion'),
         note: readNullableString(entry.note),
         status: readStringUnion(

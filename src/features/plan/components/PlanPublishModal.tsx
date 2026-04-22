@@ -4,7 +4,11 @@ import type {
   GardenSuggestionDecision,
   PublishedGardenRevision,
 } from '../../../domain/gardens/gardenWorkspace';
-import { Modal, StatusBadge } from '../../shared/design/DesignPrimitives';
+import {
+  Button,
+  Modal,
+  StatusBadge,
+} from '../../shared/design/DesignPrimitives';
 import styles from './PlanPublishModal.module.css';
 
 export function PlanPublishModal({
@@ -26,38 +30,51 @@ export function PlanPublishModal({
   suggestionDecisions: GardenSuggestionDecision[];
   summary: GardenChangesetSummary;
 }) {
+  const acceptedDecisions = suggestionDecisions.filter(
+    (decision) => decision.status === 'accepted',
+  );
+  const physicalCount = acceptedDecisions.filter(
+    (decision) => decision.impact === 'move',
+  ).length;
+  const lowRiskCount = acceptedDecisions.filter(
+    (decision) => decision.impact === 'support',
+  ).length;
+  const deferredDecisions = suggestionDecisions.filter(
+    (decision) => decision.status !== 'accepted',
+  );
+  const publishLabel = conflict ? 'Publish anyway' : 'Publish';
+
+  function handlePublish() {
+    if (isPublishing) {
+      return;
+    }
+
+    if (physicalCount > 0 && !window.confirm('Publish physical moves?')) {
+      return;
+    }
+
+    if (conflict) {
+      onPublishAnyway();
+    } else {
+      onPublish();
+    }
+  }
+
   return (
     <Modal
-      description="Review draft changes before they become the shared published garden."
       footer={
         <>
-          <button
-            className={styles.secondaryButton}
+          <Button disabled={isPublishing} onClick={onClose} tone="secondary">
+            Cancel
+          </Button>
+          <Button
             disabled={isPublishing}
-            onClick={onClose}
+            onClick={handlePublish}
+            tone="primary"
             type="button"
           >
-            Cancel
-          </button>
-          {conflict ? (
-            <button
-              className={styles.primaryButton}
-              disabled={isPublishing}
-              onClick={onPublishAnyway}
-              type="button"
-            >
-              {isPublishing ? 'Publishing...' : 'Publish anyway'}
-            </button>
-          ) : (
-            <button
-              className={styles.primaryButton}
-              disabled={isPublishing}
-              onClick={onPublish}
-              type="button"
-            >
-              {isPublishing ? 'Publishing...' : 'Publish'}
-            </button>
-          )}
+            {isPublishing ? 'Publishing...' : publishLabel}
+          </Button>
         </>
       }
       onClose={onClose}
@@ -75,6 +92,14 @@ export function PlanPublishModal({
       ) : null}
 
       <section className={styles.section}>
+        <h3>Publish summary</h3>
+        <p className={styles.muted}>
+          {summary.summaryItems.length} changes / {lowRiskCount} support /{' '}
+          {physicalCount} physical / {deferredDecisions.length} deferred.
+        </p>
+      </section>
+
+      <section className={styles.section}>
         <h3>Changed in this draft</h3>
         <ul className={styles.changeList}>
           {summary.summaryItems.map((item) => (
@@ -85,18 +110,14 @@ export function PlanPublishModal({
 
       <section className={styles.section}>
         <h3>Accepted into this draft</h3>
-        {suggestionDecisions.some(
-          (decision) => decision.status === 'accepted',
-        ) ? (
+        {acceptedDecisions.length > 0 ? (
           <ul className={styles.decisionList}>
-            {suggestionDecisions
-              .filter((decision) => decision.status === 'accepted')
-              .map((decision) => (
-                <li key={decision.id}>
-                  <StatusBadge tone="success">accepted</StatusBadge>
-                  <span>{decision.label}</span>
-                </li>
-              ))}
+            {acceptedDecisions.map((decision) => (
+              <li key={decision.id}>
+                <StatusBadge tone="success">accepted</StatusBadge>
+                <span>{decision.label}</span>
+              </li>
+            ))}
           </ul>
         ) : (
           <p className={styles.muted}>No accepted review proposals.</p>
@@ -105,18 +126,14 @@ export function PlanPublishModal({
 
       <section className={styles.section}>
         <h3>Rejected or snoozed</h3>
-        {suggestionDecisions.some(
-          (decision) => decision.status !== 'accepted',
-        ) ? (
+        {deferredDecisions.length > 0 ? (
           <ul className={styles.decisionList}>
-            {suggestionDecisions
-              .filter((decision) => decision.status !== 'accepted')
-              .map((decision) => (
-                <li key={decision.id}>
-                  <StatusBadge>{decision.status}</StatusBadge>
-                  <span>{decision.label}</span>
-                </li>
-              ))}
+            {deferredDecisions.map((decision) => (
+              <li key={decision.id}>
+                <StatusBadge>{decision.status}</StatusBadge>
+                <span>{decision.label}</span>
+              </li>
+            ))}
           </ul>
         ) : (
           <p className={styles.muted}>No rejected or snoozed proposals.</p>
@@ -149,15 +166,10 @@ export function RevisionHistoryModal({
 }) {
   return (
     <Modal
-      description="Published versions can be restored as a new published revision."
       footer={
-        <button
-          className={styles.secondaryButton}
-          onClick={onClose}
-          type="button"
-        >
+        <Button onClick={onClose} tone="secondary">
           Close
-        </button>
+        </Button>
       }
       onClose={onClose}
       title="Revision history"
@@ -178,14 +190,22 @@ export function RevisionHistoryModal({
               </p>
               <p>{revision.changesetSummary.summaryItems.join(', ')}</p>
             </div>
-            <button
-              className={styles.secondaryButton}
+            <Button
               disabled={isReverting || revision.id === currentRevisionId}
-              onClick={() => onRevert(revision.id)}
+              onClick={() => {
+                if (window.confirm('Revert draft?')) {
+                  onRevert(revision.id);
+                }
+              }}
+              tone="secondary"
               type="button"
             >
-              Revert
-            </button>
+              {revision.id === currentRevisionId
+                ? 'Current'
+                : isReverting
+                  ? 'Reverting...'
+                  : 'Review revert'}
+            </Button>
           </li>
         ))}
       </ul>
@@ -218,8 +238,5 @@ function formatDateTime(value: string) {
     return 'Unknown time';
   }
 
-  return new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
+  return date.toLocaleString();
 }

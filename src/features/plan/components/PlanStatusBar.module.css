@@ -35,6 +35,13 @@
   text-align: right;
 }
 
+.saveState small {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  line-height: 1.25;
+}
+
 .planSummary {
   min-width: 10rem;
 }
@@ -64,12 +71,19 @@
   padding: 0 0.45rem;
 }
 
-.unsaved,
 .queued,
 .warningText {
   color: #8a5a00;
 }
 
+.reviewText {
+  color: var(--color-text-muted);
+}
+
 .saved {
   color: #1f6b3a;
+}
+
+.error {
+  color: #a33428;
 }

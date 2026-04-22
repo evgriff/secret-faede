@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+
 import type {
   Garden,
   StructureType,
@@ -19,6 +21,7 @@ import styles from './PlanModeDrawer.module.css';
 
 export function PlanModeDrawer({
   accessiblePathDefaults,
+  activeReviewSuggestionId,
   activeSunLayer,
   garden,
   manualSunEdit,
@@ -33,6 +36,7 @@ export function PlanModeDrawer({
   onDismissHealthIssue,
   onJumpToHealthIssue,
   onJumpToSuggestion,
+  onPreviewReviewSuggestion,
   onRecalculateSun,
   onRejectReviewSuggestion,
   onRestoreWarning,
@@ -42,7 +46,6 @@ export function PlanModeDrawer({
   setManualSunEdit,
   setManualSunExposure,
   setAccessiblePathDefaults,
-  setMode,
   setShowSunOverlay,
   setSunSeason,
   setStructureType,
@@ -52,6 +55,7 @@ export function PlanModeDrawer({
   suggestionDecisions,
 }: {
   accessiblePathDefaults: boolean;
+  activeReviewSuggestionId: string | null;
   activeSunLayer: SunShadeLayer;
   garden: Garden;
   manualSunEdit: boolean;
@@ -66,6 +70,7 @@ export function PlanModeDrawer({
   onGenerateAutoLayoutCandidates(): void;
   onJumpToHealthIssue(issue: PlanHealthIssue): void;
   onJumpToSuggestion(suggestion: ReviewSuggestion): void;
+  onPreviewReviewSuggestion(suggestion: ReviewSuggestion): void;
   onRecalculateSun(): void;
   onRejectReviewSuggestion(suggestion: ReviewSuggestion): void;
   onRestoreWarning(warningId: string): void;
@@ -75,7 +80,6 @@ export function PlanModeDrawer({
   setManualSunEdit(value: boolean): void;
   setManualSunExposure(value: SunExposure): void;
   setAccessiblePathDefaults(value: boolean): void;
-  setMode(mode: PlanMode): void;
   setShowSunOverlay(value: boolean): void;
   setSunSeason(value: SunSeason): void;
   setStructureType(type: StructureType): void;
@@ -86,22 +90,6 @@ export function PlanModeDrawer({
 }) {
   return (
     <section className={styles.drawer} aria-label="Mode controls">
-      <div className={styles.mobileModeStrip} aria-label="Plan modes">
-        {planModes.map((entry) => (
-          <button
-            aria-pressed={mode === entry.mode}
-            className={`${styles.modePill} ${
-              mode === entry.mode ? styles.activePill : ''
-            }`}
-            key={entry.mode}
-            onClick={() => setMode(entry.mode)}
-            type="button"
-          >
-            {entry.label}
-          </button>
-        ))}
-      </div>
-
       <div className={styles.drawerBody}>
         <div className={styles.drawerHeader}>
           <div>
@@ -161,10 +149,12 @@ export function PlanModeDrawer({
         {mode === 'optimize' ? (
           <>
             <PlanReviewPanel
+              activeSuggestionId={activeReviewSuggestionId}
               onAcceptBatch={onAcceptReviewBatch}
               onAcceptSuggestion={onAcceptReviewSuggestion}
               onGenerateAutoLayoutCandidates={onGenerateAutoLayoutCandidates}
               onJumpToSuggestion={onJumpToSuggestion}
+              onPreviewSuggestion={onPreviewReviewSuggestion}
               onRejectSuggestion={onRejectReviewSuggestion}
               onSnoozeSuggestion={onSnoozeReviewSuggestion}
               reviewSuggestions={reviewSuggestions}
@@ -198,7 +188,7 @@ function getDrawerTitle(mode: PlanMode) {
     case 'select':
       return 'Select, drag, and inspect';
     case 'structure':
-      return 'Build the garden frame';
+      return 'Support planting areas';
     case 'sun':
       return 'Model and correct exposure';
   }
@@ -208,17 +198,12 @@ function getDrawerCopy(mode: PlanMode) {
   return planModes.find((entry) => entry.mode === mode)?.description ?? '';
 }
 
-const structureOptions: Array<{ label: string; type: StructureType }> = [
+const primarySupportOptions: Array<{ label: string; type: StructureType }> = [
   { label: 'Raised bed', type: 'raisedBed' },
   { label: 'In-ground bed', type: 'inGroundBed' },
   { label: 'Container', type: 'container' },
   { label: 'Pathway', type: 'pathway' },
-  { label: 'Trellis', type: 'trellis' },
-  { label: 'Fence/wall', type: 'fenceWall' },
-  { label: 'Tree/obstacle', type: 'treeObstacle' },
-  { label: 'Compost', type: 'compost' },
-  { label: 'Water source', type: 'waterSource' },
-  { label: 'Hose bib / utility', type: 'hoseBib' },
+  { label: 'Trellis / crop support', type: 'trellis' },
 ];
 
 function StructureControls({
@@ -234,20 +219,30 @@ function StructureControls({
   setStructureType(type: StructureType): void;
   structureType: StructureType;
 }) {
-  const isPath = structureType === 'path' || structureType === 'pathway';
+  const selectedSupportType = isPrimarySupportType(structureType)
+    ? structureType
+    : 'raisedBed';
+  const isPath =
+    selectedSupportType === 'path' || selectedSupportType === 'pathway';
+
+  useEffect(() => {
+    if (structureType !== selectedSupportType) {
+      setStructureType(selectedSupportType);
+    }
+  }, [selectedSupportType, setStructureType, structureType]);
 
   return (
     <div className={styles.structureControls}>
       <label>
-        <span>Structure</span>
+        <span>Garden support</span>
         <select
-          aria-label="Structure type"
+          aria-label="Garden support type"
           onChange={(event) =>
             setStructureType(event.currentTarget.value as StructureType)
           }
-          value={structureType}
+          value={selectedSupportType}
         >
-          {structureOptions.map((option) => (
+          {primarySupportOptions.map((option) => (
             <option key={option.type} value={option.type}>
               {option.label}
             </option>
@@ -271,8 +266,12 @@ function StructureControls({
         onClick={onAddStructure}
         type="button"
       >
-        Place structure
+        Place garden support
       </button>
     </div>
   );
+}
+
+function isPrimarySupportType(type: StructureType) {
+  return primarySupportOptions.some((option) => option.type === type);
 }

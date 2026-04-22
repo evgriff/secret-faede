@@ -13,14 +13,9 @@ export type AutoLayoutRunStatus =
   | 'running';
 
 export interface AutoLayoutScoreBreakdown {
-  access: number;
-  feasibility: number;
   seasonalSuitability: number;
   shadeManagement: number;
   spacingQuality: number;
-  spaceEfficiency: number;
-  sunFit: number;
-  support: number;
   waterGrouping: number;
 }
 
@@ -31,7 +26,6 @@ export interface AutoLayoutCandidate {
   label: string;
   materials: string[];
   plantings: Planting[];
-  score: number;
   scoreBreakdown: AutoLayoutScoreBreakdown;
   strategy: AutoLayoutStrategy;
   structures: Structure[];
@@ -39,6 +33,5 @@ export interface AutoLayoutCandidate {
   unplaced: Array<{
     cropName: string;
     reason: string;
-    required: boolean;
   }>;
 }

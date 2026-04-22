@@ -783,7 +783,7 @@ function toBaseRecord(crop) {
     perennialSuitability:
       crop.perennialSuitability ?? inferPerennialSuitability(crop),
     pollinatorRole: crop.pollinatorRole ?? inferPollinatorRole(crop, roles),
-    profileConfidence: crop.profileConfidence ?? 'complete',
+    profileCompleteness: crop.profileCompleteness ?? 'complete',
     rootDepthInches: crop.rootDepthInches ?? defaults.rootDepthInches,
     rowSpacingInches: crop.rowSpacingInches ?? defaults.rowSpacingInches,
     roles,
@@ -835,8 +835,10 @@ function buildVarietyProfiles(bases) {
         id: `${base.id}-${slug(name)}`,
         lastRefreshedIso: base.lastRefreshedIso,
         notes: `Variety-group profile derived from ${base.commonName}; verify cultivar-specific timing on the seed packet or nursery tag. ${base.notes}`,
-        profileConfidence:
-          base.profileConfidence === 'needsReview' ? 'needsReview' : 'partial',
+        profileCompleteness:
+          base.profileCompleteness === 'needsReview'
+            ? 'needsReview'
+            : 'partial',
         sourceTags: unique([...base.sourceTags, 'generated-variety-profile']),
         varietyGroup: base.commonName,
       });

@@ -19,10 +19,28 @@ Legacy path:
 - `gardens/{uid}` remains readable for migration and older seed data, but new
   editor saves go to the user's draft workspace.
 
+## User Profile Notifications
+
+`users/{uid}` stores alert defaults and delivery preferences outside the garden
+aggregate. Supported delivery is intentionally narrow:
+
+- in-app notification history is always on and is rendered from
+  `gardens/{uid}/notifications/{notificationId}`
+- push delivery is controlled by `notificationPreference.channels.push`,
+  `notificationPreference.channelConsent.push`, `pushPermission`, and
+  `pushTokenLastRegisteredAtIso`
+- daily watering checks use `defaultWateringCheckTime`, `timezone`, quiet hours,
+  alert-type toggles, and weather/watering thresholds
+- local reminders are device-local native capability, not a cloud delivery
+  channel
+
+Legacy carrier-message, email delivery, and phone fields are ignored during
+parsing and are not exposed by Settings, seed data, Functions, or rules.
+
 ## Garden Schema Version
 
 Every parsed garden aggregate now carries `schemaVersion:
-CURRENT_GARDEN_SCHEMA_VERSION`, currently `2`.
+CURRENT_GARDEN_SCHEMA_VERSION`, currently `3`.
 
 The migration helper in `src/domain/gardens/schemaMigrations.ts` runs before
 normal validation. It keeps legacy records readable by:
@@ -32,6 +50,8 @@ normal validation. It keeps legacy records readable by:
 - adding missing workspace arrays such as `structures[]`, `tasks[]`,
   `journalEntries[]`, and `sunShadeLayers[]`
 - adding an empty `seasonPlan` when older records do not have one
+- simplifying legacy season-plan records by reading old quantity/form fields and
+  dropping former weighting, sowing, container, and ordering fields
 
 The parser still bounds all feet-based dimensions and coordinates after the
 migration pass. Future schema changes should add a migration step instead of
@@ -51,7 +71,8 @@ A published revision stores:
 - `changesetSummary`: count-based summary of changed plot settings, plantings,
   structures, tasks, journal entries, harvests, and suggestion decisions.
 - `suggestionDecisions`: accepted/rejected review suggestions included in the
-  publish review.
+  publish review, including an impact class of `support`, `planned`, or
+  `move`.
 
 ## User Draft
 
@@ -62,7 +83,7 @@ A draft stores:
 - `baseRevisionId`: published revision the draft started from.
 - `updatedAtIso`: last draft save time.
 - `suggestionDecisions`: accepted/rejected review suggestions tracked while
-  editing.
+  editing, including the same impact class used during publish review.
 
 Draft saves do not change `gardenWorkspaces/main`. Publishing is the only path
 that replaces the shared published plan.
@@ -96,18 +117,19 @@ offline saves, and Firebase rules all follow the same existing garden workflow.
 `seasonPlan.wantedCrops[]` stores:
 
 - `cropId`: reference into the offline crop catalog.
-- `targetQuantity`: desired count before layout.
-- `modePreference`: preferred planting mode (`single`, `row`, `block`,
-  `cluster`, or `trellisLine`).
-- `commitment`: `mustGrow` or `niceToHave`.
-- `sowPreference`: `directSow`, `transplant`, or `noPreference`.
-- `containerAllowed` and `supportAllowed`: optimizer constraints.
-- `priority`: `high`, `medium`, or `low`.
-- `rank`: board order for optimizer priority.
+- `quantity`: desired plant count before layout; this is the primary visible
+  placement input.
+- `plantingForm`: recommended or user-adjusted planting form (`single`,
+  `row`, `block`, `cluster`, or `trellisLine`).
+- `supportAllowed`: optional support allowance for crops where support
+  materially affects placement; defaults to true during legacy reads.
 - `varietyName` and `notes`: user-supplied season context.
 
 Wanted crops are not plantings. They become optimizer layout requests first; the
 canvas still persists placed crops as `plantings[]` with feet-based coordinates.
+Legacy quantity/form aliases plus former weighting, sowing, container, and
+ordering fields are compatibility-read and then dropped from the
+parsed/persisted model.
 
 ## Planting Lifecycle And Relocation
 
@@ -135,6 +157,45 @@ relocating them. Review suggestions carry a relocation impact label so planned
 geometry moves stay distinct from proposals that would ask the gardener to
 physically move an already planted crop.
 
+## Planting Instances And Arrangement Groups
+
+`plantings[]` now model a placed crop as an arrangement-aware group with
+individual plant nodes:
+
+- the parent planting stores shared crop identity, lifecycle, care defaults,
+  arrangement form, and group center `xFt`/`yFt`
+- `instances[]` stores each individual plant node with `id`, `label`, `xFt`,
+  and `yFt`, all in canonical feet
+- `plantCount` is normalized to the number of saved instances
+- row, block, cluster, trellis-line, and single modes remain arrangement
+  metadata for adding, rendering, optimizer output, and future group editing
+
+Backward compatibility:
+
+- older aggregate plantings without `instances[]` are parsed into deterministic
+  instance positions from the saved mode/count/spacing fields
+- saved instances are preserved and the parent center is recalculated from
+  their average position
+- default single plantings create one instance at the parent center
+
+Runtime implications:
+
+- Plan renders and selects instance nodes while the inspector still edits the
+  shared parent planting metadata
+- Add Plant and the Plan inspector use the same arrangement editor to adjust
+  quantity, form, and spacing; changing those arrangement fields regenerates
+  deterministic `instances[]` in feet while preserving shared crop identity
+- moving a parent planting moves all instances by the same feet-based delta;
+  moving an instance updates only that node and recenters the parent group
+- Today tasks, Feed entries, harvest logs, water recommendations, and issue
+  targets still reference the parent `plantingId` until a later prompt defines
+  instance-level operations
+- optimizer proposals, starter templates, succession plantings, and demo data
+  must create instances before saving so generated layouts do not collapse
+  quantity into one visual object
+- draft save, publish, revert, offline queue, and revision history persist the
+  full garden aggregate, including `instances[]`
+
 ## Publish
 
 Publish flow:
@@ -155,15 +216,18 @@ base changed and lets the user either sync from published or publish anyway.
 Reverting does not mutate history. It creates a new published revision whose
 `garden` is copied from the selected prior revision and whose `action` is
 `revert`. The reverting user's draft is reset to the new published revision.
+The UI requires a two-step confirmation before calling this operation.
 
 ## Structure Layer
 
 Saved structures remain rectangular, feet-based objects with top-left
-coordinates:
+coordinates. Beds, containers, paths, and crop supports are the primary Plan
+objects; legacy shade, utility, compost, and water-source objects remain
+parseable only when they explain planting, sun, access, support, or watering:
 
 - `type`: `raisedBed`, `inGroundBed`, `container`, `pathway`, `path`,
-  `trellis`, `fenceWall`, `treeObstacle`, `compost`, `waterSource`,
-  `hoseBib`, or legacy aliases.
+  `trellis`, `fenceWall`, `treeObstacle` as a legacy shade-source alias,
+  `compost`, `waterSource`, `hoseBib`, or legacy aliases.
 - `widthFt`, `depthFt`, `heightFt`, `xFt`, `yFt`: persisted in feet.
 - `material`: `woodChips`, `mulch`, `gravel`, `pavers`, `stone`, `lumber`,
   `wire`, `metal`, `soil`, `mixed`, or `none`.
@@ -207,7 +271,7 @@ Each `CropProfile` stores:
 - local guidance: notes, pollinator/beneficial role, caution/toxicity notes
   when relevant, hardiness, and perennial suitability
 - provenance: `source`, `lastRefreshedIso`, `manualOverride`,
-  `profileConfidence`, and `completenessScore`
+  `profileCompleteness`, and `completenessScore`
 - iconography: `defaultIcon`, with crop-specific glyphs first and
   category/family fallbacks when a precise crop icon is unavailable
 

@@ -5,9 +5,11 @@ import {
   type Garden,
   type Structure,
 } from '../../domain/gardens/GardenRepository';
+import { withPlantingInstances } from '../../domain/gardens/plantingInstances';
 import {
   calculateResizeRect,
   defaultPlanSnapFt,
+  getItemsInRect,
   getItemRect,
   snapItemPoint,
   snapResizeRect,
@@ -126,6 +128,50 @@ describe('planInteractionGeometry', () => {
         'Pea trellis top edge',
       ]),
     );
+  });
+
+  it('treats arrangement instances as individual selectable plant nodes', () => {
+    const garden = {
+      ...createInteractionGarden(),
+      plantings: [
+        ...createInteractionGarden().plantings,
+        withPlantingInstances({
+          ...createDefaultPlanting({
+            id: 'carrot-row',
+            label: 'Carrot',
+            xFt: 4,
+            yFt: 5,
+          }),
+          mode: 'row',
+          plantCount: 3,
+          rowLengthFt: 4,
+          spacingInches: 24,
+        }),
+      ],
+    };
+    const item = {
+      id: 'carrot-row',
+      instanceId: 'carrot-row-plant-2',
+      type: 'planting' as const,
+    };
+    const rect = getItemRect(garden, item);
+
+    expect(rect).toMatchObject({
+      id: 'carrot-row-plant-2',
+      xFt: 3,
+      yFt: 4,
+    });
+    expect(
+      getItemsInRect(garden, {
+        depthFt: 1,
+        id: 'selection',
+        itemType: 'structure',
+        label: 'Selection',
+        widthFt: 0.5,
+        xFt: 3.75,
+        yFt: 4.75,
+      }),
+    ).toEqual([item]);
   });
 
   it('allows temporary free move without snapping', () => {

@@ -22,8 +22,7 @@ export async function syncSetupProfile({
     authUser.email,
   );
   const baseProfile =
-    savedProfile ??
-    createDefaultUserProfile(authUser.uid, authUser.email, null);
+    savedProfile ?? createDefaultUserProfile(authUser.uid, authUser.email);
   const updatedAtIso = new Date().toISOString();
 
   await userProfileRepository.saveUserProfile({

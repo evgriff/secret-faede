@@ -52,6 +52,44 @@ export function buildReviewProposalInbox({
   };
 }
 
+export function getReviewProposalNextAction(inbox: ReviewProposalInbox): {
+  detail: string;
+  label: string;
+} {
+  if (inbox.openSuggestions.length === 0) {
+    return {
+      detail: 'Generate layouts or keep editing to surface decisions.',
+      label: 'No draft decisions waiting',
+    };
+  }
+
+  if (inbox.stats.physicalMoveCount > 0) {
+    return {
+      detail: `${inbox.stats.physicalMoveCount} physical move${inbox.stats.physicalMoveCount === 1 ? '' : 's'} touch planted crops. Review one at a time.`,
+      label: 'Review physical moves first',
+    };
+  }
+
+  if (inbox.batchableSuggestions.length > 0) {
+    return {
+      detail: `${inbox.batchableSuggestions.length} support proposal${inbox.batchableSuggestions.length === 1 ? '' : 's'} can be accepted without moving plants.`,
+      label: 'Accept low-risk support',
+    };
+  }
+
+  if (inbox.stats.layoutCount > 0) {
+    return {
+      detail: 'Preview the generated layout before applying it to the draft.',
+      label: 'Walk through the layout proposal',
+    };
+  }
+
+  return {
+    detail: 'Check the before/after, then accept, reject, or snooze.',
+    label: 'Review the next placement choice',
+  };
+}
+
 export function isBatchAcceptableReviewProposal(suggestion: ReviewSuggestion) {
   return (
     suggestion.canBatchAccept &&

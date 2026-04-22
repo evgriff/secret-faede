@@ -12,7 +12,7 @@ import {
 import { describeCropSunFit } from './sunShadeFit';
 
 describe('sunShadeEngine', () => {
-  it('computes seasonal sun/shade cells from garden location and obstacles', () => {
+  it('computes seasonal sun/shade cells from garden location and support structures', () => {
     const garden = {
       ...createDefaultGarden('user-a'),
       structures: [
@@ -80,24 +80,24 @@ describe('sunShadeEngine', () => {
         source: 'modeled',
         sunHours: 5,
       }).label,
-    ).toBe('workable');
+    ).toBe('sun check');
     expect(
       describeCropSunFit('fullSun', {
         exposure: 'fullShade',
         source: 'modeled',
         sunHours: 1,
       }).label,
-    ).toBe('will likely underperform');
+    ).toBe('sun mismatch');
     expect(
       describeCropSunFit('partSun', {
         exposure: 'fullSun',
         source: 'manual',
         sunHours: 7,
       }).label,
-    ).toBe('good fit');
+    ).toBe('sun ready');
   });
 
-  it('explains tall-crop shade differently from tree or structure shade', () => {
+  it('explains tall-crop shade differently from saved-source or structure shade', () => {
     const fit = describeCropSunFit('fullSun', {
       exposure: 'partShade',
       shadeSources: [

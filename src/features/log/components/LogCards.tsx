@@ -12,6 +12,11 @@ import {
   formatIssueSeverity,
   formatIssueStatus,
 } from '../logHelpers';
+import {
+  ActionButton,
+  InfoChip,
+  StatusBadge,
+} from '../../shared/design/DesignPrimitives';
 import styles from './LogCards.module.css';
 
 export function JournalEntryCard({
@@ -26,40 +31,50 @@ export function JournalEntryCard({
   return (
     <article className={styles.entryCard}>
       <div className={styles.cardHeader}>
-        <span>{entry.type === 'issue' ? 'Issue' : 'Note'}</span>
+        <StatusBadge tone={entry.type === 'issue' ? 'warning' : 'neutral'}>
+          {entry.type === 'issue' ? 'Issue' : 'Note'}
+        </StatusBadge>
         <time>{formatDate(entry.occurredOn)}</time>
       </div>
       <h3>{entry.title}</h3>
       <p>{entry.body}</p>
       <div className={styles.meta}>
-        <span>{entry.targetLabel}</span>
+        <InfoChip>{entry.targetLabel}</InfoChip>
         {entry.issueCategory ? (
-          <span>{formatIssue(entry.issueCategory)}</span>
+          <InfoChip>{formatIssue(entry.issueCategory)}</InfoChip>
         ) : null}
         {entry.issueSeverity ? (
-          <span>{formatIssueSeverity(entry.issueSeverity)}</span>
+          <InfoChip
+            tone={entry.issueSeverity === 'high' ? 'warning' : 'neutral'}
+          >
+            {formatIssueSeverity(entry.issueSeverity)}
+          </InfoChip>
         ) : null}
         {entry.issueStatus ? (
-          <span>{formatIssueStatus(entry.issueStatus)}</span>
+          <StatusBadge tone={getIssueTone(entry.issueStatus)}>
+            {formatIssueStatus(entry.issueStatus)}
+          </StatusBadge>
         ) : null}
         {linkedTasks.length > 0 ? (
-          <span>
+          <InfoChip>
             {linkedTasks.length} linked task
             {linkedTasks.length === 1 ? '' : 's'}
-          </span>
+          </InfoChip>
         ) : null}
       </div>
       {entry.type === 'issue' && onUpdateIssue ? (
         <div className={styles.statusActions}>
           {(['open', 'inProgress', 'resolved'] as const).map((status) => (
-            <button
+            <ActionButton
               aria-pressed={entry.issueStatus === status}
+              intent={getIssueActionIntent(status)}
               key={status}
               onClick={() => onUpdateIssue(entry.id, status)}
+              priority={entry.issueStatus === status ? 'primary' : 'secondary'}
               type="button"
             >
               {formatIssueStatus(status)}
-            </button>
+            </ActionButton>
           ))}
         </div>
       ) : null}
@@ -84,6 +99,22 @@ export function JournalEntryCard({
   );
 }
 
+function getIssueTone(status: IssueStatus) {
+  if (status === 'resolved') {
+    return 'success';
+  }
+
+  return status === 'inProgress' ? 'warning' : 'neutral';
+}
+
+function getIssueActionIntent(status: IssueStatus) {
+  if (status === 'resolved') {
+    return 'success';
+  }
+
+  return status === 'inProgress' ? 'warning' : 'neutral';
+}
+
 export function HarvestCard({
   garden,
   harvest,
@@ -98,7 +129,7 @@ export function HarvestCard({
   return (
     <article className={styles.entryCard}>
       <div className={styles.cardHeader}>
-        <span>Harvest</span>
+        <StatusBadge tone="success">Harvest</StatusBadge>
         <time>{formatDate(harvest.harvestedOn)}</time>
       </div>
       <h3>{planting?.label ?? 'Whole garden'}</h3>

@@ -16,12 +16,10 @@ import {
   type PhotoAttachment,
   type NotificationPreference,
   type Planting,
+  type PlantingInstance,
   type PlantingMode,
   type Plot,
-  type SeasonCropCommitment,
-  type SeasonCropPriority,
   type SeasonCropSelection,
-  type SeasonCropSowPreference,
   type SeasonPlan,
   type Structure,
   type SunShadeLayer,
@@ -30,6 +28,10 @@ import {
   type WaterRecommendation,
   type WeatherSnapshot,
 } from './models';
+import {
+  createPlantingInstances,
+  normalizePlantingFromInstances,
+} from './plantingInstances';
 import {
   CURRENT_GARDEN_SCHEMA_VERSION,
   migrateGardenRecord,
@@ -43,10 +45,8 @@ const plantingModes = [
   'trellisLine',
 ] as const satisfies PlantingMode[];
 const notificationChannels = [
-  'email',
   'inApp',
   'push',
-  'carrier messaging',
 ] as const satisfies NotificationChannel[];
 const notificationAlertTypes = [
   'frost',
@@ -55,20 +55,6 @@ const notificationAlertTypes = [
   'taskDue',
   'watering',
 ] as const satisfies NotificationAlertType[];
-const seasonCropCommitments = [
-  'mustGrow',
-  'niceToHave',
-] as const satisfies SeasonCropCommitment[];
-const seasonCropPriorities = [
-  'high',
-  'low',
-  'medium',
-] as const satisfies SeasonCropPriority[];
-const seasonCropSowPreferences = [
-  'directSow',
-  'noPreference',
-  'transplant',
-] as const satisfies SeasonCropSowPreference[];
 
 function isPlantingMode(value: unknown): value is PlantingMode {
   return (
@@ -227,27 +213,21 @@ export function parseNotificationPreference(
   const channels = Object.fromEntries(
     notificationChannels.map((channel) => [
       channel,
-      readBoolean(
-        channelsValue[channel],
-        defaultNotificationPreference.channels[channel],
-      ),
+      channel === 'inApp'
+        ? true
+        : readBoolean(
+            channelsValue[channel],
+            defaultNotificationPreference.channels[channel],
+          ),
     ]),
   ) as Record<NotificationChannel, boolean>;
 
   return {
     alertTypes,
     channelConsent: {
-      email: parseNotificationConsent(
-        consentValue.email,
-        defaultNotificationPreference.channelConsent.email,
-      ),
       push: parseNotificationConsent(
         consentValue.push,
         defaultNotificationPreference.channelConsent.push,
-      ),
-      carrier messaging: parseNotificationConsent(
-        consentValue.carrier messaging,
-        defaultNotificationPreference.channelConsent.carrier messaging,
       ),
     },
     channels,
@@ -255,12 +235,10 @@ export function parseNotificationPreference(
       value.defaultWateringCheckTime,
       defaultNotificationPreference.defaultWateringCheckTime,
     ),
-    email: readNullableString(value.email),
     frostAlertThresholdF: readNumber(
       value.frostAlertThresholdF,
       defaultNotificationPreference.frostAlertThresholdF,
     ),
-    phoneE164: readNullableString(value.phoneE164),
     pushPermission: readStringUnion(
       value.pushPermission,
       ['default', 'denied', 'granted', 'unsupported', 'unknown'] as const,
@@ -471,13 +449,14 @@ export function parsePlanting(value: unknown, plot: Plot): Planting | null {
     return null;
   }
 
-  return {
+  const planting: Planting = {
     allowRelocation: readBoolean(value.allowRelocation, false),
     blockDepthFt: readNullableNumber(value.blockDepthFt),
     blockWidthFt: readNullableNumber(value.blockWidthFt),
     clusterRadiusFt: readNullableNumber(value.clusterRadiusFt),
     cropId: readNullableString(value.cropId),
     id: value.id,
+    instances: [],
     irrigationZone: readNullableString(value.irrigationZone),
     label: readString(value.label, 'Planting'),
     locked: readBoolean(value.locked, false),
@@ -519,6 +498,66 @@ export function parsePlanting(value: unknown, plot: Plot): Planting | null {
     xFt: sanitizeFootPosition(value.xFt, plot.widthFt),
     yFt: sanitizeFootPosition(value.yFt, plot.depthFt),
   };
+
+  const instances = parsePlantingInstances(value.instances, plot, planting);
+
+  return normalizePlantingFromInstances({
+    ...planting,
+    instances,
+    plantCount: instances.length,
+  });
+}
+
+function parsePlantingInstances(
+  value: unknown,
+  plot: Plot,
+  planting: Planting,
+): PlantingInstance[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    return createPlantingInstances(planting).map((instance) =>
+      sanitizePlantingInstance(instance, plot),
+    );
+  }
+
+  const instances = value.flatMap((entry, index): PlantingInstance[] => {
+    if (!isRecord(entry)) {
+      return [];
+    }
+
+    return [
+      sanitizePlantingInstance(
+        {
+          id: readString(entry.id, `${planting.id}-plant-${index + 1}`),
+          label: readString(
+            entry.label,
+            value.length === 1
+              ? planting.label
+              : `${planting.label} ${index + 1}`,
+          ),
+          xFt: readNumber(entry.xFt, planting.xFt),
+          yFt: readNumber(entry.yFt, planting.yFt),
+        },
+        plot,
+      ),
+    ];
+  });
+
+  return instances.length > 0
+    ? instances
+    : createPlantingInstances(planting).map((instance) =>
+        sanitizePlantingInstance(instance, plot),
+      );
+}
+
+function sanitizePlantingInstance(
+  instance: PlantingInstance,
+  plot: Plot,
+): PlantingInstance {
+  return {
+    ...instance,
+    xFt: sanitizeFootPosition(instance.xFt, plot.widthFt),
+    yFt: sanitizeFootPosition(instance.yFt, plot.depthFt),
+  };
 }
 
 export function parsePlantings(value: unknown, plot: Plot): Planting[] {
@@ -553,8 +592,8 @@ export function parseSeasonCropSelections(
     return [];
   }
 
-  return value.flatMap((selection, index): SeasonCropSelection[] => {
-    const parsed = parseSeasonCropSelection(selection, index);
+  return value.flatMap((selection): SeasonCropSelection[] => {
+    const parsed = parseSeasonCropSelection(selection);
 
     return parsed ? [parsed] : [];
   });
@@ -562,7 +601,6 @@ export function parseSeasonCropSelections(
 
 export function parseSeasonCropSelection(
   value: unknown,
-  index = 0,
 ): SeasonCropSelection | null {
   if (!isRecord(value) || typeof value.id !== 'string') {
     return null;
@@ -575,35 +613,22 @@ export function parseSeasonCropSelection(
   }
 
   return {
-    commitment: readStringUnion(
-      value.commitment,
-      seasonCropCommitments,
-      'niceToHave',
-    ),
-    containerAllowed: readBoolean(value.containerAllowed, true),
     cropId,
     id: value.id,
-    modePreference: readStringUnion(
-      value.modePreference,
+    notes: readString(value.notes),
+    plantingForm: readStringUnion(
+      value.plantingForm ?? value.modePreference,
       plantingModes,
       'single',
     ),
-    notes: readString(value.notes),
-    priority: readStringUnion(value.priority, seasonCropPriorities, 'medium'),
-    rank: Math.round(clamp(readNumber(value.rank, index), 0, 999)),
-    sowPreference: readStringUnion(
-      value.sowPreference,
-      seasonCropSowPreferences,
-      'noPreference',
-    ),
-    supportAllowed: readBoolean(value.supportAllowed, false),
-    targetQuantity: Math.round(
+    quantity: Math.round(
       clamp(
-        readNumber(value.targetQuantity, readNumber(value.quantity, 1)),
+        readNumber(value.quantity, readNumber(value.targetQuantity, 1)),
         1,
         999,
       ),
     ),
+    supportAllowed: readBoolean(value.supportAllowed, true),
     varietyName: readString(value.varietyName),
   };
 }
@@ -777,13 +802,22 @@ export function parseNotificationLog(value: unknown): NotificationLog | null {
     return null;
   }
 
+  if (
+    // Compatibility-only cleanup for saved logs from retired delivery channels.
+    value.channel === 'email' ||
+    value.channel === 'carrier messaging' ||
+    value.provider === 'retiredDeliveryProvider'
+  ) {
+    return null;
+  }
+
   return {
     acknowledgedAtIso: readNullableString(value.acknowledgedAtIso),
     attemptCount: readNumber(value.attemptCount, 0),
     body: readString(value.body),
     channel: readStringUnion(
       value.channel,
-      ['email', 'inApp', 'push', 'carrier messaging'] as const,
+      ['inApp', 'push'] as const,
       'inApp',
     ),
     createdAtIso: readString(value.createdAtIso, ''),
@@ -827,7 +861,7 @@ export function parseNotificationLog(value: unknown): NotificationLog | null {
 }
 
 function readNotificationProvider(value: unknown): NotificationLog['provider'] {
-  const providers = ['firebaseCloudMessaging', 'inApp', 'retiredDeliveryProvider'] as const;
+  const providers = ['firebaseCloudMessaging', 'inApp'] as const;
 
   return typeof value === 'string'
     ? (providers.find((provider) => provider === value) ?? null)
@@ -909,8 +943,8 @@ export function parseCropProfile(value: unknown): CropProfile | null {
     notes: readString(value.notes),
     perennialSuitability: readString(value.perennialSuitability),
     pollinatorRole: readNullableString(value.pollinatorRole),
-    profileConfidence: readStringUnion(
-      value.profileConfidence,
+    profileCompleteness: readStringUnion(
+      value.profileCompleteness,
       ['complete', 'needsReview', 'partial'] as const,
       'needsReview',
     ),

@@ -30,6 +30,10 @@ export function formatSun(value: Planting['sunRequirement']) {
 }
 
 export function formatStructureType(type: StructureType) {
+  if (type === 'treeObstacle') {
+    return 'Legacy shade source';
+  }
+
   return type
     .replace(/([A-Z])/g, ' $1')
     .replace(/^./, (letter) => letter.toUpperCase());

@@ -1,6 +1,6 @@
 .shell {
   display: grid;
-  grid-template-columns: 14rem minmax(0, 1fr);
+  grid-template-columns: 12.75rem minmax(0, 1fr);
   min-height: 100dvh;
   background:
     linear-gradient(180deg, rgba(255, 253, 247, 0.52), transparent 16rem),
@@ -12,12 +12,12 @@
   top: 0;
   display: grid;
   grid-template-rows: auto auto 1fr;
-  gap: var(--space-4);
+  gap: var(--space-3);
   align-self: start;
   min-height: 100dvh;
   border-right: 1px solid rgba(76, 85, 70, 0.14);
   background: rgba(250, 250, 244, 0.74);
-  padding: var(--space-4);
+  padding: var(--space-3);
   backdrop-filter: blur(18px);
 }
 
@@ -61,12 +61,12 @@
 .navLink {
   display: inline-flex;
   align-items: center;
-  min-height: 2.75rem;
+  min-height: 2.5rem;
   border-radius: var(--radius-control);
   color: var(--color-text-muted);
   font-size: var(--font-size-small);
   font-weight: 720;
-  padding: 0.55rem 0.75rem;
+  padding: 0.45rem 0.65rem;
   text-decoration: none;
   transition:
     background-color var(--motion-micro),
@@ -75,21 +75,23 @@
 }
 
 .activeNavLink {
-  background: rgba(255, 253, 247, 0.92);
+  background: rgba(255, 253, 247, 0.7);
   box-shadow:
     inset 3px 0 0 var(--color-accent-strong),
-    var(--shadow-control);
+    0 1px 0 rgba(76, 85, 70, 0.05);
   color: var(--color-text-strong);
+  animation: shellActiveIn var(--motion-short) var(--ease-emphasis);
 }
 
 .syncCard {
   align-self: end;
   display: grid;
-  gap: var(--space-2);
-  border: 1px solid rgba(76, 85, 70, 0.14);
-  border-radius: var(--radius-card);
-  background: rgba(255, 253, 247, 0.62);
-  padding: var(--space-3);
+  gap: 0.45rem;
+  border-top: 1px solid rgba(76, 85, 70, 0.14);
+  padding-top: var(--space-2);
+  transition:
+    border-color var(--motion-micro) var(--ease-standard),
+    color var(--motion-micro) var(--ease-standard);
 }
 
 .syncCard p {
@@ -111,9 +113,13 @@
   justify-content: space-between;
   gap: var(--space-3);
   border-bottom: 1px solid rgba(76, 85, 70, 0.13);
-  background: rgba(250, 250, 244, 0.88);
-  padding: 0.75rem clamp(1rem, 2vw, 1.5rem);
+  background: rgba(250, 250, 244, 0.82);
+  padding: 0.55rem clamp(1rem, 2vw, 1.35rem);
   backdrop-filter: blur(16px);
+  transition:
+    background-color var(--motion-short) var(--ease-standard),
+    border-color var(--motion-short) var(--ease-standard),
+    box-shadow var(--motion-short) var(--ease-standard);
 }
 
 .mobileBrand {
@@ -122,59 +128,90 @@
 
 .actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.55rem;
+  gap: 0.65rem;
   margin-left: auto;
   color: var(--color-text-muted);
   font-size: var(--font-size-small);
 }
 
 .user {
-  max-width: min(30vw, 18rem);
+  max-width: min(20vw, 12rem);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 720;
   overflow-wrap: anywhere;
 }
 
-.button {
-  min-height: 2.75rem;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  background: var(--color-surface-solid);
-  color: var(--color-text-strong);
-  cursor: pointer;
-  font: inherit;
-  font-weight: 700;
-  padding: 0.55rem 0.75rem;
-  box-shadow: var(--shadow-control);
+.statusCluster {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  transition: color var(--motion-micro) var(--ease-standard);
+}
+
+.demoControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  animation: shellStatusIn var(--motion-short) var(--ease-out);
   transition:
-    border-color var(--motion-micro),
-    background-color var(--motion-micro);
+    background-color var(--motion-micro) var(--ease-standard),
+    color var(--motion-micro) var(--ease-standard);
+}
+
+.demoButton {
+  min-height: 2.25rem;
+  padding-inline: 0.55rem;
+}
+
+.signOutButton {
+  min-height: 2.35rem;
+  padding-inline: 0.55rem;
 }
 
 .bannerWrap {
   padding: var(--space-3) clamp(1rem, 2vw, 1.5rem) 0;
+  animation: shellBannerIn var(--motion-short) var(--ease-out);
 }
 
 .main {
   padding: clamp(1rem, 2vw, 1.5rem);
 }
 
-.button:focus-visible,
 .brandLink:focus-visible,
 .navLink:focus-visible {
   outline: 2px solid var(--color-accent-strong);
   outline-offset: 3px;
 }
 
+@keyframes shellActiveIn {
+  from {
+    opacity: 0.78;
+    transform: translateX(-0.18rem);
+  }
+}
+
+@keyframes shellStatusIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.18rem);
+  }
+}
+
+@keyframes shellBannerIn {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
-  .button:hover,
   .navLink:hover {
     background: var(--color-surface-alt);
-  }
-
-  .button:hover {
-    border-color: var(--color-accent-strong);
   }
 }
 
@@ -189,7 +226,7 @@
   }
 
   .topbar {
-    align-items: start;
+    align-items: center;
     padding-top: calc(0.75rem + env(safe-area-inset-top));
   }
 
@@ -201,14 +238,25 @@
 
   .actions {
     justify-content: flex-end;
-  }
-
-  .button {
-    min-height: 3.1rem;
+    gap: 0.4rem;
   }
 
   .user {
     display: none;
+  }
+
+  .demoControls {
+    gap: 0.3rem;
+  }
+
+  .demoControls [data-ui='status'] {
+    display: none;
+  }
+
+  .demoButton,
+  .signOutButton {
+    min-height: 2.5rem;
+    padding-inline: 0.45rem;
   }
 
   .mobileNav {
@@ -220,16 +268,30 @@
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     border-top: 1px solid var(--color-border);
-    background: rgba(255, 253, 247, 0.98);
+    background: rgba(255, 253, 247, 0.96);
     padding: 0.5rem max(0.75rem, env(safe-area-inset-right))
       calc(0.5rem + env(safe-area-inset-bottom))
       max(0.75rem, env(safe-area-inset-left));
-    box-shadow: 0 -12px 28px rgba(31, 27, 24, 0.08);
+    box-shadow: 0 -8px 20px rgba(31, 27, 24, 0.06);
   }
 
   .mobileNav .navLink {
     justify-content: center;
-    min-height: 3.4rem;
+    min-height: 3.25rem;
     padding: 0.55rem 0.35rem;
+  }
+
+  .mobileNav .activeNavLink {
+    box-shadow: inset 0 3px 0 var(--color-accent-strong);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activeNavLink,
+  .demoControls,
+  .bannerWrap {
+    animation: none;
+    transition-duration: 1ms;
+    transform: none;
   }
 }

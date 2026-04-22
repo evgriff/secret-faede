@@ -3,7 +3,7 @@ import type {
   CropGrowthForm,
   CropLifecycle,
   CropProfile,
-  CropProfileConfidence,
+  CropProfileCompleteness,
   CropSowMethod,
   CropWaterNeed,
   PlantingMode,
@@ -30,7 +30,7 @@ interface CatalogCropRecord {
   notes: string;
   perennialSuitability: string;
   pollinatorRole?: string | null;
-  profileConfidence?: CropProfileConfidence;
+  profileCompleteness?: CropProfileCompleteness;
   rowSpacingInches: number | null;
   rootDepthInches?: number | null;
   roles?: string[];
@@ -103,8 +103,8 @@ export function filterCropCatalog(filters: CropCatalogFilters) {
 
 function toCropProfile(override: CatalogCropRecord): CropProfile {
   const completenessScore = calculateCompletenessScore(override);
-  const profileConfidence =
-    override.profileConfidence ?? toProfileConfidence(completenessScore);
+  const profileCompleteness =
+    override.profileCompleteness ?? toProfileCompleteness(completenessScore);
 
   return {
     aliases: override.aliases ?? [],
@@ -130,7 +130,7 @@ function toCropProfile(override: CatalogCropRecord): CropProfile {
     notes: override.notes,
     perennialSuitability: override.perennialSuitability,
     pollinatorRole: override.pollinatorRole ?? null,
-    profileConfidence,
+    profileCompleteness,
     rowSpacingInches: override.rowSpacingInches,
     rootDepthInches: override.rootDepthInches ?? null,
     roles: override.roles ?? [],
@@ -189,7 +189,9 @@ function calculateCompletenessScore(override: CatalogCropRecord) {
   return Number((present / fields.length).toFixed(2));
 }
 
-function toProfileConfidence(completenessScore: number): CropProfileConfidence {
+function toProfileCompleteness(
+  completenessScore: number,
+): CropProfileCompleteness {
   if (completenessScore >= 0.9) {
     return 'complete';
   }

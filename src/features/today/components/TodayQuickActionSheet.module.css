@@ -6,6 +6,7 @@
   background: #fffdf7;
   box-shadow: var(--shadow-panel);
   padding: var(--space-4);
+  animation: quickSheetIn var(--motion-medium) var(--ease-out);
 }
 
 .sheetHeader {
@@ -32,6 +33,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
   align-items: end;
+  animation: quickFormIn var(--motion-short) var(--ease-out);
 }
 
 .sheetForm label {
@@ -91,6 +93,9 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   padding: 0.6rem;
+  transition:
+    background-color var(--motion-micro) var(--ease-standard),
+    border-color var(--motion-micro) var(--ease-standard);
 }
 
 .harvestMode legend {
@@ -122,6 +127,16 @@
   font-size: 0.9rem;
   font-weight: 760;
   padding: 0.55rem 0.75rem;
+  transition:
+    background-color var(--motion-micro) var(--ease-standard),
+    border-color var(--motion-micro) var(--ease-standard),
+    color var(--motion-micro) var(--ease-standard),
+    transform var(--motion-instant) var(--ease-standard);
+}
+
+.quickSheet button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -131,12 +146,31 @@
   }
 }
 
+.quickSheet button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.99);
+}
+
+@keyframes quickSheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+@keyframes quickFormIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+}
+
 @media (max-width: 48rem) {
   .quickSheet {
     position: sticky;
     bottom: calc(5.2rem + env(safe-area-inset-bottom));
     z-index: 8;
     border-radius: var(--radius-card) var(--radius-card) 0 0;
+    animation-name: quickMobileSheetIn;
   }
 
   .sheetForm {
@@ -152,5 +186,22 @@
   .sheetForm select,
   .sheetForm textarea {
     min-height: 3.15rem;
+  }
+}
+
+@keyframes quickMobileSheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quickSheet,
+  .sheetForm,
+  .quickSheet button {
+    animation: none;
+    transition-duration: 1ms;
+    transform: none;
   }
 }

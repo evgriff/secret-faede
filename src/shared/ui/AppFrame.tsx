@@ -1,12 +1,17 @@
-import type { ReactNode } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 
 import type { AuthUser } from '../../domain/auth/types';
+import {
+  hasDemoModeSession,
+  readDemoModeBackup,
+} from '../../features/demo/demoModeStorage';
 import type { AppEnvironment } from '../config/env';
 import { routePaths } from '../lib/routes';
 import { useNetworkStatus } from '../network/networkStatus';
 import { usePendingGardenSyncState } from '../sync/pendingGardenSync';
 import {
+  ActionButton,
   Banner,
   StatusBadge,
 } from '../../features/shared/design/DesignPrimitives';
@@ -49,6 +54,7 @@ export function AppFrame({
     : isOffline || hasQueuedChanges
       ? 'warning'
       : 'success';
+  const userLabel = getUserLabel(user);
 
   return (
     <div className={styles.shell}>
@@ -73,7 +79,9 @@ export function AppFrame({
           ))}
         </nav>
         <div className={styles.syncCard}>
-          <StatusBadge tone={syncTone}>{syncCopy.badge}</StatusBadge>
+          <StatusBadge key={syncCopy.badge} tone={syncTone}>
+            {syncCopy.badge}
+          </StatusBadge>
           <p>{syncCopy.message}</p>
         </div>
       </aside>
@@ -85,59 +93,53 @@ export function AppFrame({
             <span className={styles.subtitle}>Garden OS</span>
           </div>
           <div className={styles.actions}>
-            <StatusBadge tone={syncTone}>{syncCopy.badge}</StatusBadge>
-            <StatusBadge
-              tone={
-                hasSyncConflict
-                  ? 'danger'
-                  : hasQueuedChanges
-                    ? 'warning'
-                    : 'success'
-              }
+            <div
+              aria-label="Shell status"
+              aria-live="polite"
+              className={styles.statusCluster}
+              role="status"
+              title={syncCopy.message}
             >
-              {hasSyncConflict
-                ? 'Conflict'
-                : hasQueuedChanges
-                  ? 'Queued change'
-                  : 'Cloud ready'}
-            </StatusBadge>
-            <span className={styles.user}>
-              {user.displayName
-                ? `${user.displayName} · ${user.email}`
-                : user.email}
+              <StatusBadge key={syncCopy.badge} tone={syncTone}>
+                {syncCopy.badge}
+              </StatusBadge>
+            </div>
+            <ShellDemoControls userId={user.uid} />
+            <span className={styles.user} title={user.email}>
+              {userLabel}
             </span>
-            <button
-              className={styles.button}
+            <ActionButton
+              className={styles.signOutButton}
               onClick={() => void onSignOut()}
+              priority="ghost"
               type="button"
             >
               Sign out
-            </button>
+            </ActionButton>
           </div>
         </header>
         {hasSyncConflict ? (
           <div className={styles.bannerWrap}>
             <Banner tone="warning">
-              A queued garden draft was not synced because the published plan
-              changed first. Open Plan, review the draft conflict, then publish
-              intentionally or discard the queued draft.
+              Saved local draft needs review. The published plan changed before
+              this browser synced, so open Plan before publishing or discarding
+              the queued draft.
             </Banner>
           </div>
         ) : null}
         {!hasSyncConflict && isOffline ? (
           <div className={styles.bannerWrap}>
             <Banner tone="warning">
-              Offline mode is active. Text changes queue locally in this
-              browser. If the published plan changes before this reconnects,
-              Secret Faede will stop automatic sync and ask for a draft review.
+              Offline. Plan edits, Today actions, and text Feed entries can save
+              locally in this browser. Photos still need a connection.
             </Banner>
           </div>
         ) : null}
         {!hasSyncConflict && !isOffline && hasQueuedChanges ? (
           <div className={styles.bannerWrap}>
             <Banner tone="warning">
-              A local garden change is waiting to sync. The app will verify the
-              draft base revision before writing it to the cloud.
+              Saved local changes are waiting for cloud sync. Secret Faede will
+              check the draft base before writing them to the shared garden.
             </Banner>
           </div>
         ) : null}
@@ -166,6 +168,105 @@ export function AppFrame({
   );
 }
 
+function ShellDemoControls({ userId }: { userId: string }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [demoState, setDemoState] = useState(() => readShellDemoState(userId));
+  const buildDemoCommandRoute = (action: 'enter' | 'exit' | 'reset') => {
+    const params = new URLSearchParams({ demo: action });
+    const returnTo = `${location.pathname}${location.search}`;
+
+    if (!returnTo.startsWith(routePaths.settings)) {
+      params.set('returnTo', returnTo);
+    }
+
+    return `${routePaths.settings}?${params.toString()}`;
+  };
+
+  useEffect(() => {
+    const refreshDemoState = () => {
+      setDemoState(readShellDemoState(userId));
+    };
+
+    refreshDemoState();
+    window.addEventListener('secret-faede:demo-mode-changed', refreshDemoState);
+
+    return () => {
+      window.removeEventListener(
+        'secret-faede:demo-mode-changed',
+        refreshDemoState,
+      );
+    };
+  }, [userId]);
+
+  if (demoState.isActive) {
+    return (
+      <div
+        aria-label="Demo controls"
+        className={styles.demoControls}
+        data-demo-state="demo"
+        key="demo"
+      >
+        <StatusBadge tone="warning">Demo mode</StatusBadge>
+        <ActionButton
+          className={styles.demoButton}
+          onClick={() => {
+            void navigate(buildDemoCommandRoute('reset'));
+          }}
+          priority="ghost"
+          type="button"
+        >
+          Reset seeded demo
+        </ActionButton>
+        <ActionButton
+          className={styles.demoButton}
+          disabled={!demoState.canExit}
+          onClick={() => {
+            void navigate(buildDemoCommandRoute('exit'));
+          }}
+          priority="secondary"
+          title={
+            demoState.canExit
+              ? 'Restore the garden saved before demo mode.'
+              : 'No real garden backup is available in this browser.'
+          }
+          type="button"
+        >
+          Exit demo
+        </ActionButton>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      aria-label="Demo controls"
+      className={styles.demoControls}
+      data-demo-state="real"
+      key="real"
+    >
+      <StatusBadge tone="success">Real garden</StatusBadge>
+      <ActionButton
+        className={styles.demoButton}
+        onClick={() => {
+          void navigate(buildDemoCommandRoute('enter'));
+        }}
+        priority="secondary"
+        type="button"
+      >
+        Enter demo
+      </ActionButton>
+    </div>
+  );
+}
+
+function readShellDemoState(userId: string) {
+  return {
+    canExit: Boolean(readDemoModeBackup(userId)),
+    isActive: hasDemoModeSession(userId),
+  };
+}
+
 function getSyncCopy({
   hasQueuedChanges,
   hasSyncConflict,
@@ -181,8 +282,8 @@ function getSyncCopy({
 }) {
   if (hasSyncConflict) {
     return {
-      badge: 'Sync conflict',
-      message: `Queued locally${
+      badge: 'Sync review',
+      message: `Saved locally${
         queuedAtIso ? ` since ${formatTime(queuedAtIso)}` : ''
       }. Published revision ${
         publishedRevisionId ?? 'changed'
@@ -192,17 +293,27 @@ function getSyncCopy({
 
   if (hasQueuedChanges) {
     return {
-      badge: isOffline ? 'Offline queue' : 'Sync pending',
-      message: `Queued locally${
+      badge: 'Saved locally',
+      message: `Saved in this browser${
         queuedAtIso ? ` since ${formatTime(queuedAtIso)}` : ''
-      }. Base revision will be checked before cloud sync.`,
+      }. Cloud sync resumes when connection is stable.`,
     };
   }
 
   return {
     badge: isOffline ? 'Offline' : 'Online',
-    message: isOffline ? 'No queued edits yet.' : 'Ready to sync.',
+    message: isOffline
+      ? 'No changes waiting. Text saves can queue locally; photos need connection.'
+      : 'Ready for cloud sync.',
   };
+}
+
+function getUserLabel(user: AuthUser) {
+  if (user.displayName) {
+    return user.displayName;
+  }
+
+  return user.email.split('@')[0] || user.email;
 }
 
 function formatTime(value: string) {

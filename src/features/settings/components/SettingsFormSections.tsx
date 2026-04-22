@@ -1,8 +1,6 @@
 import type { UserProfile } from '../../../domain/gardens/GardenRepository';
 import {
   alertTypes,
-  channels,
-  createConsent,
   formatAlertType,
   formatChannel,
   formatDateTime,
@@ -64,22 +62,6 @@ export function AlertDefaultsFields({
         />
       </label>
       <label className={styles.field}>
-        <span>carrier messaging fallback phone</span>
-        <input
-          onChange={(event) =>
-            onProfileChange({
-              ...profile,
-              notificationPreference: {
-                ...profile.notificationPreference,
-                phoneE164: event.currentTarget.value.trim() || null,
-              },
-            })
-          }
-          placeholder="+17345550123"
-          value={profile.notificationPreference.phoneE164 ?? ''}
-        />
-      </label>
-      <label className={styles.field}>
         <span>Water alert threshold inches</span>
         <input
           min="0"
@@ -124,7 +106,7 @@ export function AlertDefaultsFields({
   );
 }
 
-export function NotificationChannelFields({
+export function NotificationDeliveryFields({
   onProfileChange,
   profile,
 }: {
@@ -133,42 +115,35 @@ export function NotificationChannelFields({
 }) {
   return (
     <fieldset className={styles.channels}>
-      <legend>Notification channels</legend>
+      <legend>Notification delivery</legend>
       <p className={styles.metaText}>
-        In-app and push are primary. carrier messaging is optional fallback for frost, heat,
-        and severe-weather alerts after consent and production carrier approval.
+        In-app logs are always recorded. Push alerts can reach this browser or a
+        native device after permission is granted.
       </p>
-      {channels.map((channel) => (
-        <label className={styles.checkbox} key={channel}>
-          <input
-            checked={profile.notificationPreference.channels[channel]}
-            onChange={(event) =>
-              onProfileChange({
-                ...profile,
-                notificationPreference: {
-                  ...profile.notificationPreference,
-                  channelConsent:
-                    channel === 'carrier messaging' || channel === 'email'
-                      ? {
-                          ...profile.notificationPreference.channelConsent,
-                          [channel]: createConsent(
-                            event.currentTarget.checked ? 'granted' : 'revoked',
-                            new Date().toISOString(),
-                          ),
-                        }
-                      : profile.notificationPreference.channelConsent,
-                  channels: {
-                    ...profile.notificationPreference.channels,
-                    [channel]: event.currentTarget.checked,
-                  },
+      <div className={styles.deliveryStatus}>
+        <span>{formatChannel('inApp')}</span>
+        <strong>Always on</strong>
+      </div>
+      <label className={styles.checkbox}>
+        <input
+          checked={profile.notificationPreference.channels.push}
+          onChange={(event) =>
+            onProfileChange({
+              ...profile,
+              notificationPreference: {
+                ...profile.notificationPreference,
+                channels: {
+                  ...profile.notificationPreference.channels,
+                  inApp: true,
+                  push: event.currentTarget.checked,
                 },
-              })
-            }
-            type="checkbox"
-          />
-          {formatChannel(channel)}
-        </label>
-      ))}
+              },
+            })
+          }
+          type="checkbox"
+        />
+        Push alerts
+      </label>
     </fieldset>
   );
 }
@@ -277,10 +252,9 @@ export function ConsentPanel({
       <div>
         <h2>Consent</h2>
         <p>
-          Enable push first for garden alerts. carrier messaging fallback is limited to
-          high-value frost, heat, and severe-weather messages. Message and data
-          rates may apply. Disable carrier messaging here to unsubscribe. Reply STOP to opt
-          out or HELP for help if you receive carrier messaging from a live notification provider sender.
+          Enable push for garden alerts that should reach you outside the app.
+          You can pause push delivery above without changing the durable in-app
+          history.
         </p>
       </div>
       <button

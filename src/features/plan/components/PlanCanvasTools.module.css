@@ -145,21 +145,42 @@
 
 @media (max-width: 48rem) {
   .canvasHud {
-    top: var(--space-2);
-    left: var(--space-2);
-    width: calc(100% - 1rem);
+    top: 0.45rem;
+    left: 0.45rem;
+    display: flex;
+    gap: 0.35rem;
+    width: calc(100% - 0.9rem);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .canvasHud::-webkit-scrollbar {
+    display: none;
+  }
+
+  .zoomControls,
+  .layerControls {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    gap: 0.25rem;
   }
 
   .layerControls {
     display: flex;
-    flex-wrap: nowrap;
     overflow-x: auto;
   }
 
+  .zoomControls button,
+  .layerControls button,
+  .zoomReadout {
+    min-height: 2.55rem;
+    padding: 0 0.6rem;
+  }
+
   .miniMap {
-    top: 6.6rem;
-    right: var(--space-2);
-    width: 5.9rem;
+    top: 3.7rem;
+    right: 0.55rem;
+    width: 5.4rem;
   }
 
   .miniMapClose {

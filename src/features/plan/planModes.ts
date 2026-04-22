@@ -25,7 +25,7 @@ export const planModes: Array<{
     mode: 'plant',
   },
   {
-    description: 'Place beds, paths, trellises, and garden infrastructure.',
+    description: 'Place beds, paths, containers, and crop supports.',
     keyboard: 'B',
     label: 'Structure',
     mode: 'structure',

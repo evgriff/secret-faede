@@ -26,12 +26,23 @@
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable both-edges;
-  cursor: grab;
+  cursor: default;
   touch-action: pan-x pan-y;
+}
+
+.panMode .scrollport {
+  cursor: grab;
+  touch-action: none;
 }
 
 .panning .scrollport {
   cursor: grabbing;
+}
+
+.pointerInteractionActive .scrollport {
+  overscroll-behavior: none;
+  scroll-behavior: auto;
+  touch-action: none;
 }
 
 .workbench {
@@ -320,17 +331,17 @@
 
 @media (max-width: 44rem) {
   .viewport {
-    height: min(42rem, calc(100dvh - 9.5rem));
-    min-height: min(36rem, calc(100dvh - 9.5rem));
+    height: min(44rem, calc(100dvh - 8rem));
+    min-height: min(31rem, calc(100dvh - 8rem));
   }
 
   .workbench {
     justify-content: start;
-    padding: 6rem 0.9rem 6rem;
+    padding: 3.6rem 0.65rem 6.4rem;
   }
 
   .plotShell {
-    --ruler-size: 2.1rem;
+    --ruler-size: 1.8rem;
   }
 
   .plotMeta {
@@ -338,7 +349,13 @@
   }
 
   .orientationBadge {
-    width: 3rem;
-    height: 3rem;
+    top: 0.35rem;
+    right: 0.35rem;
+    width: 2.45rem;
+    height: 2.45rem;
+  }
+
+  .orientationBadge small {
+    display: none;
   }
 }

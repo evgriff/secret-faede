@@ -14,9 +14,12 @@ Route map:
 - `/auth/complete`: legacy redirect back to `/sign-in`
 - `/access-denied`: show access-denied handling after allowlist rejection
 - `/app`: authenticated shell index; redirects to `/app/plan`
-- `/app/plan`: Plan workspace for saved garden editing
-- `/app/today`: generated task timeline, calendar, and succession workspace
-- `/app/feed`: journal, issue tracking, photos, harvests, and analytics
+- `/app/plan`: canvas-first Plan workspace for saved garden editing, optimizer
+  walkthroughs, review, publish, and revert
+- `/app/today`: field action surface for generated tasks, watering, issues,
+  harvests, and succession context
+- `/app/feed`: notes, issues, photos, harvests, and compact garden-memory
+  summaries
 - `/app/settings`: editable alert defaults and notification preferences
 - `/app/garden`, `/app/tasks`, `/app/log`, `/app/journal`: legacy redirects to
   Plan, Today, and Feed
@@ -80,8 +83,8 @@ Route map:
   `users/{uid}/pushTokens/{tokenId}`
 - keeps scheduled delivery out of the browser; server-side dispatch lives in
   Firebase Functions
-- does not include carrier messaging as product scope; any legacy carrier messaging code is pending removal
-  in the explicit carrier messaging cleanup prompt
+- does not include carrier messaging as product scope; scheduled alerts are
+  supported through in-app history, web/native push, and device-local reminders
 
 `MediaStorageService`
 
@@ -119,10 +122,13 @@ Route map:
    `gardenWorkspaces/main`, using `gardens/{uid}` only as a legacy migration
    source when needed.
 9. If the user has no saved garden or only an empty demo-default profile, Plan
-   shows first-run setup for garden name, location, timezone, plot type, plot
-   size, editable climate defaults, and starter template selection.
-10. Add Plant searches the local crop catalog, captures planting mode details,
-    and creates a planting with crop spacing, sun, and water defaults.
+   shows a slim first-run setup for garden name, plot type, plot size, and
+   starter template selection. Location, timezone, coordinates, and climate
+   defaults use editable Detroit-derived values and sit behind optional setup
+   details or later Settings edits.
+10. Add Plant searches the local crop catalog, asks for quantity first, applies
+    the recommended arrangement form, and creates individual plant instances
+    with crop spacing, sun, and water defaults.
 11. User edits mark the garden dirty; Save writes plot dimensions and plant
     positions. Offline saves are accepted locally and surfaced as queued/saved
     locally in the shell.
@@ -130,13 +136,13 @@ Route map:
     watering recommendations, and persists the updated garden.
 13. Active watering and weather alerts create in-app notification logs that are
     visible in the garden operations panel.
-14. Settings lets the user manage alert types, channels, quiet hours, daily
-    check time, location/timezone, web push registration, and the founder demo
-    load/reset controls.
+14. Settings lets the user manage alert types, push delivery, quiet hours,
+    daily check time, location/timezone, web/native push registration, local
+    notification support, and founder demo enter/reset/exit controls.
 15. `/app/today` syncs generated work from the saved garden plan, watering
     recommendations, editable frost dates, and crop catalog defaults.
-16. `/app/feed` records notes, structured issues, photo attachments,
-    harvests, and management analytics from the same garden aggregate.
+16. `/app/feed` records notes, structured issues, photo attachments, harvests,
+    and compact season summaries from the same garden aggregate.
 17. The authenticated shell shows online/offline state and uses mobile bottom
     navigation for field use.
 18. In the Capacitor shell, native network state feeds the same sync indicator,
@@ -181,7 +187,7 @@ Canonical garden document:
 {
   id: string,
   userId: string,
-  schemaVersion: 2,
+  schemaVersion: 3,
   name: string,
   climateProfile: ClimateProfile,
   plot: {
@@ -197,22 +203,25 @@ Canonical garden document:
 
 Plantings are canonical garden items in `gardens/{uid}/plantings/{plantingId}`.
 Supported planting modes are `single`, `row`, `block`, `cluster`, and
-`trellisLine`. `plannedFor` stores an optional future date for approved
-succession plantings; older saved plantings default to `null`. Structures such
-as beds and trellises are separate documents in
-`gardens/{uid}/structures/{structureId}`.
+`trellisLine`. Each planting stores shared crop/care state plus `instances[]`
+for the individual plant nodes rendered on the Plan canvas. `plannedFor` stores
+an optional future date for approved succession plantings; older saved plantings
+default to `null`. Structures such as beds and trellises are separate documents
+in `gardens/{uid}/structures/{structureId}`.
 
 Structure planning supports raised beds, in-ground beds, containers, pathways,
-trellises, fence/wall segments, tree/obstacle footprints, compost markers, and
-water-source markers. Structure positions and sizes use feet as canonical units.
+and crop supports in the primary flow. Legacy shade, fence, compost, and water
+source objects remain parseable and can inform sun, access, watering, or support
+rules, but Plan should not behave like a general yard-survey tool. Structure
+positions and sizes use feet as canonical units.
 
 Crop profiles are normalized from the checked-in generated catalog in
 `src/domain/crops/homeGardenCropCatalog.generated.json`. The app can rebuild the
 offline library with `npm run catalog:build` and refresh Trefle enrichment with
 `npm run catalog:ingest:trefle`, but the editor does not call Trefle at runtime.
-Runtime crop profiles include aliases, roles, source tags, completeness score,
+Runtime crop profiles include aliases, roles, source tags, profile completeness,
 and provenance quality so the Add Plant picker can show data gaps without
-presenting fit confidence as a score.
+presenting source quality as a planning score.
 
 Starter garden templates live in `src/domain/gardens/gardenTemplates.ts`.
 Templates create normal garden aggregates with structures and crop-backed
@@ -221,7 +230,10 @@ plantings; they do not create a second persistence model.
 The sample garden builder lives in
 `src/domain/gardens/sampleGarden.ts`. It creates a normal Detroit garden
 aggregate and user profile for release demos; it does not add a parallel demo
-schema or payment/entitlement model.
+schema or payment/entitlement model. The shell demo controls save a
+browser-local backup, run the command through Settings, and return to the
+originating workspace; **Exit demo** restores the real garden draft without
+turning demo mode into a public funnel.
 
 Sun/shade layers are stored on the garden document as generated or manually
 overridden 1-foot cells. The model uses SunCalc with the garden latitude,
@@ -243,12 +255,12 @@ Weather snapshots and water recommendations are currently embedded on
 container multipliers, mulch flags, recent rain, near-term forecast rain, heat
 stress, optional evapotranspiration, and journal water logs when present.
 
-Notification preferences are stored on `users/{uid}`. They include per-channel
-toggles, per-alert-type toggles, quiet hours, daily watering check time,
-timezone, thresholds, consent status, and push permission metadata.
+Notification preferences are stored on `users/{uid}`. They include push
+delivery, per-alert-type toggles, quiet hours, daily watering check time,
+timezone, thresholds, push consent status, and push permission metadata.
 Notification logs are stored at `gardens/{uid}/notifications/{notificationId}`
-for in-app and push decisions. The model still accepts older email-channel state
-for compatibility, but the production UI does not expose email delivery.
+for durable in-app history and push decisions. Legacy carrier-message, email
+delivery, and phone fields are ignored during parsing.
 
 Tasks are stored at `gardens/{uid}/tasks/{taskId}`. Generated tasks keep stable
 ids so completed/skipped work does not reappear. Task records include due date,
@@ -267,13 +279,16 @@ metadata on the journal entry while image binaries live in Firebase Storage.
 
 Harvest events are stored at `gardens/{uid}/harvests/{harvestId}`. Harvests can
 attach to a planting, store count/weight/bunch units, or use a freeform amount.
-Journal analytics derive harvest totals, yield by crop, active beds,
-unresolved issues, and watering alert acknowledgement from saved records.
+Feed summaries derive harvest totals, yield by crop, active beds, unresolved
+issues, and watering alert acknowledgement from saved records.
 
 - `xFt` is distance from the left plot edge.
 - `yFt` is distance from the top plot edge.
-- planting position is the planting center; row, block, cluster, and
-  trellis-line modes derive mature footprints from mode-specific fields.
+- planting parent position is the arrangement center; each saved
+  `instances[]` child is an individual plant node with its own canonical
+  `xFt`/`yFt`.
+- row, block, cluster, and trellis-line modes remain arrangement metadata used
+  to derive backward-compatible instances and mature/group footprints.
 - structure position is the top-left footprint corner.
 - sun/shade cells are generated in feet and can be manually overridden by the
   user.
@@ -315,25 +330,28 @@ functions/
   test/
 ```
 
-## Task timeline
+## Today
 
-The task page is an operational view over the saved garden. It auto-syncs
+Today is the field operations view over the saved garden. It auto-syncs
 generated tasks on load, then persists user actions through `GardenRepository`.
 
 - The calendar strip shows task counts across the next 14 days.
-- The timeline groups open work into today, this week, and later.
-- The side rail groups open work by bed or plot area.
+- Field cards lead with the next action, while metadata stays passive.
+- The task list groups open work into selected-day action clusters and later
+  work.
+- Context panels group open work by bed or plot area only when useful.
 - Succession recommendations use estimated harvest dates, remaining days before
   first frost, saved sun/shade exposure, and dated bed occupancy to suggest a
   follow-on crop. Approving a suggestion creates a normal future planting with
   `plannedFor`, then generated tasks sync from that planting.
 - Snooze moves a task to tomorrow; defer moves it one week later.
+- Water done and task done are direct field actions. Harvest logging can offer
+  an optional photo follow-up because harvests are useful garden memories.
 
-## Journal
+## Feed
 
-The journal page is the active-season memory layer. It persists through
-`GardenRepository` and uses `MediaStorageService` only for attached photo
-binaries.
+Feed is the active-season memory layer. It persists through `GardenRepository`
+and uses `MediaStorageService` only for attached photo binaries.
 
 - Notes can attach to the whole garden, a bed/structure, or a planting.
 - Issues are structured as pest, disease, nutrient, weather damage, irrigation,
@@ -341,8 +359,9 @@ binaries.
 - Photos upload through Firebase Storage in Firebase mode and through data URLs
   in mock mode.
 - Harvests can be logged by count, pounds, ounces, bunches, or freeform amount.
-- The analytics side rail shows harvest totals, yield by crop, most active
-  beds, unresolved issues, and water alerts sent versus acknowledged.
+- Photo-update cards use a title, large central image, and caption hierarchy.
+- Compact summaries show harvest totals, yield by crop, most active beds,
+  unresolved issues, and water alerts sent versus acknowledged.
 
 ## Notification delivery
 
@@ -358,9 +377,10 @@ event-driven dispatch:
 - `onGardenWeatherSnapshotUpdated` reacts when a new garden weather snapshot is
   saved and dispatches frost, heat-stress, or severe-weather alerts.
 
-Push is the out-of-app notification path. carrier messaging/notification provider is de-scoped from the
-product and should only appear as legacy code slated for cleanup, not as a
-documented setup or demo capability.
+In-app history is the durable alert record and is not user-toggleable. Push is
+the out-of-app cloud notification path. Local reminders are device-local native
+capability for field follow-ups. Carrier messaging is outside product scope and
+has no runtime, setup, rules, seed, or demo capability in the repo.
 
 ## Styling posture
 

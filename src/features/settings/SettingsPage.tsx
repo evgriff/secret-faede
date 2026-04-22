@@ -6,27 +6,21 @@ import {
   type Garden,
   type UserProfile,
 } from '../../domain/gardens/GardenRepository';
-import {
-  createSampleGarden,
-  createSampleUserProfile,
-} from '../../domain/gardens/sampleGarden';
 import { LoadingState } from '../../shared/ui/LoadingState';
 import { useAuth } from '../auth/auth-context';
 import { NotificationCenter } from './components/NotificationCenter';
-import {
-  SettingsDemoPanel,
-  type DemoModeStatus,
-} from './components/SettingsDemoPanel';
+import { SettingsDemoPanel } from './components/SettingsDemoPanel';
 import {
   AlertDefaultsFields,
   AlertTypeFields,
   ConsentPanel,
-  NotificationChannelFields,
+  NotificationDeliveryFields,
   QuietHoursFields,
   SettingsActions,
 } from './components/SettingsFormSections';
 import { MobileDevicePanel } from './components/SettingsMobileDevicePanel';
 import { createConsent, toErrorMessage } from './settingsHelpers';
+import { useSettingsDemoMode } from './useSettingsDemoMode';
 import styles from './SettingsPage.module.css';
 
 export function SettingsPage() {
@@ -52,8 +46,16 @@ export function SettingsPage() {
     string | null
   >(null);
   const [status, setStatus] = useState<'loading' | 'ready'>('loading');
-  const [demoStatus, setDemoStatus] = useState<DemoModeStatus>('idle');
   const mobileCapabilities = mobileDeviceService.getCapabilities();
+  const demoMode = useSettingsDemoMode({
+    authUser,
+    garden,
+    profile,
+    setGarden,
+    setPageError: setError,
+    setProfile,
+    setSaveStatus,
+  });
 
   useEffect(() => {
     if (!authUser) {
@@ -76,7 +78,7 @@ export function SettingsPage() {
         setGarden(savedGarden);
         setProfile(
           savedProfile ??
-            createDefaultUserProfile(authUser.uid, authUser.email, null),
+            createDefaultUserProfile(authUser.uid, authUser.email),
         );
         setStatus('ready');
       })
@@ -249,38 +251,6 @@ export function SettingsPage() {
     }
   }
 
-  async function loadDemoGarden(nextStatus: Exclude<DemoModeStatus, 'idle'>) {
-    if (!authUser || !profile) {
-      return;
-    }
-
-    setDemoStatus('loading');
-    setError(null);
-
-    const demoGarden = createSampleGarden(authUser.uid);
-    const demoProfile = createSampleUserProfile(
-      authUser.uid,
-      authUser.email,
-      {
-        existingPhoneE164: profile.notificationPreference.phoneE164,
-      },
-    );
-
-    try {
-      await Promise.all([
-        gardenRepository.saveGarden(demoGarden),
-        userProfileRepository.saveUserProfile(demoProfile),
-      ]);
-      setGarden(demoGarden);
-      setProfile(demoProfile);
-      setSaveStatus('saved');
-      setDemoStatus(nextStatus);
-    } catch (saveError) {
-      setDemoStatus('idle');
-      setError(toErrorMessage(saveError, 'Unable to load demo garden.'));
-    }
-  }
-
   async function updateNotificationLog(
     logId: string,
     values: Partial<NonNullable<Garden['notificationLogs'][number]>>,
@@ -323,9 +293,15 @@ export function SettingsPage() {
         }}
       >
         <SettingsDemoPanel
-          onLoadDemo={() => void loadDemoGarden('loaded')}
-          onResetDemo={() => void loadDemoGarden('reset')}
-          status={demoStatus}
+          canExit={demoMode.state.canExit}
+          error={demoMode.state.error}
+          isActive={demoMode.state.isActive}
+          isBusy={demoMode.state.isBusy}
+          message={demoMode.state.message}
+          onExitDemo={() => void demoMode.exitDemoGarden()}
+          onLoadDemo={() => void demoMode.loadDemoGarden('loaded')}
+          onResetDemo={() => void demoMode.loadDemoGarden('reset')}
+          status={demoMode.state.status}
         />
 
         <section aria-label="Account" className={styles.accountPanel}>
@@ -345,7 +321,7 @@ export function SettingsPage() {
 
         <AlertDefaultsFields onProfileChange={setProfile} profile={profile} />
 
-        <NotificationChannelFields
+        <NotificationDeliveryFields
           onProfileChange={setProfile}
           profile={profile}
         />

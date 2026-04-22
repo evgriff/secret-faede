@@ -75,7 +75,7 @@ Provenance fields on every crop profile:
   data.
 - `sourceTags`: machine-readable tags such as `trefle-query`,
   `curated-overlay`, `generated-variety-profile`, and Trefle ids when refreshed.
-- `profileConfidence` and `completenessScore`: local quality labels for planner
+- `profileCompleteness` and `completenessScore`: local quality labels for planner
   use.
 
 Official references:
@@ -141,6 +141,8 @@ generated tasks only when they are not snoozed or deferred.
 
 - In-app notification logs are durable Firestore documents under
   `gardens/{uid}/notifications/{notificationId}`.
+- In-app logs are not a user-toggleable delivery channel; they are the durable
+  audit/history path for generated garden alerts.
 - Logs now include delivery status plus user-facing `acknowledgedAtIso` and
   `dismissedAtIso` state.
 - The Settings notification center reads the same log stream and filters by
@@ -167,16 +169,18 @@ generated tasks only when they are not snoozed or deferred.
   `NotificationService` contract where native capabilities are available.
 - Local notifications are used for device-local reminders such as harvest
   "not ready" follow-ups when the native shell reports support.
+- Local reminders are device-local permission/capability state, not a
+  server-side delivery channel stored beside push.
 - Web/PWA remains fully usable without native notification capability; Settings
   reports unavailable native hooks instead of pretending registration happened.
 
-### carrier messaging
+### Carrier Messaging
 
-carrier messaging/notification provider is de-scoped for the current product overhaul. Push and in-app logs are
-the supported notification paths. Do not add carrier messaging setup, product copy, demo
-scripts, or prompt-chain work that depends on carrier messaging. Legacy
-carrier messaging-specific Functions, env, and webhook paths should be removed in the
-dedicated cleanup prompt.
+Carrier messaging is outside the current product product scope. Push, local native
+reminders, and in-app logs are the supported notification paths. Do not add
+carrier setup, product copy, demo scripts, or prompt-chain work that depends on
+phone-number delivery. Legacy provider-specific Functions, env, seed, Settings,
+rules, and webhook paths were removed earlier in the overhaul.
 
 ## Required Secrets And Env
 

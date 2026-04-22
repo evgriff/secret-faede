@@ -3,21 +3,20 @@ import type {
   CropProfile,
   Garden,
   PlantingMode,
-  SeasonCropCommitment,
-  SeasonCropPriority,
   SeasonCropSelection,
-  SeasonCropSowPreference,
   SunExposure,
 } from '../../../domain/gardens/GardenRepository';
 import {
+  coercePlantQuantity,
   formatGlyph,
-  formatSowMethod,
+  getRecommendedPlantingMode,
   getCropIconTone,
   modeLabels,
 } from '../../garden/cropPickerHelpers';
 import {
-  formatSeasonCropFitLabel,
   formatSeasonCropFitReasonGroup,
+  formatSeasonCropPlanningState,
+  needsSeasonCropReview,
 } from '../seasonCropFitDisplay';
 import {
   getSeasonCropFitSignal,
@@ -52,12 +51,12 @@ export function SeasonCropBoard({
       request.fit,
     ]),
   );
-  const mustGrowCount = selections.filter(
-    (selection) => selection.commitment === 'mustGrow',
-  ).length;
-  const reviewCount = layoutRequests.filter(
-    (request) =>
-      request.fit.level === 'caution' || request.fit.level === 'unlikelyFit',
+  const plantCount = selections.reduce(
+    (total, selection) => total + coercePlantQuantity(selection.quantity),
+    0,
+  );
+  const reviewCount = layoutRequests.filter((request) =>
+    needsSeasonCropReview(request.fit),
   ).length;
 
   return (
@@ -69,7 +68,9 @@ export function SeasonCropBoard({
         </div>
         <div className={styles.boardStats}>
           <span>{selections.length} selected</span>
-          <span>{mustGrowCount} must-grow</span>
+          <span>
+            {plantCount} {plantCount === 1 ? 'plant' : 'plants'}
+          </span>
           <span>{reviewCount} need review</span>
         </div>
       </div>
@@ -131,12 +132,43 @@ function CropBoardItem({
   onUpdate(values: Partial<SeasonCropSelection>): void;
   selection: SeasonCropSelection;
 }) {
+  const recommendedMode = getRecommendedPlantingMode(crop, selection.quantity);
+  const reviewReasons = fit.groupedReasons
+    .filter((reason) => reason.severity !== 'notice')
+    .slice(0, 2);
+  const showReview = needsSeasonCropReview(fit);
+  const reviewText =
+    reviewReasons.length > 0
+      ? reviewReasons
+          .map(
+            (reason) =>
+              `${formatSeasonCropFitReasonGroup(reason.group)}: ${reason.label}`,
+          )
+          .join(' ')
+      : (fit.uncertainty ?? fit.summary);
+  const currentModeLabel = modeLabels[selection.plantingForm];
+  const recommendedModeLabel = modeLabels[recommendedMode];
+  const formText =
+    selection.plantingForm === recommendedMode
+      ? recommendedModeLabel
+      : `${currentModeLabel} (recommended ${recommendedModeLabel})`;
+  const showSupportOption = crop.trellisRequired || crop.trellisRecommended;
+
+  function handleQuantityChange(value: string) {
+    const nextQuantity = coercePlantQuantity(value);
+    const nextRecommendedMode = getRecommendedPlantingMode(crop, nextQuantity);
+
+    onUpdate({
+      plantingForm:
+        selection.plantingForm === recommendedMode
+          ? nextRecommendedMode
+          : selection.plantingForm,
+      quantity: nextQuantity,
+    });
+  }
+
   return (
-    <article
-      className={styles.boardItem}
-      data-commitment={selection.commitment}
-      data-fit-level={fit.level}
-    >
+    <article className={styles.boardItem} data-fit-level={fit.level}>
       <div className={styles.boardItemHeader}>
         <span
           className={styles.cropGlyph}
@@ -148,13 +180,15 @@ function CropBoardItem({
         <div>
           <h4>{crop.commonName}</h4>
           <span className={styles.itemMeta}>
-            {selection.targetQuantity} target -{' '}
-            {modeLabels[selection.modePreference]}
+            {selection.quantity} {selection.quantity === 1 ? 'plant' : 'plants'}{' '}
+            - {formText}
           </span>
         </div>
-        <span className={styles.fitPill} data-fit-level={fit.level}>
-          {formatSeasonCropFitLabel(fit.level)}
-        </span>
+        {showReview ? (
+          <span className={styles.stateBadge} data-fit-level={fit.level}>
+            {formatSeasonCropPlanningState(fit.level)}
+          </span>
+        ) : null}
         <div className={styles.rowActions}>
           <button
             aria-label={`Move ${crop.commonName} up`}
@@ -186,109 +220,58 @@ function CropBoardItem({
       </div>
 
       <p className={styles.fitLine}>
-        {[fit.summary, fit.uncertainty].filter(Boolean).join(' ')}
+        {showReview ? reviewText : 'Ready for layout.'}
       </p>
-
-      {fit.groupedReasons.length > 0 ? (
-        <div className={styles.reasonTags} aria-label="Fit reason groups">
-          {fit.groupedReasons.slice(0, 3).map((reason) => (
-            <span key={reason.group} data-reason-severity={reason.severity}>
-              {formatSeasonCropFitReasonGroup(reason.group)}
-            </span>
-          ))}
-        </div>
-      ) : null}
 
       <div className={styles.primaryGrid}>
         <label className={styles.compactField}>
-          <span>Quantity</span>
+          <span>How many plants?</span>
           <input
+            inputMode="numeric"
             min="1"
             onChange={(event) =>
-              onUpdate({ targetQuantity: Number(event.currentTarget.value) })
+              handleQuantityChange(event.currentTarget.value)
             }
+            step="1"
             type="number"
-            value={selection.targetQuantity}
+            value={selection.quantity}
           />
         </label>
 
-        <label className={styles.compactField}>
-          <span>Mode</span>
-          <select
-            onChange={(event) =>
-              onUpdate({
-                modePreference: event.currentTarget.value as PlantingMode,
-              })
-            }
-            value={selection.modePreference}
-          >
-            {crop.supportedPlantingModes.map((mode) => (
-              <option key={mode} value={mode}>
-                {modeLabels[mode]}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className={styles.compactField}>
-          <span>Need</span>
-          <select
-            onChange={(event) =>
-              onUpdate({
-                commitment: event.currentTarget.value as SeasonCropCommitment,
-              })
-            }
-            value={selection.commitment}
-          >
-            <option value="mustGrow">Must-grow</option>
-            <option value="niceToHave">Nice-to-have</option>
-          </select>
-        </label>
-
-        <label className={styles.compactField}>
-          <span>Priority</span>
-          <select
-            onChange={(event) =>
-              onUpdate({
-                priority: event.currentTarget.value as SeasonCropPriority,
-              })
-            }
-            value={selection.priority}
-          >
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
-        </label>
+        <div className={styles.formIntent}>
+          <span>Recommended form</span>
+          <strong>{formText}</strong>
+        </div>
       </div>
 
       <label className={styles.notesField}>
-        <span>Notes</span>
+        <span>Variety or notes</span>
         <input
           onChange={(event) => onUpdate({ notes: event.currentTarget.value })}
-          placeholder="Timing, cultivar, or placement notes"
+          placeholder="Cultivar, timing, or placement"
           type="text"
           value={selection.notes}
         />
       </label>
 
       <details className={styles.advancedFields}>
-        <summary>More</summary>
+        <summary>More options</summary>
         <div className={styles.secondaryGrid}>
           <label className={styles.compactField}>
-            <span>Sow</span>
+            <span>Planting form</span>
             <select
               onChange={(event) =>
                 onUpdate({
-                  sowPreference: event.currentTarget
-                    .value as SeasonCropSowPreference,
+                  plantingForm: event.currentTarget.value as PlantingMode,
                 })
               }
-              value={selection.sowPreference}
+              value={selection.plantingForm}
             >
-              <option value="noPreference">No preference</option>
-              <option value="directSow">{formatSowMethod('directSow')}</option>
-              <option value="transplant">Transplant</option>
+              {crop.supportedPlantingModes.map((mode) => (
+                <option key={mode} value={mode}>
+                  {modeLabels[mode]}
+                </option>
+              ))}
             </select>
           </label>
 
@@ -303,27 +286,18 @@ function CropBoardItem({
             />
           </label>
 
-          <label className={styles.checkField}>
-            <input
-              checked={selection.containerAllowed}
-              onChange={(event) =>
-                onUpdate({ containerAllowed: event.currentTarget.checked })
-              }
-              type="checkbox"
-            />
-            <span>Container allowed</span>
-          </label>
-
-          <label className={styles.checkField}>
-            <input
-              checked={selection.supportAllowed}
-              onChange={(event) =>
-                onUpdate({ supportAllowed: event.currentTarget.checked })
-              }
-              type="checkbox"
-            />
-            <span>Support allowed</span>
-          </label>
+          {showSupportOption ? (
+            <label className={styles.checkField}>
+              <input
+                checked={selection.supportAllowed}
+                onChange={(event) =>
+                  onUpdate({ supportAllowed: event.currentTarget.checked })
+                }
+                type="checkbox"
+              />
+              <span>Allow support structures</span>
+            </label>
+          ) : null}
         </div>
       </details>
     </article>

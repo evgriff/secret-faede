@@ -8,11 +8,6 @@ const alertTypeByNotificationType = {
   taskDue: 'taskDue',
   watering: 'watering',
 };
-const smsFallbackNotificationTypes = new Set([
-  'frost',
-  'heatStress',
-  'severeWeather',
-]);
 
 function buildWateringNotification(recommendation, snapshot = {}) {
   const deficit = Number(
@@ -81,7 +76,7 @@ function shouldSendNotification({ channel, now = new Date(), profile, type }) {
   const preference = profile.notificationPreference || {};
   const alertType = alertTypeByNotificationType[type] || type;
 
-  if (!preference.channels?.[channel]) {
+  if (channel !== 'inApp' && !preference.channels?.[channel]) {
     return { allowed: false, reason: `${channel} disabled` };
   }
 
@@ -93,26 +88,6 @@ function shouldSendNotification({ channel, now = new Date(), profile, type }) {
     return { allowed: false, reason: 'quiet hours' };
   }
 
-  if (channel === 'carrier messaging') {
-    const consent = preference.channelConsent?.carrier messaging;
-
-    if (!isSmsFallbackNotificationType(type)) {
-      return {
-        allowed: false,
-        reason:
-          'carrier messaging fallback is reserved for frost, heat, and severe-weather alerts',
-      };
-    }
-
-    if (!preference.phoneE164) {
-      return { allowed: false, reason: 'missing carrier messaging phone' };
-    }
-
-    if (consent?.status !== 'granted') {
-      return { allowed: false, reason: 'carrier messaging consent not granted' };
-    }
-  }
-
   if (channel === 'push') {
     const consent = preference.channelConsent?.push;
 
@@ -122,10 +97,6 @@ function shouldSendNotification({ channel, now = new Date(), profile, type }) {
   }
 
   return { allowed: true, reason: 'allowed' };
-}
-
-function isSmsFallbackNotificationType(type) {
-  return smsFallbackNotificationTypes.has(type);
 }
 
 function isQuietHours(now, preference) {
@@ -206,15 +177,6 @@ function createNotificationLog({
   };
 }
 
-function redactPhone(value) {
-  if (!value) {
-    return '';
-  }
-
-  const digits = String(value).replace(/\D/g, '');
-  return digits.length >= 4 ? `***${digits.slice(-4)}` : '***';
-}
-
 function createGrantedConsent(now = new Date().toISOString()) {
   return {
     consentCopyVersion,
@@ -276,8 +238,6 @@ module.exports = {
   buildWateringNotification,
   createGrantedConsent,
   createNotificationLog,
-  isSmsFallbackNotificationType,
   isQuietHours,
-  redactPhone,
   shouldSendNotification,
 };

@@ -20,6 +20,7 @@ export function LogPage() {
     null,
   );
   const focusedFeedItemId = searchParams.get('entry');
+  const hasFilteredFeed = log.filteredFeedItems.length < log.feedItems.length;
 
   function openComposer(mode: LogComposerMode) {
     const hasEntryDraft = Boolean(
@@ -70,20 +71,13 @@ export function LogPage() {
           </p>
         </div>
         <div className={styles.headerActions}>
-          <nav aria-label="Create feed entry" className={styles.quickActions}>
-            <button onClick={() => openComposer('post')} type="button">
-              Post
-            </button>
-            <button onClick={() => openComposer('issue')} type="button">
-              Issue
-            </button>
-            <button onClick={() => openComposer('photo')} type="button">
-              Photo
-            </button>
-            <button onClick={() => openComposer('harvest')} type="button">
-              Harvest
-            </button>
-          </nav>
+          <button
+            className={styles.composeButton}
+            onClick={() => openComposer('post')}
+            type="button"
+          >
+            New entry
+          </button>
           <LogSaveState
             error={log.error}
             isOffline={log.isOffline}
@@ -107,11 +101,13 @@ export function LogPage() {
           />
 
           <LogFeed
+            hasActiveFilters={hasFilteredFeed}
             focusedItemId={focusedFeedItemId}
             items={log.filteredFeedItems}
             onUpdateIssue={(entryId, status) =>
               void log.handleIssueStatusChange(entryId, status)
             }
+            totalItemCount={log.feedItems.length}
           />
         </main>
       </div>

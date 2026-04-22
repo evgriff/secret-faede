@@ -13,10 +13,6 @@ export function buildAutoLayoutReviewSuggestions(
       },
     ],
     canBatchAccept: false,
-    confidence:
-      candidate.hardConstraintViolations.length === 0 && candidate.score >= 70
-        ? 'high'
-        : 'medium',
     id: getAutoLayoutReviewSuggestionId(candidate.id),
     itemIds: [
       ...candidate.plantings.map((planting) => planting.id),
@@ -42,7 +38,7 @@ export function buildAutoLayoutReviewSuggestions(
     severity:
       candidate.hardConstraintViolations.length > 0
         ? 'warning'
-        : candidate.unplaced.some((entry) => entry.required)
+        : candidate.unplaced.length > 0
           ? 'warning'
           : 'info',
     source: 'optimizer',

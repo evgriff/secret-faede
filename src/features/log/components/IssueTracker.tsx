@@ -9,6 +9,11 @@ import {
   formatIssueSeverity,
   formatIssueStatus,
 } from '../logHelpers';
+import {
+  ActionButton,
+  InfoChip,
+  StatusBadge,
+} from '../../shared/design/DesignPrimitives';
 import { buildIssueTimeline, getIssueLinkedTasks } from '../logSelectors';
 import cardStyles from './LogCards.module.css';
 import pageStyles from '../LogPage.module.css';
@@ -70,38 +75,45 @@ function IssueTrackerCard({
 }) {
   const linkedTasks = getIssueLinkedTasks(garden, issue);
   const timeline = buildIssueTimeline(issue, linkedTasks);
+  const issueStatus = issue.issueStatus ?? 'open';
 
   return (
     <article className={cardStyles.issueCard}>
       <div className={cardStyles.cardHeader}>
-        <span>{formatIssueStatus(issue.issueStatus)}</span>
+        <StatusBadge tone={getIssueTone(issueStatus)}>
+          {formatIssueStatus(issueStatus)}
+        </StatusBadge>
         <time>{formatDate(issue.occurredOn)}</time>
       </div>
       <h4>{issue.title}</h4>
       <p>{issue.body}</p>
       <div className={cardStyles.meta}>
-        <span>{issue.targetLabel}</span>
+        <InfoChip>{issue.targetLabel}</InfoChip>
         {issue.issueCategory ? (
-          <span>{formatIssue(issue.issueCategory)}</span>
+          <InfoChip>{formatIssue(issue.issueCategory)}</InfoChip>
         ) : null}
-        <span>{formatIssueSeverity(issue.issueSeverity)}</span>
-        <span>
+        <InfoChip tone={issue.issueSeverity === 'high' ? 'warning' : 'neutral'}>
+          {formatIssueSeverity(issue.issueSeverity)}
+        </InfoChip>
+        <InfoChip>
           {linkedTasks.length} linked task{linkedTasks.length === 1 ? '' : 's'}
-        </span>
-        <span>
+        </InfoChip>
+        <InfoChip>
           {issue.photos.length} photo{issue.photos.length === 1 ? '' : 's'}
-        </span>
+        </InfoChip>
       </div>
       <div className={cardStyles.statusActions}>
         {lifecycleStatuses.map((status) => (
-          <button
-            aria-pressed={issue.issueStatus === status}
+          <ActionButton
+            aria-pressed={issueStatus === status}
+            intent={getIssueActionIntent(status)}
             key={status}
             onClick={() => onUpdateIssue(issue.id, status)}
+            priority={issueStatus === status ? 'primary' : 'secondary'}
             type="button"
           >
             {formatIssueStatus(status)}
-          </button>
+          </ActionButton>
         ))}
       </div>
       <ol className={cardStyles.timeline}>
@@ -113,4 +125,20 @@ function IssueTrackerCard({
       </ol>
     </article>
   );
+}
+
+function getIssueTone(status: IssueStatus) {
+  if (status === 'resolved') {
+    return 'success';
+  }
+
+  return status === 'inProgress' ? 'warning' : 'neutral';
+}
+
+function getIssueActionIntent(status: IssueStatus) {
+  if (status === 'resolved') {
+    return 'success';
+  }
+
+  return status === 'inProgress' ? 'warning' : 'neutral';
 }

@@ -1,4 +1,5 @@
 export * from './models';
+export * from './plantingInstances';
 export * from './schemaMigrations';
 export * from './validation';
 

@@ -80,11 +80,13 @@ For release demos, mock mode is still the fastest path:
 npm run dev
 ```
 
-Sign in with an allowlisted email, open Settings, and click **Load demo garden**
-or **Reset demo**. This loads the rich Detroit demo with beds, paths, trellis,
-water source, compost, shade source, optimizer-ready wanted crops, Review
-proposals, Today tasks/alerts, Feed posts, a local SVG photo, harvests, and
-notification history.
+Sign in with an allowlisted email and click **Enter demo** from the shell, or
+use the matching demo card in Settings. **Reset seeded demo** restores the
+canonical Detroit baseline and returns to the active workspace; **Exit demo**
+restores the garden draft saved before demo mode. The demo includes beds, paths,
+crop supports, quiet planting-context objects, optimizer-ready wanted crops,
+Review proposals, Today tasks/alerts, Feed memories, a local SVG photo,
+harvests, and notification history.
 
 For a live Firebase demo account, use the script after the production user
 exists:
@@ -96,9 +98,9 @@ npm run seed:dev -- --dry-run
 npm run seed:dev
 ```
 
-Do not seed demo phone numbers. The live seed writes the legacy
-`gardens/{uid}` aggregate and nested collections used by Functions; the app will
-migrate that garden into the shared published workspace on first load.
+Do not seed phone-number delivery data. The live seed writes the legacy
+`gardens/{uid}` aggregate and nested collections used by Functions; the app
+will migrate that garden into the shared published workspace on first load.
 
 ## Domain Setup
 
@@ -121,11 +123,12 @@ migrate that garden into the shared published workspace on first load.
    `users/{uid}/pushTokens/{tokenId}` with `platform: "web"`.
 7. Send one controlled foreground/background push before a real demo.
 
-## carrier messaging Setup
+## Carrier Messaging Setup
 
-None. carrier messaging/notification provider is de-scoped from the product. Do not configure carrier
-messaging for demos or production deploys; remove legacy carrier messaging paths only in the
-dedicated cleanup prompt.
+None. Carrier messaging is outside product scope. Do not configure carrier
+delivery for demos or production deploys. There are no carrier-message
+Functions exports, webhook routes, provider secrets, or phone seed values to
+configure.
 
 ## Native Mobile Setup
 
@@ -186,15 +189,16 @@ when `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT`, and all required
   platform Firebase config files installed locally, APNs/Play signing handled
   outside the repo, release keystore or App Store signing ready, and local
   notification smoke completed on the target device class.
-- Live smoke: Plan, Today, Feed, Settings, demo reset, optimize/apply, Review
-  decision summary, publish/revert, push registration, and offline text queue
-  verified on the production domain.
+- Live smoke: Plan, Today, Feed, Settings, demo enter/reset/exit,
+  optimize/apply, Review decision summary, publish/revert, push registration,
+  and offline text queue verified on the production domain.
 
 ## Post-Deploy Smoke
 
 - Desktop web:
   - Primary Gardener signs in.
-  - Load or reset the demo.
+  - Enter demo from the shell, reset the seeded demo, then exit back to the
+    saved real garden draft.
   - Open Plan, Today, Feed, Settings.
   - Generate optimizer proposals and open Review.
 - Mobile web:
@@ -204,7 +208,8 @@ when `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT`, and all required
 - Shared garden:
   - Publish a low-risk draft from one account.
   - Reload from the other account and confirm the published state is visible.
-  - Revert from History only in a controlled demo account.
+  - Use Review revert from History and accept the confirmation prompt only in a
+    controlled demo account.
 - Notifications:
   - Register web push for one account.
   - Confirm in-app alerts and notification center history.

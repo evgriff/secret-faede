@@ -25,7 +25,7 @@ interface PanState {
   lastY: number;
 }
 
-export function usePlanCanvasView() {
+export function usePlanCanvasView({ isPanMode }: { isPanMode: boolean }) {
   const [isPanning, setIsPanning] = useState(false);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -82,10 +82,18 @@ export function usePlanCanvasView() {
   );
 
   function handlePanPointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (shouldIgnorePan(event.target)) {
+    const isMiddleButtonPan = event.button === 1;
+    const isExplicitPan = isPanMode && event.button === 0;
+
+    if (
+      (!isMiddleButtonPan && !isExplicitPan) ||
+      shouldIgnorePanTarget(event.target)
+    ) {
       return;
     }
 
+    event.preventDefault();
+    event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     panRef.current = {
       active: true,
@@ -102,6 +110,8 @@ export function usePlanCanvasView() {
       return;
     }
 
+    event.preventDefault();
+    event.stopPropagation();
     const deltaX = event.clientX - state.lastX;
     const deltaY = event.clientY - state.lastY;
     state.lastX = event.clientX;
@@ -115,6 +125,8 @@ export function usePlanCanvasView() {
       return;
     }
 
+    event.preventDefault();
+    event.stopPropagation();
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     panRef.current = null;
     flushPanDelta();
@@ -179,16 +191,24 @@ function clampZoom(value: number) {
   return Number(Math.min(Math.max(value, minZoom), maxZoom).toFixed(2));
 }
 
-function shouldIgnorePan(target: EventTarget | null) {
+function shouldIgnorePanTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) {
     return true;
   }
 
-  return (
-    Boolean(
-      target.closest(
-        'button, [role="button"], input, select, textarea, a, [data-layer-control="true"]',
-      ),
-    ) || Boolean(target.closest('[data-marquee-surface="true"]'))
+  return Boolean(
+    target.closest(
+      [
+        'button',
+        '[role="button"]',
+        'input',
+        'select',
+        'textarea',
+        'a',
+        '[data-layer-control="true"]',
+        '[data-plan-item="true"]',
+        '[data-resize-handle]',
+      ].join(', '),
+    ),
   );
 }

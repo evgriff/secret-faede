@@ -196,8 +196,26 @@
   display: grid;
   gap: 0.45rem;
   margin: 0;
-  padding-left: 1.1rem;
-  color: #8a5a00;
+  padding: 0;
+  color: var(--color-text-muted);
+  list-style: none;
+}
+
+.warningList li {
+  display: grid;
+  gap: 0.15rem;
+  border: 1px solid rgba(179, 90, 63, 0.14);
+  border-radius: var(--radius-control);
+  background: rgba(255, 253, 247, 0.62);
+  padding: 0.55rem 0.65rem;
+}
+
+.warningList strong {
+  color: var(--color-text-strong);
+}
+
+.warningList span {
+  font-size: var(--font-size-small);
 }
 
 .warningText {

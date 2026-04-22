@@ -56,12 +56,12 @@ enables the accounts, and grants `gardenAccess: true` plus
 `secretFaedeMember: true`. Existing passwords are not changed unless
 `-- --reset-passwords` is passed.
 
-## carrier messaging Scope
+## Carrier Messaging Scope
 
-carrier messaging/notification provider is no longer part of the product scope. Do not add new
-`RETIRED_DELIVERY_PROVIDER_*`, phone-number seed, or carrier messaging dry-run setup for future prompt-chain
-work. Legacy environment references in runtime code should be removed by the
-dedicated carrier messaging cleanup prompt.
+Carrier messaging is no longer part of the product scope. Do not add
+provider-specific carrier secrets, phone-number seed values, or dry-run setup
+for future prompt-chain work. Supported notification setup is limited to in-app
+logs, web push, and optional native/local notifications.
 
 ## Secret Handling
 

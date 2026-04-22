@@ -72,4 +72,5 @@ npm run deploy:all
 - PWA registration is disabled in preview and CI builds to avoid stale preview caches
 - seed Primary Gardener and Partner Gardener with `npm run auth:seed-users` before a live demo, then
   run `npm run seed:dev` for a populated Detroit demo account if needed
-- carrier messaging/notification provider is not part of the deploy path for the current product prompt chain
+- carrier messaging is not part of the deploy path for the current product prompt
+  chain

@@ -6,12 +6,12 @@ Keep the test surface small and high-signal:
 
 - config parsing, allowlist, auth, and route behavior unit/component tests
 - domain tests for crop catalog, garden validation, planning, sun/shade,
-  watering, task generation, journal analytics, and demo data
+  watering, task generation, Feed summaries, and demo data
 - repository tests for mock persistence and pending Firebase garden saves
 - Cloud Functions syntax and notification/operations logic tests
 - Firebase emulator-backed Firestore and Storage rules tests
-- Playwright smoke paths for auth, Plan, Today, Feed, Settings, demo loading,
-  and offline text queueing
+- Playwright smoke paths for auth, canvas-first Plan, Today, Feed, Settings,
+  demo loading, offline text queueing, and redesign regressions
 - first-viewport visual baselines for Plan, Today, Feed, and Settings at desktop
   and mobile widths
 
@@ -21,9 +21,11 @@ Focus areas:
 - root redirects and protected route behavior
 - password sign-in, password reset copy, and persisted-session behavior
 - access-denied handling
-- authenticated Plan editor rendering and persistence
+- authenticated Plan editor rendering, stable overlays, proposal walkthroughs,
+  and persistence
 - feet-based garden coordinate math
-- plot resize, plant clamping, structures, and sun/shade overrides
+- plot resize, plant clamping, individual plant nodes, structures, and
+  sun/shade overrides
 - weather/watering task generation and manual field actions
 - Feed notes, issues, photos, harvests, and offline text-only saves
 - Firestore/Storage owner-plus-membership-claim authorization

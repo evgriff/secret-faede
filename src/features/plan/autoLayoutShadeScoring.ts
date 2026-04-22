@@ -94,7 +94,6 @@ function getSavedShadeSubjects(garden: Garden): ShadeSubject[] {
           crop,
           fitLevel: 'workable',
           planting,
-          required: false,
         }),
       ];
     });

@@ -16,12 +16,17 @@ import type {
   SunShadeArea,
 } from '../../../domain/gardens/GardenRepository';
 import { pixelsPerFoot } from '../../garden/gardenMath';
-import type { PlanWarning } from '../../garden/gardenPlanning';
+import {
+  isCanvasPlanWarning,
+  type PlanWarning,
+} from '../../garden/gardenPlanning';
 import type { SunSeason } from '../../garden/sunShadeEngine';
 import type { SelectedGardenItem } from '../../garden/useGarden';
 import { usePlanCanvasView } from '../hooks/usePlanCanvasView';
+import type { PlanInfluenceOverlayModel } from '../planInfluenceOverlay';
 import type { ResizeHandle, SnapGuide } from '../planInteractionGeometry';
 import type { PlanMode } from '../planModes';
+import type { ProposalDiffOverlayModel } from '../proposalDiffOverlay';
 import {
   PlanCanvasControls,
   type PlanCanvasLayers,
@@ -30,13 +35,13 @@ import { PlanCanvasScene } from './PlanCanvasScene';
 import { PlanMiniMap } from './PlanMiniMap';
 import styles from './PlanCanvas.module.css';
 
-const emptyPlanWarnings: PlanWarning[] = [];
-
 export const PlanCanvas = memo(function PlanCanvas({
   activeSunLayer,
   draggingPlantId,
   draggingStructureId,
+  focusedCropKey,
   garden,
+  influenceOverlay,
   manualSunEdit,
   manualSunExposure,
   mode,
@@ -56,6 +61,7 @@ export const PlanCanvas = memo(function PlanCanvas({
   onStructurePointerEnd,
   onStructurePointerMove,
   planWarnings,
+  proposalDiffOverlay,
   plotRef,
   marqueeRect,
   resizingStructureId,
@@ -68,7 +74,9 @@ export const PlanCanvas = memo(function PlanCanvas({
   activeSunLayer: { areas: SunShadeArea[] };
   draggingPlantId: string | null;
   draggingStructureId: string | null;
+  focusedCropKey: string | null;
   garden: Garden;
+  influenceOverlay: PlanInfluenceOverlayModel | null;
   manualSunEdit: boolean;
   manualSunExposure: SunExposure;
   mode: PlanMode;
@@ -84,14 +92,17 @@ export const PlanCanvas = memo(function PlanCanvas({
   onPlantPointerDown(
     event: PointerEvent<HTMLButtonElement>,
     plantId: string,
+    instanceId?: string,
   ): void;
   onPlantPointerEnd(
     event: PointerEvent<HTMLButtonElement>,
     plantId: string,
+    instanceId?: string,
   ): void;
   onPlantPointerMove(
     event: PointerEvent<HTMLButtonElement>,
     plantId: string,
+    instanceId?: string,
   ): void;
   onResizePointerDown(
     event: PointerEvent<HTMLSpanElement>,
@@ -115,6 +126,7 @@ export const PlanCanvas = memo(function PlanCanvas({
     structureId: string,
   ): void;
   planWarnings: PlanWarning[];
+  proposalDiffOverlay: ProposalDiffOverlayModel | null;
   plotRef: RefObject<HTMLDivElement | null>;
   marqueeRect: {
     depthFt: number;
@@ -136,6 +148,7 @@ export const PlanCanvas = memo(function PlanCanvas({
     sun: showSunOverlay,
     warnings: false,
   });
+  const [isPanMode, setIsPanMode] = useState(false);
   const {
     fitView,
     handlePanPointerDown,
@@ -148,14 +161,24 @@ export const PlanCanvas = memo(function PlanCanvas({
     zoomIn,
     zoomOut,
     zoomState,
-  } = usePlanCanvasView();
+  } = usePlanCanvasView({ isPanMode });
   const scrollportRef = useRef<HTMLDivElement | null>(null);
   const didFitInitialView = useRef(false);
-  const visibleWarnings = layers.warnings ? planWarnings : emptyPlanWarnings;
+  const immediateWarnings = useMemo(
+    () => planWarnings.filter(isCanvasPlanWarning),
+    [planWarnings],
+  );
+  const visibleWarnings = layers.warnings ? planWarnings : immediateWarnings;
+  const isPointerInteractionActive = Boolean(
+    draggingPlantId ||
+    draggingStructureId ||
+    marqueeRect ||
+    resizingStructureId,
+  );
   const fitContentSize = useMemo(
     () => ({
-      height: garden.plot.depthFt * pixelsPerFoot + 96,
-      width: garden.plot.widthFt * pixelsPerFoot + 96,
+      height: garden.plot.depthFt * pixelsPerFoot + 48,
+      width: garden.plot.widthFt * pixelsPerFoot + 48,
     }),
     [garden.plot.depthFt, garden.plot.widthFt],
   );
@@ -197,10 +220,19 @@ export const PlanCanvas = memo(function PlanCanvas({
     () =>
       `${styles.viewport} ${styles[`${mode}Mode`] ?? ''} ${
         isPanning ? styles.panning : ''
+      } ${isPanMode ? styles.panMode : ''} ${
+        isPointerInteractionActive ? styles.pointerInteractionActive : ''
       } ${layers.grid ? '' : styles.gridHidden} ${
         layers.labels ? '' : styles.labelsHidden
       }`,
-    [isPanning, layers.grid, layers.labels, mode],
+    [
+      isPanMode,
+      isPanning,
+      isPointerInteractionActive,
+      layers.grid,
+      layers.labels,
+      mode,
+    ],
   );
 
   useEffect(() => {
@@ -251,9 +283,11 @@ export const PlanCanvas = memo(function PlanCanvas({
   return (
     <div className={viewportClassName}>
       <PlanCanvasControls
+        isPanMode={isPanMode}
         layers={layers}
         onFitView={handleFitView}
         onLayersChange={updateLayers}
+        onPanModeChange={setIsPanMode}
         onResetView={resetView}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
@@ -262,18 +296,29 @@ export const PlanCanvas = memo(function PlanCanvas({
       />
       <div
         className={styles.scrollport}
+        data-interaction-active={isPointerInteractionActive ? 'true' : 'false'}
+        data-pan-mode={isPanMode ? 'true' : 'false'}
+        data-plan-scrollport="true"
         data-testid="plot-viewport"
         onPointerCancel={handlePanPointerEnd}
-        onPointerDown={handlePanPointerDown}
+        onPointerDownCapture={handlePanPointerDown}
         onPointerMove={handlePanPointerMove}
         onPointerUp={handlePanPointerEnd}
+        onWheel={(event) => {
+          if (isPointerInteractionActive) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }}
         ref={scrollportRef}
       >
         <PlanCanvasScene
           activeSunLayer={activeSunLayer}
           draggingPlantId={draggingPlantId}
           draggingStructureId={draggingStructureId}
+          focusedCropKey={focusedCropKey}
           garden={garden}
+          influenceOverlay={influenceOverlay}
           manualSunEdit={manualSunEdit}
           manualSunExposure={manualSunExposure}
           marqueeRect={marqueeRect}
@@ -294,6 +339,7 @@ export const PlanCanvas = memo(function PlanCanvas({
           onStructurePointerMove={onStructurePointerMove}
           plotRef={plotRef}
           plotStyle={plotStyle}
+          proposalDiffOverlay={proposalDiffOverlay}
           resizingStructureId={resizingStructureId}
           sceneStyle={sceneStyle}
           selectedPlantIds={selectedPlantIds}

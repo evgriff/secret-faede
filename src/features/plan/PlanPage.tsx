@@ -20,12 +20,12 @@ import {
   prepareGardenForUser,
   type GardenPublishConflict,
 } from '../../domain/gardens/gardenWorkspace';
+import { getPlantingInstances } from '../../domain/gardens/plantingInstances';
 import { LoadingState } from '../../shared/ui/LoadingState';
 import { useNetworkStatus } from '../../shared/network/networkStatus';
 import { useAuth } from '../auth/auth-context';
 import {
   findPlanWarnings,
-  isCanvasPlanWarning,
   isInspectorPlanWarning,
 } from '../garden/gardenPlanning';
 import {
@@ -54,12 +54,18 @@ import type {
 } from './autoLayoutTypes';
 import { PlanActionRail } from './components/PlanActionRail';
 import { PlanCanvas } from './components/PlanCanvas';
-import { PlanFloatingActions } from './components/PlanFloatingActions';
+import { PlanCropFocusCard } from './components/PlanCropFocusCard';
 import { PlanSelectionToolbar } from './components/PlanSelectionToolbar';
 import { PlanTopBar } from './components/PlanTopBar';
 import { usePlanKeyboardShortcuts } from './hooks/usePlanKeyboardShortcuts';
 import { usePlanPointerInteractions } from './hooks/usePlanPointerInteractions';
+import { buildCropFocusSummary } from './planCropFocus';
+import { buildPlanInfluenceOverlay } from './planInfluenceOverlay';
 import { syncSetupProfile } from './planPageActions';
+import {
+  buildAutoLayoutProposalDiffOverlay,
+  buildReviewSuggestionDiffOverlay,
+} from './proposalDiffOverlay';
 import type { PlanItemRef } from './planInteractionGeometry';
 import {
   buildAlignUpdates,
@@ -122,6 +128,8 @@ export function PlanPage() {
   const networkStatus = useNetworkStatus();
   const isOffline = networkStatus === 'offline';
   const userId = state.user?.uid ?? null;
+  const routeTargetId =
+    window.location.search.match(/[?&]p=([^&]+)/)?.[1] ?? null;
   const {
     acceptReviewSuggestion,
     acceptReviewSuggestions,
@@ -168,6 +176,7 @@ export function PlanPage() {
     suggestionDecisions,
   } = useGarden(userId);
   const [activeMode, setActiveMode] = useState<PlanMode>('select');
+  const [isContextPanelOpen, setIsContextPanelOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<PlanItemRef[]>([]);
   const [isAddPlantOpen, setIsAddPlantOpen] = useState(false);
   const [isChoosePlantsOpen, setIsChoosePlantsOpen] = useState(false);
@@ -176,10 +185,15 @@ export function PlanPage() {
   >([]);
   const [selectedAutoLayoutCandidateId, setSelectedAutoLayoutCandidateId] =
     useState<string | null>(null);
+  const [activeReviewSuggestionId, setActiveReviewSuggestionId] = useState<
+    string | null
+  >(null);
   const [optimizerStatus, setOptimizerStatus] =
     useState<AutoLayoutRunStatus>('idle');
   const [optimizerMessage, setOptimizerMessage] = useState<string | null>(null);
   const [rejectedAutoLayoutCandidateIds, setRejectedAutoLayoutCandidateIds] =
+    useState<string[]>([]);
+  const [snoozedAutoLayoutCandidateIds, setSnoozedAutoLayoutCandidateIds] =
     useState<string[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isPlotSettingsOpen, setIsPlotSettingsOpen] = useState(false);
@@ -200,6 +214,10 @@ export function PlanPage() {
   const [operationsStatus, setOperationsStatus] = useState<'idle' | 'loading'>(
     'idle',
   );
+  const [dismissedCropFocusKey, setDismissedCropFocusKey] = useState<
+    string | null
+  >(null);
+  const [showInfluenceOverlay, setShowInfluenceOverlay] = useState(false);
   const [publishConflict, setPublishConflict] =
     useState<GardenPublishConflict | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -233,10 +251,6 @@ export function PlanPage() {
       ),
     [acknowledgedWarningIds, planWarnings],
   );
-  const canvasPlanWarnings = useMemo(
-    () => activePlanWarnings.filter(isCanvasPlanWarning),
-    [activePlanWarnings],
-  );
   const inspectorPlanWarnings = useMemo(
     () => activePlanWarnings.filter(isInspectorPlanWarning),
     [activePlanWarnings],
@@ -255,6 +269,54 @@ export function PlanPage() {
         : [],
     [activeSunLayer, autoLayoutCandidates, garden, planWarnings],
   );
+  const activeReviewSuggestion =
+    reviewSuggestions.find(
+      (suggestion) => suggestion.id === activeReviewSuggestionId,
+    ) ?? null;
+  const selectedAutoLayoutCandidate =
+    autoLayoutCandidates.find(
+      (candidate) => candidate.id === selectedAutoLayoutCandidateId,
+    ) ?? null;
+  const proposalDiffOverlay = useMemo(() => {
+    if (!garden || activeMode !== 'optimize') {
+      return null;
+    }
+
+    if (activeReviewSuggestion) {
+      return buildReviewSuggestionDiffOverlay({
+        garden,
+        suggestion: activeReviewSuggestion,
+      });
+    }
+
+    if (
+      selectedAutoLayoutCandidate &&
+      !rejectedAutoLayoutCandidateIds.includes(
+        selectedAutoLayoutCandidate.id,
+      ) &&
+      !snoozedAutoLayoutCandidateIds.includes(selectedAutoLayoutCandidate.id)
+    ) {
+      return buildAutoLayoutProposalDiffOverlay({
+        candidate: selectedAutoLayoutCandidate,
+        currentWarnings: planWarnings,
+        garden,
+        sunLayer: activeSunLayer,
+        sunSeason,
+      });
+    }
+
+    return null;
+  }, [
+    activeMode,
+    activeReviewSuggestion,
+    activeSunLayer,
+    garden,
+    planWarnings,
+    rejectedAutoLayoutCandidateIds,
+    selectedAutoLayoutCandidate,
+    snoozedAutoLayoutCandidateIds,
+    sunSeason,
+  ]);
   const planHealthReport = useMemo(
     () =>
       garden
@@ -338,12 +400,97 @@ export function PlanPage() {
     }
   }, [selectedItem]);
 
+  useEffect(() => {
+    if (!garden || !routeTargetId) {
+      return;
+    }
+
+    const routeSelection: PlanItemRef | null = garden.plantings.some(
+      (planting) => planting.id === routeTargetId,
+    )
+      ? { id: routeTargetId, type: 'planting' }
+      : garden.structures.some((structure) => structure.id === routeTargetId)
+        ? { id: routeTargetId, type: 'structure' }
+        : null;
+
+    if (!routeSelection) {
+      return;
+    }
+
+    setSelectedItem(routeSelection);
+    setSelectedItems([routeSelection]);
+  }, [garden, routeTargetId, setSelectedItem]);
+
+  const cropFocusSummary = useMemo(
+    () =>
+      garden && activeSunLayer
+        ? buildCropFocusSummary({
+            garden,
+            selectedItem,
+            sunLayer: activeSunLayer,
+            warnings: activePlanWarnings,
+          })
+        : null,
+    [activePlanWarnings, activeSunLayer, garden, selectedItem],
+  );
+  const visibleCropFocusSummary =
+    cropFocusSummary?.selectionKey === dismissedCropFocusKey
+      ? null
+      : cropFocusSummary;
+  const focusedCropKey = visibleCropFocusSummary?.focusKey ?? null;
+  const influenceOverlay = useMemo(
+    () =>
+      garden && activeSunLayer && focusedCropKey
+        ? buildPlanInfluenceOverlay({
+            focusKey: focusedCropKey,
+            garden,
+            sunLayer: activeSunLayer,
+            warnings: activePlanWarnings,
+          })
+        : null,
+    [activePlanWarnings, activeSunLayer, focusedCropKey, garden],
+  );
+  const visibleInfluenceOverlay = showInfluenceOverlay
+    ? influenceOverlay
+    : null;
+
+  useEffect(() => {
+    setShowInfluenceOverlay(false);
+  }, [visibleCropFocusSummary?.selectionKey]);
+
+  useEffect(() => {
+    if (selectedItem?.type === 'structure' || activeMode !== 'select') {
+      setIsContextPanelOpen(true);
+      return;
+    }
+
+    if (!selectedItem && activeMode === 'select') {
+      setIsContextPanelOpen(false);
+    }
+  }, [activeMode, selectedItem]);
+
   const selectedPlantIds = useMemo(
     () =>
-      selectedItems
-        .filter((item) => item.type === 'planting')
-        .map((item) => item.id),
-    [selectedItems],
+      selectedItems.flatMap((item) => {
+        if (item.type !== 'planting') {
+          return [];
+        }
+
+        if (item.instanceId) {
+          return [`${item.id}:${item.instanceId}`];
+        }
+
+        const planting = garden?.plantings.find(
+          (candidate) => candidate.id === item.id,
+        );
+
+        return planting
+          ? getPlantingInstances(planting).map(
+              (instance) => `${planting.id}:${instance.id}`,
+            )
+          : [item.id];
+      }),
+    [garden?.plantings, selectedItems],
   );
   const selectedStructureIds = useMemo(
     () =>
@@ -435,6 +582,33 @@ export function PlanPage() {
     setSelectedItem(nextSelection[0] ?? null);
   }, [activeMode, garden, setSelectedItem]);
 
+  const handleSetActiveMode = useCallback(
+    (mode: PlanMode) => {
+      setActiveMode(mode);
+      setIsContextPanelOpen(mode !== 'select' || Boolean(selectedItem));
+    },
+    [selectedItem],
+  );
+
+  const handleOpenInspector = useCallback(() => {
+    if (!selectedItem) {
+      return;
+    }
+
+    setActiveMode('select');
+    setIsContextPanelOpen(true);
+  }, [selectedItem]);
+
+  const handleCloseCropFocus = useCallback(() => {
+    if (cropFocusSummary) {
+      setDismissedCropFocusKey(cropFocusSummary.selectionKey);
+    }
+  }, [cropFocusSummary]);
+
+  const handleCloseContextPanel = useCallback(() => {
+    setIsContextPanelOpen(false);
+  }, []);
+
   const handleAlignSelection = useCallback(
     (alignment: PlanAlignment) => {
       if (!garden) {
@@ -473,7 +647,7 @@ export function PlanPage() {
     redoGardenChange,
     saveGarden: () => void saveGarden(),
     selectAllForCurrentLayer: handleSelectAllForCurrentLayer,
-    setActiveMode,
+    setActiveMode: handleSetActiveMode,
     undoGardenChange,
   });
 
@@ -507,7 +681,6 @@ export function PlanPage() {
         >
           <FirstRunSetupWizard
             garden={garden}
-            geocodingApiKey={environment.geocodingApiKey}
             onComplete={(request) => {
               completeGardenSetup(request);
               telemetryService.trackEvent('garden_setup_complete', {
@@ -558,6 +731,7 @@ export function PlanPage() {
 
   function handleOpenOptimizeMode() {
     setActiveMode('optimize');
+    setIsContextPanelOpen(true);
 
     if (
       garden &&
@@ -568,16 +742,23 @@ export function PlanPage() {
     }
   }
 
+  function handleSelectAutoLayoutCandidate(candidateId: string) {
+    setSelectedAutoLayoutCandidateId(candidateId);
+    setActiveReviewSuggestionId(null);
+  }
+
   async function handleGenerateAutoLayouts(sourceGarden = garden) {
     if (!sourceGarden) {
       setOptimizerStatus('error');
-      setOptimizerMessage('The garden is still loading. Try Optimize again.');
+      setOptimizerMessage('Garden still loading. Try again.');
       return;
     }
 
     setOptimizerStatus('running');
-    setOptimizerMessage('Generating layout candidates...');
+    setOptimizerMessage('Generating layouts...');
     setRejectedAutoLayoutCandidateIds([]);
+    setSnoozedAutoLayoutCandidateIds([]);
+    setActiveReviewSuggestionId(null);
 
     try {
       const { generateAutoLayoutCandidates } =
@@ -596,15 +777,15 @@ export function PlanPage() {
         setOptimizerStatus('empty');
         setOptimizerMessage(
           hasLayoutRequests
-            ? 'No legal layout candidates were found. Check crop quantities, supports, and anchored plantings.'
-            : 'Choose plants before running layout optimization.',
+            ? 'No legal layouts found. Check quantities, supports, and anchored crops.'
+            : 'Choose plants before optimizing layouts.',
         );
         return;
       }
 
       setOptimizerStatus('ready');
       setOptimizerMessage(
-        `${candidates.length} layout candidates generated. Preview one before applying it.`,
+        `${candidates.length} layouts ready. Preview before applying.`,
       );
     } catch (generationError) {
       setAutoLayoutCandidates([]);
@@ -625,21 +806,25 @@ export function PlanPage() {
 
     if (!selectedCandidate) {
       setOptimizerStatus('error');
-      setOptimizerMessage('Select a layout candidate before applying.');
+      setOptimizerMessage('Select a layout first.');
       return;
     }
 
     if (rejectedAutoLayoutCandidateIds.includes(selectedCandidate.id)) {
       setOptimizerStatus('error');
-      setOptimizerMessage('Rejected proposals cannot be applied.');
+      setOptimizerMessage('Rejected layouts cannot be applied.');
+      return;
+    }
+
+    if (snoozedAutoLayoutCandidateIds.includes(selectedCandidate.id)) {
+      setOptimizerStatus('error');
+      setOptimizerMessage('Snoozed layouts cannot be applied.');
       return;
     }
 
     if (selectedCandidate.hardConstraintViolations.length > 0) {
       setOptimizerStatus('error');
-      setOptimizerMessage(
-        'This proposal still has hard constraint issues and cannot be applied.',
-      );
+      setOptimizerMessage('Resolve hard constraints before applying.');
       return;
     }
 
@@ -655,7 +840,7 @@ export function PlanPage() {
     });
     setOptimizerStatus('applied');
     setOptimizerMessage(
-      `${selectedCandidate.label} was applied to the draft. Review the grid before publishing.`,
+      `${selectedCandidate.label} applied to the draft. Review before publishing.`,
     );
   }
 
@@ -687,7 +872,8 @@ export function PlanPage() {
       const nextCandidate = autoLayoutCandidates.find(
         (candidate) =>
           candidate.id !== candidateId &&
-          !rejectedAutoLayoutCandidateIds.includes(candidate.id),
+          !rejectedAutoLayoutCandidateIds.includes(candidate.id) &&
+          !snoozedAutoLayoutCandidateIds.includes(candidate.id),
       );
 
       setSelectedAutoLayoutCandidateId(nextCandidate?.id ?? null);
@@ -699,9 +885,51 @@ export function PlanPage() {
     );
   }
 
+  function handleSnoozeAutoLayoutCandidate(candidateId: string) {
+    const snoozedCandidate = autoLayoutCandidates.find(
+      (candidate) => candidate.id === candidateId,
+    );
+
+    if (!snoozedCandidate) {
+      setOptimizerStatus('error');
+      setOptimizerMessage('That layout candidate is no longer available.');
+      return;
+    }
+
+    setSnoozedAutoLayoutCandidateIds((ids) =>
+      ids.includes(candidateId) ? ids : [...ids, candidateId],
+    );
+    recordSuggestionDecision({
+      id: getAutoLayoutReviewSuggestionId(candidateId),
+      label: `Snooze ${snoozedCandidate.label} layout`,
+      note:
+        snoozedCandidate.tradeoffs[0] ??
+        snoozedCandidate.explanations[0] ??
+        null,
+      status: 'snoozed',
+    });
+
+    if (selectedAutoLayoutCandidateId === candidateId) {
+      const nextCandidate = autoLayoutCandidates.find(
+        (candidate) =>
+          candidate.id !== candidateId &&
+          !rejectedAutoLayoutCandidateIds.includes(candidate.id) &&
+          !snoozedAutoLayoutCandidateIds.includes(candidate.id),
+      );
+
+      setSelectedAutoLayoutCandidateId(nextCandidate?.id ?? null);
+    }
+
+    setOptimizerStatus('ready');
+    setOptimizerMessage(
+      `${snoozedCandidate.label} snoozed for this draft. Select another proposal or generate again.`,
+    );
+  }
+
   function handleAcceptReviewSuggestion(suggestion: ReviewSuggestion) {
     acceptReviewSuggestion(suggestion);
     markSuggestionWarningAcknowledged(suggestion);
+    setActiveReviewSuggestionId((id) => (id === suggestion.id ? null : id));
   }
 
   function handleAcceptReviewBatch(suggestions: ReviewSuggestion[]) {
@@ -710,19 +938,33 @@ export function PlanPage() {
     for (const suggestion of suggestions) {
       markSuggestionWarningAcknowledged(suggestion);
     }
+
+    setActiveReviewSuggestionId((id) =>
+      suggestions.some((suggestion) => suggestion.id === id) ? null : id,
+    );
   }
 
   function handleRejectReviewSuggestion(suggestion: ReviewSuggestion) {
     rejectReviewSuggestion(suggestion);
     markSuggestionWarningAcknowledged(suggestion);
+    setActiveReviewSuggestionId((id) => (id === suggestion.id ? null : id));
   }
 
   function handleSnoozeReviewSuggestion(suggestion: ReviewSuggestion) {
     snoozeReviewSuggestion(suggestion);
     markSuggestionWarningAcknowledged(suggestion);
+    setActiveReviewSuggestionId((id) => (id === suggestion.id ? null : id));
+  }
+
+  function handlePreviewReviewSuggestion(suggestion: ReviewSuggestion) {
+    setActiveMode('optimize');
+    setIsContextPanelOpen(true);
+    setActiveReviewSuggestionId(suggestion.id);
   }
 
   function handleJumpToSuggestion(suggestion: ReviewSuggestion) {
+    handlePreviewReviewSuggestion(suggestion);
+
     if (!garden) {
       return;
     }
@@ -841,9 +1083,9 @@ export function PlanPage() {
     }
   }
 
-  const sidePanelState =
+  const contextPanelState =
     activeMode !== 'select' ? 'mode' : selectedItem ? 'inspector' : null;
-  const hasSidePanel = sidePanelState !== null;
+  const sidePanelState = isContextPanelOpen ? contextPanelState : null;
 
   return (
     <section className={styles.screen} data-route-shell="true">
@@ -915,11 +1157,18 @@ export function PlanPage() {
       </div>
 
       <div
-        className={`${styles.workspaceGrid} ${
-          hasSidePanel ? styles.withSidePanel : styles.fullCanvas
-        }`}
+        className={styles.workspaceGrid}
+        data-panel-open={sidePanelState ? 'true' : 'false'}
       >
-        <PlanActionRail activeMode={activeMode} setActiveMode={setActiveMode} />
+        <PlanActionRail
+          activeMode={activeMode}
+          hasSelection={Boolean(selectedItem)}
+          isPanelOpen={Boolean(sidePanelState)}
+          onOpenChoosePlants={() => setIsChoosePlantsOpen(true)}
+          onOpenInspector={handleOpenInspector}
+          onOptimize={handleOpenOptimizeMode}
+          setActiveMode={handleSetActiveMode}
+        />
 
         <div className={styles.canvasColumn}>
           <PlanCanvas
@@ -927,6 +1176,8 @@ export function PlanPage() {
             draggingPlantId={pointerInteractions.draggingPlantId}
             draggingStructureId={pointerInteractions.draggingStructureId}
             garden={garden}
+            focusedCropKey={focusedCropKey}
+            influenceOverlay={visibleInfluenceOverlay}
             manualSunEdit={manualSunEdit}
             manualSunExposure={manualSunExposure}
             marqueeRect={pointerInteractions.marqueeRect}
@@ -952,7 +1203,8 @@ export function PlanPage() {
             onStructurePointerMove={
               pointerInteractions.handleStructurePointerMove
             }
-            planWarnings={canvasPlanWarnings}
+            planWarnings={activePlanWarnings}
+            proposalDiffOverlay={proposalDiffOverlay}
             plotRef={pointerInteractions.plotRef}
             resizingStructureId={pointerInteractions.resizingStructureId}
             selectedPlantIds={selectedPlantIds}
@@ -961,6 +1213,16 @@ export function PlanPage() {
             snapGuides={pointerInteractions.snapGuides}
             sunSeason={sunSeason}
           />
+          {visibleCropFocusSummary ? (
+            <PlanCropFocusCard
+              influenceSummary={influenceOverlay?.summary ?? null}
+              onClose={handleCloseCropFocus}
+              onOpenDetails={handleOpenInspector}
+              onShowInfluenceChange={setShowInfluenceOverlay}
+              showInfluence={showInfluenceOverlay}
+              summary={visibleCropFocusSummary}
+            />
+          ) : null}
           <PlanSelectionToolbar
             count={selectedItems.length}
             onAlignBottom={() => handleAlignSelection('bottom')}
@@ -972,17 +1234,14 @@ export function PlanPage() {
             onDistributeHorizontal={handleDistributeSelection}
             onDuplicate={handleDuplicateSelection}
           />
-          <PlanFloatingActions
-            activeMode={activeMode}
-            isOptimizeActive={activeMode === 'optimize'}
-            onOpenChoosePlants={() => setIsChoosePlantsOpen(true)}
-            onOptimize={handleOpenOptimizeMode}
-            setActiveMode={setActiveMode}
-          />
         </div>
 
         {sidePanelState ? (
-          <aside className={styles.sidePanel} aria-label="Plan context panel">
+          <aside
+            className={styles.sidePanel}
+            data-panel-state={sidePanelState}
+            aria-label="Plan context panel"
+          >
             <Suspense
               fallback={
                 <div className={styles.sidePanelLoading}>Loading controls.</div>
@@ -1002,12 +1261,13 @@ export function PlanPage() {
                         accessibleMode: accessiblePathDefaults,
                       });
                       setActiveMode('select');
+                      setIsContextPanelOpen(false);
                       telemetryService.trackEvent('structure_added', {
                         accessible_path_default: accessiblePathDefaults,
                         structure_type: structureType,
                       });
                     }}
-                    onClose={() => setActiveMode('select')}
+                    onClose={handleCloseContextPanel}
                     onAcceptReviewBatch={handleAcceptReviewBatch}
                     onAcceptReviewSuggestion={handleAcceptReviewSuggestion}
                     onDismissHealthIssue={handleDismissHealthIssue}
@@ -1016,6 +1276,7 @@ export function PlanPage() {
                     }
                     onJumpToHealthIssue={handleJumpToHealthIssue}
                     onJumpToSuggestion={handleJumpToSuggestion}
+                    onPreviewReviewSuggestion={handlePreviewReviewSuggestion}
                     onRecalculateSun={recalculateSunShade}
                     onRejectReviewSuggestion={handleRejectReviewSuggestion}
                     onRestoreWarning={(warningId) =>
@@ -1025,18 +1286,11 @@ export function PlanPage() {
                     }
                     onSnoozeReviewSuggestion={handleSnoozeReviewSuggestion}
                     planHealthReport={planHealthReport}
+                    activeReviewSuggestionId={activeReviewSuggestionId}
                     reviewSuggestions={reviewSuggestions}
                     setManualSunEdit={setManualSunEdit}
                     setManualSunExposure={setManualSunExposure}
                     setAccessiblePathDefaults={setAccessiblePathDefaults}
-                    setMode={(mode) => {
-                      if (mode === 'optimize') {
-                        handleOpenOptimizeMode();
-                        return;
-                      }
-
-                      setActiveMode(mode);
-                    }}
                     setShowSunOverlay={setShowSunOverlay}
                     setStructureType={setStructureType}
                     setSunSeason={setSunSeason}
@@ -1065,7 +1319,10 @@ export function PlanPage() {
                       }
                       onRefresh={() => void handleRefreshOperations()}
                       onSelectAutoLayoutCandidate={
-                        setSelectedAutoLayoutCandidateId
+                        handleSelectAutoLayoutCandidate
+                      }
+                      onSnoozeAutoLayoutCandidate={
+                        handleSnoozeAutoLayoutCandidate
                       }
                       optimizerMessage={optimizerMessage}
                       optimizerStatus={optimizerStatus}
@@ -1076,6 +1333,9 @@ export function PlanPage() {
                       selectedAutoLayoutCandidateId={
                         selectedAutoLayoutCandidateId
                       }
+                      snoozedAutoLayoutCandidateIds={
+                        snoozedAutoLayoutCandidateIds
+                      }
                       successionRecommendations={successionRecommendations}
                       sunLayer={activeSunLayer}
                       sunSeason={sunSeason}
@@ -1083,20 +1343,32 @@ export function PlanPage() {
                   ) : null}
                 </>
               ) : (
-                <PlanInspector
-                  garden={garden}
-                  onDeleteSelected={deleteSelectedItem}
-                  onDuplicatePlanting={duplicatePlanting}
-                  onDuplicateStructure={duplicateStructure}
-                  onResizeStructure={resizeStructure}
-                  onUpdatePlanting={updatePlanting}
-                  onUpdateStructure={updateStructure}
-                  onUpdateStructureShade={updateStructureShade}
-                  selectedItem={selectedItem}
-                  sunLayer={activeSunLayer}
-                  sunSeason={sunSeason}
-                  warnings={inspectorPlanWarnings}
-                />
+                <div className={styles.inspectorDock}>
+                  <div className={styles.dockHeader}>
+                    <span>Selection</span>
+                    <button
+                      aria-label="Close selected item panel"
+                      onClick={handleCloseContextPanel}
+                      type="button"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <PlanInspector
+                    garden={garden}
+                    onDeleteSelected={deleteSelectedItem}
+                    onDuplicatePlanting={duplicatePlanting}
+                    onDuplicateStructure={duplicateStructure}
+                    onResizeStructure={resizeStructure}
+                    onUpdatePlanting={updatePlanting}
+                    onUpdateStructure={updateStructure}
+                    onUpdateStructureShade={updateStructureShade}
+                    selectedItem={selectedItem}
+                    sunLayer={activeSunLayer}
+                    sunSeason={sunSeason}
+                    warnings={inspectorPlanWarnings}
+                  />
+                </div>
               )}
             </Suspense>
           </aside>
@@ -1128,6 +1400,7 @@ export function PlanPage() {
               });
               setIsAddPlantOpen(false);
               setActiveMode('select');
+              setIsContextPanelOpen(false);
             }}
             onClose={() => setIsAddPlantOpen(false)}
             sunExposureAtPlacement={nextPlacementSunArea?.exposure ?? null}
@@ -1163,6 +1436,7 @@ export function PlanPage() {
               });
               setIsChoosePlantsOpen(false);
               setActiveMode('optimize');
+              setIsContextPanelOpen(true);
               void handleGenerateAutoLayouts(optimizedGarden);
             }}
             sunExposureAtPlacement={nextPlacementSunArea?.exposure ?? null}

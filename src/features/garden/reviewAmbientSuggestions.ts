@@ -60,7 +60,6 @@ export function buildTallCropSuggestions(garden: Garden): ReviewSuggestion[] {
           },
         ],
         canBatchAccept: false,
-        confidence: 'medium',
         id: `review:move-tall-north:${planting.id}`,
         itemIds: [planting.id],
         preview: {
@@ -128,7 +127,6 @@ export function buildShadeCropSuggestions(
           },
         ],
         canBatchAccept: false,
-        confidence: 'medium',
         id: `review:move-partial-shade:${planting.id}`,
         itemIds: [planting.id],
         preview: {
@@ -197,7 +195,6 @@ export function buildWaterZoneSuggestions(garden: Garden): ReviewSuggestion[] {
           },
         })),
         canBatchAccept: false,
-        confidence: 'medium',
         id: `review:water-zone:${bed.id}`,
         itemIds: [bed.id, ...affected.map((planting) => planting.id)],
         preview: {

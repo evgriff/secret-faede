@@ -9,6 +9,7 @@ import {
   type GardenLocation,
   type GardenPlot,
   type GardenPlant,
+  type PlantingInstance,
   type PlantingMode,
   type SeasonCropSelection,
   type SunExposure,
@@ -16,6 +17,14 @@ import {
   type StructureType,
   type WaterRecommendation,
 } from '../../domain/gardens/GardenRepository';
+import {
+  createPlantingInstances,
+  getPlantingInstances,
+  movePlantingInstance,
+  movePlantingWithInstances,
+  normalizePlantingFromInstances,
+  offsetPlantingInstances,
+} from '../../domain/gardens/plantingInstances';
 import type {
   GardenSuggestionDecision,
   GardenWorkspace,
@@ -62,13 +71,23 @@ import {
 type GardenLoadStatus = 'error' | 'loading' | 'ready';
 type SaveStatus = 'error' | 'idle' | 'queued' | 'saved' | 'saving';
 export type SelectedGardenItem =
-  | { id: string; type: 'planting' }
+  | { id: string; instanceId?: string; type: 'planting' }
   | { id: string; type: 'structure' };
 
 export type GardenItemPositionUpdate = SelectedGardenItem & {
   xFt: number;
   yFt: number;
 };
+
+const arrangementFields: Array<keyof GardenPlant> = [
+  'blockDepthFt',
+  'blockWidthFt',
+  'clusterRadiusFt',
+  'mode',
+  'plantCount',
+  'rowLengthFt',
+  'spacingInches',
+];
 
 export interface GardenStructureRectUpdate {
   depthFt: number;
@@ -81,6 +100,7 @@ export interface GardenStructureRectUpdate {
 export interface AddPlantingRequest {
   blockDepthFt: number | null;
   blockWidthFt: number | null;
+  clusterRadiusFt: number | null;
   crop: CropProfile;
   mode: PlantingMode;
   plantCount: number | null;
@@ -240,11 +260,13 @@ export function useGarden(userId: string | null) {
 
   const recordSuggestionDecision = useCallback(
     ({
+      impact = 'planned',
       id,
       label,
       note = null,
       status: decisionStatus,
     }: {
+      impact?: GardenSuggestionDecision['impact'];
       id: string;
       label: string;
       note?: string | null;
@@ -253,6 +275,7 @@ export function useGarden(userId: string | null) {
       const decision: GardenSuggestionDecision = {
         decidedAtIso: new Date().toISOString(),
         id,
+        impact,
         label,
         note,
         status: decisionStatus,
@@ -422,7 +445,13 @@ export function useGarden(userId: string | null) {
   );
 
   const movePlant = useCallback(
-    (plantId: string, point: PlotPoint, snap: boolean, trackHistory = true) => {
+    (
+      plantId: string,
+      point: PlotPoint,
+      snap: boolean,
+      trackHistory = true,
+      instanceId?: string,
+    ) => {
       commitGardenUpdate(
         (currentGarden) => {
           if (!currentGarden) {
@@ -441,16 +470,14 @@ export function useGarden(userId: string | null) {
               plant.id === plantId
                 ? !canManuallyMovePlanting(plant)
                   ? plant
-                  : {
-                      ...plant,
-                      xFt: normalizedPoint.xFt,
-                      yFt: normalizedPoint.yFt,
-                    }
+                  : instanceId
+                    ? movePlantingInstance(plant, instanceId, normalizedPoint)
+                    : movePlantingWithInstances(plant, normalizedPoint)
                 : plant,
             ),
           };
         },
-        { id: plantId, type: 'planting' },
+        createSelectedPlantingItem(plantId, instanceId),
         trackHistory,
       );
     },
@@ -508,11 +535,7 @@ export function useGarden(userId: string | null) {
         return;
       }
 
-      const plantUpdates = new Map(
-        updates
-          .filter((update) => update.type === 'planting')
-          .map((update) => [update.id, update]),
-      );
+      const plantUpdatesById = groupPlantingPositionUpdates(updates);
       const structureUpdates = new Map(
         updates
           .filter((update) => update.type === 'structure')
@@ -523,23 +546,23 @@ export function useGarden(userId: string | null) {
         (currentGarden) => ({
           ...currentGarden,
           plantings: currentGarden.plantings.map((planting) => {
-            const update = plantUpdates.get(planting.id);
+            const plantingUpdates = plantUpdatesById.get(planting.id);
 
-            if (!update || !canManuallyMovePlanting(planting)) {
+            if (!plantingUpdates || !canManuallyMovePlanting(planting)) {
               return planting;
             }
 
-            const point = normalizePointToPlot(
-              { xFt: update.xFt, yFt: update.yFt },
-              currentGarden.plot,
-              false,
-            );
+            return plantingUpdates.reduce((nextPlanting, update) => {
+              const point = normalizePointToPlot(
+                { xFt: update.xFt, yFt: update.yFt },
+                currentGarden.plot,
+                false,
+              );
 
-            return {
-              ...planting,
-              xFt: point.xFt,
-              yFt: point.yFt,
-            };
+              return update.instanceId
+                ? movePlantingInstance(nextPlanting, update.instanceId, point)
+                : movePlantingWithInstances(nextPlanting, point);
+            }, planting);
           }),
           structures: currentGarden.structures.map((structure) => {
             const update = structureUpdates.get(structure.id);
@@ -654,7 +677,7 @@ export function useGarden(userId: string | null) {
           widthFt: clampPlotDimension(widthFt),
         };
         const plantings = currentGarden.plantings.map((plant) =>
-          clampPlantToPlot(plant, plot),
+          clampPlantingToPlot(plant, plot),
         );
         const structures = currentGarden.structures.map((structure) =>
           clampStructureToPlot(structure, plot),
@@ -976,15 +999,36 @@ export function useGarden(userId: string | null) {
       commitGardenUpdate(
         (currentGarden) => ({
           ...currentGarden,
-          plantings: currentGarden.plantings.map((planting) =>
-            planting.id === plantingId
-              ? {
-                  ...planting,
-                  ...values,
-                  id: planting.id,
-                }
-              : planting,
-          ),
+          plantings: currentGarden.plantings.map((planting) => {
+            if (planting.id !== plantingId) {
+              return planting;
+            }
+
+            const nextPlanting = {
+              ...planting,
+              ...values,
+              id: planting.id,
+            };
+            const shouldRebuildInstances = arrangementFields.some(
+              (field) => field in values,
+            );
+            const nextInstances = shouldRebuildInstances
+              ? createPlantingInstances(nextPlanting)
+              : values.label
+                ? nextPlanting.instances.map((instance, index) => ({
+                    ...instance,
+                    label:
+                      nextPlanting.instances.length === 1
+                        ? (values.label ?? instance.label)
+                        : `${values.label} ${index + 1}`,
+                  }))
+                : nextPlanting.instances;
+
+            return normalizePlantingFromInstances({
+              ...nextPlanting,
+              instances: nextInstances,
+            });
+          }),
         }),
         { id: plantingId, type: 'planting' },
       );
@@ -1081,14 +1125,22 @@ export function useGarden(userId: string | null) {
         garden.plot,
         true,
       );
-      const duplicate = {
+      const duplicateId = createPlantId();
+      const duplicate = normalizePlantingFromInstances({
         ...source,
-        id: createPlantId(),
+        id: duplicateId,
+        instances: relabelPlantingInstances(
+          offsetPlantingInstances(source, duplicateId, {
+            xFt: point.xFt - source.xFt,
+            yFt: point.yFt - source.yFt,
+          }),
+          `${source.label} copy`,
+        ),
         label: `${source.label} copy`,
         locked: false,
         xFt: point.xFt,
         yFt: point.yFt,
-      };
+      });
 
       commitGardenUpdate(
         (currentGarden) => ({
@@ -1150,6 +1202,7 @@ export function useGarden(userId: string | null) {
       const duplicatedPlantings = garden.plantings
         .filter((planting) => selectedKeys.has(`planting:${planting.id}`))
         .map((source) => {
+          const duplicateId = createPlantId();
           const offsetFt = getDuplicateOffsetFt(garden.plot);
           const point = normalizePointToPlot(
             {
@@ -1160,14 +1213,21 @@ export function useGarden(userId: string | null) {
             true,
           );
 
-          return {
+          return normalizePlantingFromInstances({
             ...source,
-            id: createPlantId(),
+            id: duplicateId,
+            instances: relabelPlantingInstances(
+              offsetPlantingInstances(source, duplicateId, {
+                xFt: point.xFt - source.xFt,
+                yFt: point.yFt - source.yFt,
+              }),
+              `${source.label} copy`,
+            ),
             label: `${source.label} copy`,
             locked: false,
             xFt: point.xFt,
             yFt: point.yFt,
-          };
+          });
         });
       const duplicatedStructures = garden.structures
         .filter((structure) => selectedKeys.has(`structure:${structure.id}`))
@@ -1222,8 +1282,14 @@ export function useGarden(userId: string | null) {
       }
 
       const plantingIds = new Set(
-        items.filter((item) => item.type === 'planting').map((item) => item.id),
+        items
+          .filter(
+            (item): item is SelectedGardenItem & { type: 'planting' } =>
+              item.type === 'planting' && !item.instanceId,
+          )
+          .map((item) => item.id),
       );
+      const plantingInstanceIds = groupSelectedPlantingInstances(items);
       const structureIds = new Set(
         items
           .filter((item) => item.type === 'structure')
@@ -1233,9 +1299,25 @@ export function useGarden(userId: string | null) {
       commitGardenUpdate(
         (currentGarden) => ({
           ...currentGarden,
-          plantings: currentGarden.plantings.filter(
-            (planting) => !plantingIds.has(planting.id),
-          ),
+          plantings: currentGarden.plantings.flatMap((planting) => {
+            if (plantingIds.has(planting.id)) {
+              return [];
+            }
+
+            const instanceIds = plantingInstanceIds.get(planting.id);
+
+            if (!instanceIds) {
+              return [planting];
+            }
+
+            const instances = getPlantingInstances(planting).filter(
+              (instance) => !instanceIds.has(instance.id),
+            );
+
+            return instances.length > 0
+              ? [normalizePlantingFromInstances({ ...planting, instances })]
+              : [];
+          }),
           structures: currentGarden.structures.filter(
             (structure) => !structureIds.has(structure.id),
           ),
@@ -1376,7 +1458,7 @@ function isAutoLayoutProposalItem(
 function createPlanting(garden: Garden, request: AddPlantingRequest) {
   const point = findNextPlantLocation(garden);
 
-  return {
+  const planting = {
     ...createDefaultPlanting({
       id: createPlantId(),
       label: request.crop.commonName,
@@ -1393,7 +1475,8 @@ function createPlanting(garden: Garden, request: AddPlantingRequest) {
     plantCount: request.plantCount,
     clusterRadiusFt:
       request.mode === 'cluster'
-        ? calculateClusterRadiusFt(request.crop, request.plantCount)
+        ? (request.clusterRadiusFt ??
+          calculateClusterRadiusFt(request.crop, request.plantCount))
         : null,
     rowLengthFt: request.rowLengthFt,
     rowCount:
@@ -1409,6 +1492,11 @@ function createPlanting(garden: Garden, request: AddPlantingRequest) {
       request.mode === 'trellisLine' ? request.rowLengthFt : null,
     weeklyWaterNeedInches: request.crop.weeklyWaterNeedInches,
   };
+
+  return normalizePlantingFromInstances({
+    ...planting,
+    instances: createPlantingInstances(planting),
+  });
 }
 
 function resolveSelectionFromId(
@@ -1428,6 +1516,15 @@ function resolveSelectionFromId(
   }
 
   return undefined;
+}
+
+function createSelectedPlantingItem(
+  id: string,
+  instanceId?: string,
+): SelectedGardenItem {
+  return instanceId
+    ? { id, instanceId, type: 'planting' }
+    : { id, type: 'planting' };
 }
 
 function findNextStructureLocation(garden: Garden): PlotPoint {
@@ -1497,6 +1594,76 @@ function findNextPlantLocation(garden: Garden): PlotPoint {
 
 function getDuplicateOffsetFt(plot: GardenPlot) {
   return Math.max(plot.snapUnitFt, 0.5);
+}
+
+function groupPlantingPositionUpdates(updates: GardenItemPositionUpdate[]) {
+  const grouped = new Map<
+    string,
+    Extract<GardenItemPositionUpdate, { type: 'planting' }>[]
+  >();
+
+  for (const update of updates) {
+    if (update.type !== 'planting') {
+      continue;
+    }
+
+    const existing = grouped.get(update.id) ?? [];
+    existing.push(update);
+    grouped.set(update.id, existing);
+  }
+
+  return grouped;
+}
+
+function groupSelectedPlantingInstances(items: SelectedGardenItem[]) {
+  const grouped = new Map<string, Set<string>>();
+
+  for (const item of items) {
+    if (item.type !== 'planting' || !item.instanceId) {
+      continue;
+    }
+
+    const existing = grouped.get(item.id) ?? new Set<string>();
+    existing.add(item.instanceId);
+    grouped.set(item.id, existing);
+  }
+
+  return grouped;
+}
+
+function relabelPlantingInstances(
+  instances: PlantingInstance[],
+  label: string,
+) {
+  return instances.map((instance, index) => ({
+    ...instance,
+    label: instances.length === 1 ? label : `${label} ${index + 1}`,
+  }));
+}
+
+function clampPlantingToPlot(
+  planting: GardenPlant,
+  plot: GardenPlot,
+): GardenPlant {
+  const clampedPlanting = clampPlantToPlot(planting, plot);
+  const instances = getPlantingInstances(clampedPlanting).map((instance) => {
+    const point = normalizePointToPlot(
+      { xFt: instance.xFt, yFt: instance.yFt },
+      plot,
+      true,
+    );
+
+    return {
+      ...instance,
+      xFt: point.xFt,
+      yFt: point.yFt,
+    };
+  });
+
+  return normalizePlantingFromInstances({
+    ...clampedPlanting,
+    instances,
+  });
 }
 
 function createItemId(prefix: string) {

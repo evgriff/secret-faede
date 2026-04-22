@@ -56,6 +56,11 @@ export function TodayPage() {
   const networkStatus = useNetworkStatus();
   const [activeQuickAction, setActiveQuickAction] =
     useState<TodayQuickActionState | null>(null);
+  const [actionNotice, setActionNotice] = useState<{
+    id: number;
+    message: string;
+    tone: 'success' | 'warning';
+  } | null>(null);
   const [today] = useState(() => new Date());
   const todayDate = toLocalDate(today);
   const [selectedDate, setSelectedDate] = useState(todayDate);
@@ -101,8 +106,23 @@ export function TodayPage() {
     [garden, openTasks, selectedDate],
   );
 
+  function showActionNotice(
+    message: string,
+    tone: 'success' | 'warning' = 'success',
+  ) {
+    setActionNotice({ id: Date.now(), message, tone });
+  }
+
   async function handleAddManualTask(input: TodayManualTaskInput) {
-    return applyGardenUpdate((current) => addManualTask(current, input));
+    const saved = await applyGardenUpdate((current) =>
+      addManualTask(current, input),
+    );
+
+    if (saved) {
+      showActionNotice('Manual task added.');
+    }
+
+    return saved;
   }
 
   async function handleQuickNoteSubmit(input: QuickJournalSubmit) {
@@ -133,6 +153,7 @@ export function TodayPage() {
 
     if (saved) {
       telemetryService.trackEvent('note_added', { source: 'today' });
+      showActionNotice('Field note saved to Feed.');
     }
 
     return saved;
@@ -172,27 +193,39 @@ export function TodayPage() {
         severity: input.severity,
         source: 'today',
       });
+      showActionNotice('Issue saved and follow-up task created.', 'warning');
     }
 
     return saved;
   }
-
   async function handleQuickHarvestSubmit(input: QuickHarvestSubmit) {
     const saved = await applyGardenUpdate(
       (current) => logFieldHarvest(current, input),
-      'Unable to log harvest.',
+      'Unable to log.',
     );
 
     if (saved) {
-      telemetryService.trackEvent('harvest_logged', {
-        source: 'today',
-        unit: input.unit,
+      showActionNotice('Harvest saved. Add a photo if it helps the memory.');
+      setActiveQuickAction({
+        kind: 'photo',
+        targetId: input.plantingId ? `planting:${input.plantingId}` : 'garden',
       });
     }
 
     return saved;
   }
 
+  function handleLogHarvestDone(item: { planting: { id: string } }) {
+    void handleQuickHarvestSubmit({
+      amountText: 'Picked',
+      cropFinished: false,
+      harvestedOn: selectedDate,
+      notes: '',
+      plantingId: item.planting.id,
+      quantity: null,
+      unit: 'freeform',
+    });
+  }
   async function handleCapturePhoto() {
     try {
       return await mobileDeviceService.capturePhoto();
@@ -204,7 +237,11 @@ export function TodayPage() {
   function addSuccession(recommendation: SuccessionRecommendation) {
     void applyGardenUpdate((current) =>
       addSuccessionTask(current, recommendation),
-    );
+    ).then((saved) => {
+      if (saved) {
+        showActionNotice('Succession reminder added.');
+      }
+    });
   }
 
   function handleCompleteTask(taskId: string) {
@@ -220,15 +257,31 @@ export function TodayPage() {
       }
 
       return updated;
+    }).then((saved) => {
+      if (saved) {
+        showActionNotice('Task completed.');
+      }
     });
   }
 
   function handleSnoozeTask(taskId: string) {
-    void applyGardenUpdate((current) => snoozeTask(current, taskId, 1));
+    void applyGardenUpdate((current) => snoozeTask(current, taskId, 1)).then(
+      (saved) => {
+        if (saved) {
+          showActionNotice('Task snoozed until tomorrow.');
+        }
+      },
+    );
   }
 
   function handleDeferTask(taskId: string) {
-    void applyGardenUpdate((current) => deferTask(current, taskId, 7));
+    void applyGardenUpdate((current) => deferTask(current, taskId, 7)).then(
+      (saved) => {
+        if (saved) {
+          showActionNotice('Task deferred one week.');
+        }
+      },
+    );
   }
 
   function handleUpdateIssue(
@@ -238,7 +291,11 @@ export function TodayPage() {
     void applyGardenUpdate(
       (current) => updateIssueStatus(current, entryId, status),
       'Unable to update issue.',
-    );
+    ).then((saved) => {
+      if (saved) {
+        showActionNotice(`Issue marked ${status}.`);
+      }
+    });
   }
 
   function handleUpdatePlantingStatus(
@@ -248,7 +305,11 @@ export function TodayPage() {
     void applyGardenUpdate(
       (current) => markPlantingLifecycle(current, plantingId, status),
       'Unable to update crop status.',
-    );
+    ).then((saved) => {
+      if (saved) {
+        showActionNotice('Crop status updated.');
+      }
+    });
   }
 
   function handleWaterDone(recommendationId: string) {
@@ -261,6 +322,7 @@ export function TodayPage() {
           source: 'watering_recommendation',
           task_type: 'water',
         });
+        showActionNotice('Watering logged.');
       }
     });
   }
@@ -277,6 +339,10 @@ export function TodayPage() {
       mobileDeviceService,
       plantingId,
       reason,
+    }).then((saved) => {
+      if (saved) {
+        showActionNotice('Harvest reminder rescheduled.');
+      }
     });
   }
 
@@ -286,7 +352,11 @@ export function TodayPage() {
         now: new Date(),
         refreshOpenGenerated: true,
       }),
-    );
+    ).then((saved) => {
+      if (saved) {
+        showActionNotice('Today schedule refreshed.');
+      }
+    });
 
   if (loadStatus === 'loading') {
     return <LoadingState message="Building field list." title="Today" />;
@@ -327,6 +397,19 @@ export function TodayPage() {
         todayDate={selectedDate}
       />
 
+      {actionNotice ? (
+        <p
+          aria-live="polite"
+          className={`${styles.actionNotice} ${
+            actionNotice.tone === 'warning' ? styles.actionNoticeWarning : ''
+          }`}
+          key={actionNotice.id}
+          role="status"
+        >
+          {actionNotice.message}
+        </p>
+      ) : null}
+
       <TodayCalendarStrip
         days={calendarDays}
         onSelectDate={setSelectedDate}
@@ -337,7 +420,7 @@ export function TodayPage() {
       <TodayDayOverview
         model={fieldModel}
         onCompleteTask={handleCompleteTask}
-        onOpenAction={setActiveQuickAction}
+        onLogHarvest={handleLogHarvestDone}
         onUpdateIssue={handleUpdateIssue}
         onUpdatePlantingStatus={handleUpdatePlantingStatus}
         onWaterDone={handleWaterDone}
@@ -350,6 +433,7 @@ export function TodayPage() {
         onCompleteTask={handleCompleteTask}
         onDeferTask={handleDeferTask}
         onDelayHarvest={handleDelayHarvest}
+        onLogHarvest={handleLogHarvestDone}
         onOpenAction={setActiveQuickAction}
         onSnoozeTask={handleSnoozeTask}
         onUpdatePlantingStatus={handleUpdatePlantingStatus}

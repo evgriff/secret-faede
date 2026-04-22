@@ -9,22 +9,22 @@ export interface TodayTaskTargetLink {
 export function getTaskTargetLink(task: Task): TodayTaskTargetLink | null {
   if (task.source === 'manual' && task.sourceId) {
     return {
-      label: 'Open feed',
-      to: `${routePaths.feed}?entry=${encodeURIComponent(`journal-${task.sourceId}`)}`,
+      label: 'Feed',
+      to: `${routePaths.feed}?entry=journal-${task.sourceId}`,
     };
   }
 
   if (task.plantingId) {
     return {
-      label: 'Open plot',
-      to: routePaths.plan,
+      label: 'Plan',
+      to: `${routePaths.plan}?p=${task.plantingId}`,
     };
   }
 
   if (task.structureId) {
     return {
-      label: 'Open plot',
-      to: routePaths.plan,
+      label: 'Plan',
+      to: `${routePaths.plan}?p=${task.structureId}`,
     };
   }
 

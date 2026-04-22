@@ -133,6 +133,12 @@
   padding-top: 0.75rem;
 }
 
+.materials[aria-label='Layout walkthrough'] {
+  order: -1;
+  border-top: 0;
+  padding-top: 0;
+}
+
 .materials h3 {
   margin: 0.1rem 0 0;
   color: var(--color-text-strong);

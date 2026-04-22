@@ -1,51 +1,91 @@
-import styles from '../SettingsPage.module.css';
-
-export type DemoModeStatus = 'idle' | 'loading' | 'loaded' | 'reset';
+import pageStyles from '../SettingsPage.module.css';
+import type { DemoModeStatus } from '../settingsDemoMode';
+import styles from './SettingsDemoPanel.module.css';
 
 export function SettingsDemoPanel({
+  canExit,
+  error,
+  isActive,
+  isBusy,
+  message,
+  onExitDemo,
   onLoadDemo,
   onResetDemo,
   status,
 }: {
+  canExit: boolean;
+  error: string | null;
+  isActive: boolean;
+  isBusy: boolean;
+  message: string | null;
+  onExitDemo(): void;
   onLoadDemo(): void;
   onResetDemo(): void;
   status: DemoModeStatus;
 }) {
-  const isLoading = status === 'loading';
-
   return (
-    <section className={styles.demoPanel}>
+    <section
+      aria-label="sample garden"
+      className={styles.panel}
+      data-demo-state={isActive ? 'demo' : 'real'}
+    >
       <div>
-        <p className={styles.kicker}>sample garden</p>
-        <h2>Detroit demo garden</h2>
+        <p className={pageStyles.kicker}>sample garden</p>
+        <h2>Real garden or seeded demo</h2>
         <p>
-          Load a stable garden with beds, crops, warnings, watering, tasks,
-          issues, harvests, alert history, and coherent settings.
+          Real garden is the default. Enter the Detroit demo only for
+          walkthroughs; this browser saves the current garden first so Exit demo
+          can restore it.
         </p>
       </div>
-      <div className={styles.demoActions}>
+      <div className={styles.statusLine}>
+        <strong>
+          {isActive ? 'Demo workspace active.' : 'Real garden workspace.'}
+        </strong>
+        <span>
+          {isActive
+            ? 'Reset returns this walkthrough to the seeded baseline. Exit demo restores the saved real garden.'
+            : 'Enter demo for a release walkthrough, then exit back to this real garden.'}
+        </span>
+      </div>
+      <div className={styles.actions}>
         <button
-          className={styles.button}
-          disabled={isLoading}
+          className={pageStyles.button}
+          disabled={isBusy}
           onClick={onLoadDemo}
           type="button"
         >
-          {isLoading ? 'Loading demo...' : 'Load demo garden'}
+          {isBusy && status === 'loading' ? 'Entering demo...' : 'Enter demo'}
         </button>
         <button
-          className={styles.secondaryButton}
-          disabled={isLoading}
+          className={pageStyles.secondaryButton}
+          disabled={isBusy}
           onClick={onResetDemo}
           type="button"
         >
-          Reset demo
+          Reset seeded demo
+        </button>
+        <button
+          className={pageStyles.secondaryButton}
+          disabled={isBusy || !canExit}
+          onClick={onExitDemo}
+          title={
+            canExit
+              ? 'Restore the garden saved before demo mode.'
+              : 'No real garden backup is available in this browser.'
+          }
+          type="button"
+        >
+          Exit demo
         </button>
       </div>
-      {status === 'loaded' ? (
-        <p className={styles.saved}>Demo garden loaded.</p>
-      ) : null}
-      {status === 'reset' ? (
-        <p className={styles.saved}>Demo garden reset.</p>
+      {message ? <p className={pageStyles.saved}>{message}</p> : null}
+      {error ? <p className={pageStyles.error}>{error}</p> : null}
+      {status === 'exited' ? (
+        <p className={styles.restoreNote}>
+          The seeded demo has been replaced by the garden saved before demo
+          mode.
+        </p>
       ) : null}
     </section>
   );

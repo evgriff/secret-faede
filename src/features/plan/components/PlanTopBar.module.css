@@ -53,6 +53,14 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
+  min-width: min(100%, 16rem);
+}
+
+.syncHint {
+  flex-basis: 100%;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  line-height: 1.25;
 }
 
 .actions {

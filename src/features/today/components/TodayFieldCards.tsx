@@ -5,7 +5,10 @@ import type {
   WaterRecommendation,
   WeatherSnapshot,
 } from '../../../domain/gardens/GardenRepository';
-import { StatusBadge } from '../../shared/design/DesignPrimitives';
+import {
+  ActionButton,
+  StatusBadge,
+} from '../../shared/design/DesignPrimitives';
 import { formatLongDate } from '../todayFormatters';
 import type {
   TodayCropStageAction,
@@ -73,12 +76,11 @@ export function WeatherPanel({
               {formatLongDate(latestWeather.observedForDate)}
             </span>
           </div>
-          <p className={styles.weatherSource}>
-            Quality {latestWeather.dataQuality ?? 'limited'}
-          </p>
         </div>
       ) : (
-        <p className={styles.empty}>No weather snapshot saved yet.</p>
+        <p className={styles.empty}>
+          Weather appears here after the next update.
+        </p>
       )}
     </section>
   );
@@ -107,19 +109,18 @@ export function WaterCard({
           {formatRefreshTime(
             recommendation.refreshedAtIso ?? recommendation.generatedAtIso,
           )}
-          ; quality {recommendation.dataQuality ?? 'limited'}
         </small>
         {recommendation.rationale.length > 1 ? (
           <small>{recommendation.rationale.slice(1, 3).join(' ')}</small>
         ) : null}
       </div>
       <div className={styles.cardActions}>
-        <button onClick={onDone} type="button">
+        <ActionButton intent="success" onClick={onDone} priority="primary">
           Water done
-        </button>
-        <button onClick={onNote} type="button">
+        </ActionButton>
+        <ActionButton onClick={onNote} priority="secondary">
           Override note
-        </button>
+        </ActionButton>
       </div>
     </article>
   );
@@ -144,14 +145,17 @@ export function CropStageCard({
         </p>
         <small>{action.summary}</small>
       </div>
-      <button
-        onClick={() =>
-          onUpdatePlantingStatus(action.planting.id, action.nextStatus)
-        }
-        type="button"
-      >
-        {getLifecycleActionLabel(action.nextStatus)}
-      </button>
+      <div className={styles.cardActions}>
+        <ActionButton
+          intent="success"
+          onClick={() =>
+            onUpdatePlantingStatus(action.planting.id, action.nextStatus)
+          }
+          priority="primary"
+        >
+          {getLifecycleActionLabel(action.nextStatus)}
+        </ActionButton>
+      </div>
     </article>
   );
 }
@@ -175,19 +179,21 @@ export function IssueCard({
       </div>
       <div className={styles.cardActions}>
         {issue.issueStatus !== 'inProgress' ? (
-          <button
+          <ActionButton
+            intent="warning"
             onClick={() => onUpdateIssue(issue.id, 'inProgress')}
-            type="button"
+            priority="secondary"
           >
             In progress
-          </button>
+          </ActionButton>
         ) : null}
-        <button
+        <ActionButton
+          intent="success"
           onClick={() => onUpdateIssue(issue.id, 'resolved')}
-          type="button"
+          priority="primary"
         >
           Resolve
-        </button>
+        </ActionButton>
       </div>
     </article>
   );

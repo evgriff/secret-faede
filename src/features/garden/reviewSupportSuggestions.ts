@@ -68,7 +68,6 @@ export function buildSupportSuggestion(
   return {
     actions: [{ kind: 'addStructure', structure: support }],
     canBatchAccept: true,
-    confidence: supportNeed.required ? 'high' : 'medium',
     id: `review:${type}:${planting.id}`,
     itemIds: [planting.id],
     preview: {
@@ -134,7 +133,6 @@ export function buildTrellisedLayoutSuggestion(
       },
     ],
     canBatchAccept: false,
-    confidence: crop.trellisRequired ? 'high' : 'medium',
     id: `review:convert-trellis:${planting.id}`,
     itemIds: [planting.id],
     preview: {
@@ -207,7 +205,6 @@ export function buildWidenPathSuggestion(
       },
     ],
     canBatchAccept: false,
-    confidence: 'high',
     id: `review:widen-path:${path.id}`,
     itemIds: [path.id],
     preview: {
