@@ -4,8 +4,7 @@ Date: 2026-04-21
 
 This runbook describes the production path the repo can actually run today:
 Firebase Hosting, Firebase Auth Email/Password, Firestore, Storage, Cloud
-Functions, FCM web/native push, notification provider carrier messaging fallback in dry-run by default, and
-optional Capacitor shells.
+Functions, FCM web/native push, and optional Capacitor shells.
 
 ## Preflight
 
@@ -97,10 +96,9 @@ npm run seed:dev -- --dry-run
 npm run seed:dev
 ```
 
-`DEFAULT_ALERT_PHONE_E164` is optional and local-only. Do not commit phone
-numbers. The live seed writes the legacy `gardens/{uid}` aggregate and nested
-collections used by Functions; the app will migrate that garden into the shared
-published workspace on first load.
+Do not seed demo phone numbers. The live seed writes the legacy
+`gardens/{uid}` aggregate and nested collections used by Functions; the app will
+migrate that garden into the shared published workspace on first load.
 
 ## Domain Setup
 
@@ -125,31 +123,9 @@ published workspace on first load.
 
 ## carrier messaging Setup
 
-Production carrier messaging is fallback-only and implemented through notification provider Functions code.
-Keep `NOTIFICATION_DRY_RUN=true` until compliance and live smoke testing are
-complete.
-
-Required Functions secrets/env:
-
-- `RETIRED_DELIVERY_PROVIDER_API_KEY`
-- `RETIRED_DELIVERY_PROVIDER_FROM_NUMBER`
-- `RETIRED_DELIVERY_PROVIDER_PUBLIC_KEY`
-- `RETIRED_DELIVERY_PROVIDER_WEBHOOK_URL` if using per-message callbacks instead of a Messaging
-  Profile webhook
-- `NOTIFICATION_DRY_RUN=false` only after approval
-
-Manual notification provider steps:
-
-1. Complete sender registration and U.S. 10DLC or toll-free verification when
-   required.
-2. Assign the sender to a notification provider Messaging Profile.
-3. Configure inbound webhook delivery to the deployed `retiredDeliveryWebhook` URL.
-4. Configure delivery events to the deployed `retiredDeliveryStatusWebhook` URL.
-5. Set `RETIRED_DELIVERY_PROVIDER_PUBLIC_KEY` and keep signature validation enabled.
-6. Confirm carrier messaging is fallback-only for frost, heat-stress, and severe weather
-   after push skips or fails.
-7. Verify STOP, START, and HELP with a controlled allowlisted phone.
-8. Verify status callbacks update notification logs.
+None. carrier messaging/notification provider is de-scoped from the product. Do not configure carrier
+messaging for demos or production deploys; remove legacy carrier messaging paths only in the
+dedicated cleanup prompt.
 
 ## Native Mobile Setup
 
@@ -210,9 +186,6 @@ when `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT`, and all required
   platform Firebase config files installed locally, APNs/Play signing handled
   outside the repo, release keystore or App Store signing ready, and local
   notification smoke completed on the target device class.
-- notification provider carrier messaging fallback: compliance registration complete, sender assigned to a
-  Messaging Profile, webhook signature validation enabled, STOP/START/HELP
-  verified, and `NOTIFICATION_DRY_RUN=false` set only after push works.
 - Live smoke: Plan, Today, Feed, Settings, demo reset, optimize/apply, Review
   decision summary, publish/revert, push registration, and offline text queue
   verified on the production domain.
@@ -235,7 +208,6 @@ when `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT`, and all required
 - Notifications:
   - Register web push for one account.
   - Confirm in-app alerts and notification center history.
-  - Keep carrier messaging dry-run unless production compliance is complete.
 - Offline:
   - Queue a text-only Feed entry offline.
   - Reconnect and confirm queued state clears.

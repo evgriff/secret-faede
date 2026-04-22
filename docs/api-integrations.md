@@ -172,35 +172,11 @@ generated tasks only when they are not snoozed or deferred.
 
 ### carrier messaging
 
-- carrier messaging sends remain backend-only from Cloud Functions.
-- Push is the primary out-of-app channel. carrier messaging is attempted only when push does
-  not send for frost, heat-stress, or severe-weather alerts.
-- `NOTIFICATION_DRY_RUN` defaults to dry-run unless explicitly set to `false`,
-  `RETIRED_DELIVERY_PROVIDER_API_KEY` is present, and `RETIRED_DELIVERY_PROVIDER_FROM_NUMBER` is configured.
-- carrier messaging sends require:
-  - channel enabled
-  - alert type enabled
-  - quiet-hours pass
-  - E.164 phone on the profile
-  - stored carrier messaging consent with `status: granted`
-  - high-value fallback alert type
-  - push skipped or failed
-  - rate limit pass
-- Guardrails:
-  - duplicate notification suppression
-  - 3 carrier messaging/hour and 12 carrier messaging/day per garden log scan
-  - one retry for notification provider 429/5xx responses
-  - durable attempt logs with provider message id/status when available
-  - notification provider status webhook updates provider delivery status
-  - notification provider inbound webhook syncs START/STOP/HELP keyword intent into consent
-    state and writes `users/{uid}/smsEvents`
-- notification provider sends carrier messaging through `POST https://api.retiredDeliveryProvider.com/v2/messages` using
-  `from`, `to`, and `text` fields with bearer-token auth:
-  <https://developers.retiredDeliveryProvider.com/docs/messaging/messages/send-message>
-- notification provider messaging webhooks deliver `message.received`, `message.sent`, and
-  `message.finalized` events. Secret Faede verifies
-  `retiredDeliveryProvider-signature-ed25519` and `retiredDeliveryProvider-timestamp` headers by default:
-  <https://developers.retiredDeliveryProvider.com/docs/messaging/messages/receiving-webhooks>
+carrier messaging/notification provider is de-scoped for the current product overhaul. Push and in-app logs are
+the supported notification paths. Do not add carrier messaging setup, product copy, demo
+scripts, or prompt-chain work that depends on carrier messaging. Legacy
+carrier messaging-specific Functions, env, and webhook paths should be removed in the
+dedicated cleanup prompt.
 
 ## Required Secrets And Env
 
@@ -210,18 +186,6 @@ generated tasks only when they are not snoozed or deferred.
 - `ENABLE_TOMORROW_WEATHER=true` or `TOMORROW_WEATHER_ENABLED=true`: opt in to
   Tomorrow.io on Functions.
 - `NWS_USER_AGENT`: optional identifying User-Agent for NWS requests.
-- `RETIRED_DELIVERY_PROVIDER_API_KEY`: Functions-only credential for live carrier messaging fallback.
-- `RETIRED_DELIVERY_PROVIDER_FROM_NUMBER`: E.164 notification provider sender number.
-- `RETIRED_DELIVERY_PROVIDER_PUBLIC_KEY`: notification provider webhook public key for Ed25519 signature
-  verification.
-- `RETIRED_DELIVERY_PROVIDER_MESSAGING_PROFILE_ID`: optional profile id when the configured sender
-  requires one.
-- `RETIRED_DELIVERY_PROVIDER_WEBHOOK_URL`: optional per-message callback URL when not relying on a
-  Messaging Profile webhook.
-- `RETIRED_DELIVERY_PROVIDER_VALIDATE_WEBHOOKS=false`: local/emulator-only escape hatch. Keep
-  validation on in production.
-- `DEFAULT_ALERT_PHONE_E164`: remains the only source for the default dev/demo
-  phone. It must not be committed.
 
 ## Known Gaps
 

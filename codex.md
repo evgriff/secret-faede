@@ -10,6 +10,7 @@ gardeners manage that plot.
 Core principles:
 
 - mock-first by default
+- PWA-first, with native support only as an additive shell
 - explicit seams for auth and garden persistence
 - small modules over helper sprawl
 - docs that prevent repo drift
@@ -53,7 +54,6 @@ Active now:
   analytics
 - Cloud Functions source for scheduled watering checks and weather-driven alert
   dispatch
-- notification provider carrier messaging fallback integration behind server env and dry-run guardrails
 - authenticated app shell
 - tests and CI
 
@@ -61,7 +61,7 @@ Deferred until the local product model needs them:
 
 - multiple gardens
 - runtime external plant metadata and species libraries
-- maps, collaboration, and onboarding
+- maps, collaboration, carrier messaging, dashboards, AI, and onboarding
 - production email notification delivery
 
 ## Repo navigation
@@ -122,7 +122,8 @@ Deferred until the local product model needs them:
 `functions`
 
 - scheduled and event-driven notification dispatch
-- notification provider carrier messaging fallback delivery and audit logging
+- legacy notification code that should be kept behind explicit seams until the
+  carrier messaging cleanup prompt removes de-scoped paths
 
 `src/shared`
 
@@ -158,3 +159,5 @@ Do not add a dependency until all answers are yes:
 6. Store plot and plant data in feet, not pixels.
 7. Update docs when runtime, scripts, persistence, or deployment requirements change.
 8. Re-run `npm run lint`, `npm run typecheck`, `npm run test:unit`, `npm run test:e2e`, `npm run build`, and `npm run ci`.
+9. Do not reintroduce carrier messaging/notification provider as product scope; remove old references during
+   the carrier messaging cleanup prompt instead of expanding them.

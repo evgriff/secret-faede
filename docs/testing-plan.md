@@ -20,7 +20,7 @@ Run before finishing implementation prompts:
 - `npm run quality:bundle-budget`
 - `npm run ci`
 
-Run when Functions, notifications, carrier messaging, or scheduled behavior changes:
+Run when Functions, notifications, or scheduled behavior changes:
 
 - `npm run functions:build`
 - `npm run functions:test`
@@ -53,8 +53,7 @@ Run when seed data, crop catalog, or demo defaults change:
 - Domain tests cover starter template generation, crop suitability scoring, and
   crop catalog completeness/provenance flags.
 - sample garden tests cover the Detroit demo builder, active warning content,
-  operations data, Feed examples, notification history, and no invented demo
-  phone.
+  operations data, Feed examples, notification history, and no seeded phone.
 - Planning-domain tests cover spacing, pathway conflicts, sun mismatch,
   container fit, trellis warnings, timeline-aware succession occupancy, and
   saved-history rotation cautions.
@@ -62,7 +61,7 @@ Run when seed data, crop catalog, or demo defaults change:
   future planned planting.
 - Today-domain tests cover water done, issue follow-up task creation, issue
   resolution, harvest not-ready delays, native/local harvest reminders, harvest
-  lifecycle updates, and crop stage changes from the field dashboard.
+  lifecycle updates, and crop stage changes from the field view.
 - Today route tests cover manual task entry, issue-to-task creation from the
   field quick action sheet, and crop stage updates that record recent activity.
 - Feed-domain tests cover journal filtering, target scoping, issue-status
@@ -88,10 +87,7 @@ Run when seed data, crop catalog, or demo defaults change:
   password reset/sign-out calls, user-profile notification preference
   persistence, push-first channel preferences, scoped Storage photo uploads,
   and mockable FCM web token registration.
-- Functions tests cover notification logic, quiet hours, consent checks, and
-  phone redaction.
-- Functions provider parsing tests cover notification provider `message.received`,
-  `message.sent`, and `message.finalized` payloads.
+- Functions tests cover notification logic, quiet hours, and consent checks.
 - Rules tests run against the Firebase emulators and cover custom-claim
   authorization, owner-only garden/user access, read-only catalog access, scoped
   garden subcollections, journal image-only Storage writes, and cross-user
@@ -146,8 +142,8 @@ Run when seed data, crop catalog, or demo defaults change:
 - Water skip/dismiss/custom amount controls are not implemented and need unit
   tests once added.
 - Notification production readiness still needs live or emulator smoke coverage
-  for actual push delivery, notification provider dry-run logs, and opt-out sync. Mockable FCM
-  token persistence is now covered by Firebase adapter integration tests.
+  for actual push delivery. Mockable FCM token persistence is now covered by
+  Firebase adapter integration tests.
 - Backend operations still need Firestore emulator coverage for the scheduled
   hourly scan, callable auth rejection, task subcollection writes, and
   duplicate notification suppression across multiple generated snapshots.

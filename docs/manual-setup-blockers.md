@@ -3,7 +3,7 @@
 Date: 2026-04-21
 
 These items are not solved by app code alone. Do them before inviting real
-Firebase testers or enabling production notifications.
+Firebase testers or enabling production push notifications.
 
 ## Firebase Project And Web App
 
@@ -141,25 +141,10 @@ Required before TestFlight, Google Play testing, or real native push:
 
 ## carrier messaging
 
-Keep `NOTIFICATION_DRY_RUN=true` until all items below are complete:
-
-1. Complete the correct notification provider sender registration path, including U.S. 10DLC
-   or toll-free verification when required.
-2. Set Functions-only secrets/env:
-   - `RETIRED_DELIVERY_PROVIDER_API_KEY`
-   - `RETIRED_DELIVERY_PROVIDER_FROM_NUMBER`
-   - `RETIRED_DELIVERY_PROVIDER_PUBLIC_KEY`
-   - `NOTIFICATION_DRY_RUN=false`
-3. Configure notification provider inbound webhook to the deployed `retiredDeliveryWebhook` URL.
-4. Configure notification provider delivery webhook to the deployed `retiredDeliveryStatusWebhook` URL.
-5. Keep notification provider webhook validation enabled outside local/emulator tests.
-6. Verify STOP, START, and HELP behavior with a controlled allowlisted phone.
-7. Verify status callbacks update notification logs.
-8. Verify carrier messaging is sent only for frost, heat-stress, and severe-weather fallback
-   cases where push is skipped or fails.
-
-carrier messaging is fallback-only in this repository. Do not use it for routine watering or
-task reminders unless the product policy is intentionally changed.
+carrier messaging/notification provider is no longer in scope. Do not set carrier messaging secrets, add
+phone-number seed values, configure carrier messaging webhooks, or run carrier messaging smoke tests for the
+current product prompt chain. Existing carrier messaging runtime paths are legacy cleanup targets
+for a later prompt.
 
 ## Optional Provider Keys
 
@@ -168,7 +153,6 @@ task reminders unless the product policy is intentionally changed.
   restricted public key.
 - `VITE_GOOGLE_MAPS_API_KEY`: optional browser geocoding key.
 - `TREFLE_API_TOKEN`: optional local catalog ingestion key; not used at runtime.
-- `DEFAULT_ALERT_PHONE_E164`: local/dev seed value only; never commit it.
 
 ## Current Manual Verification Still Needed
 
@@ -178,6 +162,5 @@ task reminders unless the product policy is intentionally changed.
   `gardenAccess: true` and `secretFaedeMember: true`.
 - Live FCM registration and delivery.
 - Live NWS/Tomorrow weather refresh from a saved garden location.
-- notification provider dry-run logs, then one controlled live carrier messaging after compliance gates.
 - Offline save flush after reconnect in Firebase mode.
 - Real mobile touch pass for Plan drag/resize and sun painting.

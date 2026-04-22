@@ -24,8 +24,8 @@ Included:
   notification channels
 - weather provider layer with NWS default, optional Tomorrow.io, and watering
   recommendations
-- in-app notification logs, FCM web/native push registration, local native
-  alerts, and notification provider carrier messaging fallback dry-run support for high-value alerts
+- in-app notification logs, FCM web/native push registration, and local native
+  alerts
 - generated task timeline for planting, trellising, thinning, pruning,
   fertilizing, mulching, watering, harvest windows, and succession prompts
 - journal, issue tracking, photo attachments, harvest logging, and in-season
@@ -41,7 +41,7 @@ Not implemented in this foundation pass:
 
 - multiple gardens
 - runtime external plant APIs
-- maps, collaboration, onboarding, and AI features
+- maps, collaboration, carrier messaging, onboarding, dashboards, and AI features
 - production email notification delivery
 
 ## Quick start
@@ -128,6 +128,7 @@ See:
 - [docs/architecture.md](docs/architecture.md)
 - [docs/ux-architecture.md](docs/ux-architecture.md)
 - [docs/release-roadmap.md](docs/release-roadmap.md)
+- [docs/release-ledger.md](docs/release-ledger.md)
 - [docs/release-checklist.md](docs/release-checklist.md)
 - [docs/release-hypothesis.md](docs/release-hypothesis.md)
 - [docs/testing-plan.md](docs/testing-plan.md)

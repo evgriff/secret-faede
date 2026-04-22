@@ -11,8 +11,7 @@ Date: 2026-04-21
 - Use **Reset demo** before a meeting to restore the stable Detroit baseline;
   it should put the watering check back to 7:15 AM even if the prior demo
   changed settings.
-- Never commit a demo phone number. Demo or dev phones must come only from
-  `DEFAULT_ALERT_PHONE_E164`.
+- Never enter, seed, or commit a demo phone number.
 
 ## Story
 
@@ -56,8 +55,8 @@ It includes:
 3. Settings demo controls
    Click **Load demo garden**. Show the Detroit profile, 7:15 AM watering
    check, quiet hours, notification channels, consent copy, and notification
-   center. Mention that carrier messaging is backend-only and remains dry-run unless
-   compliance and consent are ready.
+   center. Mention that push and in-app history are the active notification
+   paths; carrier messaging is not in scope for the current product flow.
 
 4. Plan
    Open Plan. Show the feet-based plot, beds, path, trellis, shade tree, crops,

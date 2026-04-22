@@ -12,7 +12,7 @@ Canonical Firebase paths:
 - `gardenWorkspaces/main`: the current published garden revision.
 - `gardenWorkspaces/main/drafts/{uid}`: one private working draft per user.
 - `gardenWorkspaces/main/revisions/{revisionId}`: published revision history.
-- `users/{uid}`: user profile, alert preferences, push tokens, and carrier messaging state.
+- `users/{uid}`: user profile, alert preferences, and push tokens.
 
 Legacy path:
 

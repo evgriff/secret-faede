@@ -83,11 +83,6 @@ VITE_TOMORROW_API_KEY=...
 Server-side function variables and secrets:
 
 ```bash
-NOTIFICATION_DRY_RUN=true
-RETIRED_DELIVERY_PROVIDER_API_KEY=...
-RETIRED_DELIVERY_PROVIDER_FROM_NUMBER=...
-RETIRED_DELIVERY_PROVIDER_PUBLIC_KEY=...
-DEFAULT_ALERT_PHONE_E164=...
 TOMORROW_API_KEY=...
 ```
 
@@ -101,10 +96,9 @@ APP_LOGIN_PARTNER_TEMP_PASSWORD=...
 FIREBASE_PROJECT_ID=...
 ```
 
-carrier messaging dry-run is the default. Real carrier messaging sends require
-`NOTIFICATION_DRY_RUN=false` plus notification provider API key, sender number, and webhook
-public key. Phone numbers are stored only from user input or local/dev seed env;
-do not commit private numbers.
+carrier messaging/notification provider is no longer product scope. Do not configure phone-number seed values
+or notification provider secrets for new work; legacy runtime code should be removed in the
+dedicated carrier messaging cleanup prompt.
 
 `VITE_ALLOWED_EMAILS` rules:
 
@@ -218,9 +212,9 @@ attach to plantings and support count, pounds, ounces, bunches, or freeform
 amount text.
 
 Notification preferences are stored on `users/{uid}`. The production UI exposes
-channel toggles for in-app, push, and carrier messaging; alert-type toggles for watering,
-frost, heat stress, severe weather, and task due; quiet hours; daily check time;
-thresholds; timezone; carrier messaging phone; consent records; and push permission metadata.
+channel toggles for in-app and push; alert-type toggles for watering, frost,
+heat stress, severe weather, and task due; quiet hours; daily check time;
+thresholds; timezone; consent records; and push permission metadata.
 The data model still parses the older email channel flag for compatibility, but
 no production email delivery is implemented or exposed.
 
@@ -294,19 +288,14 @@ Firebase Functions:
   demo default is 7:15 AM `America/Detroit`.
 - `onGardenWeatherSnapshotUpdated` dispatches frost, heat-stress, and
   severe-weather alerts when a new weather snapshot changes risk state.
-- `sendTestSmsAlert` is a callable test path for backend carrier messaging fallback.
 
-carrier messaging:
+carrier messaging/notification provider:
 
-- carrier messaging uses notification provider from Functions only.
-- notification provider credentials must stay in function env/secrets, never browser env.
-- `NOTIFICATION_DRY_RUN=true` records what would be sent without calling
-  notification provider.
-- Every carrier messaging decision writes a notification log, including skipped and failed
-  attempts.
-- carrier messaging is fallback-only for frost, heat-stress, and severe-weather alerts when
-  push skips or fails.
-- Complete carrier registration requirements before production A2P traffic.
+- Removed from product scope for the current product overhaul.
+- Do not add setup steps, demo paths, phone-number seed values, or new tests for
+  carrier messaging behavior.
+- Existing legacy implementation paths should be treated as removal targets in
+  the dedicated cleanup prompt.
 
 ## Dev seed
 
@@ -347,9 +336,8 @@ Seeded data:
 - tomato, radish, and pole bean crop catalog records under `catalog`,
   derived from the same curated crop catalog used by the editor
 
-`DEFAULT_ALERT_PHONE_E164` is read at seed time only and is never committed. Use
-`node scripts/seed-dev.mjs --dry-run` to validate the seed payload without
-writing to Firestore.
+Use `node scripts/seed-dev.mjs --dry-run` to validate the seed payload without
+writing to Firestore. Do not seed demo phone numbers.
 
 Weather provider notes:
 

@@ -25,7 +25,7 @@ Current foundation scope:
 - Plan, Today, Feed, and Settings workspace routes with legacy redirects
 - one shared published garden workspace plus per-user drafts in Firestore
 - user profile notification preferences and consent state
-- in-app, web push, and backend carrier messaging alert pipeline for garden operations
+- in-app, web push, and native/local alert pipeline for garden operations
 - generated task timeline and succession suggestions from the saved garden plan
 - journal notes, issue tracking, photo attachments, harvest logs, and in-season
   analytics
@@ -37,8 +37,8 @@ Current foundation scope:
 
 Guardrails:
 
-- do not add dashboards, charts, maps, collaboration, lore, AI, or onboarding
-  flows
+- do not add dashboards, charts, maps, collaboration, lore, AI, carrier messaging, or
+  onboarding flows
 - add weather, tasks, journal, notifications, and operations features only when
   they directly support the real plot editor workflow
 - do not add dependencies unless they clearly reduce code for the current
@@ -47,6 +47,8 @@ Guardrails:
 - use `xFt` from the left edge and `yFt` from the top edge as canonical plant coordinates
 - store garden positions in feet, never raw pixels
 - prefer small files, named exports, plain TypeScript, and readable route guards
+- treat carrier messaging/notification provider as de-scoped legacy cleanup only; do not expand or depend on
+  carrier messaging behavior in new prompt-chain work
 
 Source control protocol:
 

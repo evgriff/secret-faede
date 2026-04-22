@@ -39,18 +39,6 @@ Do not put Functions-only secrets into `VITE_*` workflow variables.
 - `ENABLE_TOMORROW_WEATHER=true` or `TOMORROW_WEATHER_ENABLED=true`: enables
   Tomorrow.io in backend weather generation.
 - `NWS_USER_AGENT`: optional identifying User-Agent for NWS requests.
-- `NOTIFICATION_DRY_RUN`: defaults to dry-run unless explicitly set to `false`.
-- `RETIRED_DELIVERY_PROVIDER_API_KEY`: Functions-only notification provider credential for live carrier messaging fallback.
-- `RETIRED_DELIVERY_PROVIDER_FROM_NUMBER`: E.164 notification provider sender number.
-- `RETIRED_DELIVERY_PROVIDER_PUBLIC_KEY`: notification provider webhook public key for Ed25519 verification.
-- `RETIRED_DELIVERY_PROVIDER_WEBHOOK_URL`: optional per-message delivery callback URL when not
-  relying on a Messaging Profile webhook.
-- `RETIRED_DELIVERY_PROVIDER_MESSAGING_PROFILE_ID`: optional profile id when the sender needs one.
-- `RETIRED_DELIVERY_PROVIDER_VALIDATE_WEBHOOKS=false`: local/emulator-only bypass. Do not use in
-  production.
-- `RETIRED_DELIVERY_PROVIDER_WEBHOOK_MAX_AGE_SECONDS`: optional replay window override; use `0`
-  only for local signature tests.
-- `DEFAULT_ALERT_PHONE_E164`: dev/demo phone seed value only. Never commit it.
 
 ## Auth Seed Environment
 
@@ -68,31 +56,18 @@ enables the accounts, and grants `gardenAccess: true` plus
 `secretFaedeMember: true`. Existing passwords are not changed unless
 `-- --reset-passwords` is passed.
 
-## Production carrier messaging Gates
+## carrier messaging Scope
 
-Before setting `NOTIFICATION_DRY_RUN=false`:
-
-- Complete the correct notification provider sender registration path for the production
-  sender, including U.S. 10DLC or toll-free verification when required.
-- Assign the sender number to a notification provider Messaging Profile.
-- Configure inbound and status webhooks to `retiredDeliveryWebhook` and
-  `retiredDeliveryStatusWebhook`, or set the profile webhook URL to the shared endpoint
-  that routes those events.
-- Set `RETIRED_DELIVERY_PROVIDER_PUBLIC_KEY` from the notification provider portal and keep webhook validation
-  enabled.
-- Confirm Settings consent copy is acceptable for transactional garden
-- operations alerts.
-- Confirm carrier messaging fallback is enabled only for high-value alerts and only after
-  push registration has been tested.
-- Run a dry-run seed and a live smoke test with a controlled allowlisted phone.
+carrier messaging/notification provider is no longer part of the product scope. Do not add new
+`RETIRED_DELIVERY_PROVIDER_*`, phone-number seed, or carrier messaging dry-run setup for future prompt-chain
+work. Legacy environment references in runtime code should be removed by the
+dedicated carrier messaging cleanup prompt.
 
 ## Secret Handling
 
 - Browser `VITE_*` values are public by design.
-- notification provider credentials, Tomorrow.io server key, auth seed passwords, and demo
-  phone belong only in Functions environment/secrets or local uncommitted env.
-- The app stores redacted recipients in notification logs; raw phone numbers
-  live only on the user profile and carrier messaging provider side.
+- Tomorrow.io server key and auth seed passwords belong only in Functions
+  environment/secrets or local uncommitted env.
 - Native Firebase files stay local or in the native build secret system:
   `ios/App/App/GoogleService-Info.plist` and
   `android/app/google-services.json` are not browser env and must not be

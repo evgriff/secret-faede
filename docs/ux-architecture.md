@@ -4,12 +4,12 @@ Date: 2026-04-21
 
 ## Canonical IA
 
-| Surface  | Canonical route | Legacy redirect            | Responsibility                                                               |
-| -------- | --------------- | -------------------------- | ---------------------------------------------------------------------------- |
-| Plan     | `/app/plan`     | `/app/garden`              | Draft editing, publish confirmation, revision history, geometry, warnings    |
-| Today    | `/app/today`    | `/app/tasks`               | Field mode for urgent alerts, watering, due tasks, issues, and harvests      |
-| Feed     | `/app/feed`     | `/app/log`, `/app/journal` | Notes, issues, photos, harvests, and season memory                           |
-| Settings | `/app/settings` | none                       | Account, alert defaults, climate assumptions, notification channels, consent |
+| Surface  | Canonical route | Legacy redirect            | Responsibility                                                                  |
+| -------- | --------------- | -------------------------- | ------------------------------------------------------------------------------- |
+| Plan     | `/app/plan`     | `/app/garden`              | Draft editing, publish confirmation, revision history, geometry, warnings       |
+| Today    | `/app/today`    | `/app/tasks`               | Field mode for urgent alerts, watering, due tasks, issues, and harvests         |
+| Feed     | `/app/feed`     | `/app/log`, `/app/journal` | Notes, issues, photos, harvests, and season memory                              |
+| Settings | `/app/settings` | none                       | Account, alert defaults, climate assumptions, push/in-app notification controls |
 
 `/app` redirects to `/app/plan`. Auth stays deliberately small: email,
 password, sign in, optional show-password, and default-on remember-device.
@@ -262,7 +262,7 @@ Implemented command behavior:
 - Log harvest writes a harvest event and moves the planting to harvest-ready or
   harvested depending on whether the user marks the crop finished.
 - Crop stage buttons move plantings through planted, growing, and
-  harvest-ready from the field dashboard, complete open setup tasks when
+  harvest-ready from the field view, complete open setup tasks when
   appropriate, refresh generated tasks, and write a linked Feed note.
 
 Offline posture:
@@ -348,7 +348,7 @@ Target posture:
 
 ## Manual Override UX
 
-Manual override paths are required where model confidence is uncertain:
+Manual override paths are required where model certainty is limited:
 
 - Sun/shade: implemented through manual cell painting in Plan; still needs a
   clearer reset flow.
@@ -357,8 +357,8 @@ Manual override paths are required where model confidence is uncertain:
   controls remain future work.
 - Climate defaults: implemented in Settings, but copy should make assumptions
   more explicit.
-- Notifications: implemented through channel and alert-type toggles; live carrier messaging
-  still needs stronger compliance state before production sending.
+- Notifications: implemented through in-app, push, and alert-type toggles. carrier messaging
+  is de-scoped and should not appear in the current product UX.
 
 ## Remaining UX Debt
 
@@ -400,6 +400,5 @@ committed baselines are reviewed and stabilized across developer machines.
 - release-demo readiness requires mock demo load/reset, Plan Choose Plants to
   Optimize to Review/Publish, Today task work, and Feed composer flows to pass
   before a production deploy.
-- Live deploy remains blocked until Firebase Auth users/claims, FCM keys,
-  native config files when applicable, and notification provider fallback compliance are
-  verified outside source control.
+- Live deploy remains blocked until Firebase Auth users/claims, FCM keys, and
+  native config files when applicable are verified outside source control.

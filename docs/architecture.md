@@ -78,8 +78,10 @@ Route map:
 - implemented by `MockNotificationService` and `FirebaseNotificationService`
 - registers FCM web and Capacitor native push tokens under
   `users/{uid}/pushTokens/{tokenId}`
-- keeps carrier carrier messaging and scheduled delivery out of the browser; server-side
-  dispatch lives in Firebase Functions
+- keeps scheduled delivery out of the browser; server-side dispatch lives in
+  Firebase Functions
+- does not include carrier messaging as product scope; any legacy carrier messaging code is pending removal
+  in the explicit carrier messaging cleanup prompt
 
 `MediaStorageService`
 
@@ -113,7 +115,9 @@ Route map:
 5. Allowed users enter `/app/plan` inside the authenticated app shell.
 6. Non-allowlisted users are immediately signed out and redirected to `/access-denied`.
 7. `/auth/complete` is a dead legacy URL and redirects to `/sign-in`.
-8. The garden editor loads `gardens/{uid}` or creates an unsaved default garden in memory.
+8. The garden editor loads the shared workspace draft/published state from
+   `gardenWorkspaces/main`, using `gardens/{uid}` only as a legacy migration
+   source when needed.
 9. If the user has no saved garden or only an empty demo-default profile, Plan
    shows first-run setup for garden name, location, timezone, plot type, plot
    size, editable climate defaults, and starter template selection.
@@ -127,8 +131,8 @@ Route map:
 13. Active watering and weather alerts create in-app notification logs that are
     visible in the garden operations panel.
 14. Settings lets the user manage alert types, channels, quiet hours, daily
-    check time, location/timezone, carrier messaging consent, web push registration, and the
-    founder demo load/reset controls.
+    check time, location/timezone, web push registration, and the founder demo
+    load/reset controls.
 15. `/app/today` syncs generated work from the saved garden plan, watering
     recommendations, editable frost dates, and crop catalog defaults.
 16. `/app/feed` records notes, structured issues, photo attachments,
@@ -207,7 +211,8 @@ Crop profiles are normalized from the checked-in generated catalog in
 offline library with `npm run catalog:build` and refresh Trefle enrichment with
 `npm run catalog:ingest:trefle`, but the editor does not call Trefle at runtime.
 Runtime crop profiles include aliases, roles, source tags, completeness score,
-and profile confidence so the Add Plant picker can label decision quality.
+and provenance quality so the Add Plant picker can show data gaps without
+presenting fit confidence as a score.
 
 Starter garden templates live in `src/domain/gardens/gardenTemplates.ts`.
 Templates create normal garden aggregates with structures and crop-backed
@@ -240,10 +245,10 @@ stress, optional evapotranspiration, and journal water logs when present.
 
 Notification preferences are stored on `users/{uid}`. They include per-channel
 toggles, per-alert-type toggles, quiet hours, daily watering check time,
-timezone, thresholds, carrier messaging phone, consent status, and push permission metadata.
+timezone, thresholds, consent status, and push permission metadata.
 Notification logs are stored at `gardens/{uid}/notifications/{notificationId}`
-for in-app, push, and carrier messaging decisions. The model still accepts older email-channel
-state for compatibility, but the production UI does not expose email delivery.
+for in-app and push decisions. The model still accepts older email-channel state
+for compatibility, but the production UI does not expose email delivery.
 
 Tasks are stored at `gardens/{uid}/tasks/{taskId}`. Generated tasks keep stable
 ids so completed/skipped work does not reappear. Task records include due date,
@@ -352,14 +357,10 @@ event-driven dispatch:
   recommendations.
 - `onGardenWeatherSnapshotUpdated` reacts when a new garden weather snapshot is
   saved and dispatches frost, heat-stress, or severe-weather alerts.
-- `sendTestSmsAlert` is a callable dry-run/test path for backend carrier messaging fallback.
 
-Push is the primary out-of-app notification path. carrier messaging uses notification provider from Functions
-only and is attempted only as an explicitly enabled fallback for frost,
-heat-stress, and severe-weather alerts when push does not send.
-`NOTIFICATION_DRY_RUN` defaults to dry-run behavior unless it is explicitly set
-to `false` and notification provider credentials are present. Every attempted carrier messaging creates a
-notification log with a redacted recipient and delivery status.
+Push is the out-of-app notification path. carrier messaging/notification provider is de-scoped from the
+product and should only appear as legacy code slated for cleanup, not as a
+documented setup or demo capability.
 
 ## Styling posture
 

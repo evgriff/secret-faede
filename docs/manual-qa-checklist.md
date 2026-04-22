@@ -74,7 +74,7 @@ Date: 2026-04-21
 - Complete a watering recommendation from Today, refresh operations, and confirm
   the same watering alert is not re-created for that target on the same day.
 - Toggle each alert type and confirm saves persist.
-- Toggle in-app, push, and carrier messaging channels and confirm consent state updates.
+- Toggle in-app and push channels and confirm consent state updates.
 - Change quiet hours, timezone, and daily watering check time; save and reload.
 - Enable web push in a supported browser and confirm a token timestamp appears.
 - Deny web push in a test browser profile and confirm Settings shows denied
@@ -83,20 +83,12 @@ Date: 2026-04-21
   on a harvest card and confirm a local harvest-check reminder is scheduled for
   the selected date.
 
-## carrier messaging
+## carrier messaging Scope
 
-- With `NOTIFICATION_DRY_RUN` unset or true, trigger `sendTestSmsAlert` and
-  confirm a skipped dry-run carrier messaging log appears with a redacted recipient.
-- With live credentials in a controlled environment, trigger one carrier messaging and confirm
-  notification provider returns a provider message id in the log.
-- Send STOP to the notification provider sender and confirm carrier messaging channel is disabled, carrier messaging
-  consent is revoked, and an `smsEvents` audit document is written.
-- Send START and confirm carrier messaging channel is enabled and carrier messaging consent is granted.
-- Send HELP and confirm an `smsEvents` audit document is written without
-  changing consent.
-- Trigger more than three carrier messaging sends in one hour and confirm rate-limit skipped
-  logs appear.
-- Confirm no default/demo phone appears in committed files.
+- Confirm Settings does not present carrier messaging as an active notification channel.
+- Confirm demo setup does not ask for or seed a phone number.
+- Confirm no new prompt-chain work adds notification provider secrets, carrier messaging webhooks, or carrier messaging
+  smoke steps.
 
 ## Regression
 
@@ -125,8 +117,8 @@ Date: 2026-04-21
   `secretFaedeMember: true`, then have each user sign out and back in so the
   token refreshes.
 - Confirm FCM web push registration writes a token document for each production
-  user before enabling carrier messaging fallback.
-- Run `npm run deploy:all` only after the manual Firebase/Auth/domain/FCM/carrier messaging
+  user.
+- Run `npm run deploy:all` only after the manual Firebase/Auth/domain/FCM
   blockers are cleared.
 - After deploy, smoke desktop web with Primary Gardener, mobile web with Partner Gardener, and native
   shell hooks only on devices where local Firebase config files are installed.
