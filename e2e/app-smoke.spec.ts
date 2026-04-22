@@ -1,27 +1,22 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-async function signInWithMockLink(page: Page) {
-  await page.goto('/');
-  await expect(
-    page.getByRole('heading', { name: 'Sign in with an email link.' }),
-  ).toBeVisible();
-  await page.getByLabel('Email').fill('primary.gardener@example.com');
-  await page.getByRole('button', { name: 'Send sign-in link' }).click();
-  await page.getByRole('link', { name: 'Use mock sign-in link' }).click();
-  await expect(
-    page.getByRole('heading', {
-      name: 'Garden editor',
-    }),
-  ).toBeVisible();
-}
+import {
+  addTomatoToSeasonList,
+  generateAndApplyFirstLayout,
+  savePlan,
+  signInWithMockPassword,
+} from './appSmokeHelpers';
 
-test('allowlisted mock sign-in reaches and saves the garden editor', async ({
-  page,
-}) => {
-  await signInWithMockLink(page);
+test('allowlisted mock sign-in reaches and saves Plan', async ({ page }) => {
+  await page.setViewportSize({ width: 1365, height: 768 });
+  await signInWithMockPassword(page);
   await expect(page.getByText('12 ft by 8 ft')).toBeVisible();
 
-  await page.getByRole('button', { exact: true, name: 'Add' }).click();
+  await page
+    .getByRole('button', { exact: true, name: 'Plant' })
+    .first()
+    .click();
+  await page.getByRole('button', { name: 'Open plant picker' }).click();
   await page.getByRole('searchbox', { name: 'Search crops' }).fill('tomato');
   await page.getByRole('button', { exact: true, name: 'Tomato crop' }).click();
   await page.getByRole('button', { name: 'Add plant' }).click();
@@ -47,16 +42,44 @@ test('allowlisted mock sign-in reaches and saves the garden editor', async ({
   );
   await page.mouse.up();
   await expect(
-    page.getByRole('button', { name: /Tomato at X:/ }),
+    page.getByRole('button', { name: 'Tomato at X: 7.8 ft, Y: 5.0 ft' }),
   ).toBeVisible();
+  await page
+    .getByRole('button', { exact: true, name: 'Structure' })
+    .first()
+    .click();
   await page
     .getByRole('combobox', { name: 'Structure type' })
     .selectOption('trellis');
-  await page.getByRole('button', { name: 'Add structure' }).click();
+  await page.getByRole('button', { name: 'Place structure' }).click();
   await expect(
     page.getByRole('button', { name: 'Trellis at X: 1.0 ft, Y: 1.0 ft' }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Save' }).click();
+  const trellisBox = await page
+    .getByRole('button', { name: 'Trellis at X: 1.0 ft, Y: 1.0 ft' })
+    .boundingBox();
+
+  if (!trellisBox) {
+    throw new Error('Expected trellis to have a visible bounding box.');
+  }
+
+  await page.mouse.move(
+    trellisBox.x + trellisBox.width / 2,
+    trellisBox.y + trellisBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(trellisBox.x - 96, trellisBox.y - 96);
+  await page.mouse.up();
+  await expect(
+    page.getByRole('button', { name: 'Trellis at X: 0.0 ft, Y: 0.0 ft' }),
+  ).toBeVisible();
+  await page
+    .getByRole('button', { exact: true, name: 'Select' })
+    .first()
+    .click();
+  await page.keyboard.press('Control+A');
+  await expect(page.getByText('2 selected')).toBeVisible();
+  await savePlan(page);
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
 
   await page.reload();
@@ -64,16 +87,44 @@ test('allowlisted mock sign-in reaches and saves the garden editor', async ({
     page.getByRole('button', { name: /Tomato at X:/ }),
   ).toBeVisible();
   await expect(
-    page.getByRole('button', { name: 'Trellis at X: 1.0 ft, Y: 1.0 ft' }),
+    page.getByRole('button', { name: 'Trellis at X: 0.0 ft, Y: 0.0 ft' }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save' })).toHaveCount(0);
+});
+
+test('second production user signs in on mobile with a persisted session', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 780 });
+  await signInWithMockPassword(page, 'partner.gardener@example.com');
+
+  await page.goto('/');
+  await expect(
+    page.getByRole('heading', {
+      exact: true,
+      name: 'Plan',
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0);
+
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await expect(
+    page.getByRole('region', { name: 'Account' }).getByRole('heading', {
+      name: 'Partner Gardener',
+    }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: 'Account' })
+      .getByText('partner.gardener@example.com', { exact: true }),
+  ).toBeVisible();
 });
 
 test('garden plot has exact board sizing and scrolls large plots', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1365, height: 768 });
-  await signInWithMockLink(page);
+  await signInWithMockPassword(page);
 
   await expect(page.getByTestId('garden-plot')).toHaveJSProperty(
     'clientWidth',
@@ -109,7 +160,7 @@ test('garden plot has exact board sizing and scrolls large plots', async ({
     256,
   );
 
-  await page.getByRole('button', { name: 'Plot' }).click();
+  await page.getByRole('button', { name: 'Plot settings' }).click();
   await page.getByLabel('Width in feet').fill('60');
   await page.getByLabel('Depth in feet').fill('20');
   await page.getByLabel('Depth in feet').press('Enter');
@@ -139,20 +190,200 @@ test('garden plot has exact board sizing and scrolls large plots', async ({
   expect(largePlotWidth).toBe(1920);
   expect(largeShellWidth).toBeGreaterThan(largePlotWidth);
   expect(largeViewport.scrollWidth).toBeGreaterThan(largeViewport.clientWidth);
+
+  const controlsBeforeScroll = await page
+    .locator('[aria-label="Canvas controls"]')
+    .boundingBox();
+
+  if (!controlsBeforeScroll) {
+    throw new Error('Expected canvas controls to have a visible bounding box.');
+  }
+
+  await page.getByTestId('plot-viewport').evaluate((viewport) => {
+    viewport.scrollLeft = 360;
+    viewport.scrollTop = 160;
+  });
+
+  const controlsAfterScroll = await page
+    .locator('[aria-label="Canvas controls"]')
+    .boundingBox();
+
+  if (!controlsAfterScroll) {
+    throw new Error('Expected canvas controls to remain visible after scroll.');
+  }
+
+  expect(Math.round(controlsAfterScroll.x)).toBe(
+    Math.round(controlsBeforeScroll.x),
+  );
+  expect(Math.round(controlsAfterScroll.y)).toBe(
+    Math.round(controlsBeforeScroll.y),
+  );
+
+  await page.getByRole('button', { name: '100%' }).click();
+  await expect(page.locator('[aria-label="Current zoom"]')).toHaveText('100%');
+  await expect(page.getByRole('button', { name: '100%' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByRole('button', { name: 'Fit' }).click();
+  await expect(page.getByRole('button', { name: 'Fit' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+
+  await page.getByRole('button', { name: 'Map' }).click();
+  await expect(page.locator('[aria-label="Plot mini map"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Collapse mini map' }).click();
+  await expect(page.locator('[aria-label="Plot mini map"]')).toHaveCount(0);
 });
 
-test('non-allowlisted mock sign-in lands on access denied', async ({
-  page,
-}) => {
+test('non-allowlisted email has no sign-in path', async ({ page }) => {
   await page.goto('/');
 
   await page.getByLabel('Email').fill('blocked@example.com');
-  await page.getByRole('button', { name: 'Send sign-in link' }).click();
-  await page.getByRole('link', { name: 'Use mock sign-in link' }).click();
+  await page.getByLabel('Password', { exact: true }).fill('password');
+  await page.getByRole('button', { name: 'Sign in' }).click();
 
   await expect(
-    page.getByRole('heading', {
-      name: 'This email address is not authorized.',
+    page.getByText('This email is not allowed for Secret Faede.'),
+  ).toBeVisible();
+});
+
+test('Plan supports choose plants, generated proposals, publish, and revert', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1365, height: 768 });
+  await signInWithMockPassword(page);
+  await addTomatoToSeasonList(page);
+  await generateAndApplyFirstLayout(page);
+
+  await expect(page.getByText('Draft differs')).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Tomato at X:', exact: false }).first(),
+  ).toBeVisible();
+
+  await page.getByRole('button', { exact: true, name: 'Publish' }).click();
+  const publishDialog = page.getByRole('dialog', { name: 'Publish draft' });
+
+  await expect(publishDialog).toBeVisible();
+  await expect(
+    publishDialog.getByRole('heading', {
+      name: 'Accepted into this draft',
     }),
   ).toBeVisible();
+  await page
+    .getByRole('dialog', { name: 'Publish draft' })
+    .getByRole('button', { exact: true, name: 'Publish' })
+    .click();
+  await expect(page.getByRole('dialog', { name: 'Publish draft' })).toHaveCount(
+    0,
+  );
+  await expect(page.getByText('Matches published')).toBeVisible();
+
+  await page.getByRole('button', { name: 'History' }).click();
+  await expect(
+    page.getByRole('dialog', { name: 'Revision history' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Revert' }).last().click();
+  await expect(
+    page.getByRole('dialog', { name: 'Revision history' }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('heading', { name: 'Set up your garden' }),
+  ).toBeVisible();
+});
+
+test('sample garden loads populated Plan, Today, Feed, and Settings', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1365, height: 768 });
+  await signInWithMockPassword(page);
+  await page.getByRole('link', { name: 'Settings' }).click();
+
+  await page.getByRole('button', { name: 'Load demo garden' }).click();
+
+  await expect(page.getByText('Demo garden loaded.')).toBeVisible();
+  await expect(page.getByLabel('Watering check time')).toHaveValue('07:15');
+
+  await page.getByRole('link', { name: 'Plan' }).click();
+  await expect(page.getByText('20 ft by 16 ft')).toBeVisible();
+  await page.getByRole('button', { name: 'Optimize' }).click();
+  await expect(page.getByText('Plan health')).toBeVisible();
+  await expect(page.getByText('Path too narrow').first()).toBeVisible();
+
+  await page.getByRole('link', { name: 'Today' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Water roots and salad bed 0.35 in' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', {
+      exact: true,
+      name: 'Slug pressure in lettuce',
+    }),
+  ).toBeVisible();
+
+  await page.getByRole('link', { name: 'Feed' }).click();
+  await expect(
+    page.getByRole('heading', {
+      exact: true,
+      name: 'Slug pressure in lettuce',
+    }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Harvests' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'French breakfast radish' }),
+  ).toBeVisible();
+
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await expect(
+    page
+      .getByLabel('Active alerts')
+      .getByRole('heading', { name: 'Water roots and salad bed today' }),
+  ).toBeVisible();
+
+  await page.getByLabel('Watering check time').fill('08:45');
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Reset demo' }).click();
+  await expect(page.getByText('Demo garden reset.')).toBeVisible();
+  await expect(page.getByLabel('Watering check time')).toHaveValue('07:15');
+});
+
+test('Feed saves field memory while offline with explicit queued state', async ({
+  context,
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 780 });
+  await signInWithMockPassword(page);
+  await page.getByRole('link', { name: 'Feed' }).click();
+  await expect(
+    page.getByRole('heading', { exact: true, name: 'Feed' }),
+  ).toBeVisible();
+
+  await context.setOffline(true);
+  await page.getByRole('button', { name: 'Post' }).click();
+  const composer = page.getByRole('dialog', { name: 'Compose feed entry' });
+
+  await expect(composer).toBeVisible();
+  const composerBox = await composer.boundingBox();
+
+  expect(Math.round(composerBox?.width ?? 0)).toBe(390);
+  expect(Math.round(composerBox?.height ?? 0)).toBe(780);
+  await page.getByLabel('Title').fill('Offline note');
+  await page.getByLabel('Notes').fill('Observed tomatoes before rain.');
+  await composer.getByRole('button', { name: 'Close' }).click();
+  await expect(composer).toHaveCount(0);
+  await page.getByRole('button', { name: 'Post' }).click();
+  await expect(page.getByLabel('Title')).toHaveValue('Offline note');
+  await expect(page.getByLabel('Notes')).toHaveValue(
+    'Observed tomatoes before rain.',
+  );
+  await page.getByRole('button', { name: 'Post update' }).click();
+
+  await expect(
+    page.getByText('Queued locally', { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByText('Offline note')).toBeVisible();
+
+  await context.setOffline(false);
 });

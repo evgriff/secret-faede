@@ -29,18 +29,19 @@
 
 - `/`
 - `/sign-in`
-- `/auth/complete`
+- `/auth/complete` legacy redirect
 - `/access-denied`
 - `/app`
-- `/app/garden`
-- `/app/tasks`
-- `/app/journal`
+- `/app/plan`
+- `/app/today`
+- `/app/feed`
 - `/app/settings`
+- `/app/garden`, `/app/tasks`, `/app/journal` legacy redirects
 - `*`
 
 ## 4. Preserved seams
 
-- `AuthService` for email-link auth
+- `AuthService` for password auth
 - `GardenRepository` for one saved garden per user
 - mock/runtime split
 - Firebase Auth, Firestore, Hosting, and emulator scaffolding

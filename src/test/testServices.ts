@@ -1,7 +1,10 @@
 import { MockAuthService } from '../infrastructure/mock/auth/mockAuthService';
+import { MockGardenOperationsService } from '../infrastructure/mock/gardens/mockGardenOperationsService';
 import { MockGardenRepository } from '../infrastructure/mock/gardens/mockGardenRepository';
 import { MockMediaStorageService } from '../infrastructure/mock/media/mockMediaStorageService';
+import { MockMobileDeviceService } from '../infrastructure/mock/mobile/mockMobileDeviceService';
 import { MockNotificationService } from '../infrastructure/mock/notifications/mockNotificationService';
+import { MockTelemetryService } from '../infrastructure/mock/telemetry/mockTelemetryService';
 import { MockUserProfileRepository } from '../infrastructure/mock/users/mockUserProfileRepository';
 import type { AppServices } from '../infrastructure/runtime/services';
 import type { AppEnvironment } from '../shared/config/env';
@@ -23,6 +26,7 @@ const testEnvironment: AppEnvironment = {
   fallbackReason: null,
   firebaseConfig: null,
   firestoreEmulatorPort: 8080,
+  functionsEmulatorPort: 5001,
   geocodingApiKey: null,
   messagingVapidKey: null,
   pwaEnabled: false,
@@ -47,23 +51,22 @@ export async function createTestServices(options?: {
   };
 
   if (options?.signedInEmail) {
-    const result = await authService.requestEmailSignIn(options.signedInEmail);
-
-    if (!result.completionPath) {
-      throw new Error('Mock auth did not return a completion path.');
-    }
-
-    await authService.completeEmailLinkSignIn({
-      url: `http://localhost${result.completionPath}`,
+    await authService.signInWithPassword({
+      email: options.signedInEmail,
+      password: 'password',
+      rememberDevice: true,
     });
   }
 
   return {
     authService,
     environment,
+    gardenOperationsService: new MockGardenOperationsService(),
     gardenRepository: new MockGardenRepository(),
     mediaStorageService: new MockMediaStorageService(),
+    mobileDeviceService: new MockMobileDeviceService(),
     notificationService: new MockNotificationService(),
+    telemetryService: new MockTelemetryService(),
     userProfileRepository: new MockUserProfileRepository(),
     weatherProvider: new TestWeatherProvider(),
   };

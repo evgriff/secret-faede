@@ -1,0 +1,54 @@
+# ADR 0003: Large File Refactor Targets
+
+Date: 2026-04-20
+
+## Status
+
+Accepted
+
+## Context
+
+Files over 400 LOC are allowed only when the boundary is explicit and the next
+refactor target is known. These files slow review and increase regression risk,
+so they are tracked before broad feature work resumes.
+
+## Decision
+
+`npm run quality:files` fails when a source file over 400 LOC is not documented
+here. Current oversized files:
+
+| File                                                              |  LOC | Current responsibility                                                                                                                      | First safe refactor                                                                                                   |
+| ----------------------------------------------------------------- | ---: | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `src/domain/gardens/validation.ts`                                | 1418 | Runtime parsing and sanitization for every garden aggregate record, including sun/shade source metadata and microclimate notes.             | Split by record family: plot/structures/plantings, tasks, journal/harvests, notifications/users.                      |
+| `src/domain/gardens/sampleGarden.ts`                        | 1055 | Deterministic demo aggregate and profile builder.                                                                                           | Move demo structures, plantings, operations, log records, and sun layers into named fixture builders.                 |
+| `src/features/garden/useGarden.ts`                                | 1033 | Plan editor orchestration, save state, history, placement actions, weather refresh, and sun painting.                                       | Extract pure editor reducers/actions and keep the hook as repository and UI coordination only.                        |
+| `src/features/tasks/taskEngine.ts`                                | 1026 | Generated tasks, task state transitions, succession suggestions, and date helpers.                                                          | Split generated task builders from task mutation actions and succession planning.                                     |
+| `scripts/build-home-garden-catalog.mjs`                           |  991 | Offline plant catalog generator, including seed additions, defaults, generated variety-group records, and provenance output.                | Move base additions and variety banks into JSON data files while keeping the generator as orchestration only.         |
+| `functions/index.js`                                              |  853 | Cloud Functions entrypoints plus notification dispatch implementations.                                                                     | Move FCM, carrier messaging, webhook, and notification-log dispatch into small modules.                                             |
+| `scripts/seed-dev.mjs`                                            |  795 | Firebase Auth lookup plus demo seed document generation and writes.                                                                         | Reuse the demo builder more directly and isolate Firebase write planning from CLI parsing.                            |
+| `src/domain/gardens/models.ts`                                    |  882 | Canonical garden, user, task, weather, notification, sun/shade, and helper model definitions.                                               | Split model types by domain family while keeping `GardenRepository` exports stable.                                   |
+| `src/features/plan/PlanPage.tsx`                                  | 1153 | Plan route orchestration across draft/publish state, mode state, modals, warnings, operations, and layout.                                  | Move draft/publish modal state and warning state into route-owned hooks, then keep JSX composition only.              |
+| `src/features/garden/planHealthRules.ts`                          |  635 | Plan-health diagnostics and material add-on rules for support, access, irrigation, rotation, capacity, mulch, and seasonal protection.      | Split material add-on builders from health issue builders once the rule copy and severity model stabilize.            |
+| `src/features/garden/wateringEngine.ts`                           |  574 | Client-side weather snapshot and water recommendation engine.                                                                               | Extract target discovery, deficit math, rationale copy, and data-quality scoring.                                     |
+| `src/features/plan/planInteractionGeometry.ts`                    |  559 | Feet-based precision interaction math for snap targets, drag offsets, resize handles, marquee hit tests, and group transforms.              | Split snap target generation, resize math, and selection hit testing into separate pure modules.                      |
+| `src/features/plan/hooks/usePlanPointerInteractions.ts`           |  543 | Pointer orchestration for drag, resize, snap guides, touch thresholds, group movement, and marquee selection.                               | Extract drag, resize, and marquee state machines into focused hooks after behavior stabilizes.                        |
+| `src/features/log/LogPage.module.css`                             |  511 | Feed route layout, forms, cards, tabs, and analytics presentation styles.                                                                   | Split form, workspace, card, and analytics style modules with no visual redesign.                                     |
+| `src/infrastructure/firebase/gardens/firebaseGardenRepository.ts` |  504 | Firebase implementation for legacy garden migration, shared workspace reads, per-user drafts, revision writes, and offline draft queueing.  | Split workspace/revision document mapping from Firebase transaction orchestration, preserving `GardenRepository`.     |
+| `src/features/plan/components/PlanInspectorPanels.tsx`            |  503 | Route inspector tab panels for planting and structure details, care settings, sun fit, microclimate notes, schedule, warnings, and history. | Split planting panels and structure panels into separate files while keeping the inspector shell unchanged.           |
+| `src/features/garden/gardenWarningChecks.ts`                      |  554 | Plan review checks for spacing grouping, structures, paths, bed fit, sun uncertainty, trellis support, and rotation.                        | Split path/structure access checks from crop fit/support checks after the warning copy stabilizes.                    |
+| `src/infrastructure/weather/nwsWeatherProvider.ts`                |  457 | NWS point lookup, forecast, alerts, precipitation, and condition mapping.                                                                   | Split NWS request helpers from weather normalization.                                                                 |
+| `src/features/garden/GardenEditorScreen.test.tsx`                 |  644 | Plan route behavior coverage across setup, placement, inspection, warnings, operations, precision selection, and undo/redo.                 | Split setup, placement, operations, and precision-interaction tests into route-specific test files.                   |
+| `src/features/garden/gardenPlanning.test.ts`                      |  469 | Feet-based planning warning coverage for footprints, grouped spacing, access, sun uncertainty, succession timing, and rotation.             | Split warning taxonomy and succession-timing cases into a dedicated warning-engine test file.                         |
+| `src/features/plan/components/PlanCanvasItems.module.css`         |  475 | Canvas item styling for sun cells, microclimate markers, plant footprints, structure types, selection, warnings, locking, and handles.      | Split sun-overlay styles from plant/structure and resize-handle styles once the interaction visuals stabilize.        |
+| `src/domain/gardens/gardenWorkspace.ts`                           |  433 | Shared garden workspace model helpers for published revisions, per-user drafts, changeset summaries, and serialized suggestion decisions.   | Split parsing/normalization helpers from pure changeset comparison helpers.                                           |
+| `src/features/plan/components/PlanModeDrawer.module.css`          |  623 | Mode drawer controls, mobile mode strip, sun/structure controls, Plan health panel, and Review proposal-inbox card styling.                 | Split sun-control, Plan health, and review-inbox styles from generic mode drawer controls once diagnostics stabilize. |
+
+## Consequences
+
+- These files can remain during the foundation pass because they represent
+  working functionality.
+- Any new file crossing 400 LOC needs either a refactor before merge or an
+  added row in this ADR.
+- Refactors should preserve the existing seams: `AuthService`,
+  `GardenRepository`, `UserProfileRepository`, `WeatherProvider`,
+  `NotificationService`, and `MediaStorageService`.

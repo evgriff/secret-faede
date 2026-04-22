@@ -1,10 +1,11 @@
 import { initializeApp } from 'firebase/app';
 import {
-  browserLocalPersistence,
-  connectAuthEmulator,
-  getAuth,
-  setPersistence,
-} from 'firebase/auth';
+  getAnalytics,
+  isSupported,
+  logEvent,
+  type Analytics,
+} from 'firebase/analytics';
+import { connectAuthEmulator, getAuth } from 'firebase/auth';
 import {
   connectFirestoreEmulator,
   initializeFirestore,
@@ -12,6 +13,11 @@ import {
   persistentMultipleTabManager,
   type Firestore,
 } from 'firebase/firestore';
+import {
+  connectFunctionsEmulator,
+  getFunctions,
+  type Functions,
+} from 'firebase/functions';
 import { getMessaging, type Messaging } from 'firebase/messaging';
 import {
   connectStorageEmulator,
@@ -24,10 +30,14 @@ import type { AppEnvironment } from '../../shared/config/env';
 let firebaseAppSingleton: ReturnType<typeof initializeApp> | null = null;
 let authSingleton: ReturnType<typeof getAuth> | null = null;
 let firestoreSingleton: Firestore | null = null;
+let functionsSingleton: Functions | null = null;
 let messagingSingleton: Messaging | null = null;
 let storageSingleton: FirebaseStorage | null = null;
+let analyticsSingleton: Analytics | null = null;
+let analyticsSupportedPromise: Promise<boolean> | null = null;
 let authEmulatorConnected = false;
 let firestoreEmulatorConnected = false;
+let functionsEmulatorConnected = false;
 let storageEmulatorConnected = false;
 
 function requireFirebaseConfig(environment: AppEnvironment) {
@@ -51,7 +61,6 @@ export function getFirebaseApp(environment: AppEnvironment) {
 export function getFirebaseAuthClient(environment: AppEnvironment) {
   if (!authSingleton) {
     authSingleton = getAuth(getFirebaseApp(environment));
-    void setPersistence(authSingleton, browserLocalPersistence);
   }
 
   if (environment.useFirebaseEmulators && !authEmulatorConnected) {
@@ -87,6 +96,23 @@ export function getFirestoreClient(environment: AppEnvironment) {
   return firestoreSingleton;
 }
 
+export function getFirebaseFunctionsClient(environment: AppEnvironment) {
+  if (!functionsSingleton) {
+    functionsSingleton = getFunctions(getFirebaseApp(environment));
+  }
+
+  if (environment.useFirebaseEmulators && !functionsEmulatorConnected) {
+    connectFunctionsEmulator(
+      functionsSingleton,
+      environment.emulatorHost,
+      environment.functionsEmulatorPort,
+    );
+    functionsEmulatorConnected = true;
+  }
+
+  return functionsSingleton;
+}
+
 export function getFirebaseMessagingClient(environment: AppEnvironment) {
   if (!messagingSingleton) {
     messagingSingleton = getMessaging(getFirebaseApp(environment));
@@ -110,4 +136,32 @@ export function getFirebaseStorageClient(environment: AppEnvironment) {
   }
 
   return storageSingleton;
+}
+
+export async function getFirebaseAnalyticsClient(environment: AppEnvironment) {
+  if (!analyticsSupportedPromise) {
+    analyticsSupportedPromise = isSupported().catch(() => false);
+  }
+
+  if (!(await analyticsSupportedPromise)) {
+    return null;
+  }
+
+  if (!analyticsSingleton) {
+    analyticsSingleton = getAnalytics(getFirebaseApp(environment));
+  }
+
+  return analyticsSingleton;
+}
+
+export async function logFirebaseAnalyticsEvent(
+  environment: AppEnvironment,
+  name: string,
+  payload: Record<string, unknown> = {},
+) {
+  const analytics = await getFirebaseAnalyticsClient(environment);
+
+  if (analytics) {
+    logEvent(analytics, name, payload);
+  }
 }

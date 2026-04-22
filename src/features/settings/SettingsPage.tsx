@@ -3,35 +3,57 @@ import { useEffect, useState } from 'react';
 import { useServices } from '../../app/providers';
 import {
   createDefaultUserProfile,
-  type NotificationAlertType,
-  type NotificationChannel,
-  type NotificationConsent,
+  type Garden,
   type UserProfile,
 } from '../../domain/gardens/GardenRepository';
+import {
+  createSampleGarden,
+  createSampleUserProfile,
+} from '../../domain/gardens/sampleGarden';
 import { LoadingState } from '../../shared/ui/LoadingState';
 import { useAuth } from '../auth/auth-context';
+import { NotificationCenter } from './components/NotificationCenter';
+import {
+  SettingsDemoPanel,
+  type DemoModeStatus,
+} from './components/SettingsDemoPanel';
+import {
+  AlertDefaultsFields,
+  AlertTypeFields,
+  ConsentPanel,
+  NotificationChannelFields,
+  QuietHoursFields,
+  SettingsActions,
+} from './components/SettingsFormSections';
+import { MobileDevicePanel } from './components/SettingsMobileDevicePanel';
+import { createConsent, toErrorMessage } from './settingsHelpers';
 import styles from './SettingsPage.module.css';
 
-const channels: NotificationChannel[] = ['inApp', 'push', 'carrier messaging', 'email'];
-const alertTypes: NotificationAlertType[] = [
-  'watering',
-  'frost',
-  'heatStress',
-  'severeWeather',
-  'taskDue',
-];
-
 export function SettingsPage() {
-  const { state } = useAuth();
-  const { notificationService, userProfileRepository } = useServices();
+  const { signOut, state } = useAuth();
+  const {
+    gardenRepository,
+    mobileDeviceService,
+    notificationService,
+    userProfileRepository,
+  } = useServices();
   const authUser = state.user;
   const [error, setError] = useState<string | null>(null);
+  const [garden, setGarden] = useState<Garden | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'saving'>(
     'idle',
   );
   const [pushMessage, setPushMessage] = useState<string | null>(null);
+  const [nativePushMessage, setNativePushMessage] = useState<string | null>(
+    null,
+  );
+  const [localNotificationMessage, setLocalNotificationMessage] = useState<
+    string | null
+  >(null);
   const [status, setStatus] = useState<'loading' | 'ready'>('loading');
+  const [demoStatus, setDemoStatus] = useState<DemoModeStatus>('idle');
+  const mobileCapabilities = mobileDeviceService.getCapabilities();
 
   useEffect(() => {
     if (!authUser) {
@@ -42,13 +64,16 @@ export function SettingsPage() {
     setStatus('loading');
     setError(null);
 
-    void userProfileRepository
-      .getUserProfile(authUser.uid, authUser.email)
-      .then((savedProfile) => {
+    void Promise.all([
+      userProfileRepository.getUserProfile(authUser.uid, authUser.email),
+      gardenRepository.getGarden(authUser.uid),
+    ])
+      .then(([savedProfile, savedGarden]) => {
         if (!active) {
           return;
         }
 
+        setGarden(savedGarden);
         setProfile(
           savedProfile ??
             createDefaultUserProfile(authUser.uid, authUser.email, null),
@@ -67,7 +92,7 @@ export function SettingsPage() {
     return () => {
       active = false;
     };
-  }, [authUser, userProfileRepository]);
+  }, [authUser, gardenRepository, userProfileRepository]);
 
   if (status === 'loading' || !profile) {
     return (
@@ -144,6 +169,145 @@ export function SettingsPage() {
     }
   }
 
+  async function enableNativePush() {
+    if (!authUser || !profile) {
+      return;
+    }
+
+    setNativePushMessage(null);
+
+    try {
+      const result = await notificationService.registerNativePush(authUser.uid);
+      const now = new Date().toISOString();
+      const updatedProfile: UserProfile = {
+        ...profile,
+        notificationPreference: {
+          ...profile.notificationPreference,
+          channelConsent: {
+            ...profile.notificationPreference.channelConsent,
+            push: createConsent(
+              result.status === 'registered' ? 'granted' : 'denied',
+              now,
+            ),
+          },
+          channels: {
+            ...profile.notificationPreference.channels,
+            push: result.status === 'registered',
+          },
+          pushPermission:
+            result.status === 'registered'
+              ? 'granted'
+              : result.status === 'denied'
+                ? 'denied'
+                : result.status === 'unsupported'
+                  ? 'unsupported'
+                  : 'unknown',
+          pushTokenLastRegisteredAtIso: result.tokenRegisteredAtIso,
+        },
+        updatedAtIso: now,
+      };
+
+      setProfile(updatedProfile);
+      setNativePushMessage(result.message);
+      await userProfileRepository.saveUserProfile(updatedProfile);
+    } catch (pushError) {
+      setNativePushMessage(
+        toErrorMessage(pushError, 'Unable to enable native push.'),
+      );
+    }
+  }
+
+  async function enableLocalNotifications() {
+    try {
+      const result =
+        await mobileDeviceService.requestLocalNotificationPermission();
+
+      setLocalNotificationMessage(result.message);
+    } catch (notificationError) {
+      setLocalNotificationMessage(
+        toErrorMessage(
+          notificationError,
+          'Unable to enable local notifications.',
+        ),
+      );
+    }
+  }
+
+  async function sendLocalTestNotification() {
+    try {
+      const result = await mobileDeviceService.scheduleLocalNotification({
+        body: 'Local garden alerts are ready on this device.',
+        id: Date.now() % 2_147_483_647,
+        title: 'Secret Faede',
+      });
+
+      setLocalNotificationMessage(result.message);
+    } catch (notificationError) {
+      setLocalNotificationMessage(
+        toErrorMessage(notificationError, 'Unable to send a local test alert.'),
+      );
+    }
+  }
+
+  async function loadDemoGarden(nextStatus: Exclude<DemoModeStatus, 'idle'>) {
+    if (!authUser || !profile) {
+      return;
+    }
+
+    setDemoStatus('loading');
+    setError(null);
+
+    const demoGarden = createSampleGarden(authUser.uid);
+    const demoProfile = createSampleUserProfile(
+      authUser.uid,
+      authUser.email,
+      {
+        existingPhoneE164: profile.notificationPreference.phoneE164,
+      },
+    );
+
+    try {
+      await Promise.all([
+        gardenRepository.saveGarden(demoGarden),
+        userProfileRepository.saveUserProfile(demoProfile),
+      ]);
+      setGarden(demoGarden);
+      setProfile(demoProfile);
+      setSaveStatus('saved');
+      setDemoStatus(nextStatus);
+    } catch (saveError) {
+      setDemoStatus('idle');
+      setError(toErrorMessage(saveError, 'Unable to load demo garden.'));
+    }
+  }
+
+  async function updateNotificationLog(
+    logId: string,
+    values: Partial<NonNullable<Garden['notificationLogs'][number]>>,
+  ) {
+    if (!garden) {
+      return;
+    }
+
+    const updatedGarden: Garden = {
+      ...garden,
+      notificationLogs: garden.notificationLogs.map((log) =>
+        log.id === logId ? { ...log, ...values } : log,
+      ),
+      updatedAtIso: new Date().toISOString(),
+    };
+
+    setGarden(updatedGarden);
+
+    try {
+      await gardenRepository.saveGarden(updatedGarden);
+    } catch (saveError) {
+      setError(
+        toErrorMessage(saveError, 'Unable to update notification status.'),
+      );
+    }
+  }
+
   return (
     <section className={styles.page}>
       <header className={styles.header}>
@@ -158,313 +322,78 @@ export function SettingsPage() {
           void saveSettings();
         }}
       >
-        <div className={styles.grid}>
-          <label className={styles.field}>
-            <span>Alert location</span>
-            <input
-              onChange={(event) =>
-                setProfile({
-                  ...profile,
-                  alertLocationQuery: event.currentTarget.value,
-                })
-              }
-              value={profile.alertLocationQuery}
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Timezone</span>
-            <input
-              onChange={(event) =>
-                setProfile({
-                  ...profile,
-                  notificationPreference: {
-                    ...profile.notificationPreference,
-                    timezone: event.currentTarget.value,
-                  },
-                  timezone: event.currentTarget.value,
-                })
-              }
-              value={profile.timezone}
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Watering check time</span>
-            <input
-              onChange={(event) =>
-                setProfile({
-                  ...profile,
-                  notificationPreference: {
-                    ...profile.notificationPreference,
-                    defaultWateringCheckTime: event.currentTarget.value,
-                  },
-                })
-              }
-              type="time"
-              value={profile.notificationPreference.defaultWateringCheckTime}
-            />
-          </label>
-          <label className={styles.field}>
-            <span>carrier messaging phone E.164</span>
-            <input
-              onChange={(event) =>
-                setProfile({
-                  ...profile,
-                  notificationPreference: {
-                    ...profile.notificationPreference,
-                    phoneE164: event.currentTarget.value.trim() || null,
-                  },
-                })
-              }
-              placeholder="+17345550123"
-              value={profile.notificationPreference.phoneE164 ?? ''}
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Water alert threshold inches</span>
-            <input
-              min="0"
-              onChange={(event) =>
-                setProfile({
-                  ...profile,
-                  notificationPreference: {
-                    ...profile.notificationPreference,
-                    wateringAlertThresholdIn: readNumber(
-                      event.currentTarget.value,
-                      profile.notificationPreference.wateringAlertThresholdIn,
-                    ),
-                  },
-                })
-              }
-              step="0.05"
-              type="number"
-              value={profile.notificationPreference.wateringAlertThresholdIn}
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Frost alert threshold F</span>
-            <input
-              onChange={(event) =>
-                setProfile({
-                  ...profile,
-                  notificationPreference: {
-                    ...profile.notificationPreference,
-                    frostAlertThresholdF: readNumber(
-                      event.currentTarget.value,
-                      profile.notificationPreference.frostAlertThresholdF,
-                    ),
-                  },
-                })
-              }
-              step="1"
-              type="number"
-              value={profile.notificationPreference.frostAlertThresholdF}
-            />
-          </label>
-        </div>
+        <SettingsDemoPanel
+          onLoadDemo={() => void loadDemoGarden('loaded')}
+          onResetDemo={() => void loadDemoGarden('reset')}
+          status={demoStatus}
+        />
 
-        <fieldset className={styles.channels}>
-          <legend>Notification channels</legend>
-          {channels.map((channel) => (
-            <label className={styles.checkbox} key={channel}>
-              <input
-                checked={profile.notificationPreference.channels[channel]}
-                onChange={(event) =>
-                  setProfile({
-                    ...profile,
-                    notificationPreference: {
-                      ...profile.notificationPreference,
-                      channelConsent:
-                        channel === 'carrier messaging' || channel === 'email'
-                          ? {
-                              ...profile.notificationPreference.channelConsent,
-                              [channel]: createConsent(
-                                event.currentTarget.checked
-                                  ? 'granted'
-                                  : 'revoked',
-                                new Date().toISOString(),
-                              ),
-                            }
-                          : profile.notificationPreference.channelConsent,
-                      channels: {
-                        ...profile.notificationPreference.channels,
-                        [channel]: event.currentTarget.checked,
-                      },
-                    },
-                  })
-                }
-                type="checkbox"
-              />
-              {formatChannel(channel)}
-            </label>
-          ))}
-        </fieldset>
-
-        <fieldset className={styles.channels}>
-          <legend>Alert types</legend>
-          {alertTypes.map((alertType) => (
-            <label className={styles.checkbox} key={alertType}>
-              <input
-                checked={profile.notificationPreference.alertTypes[alertType]}
-                onChange={(event) =>
-                  setProfile({
-                    ...profile,
-                    notificationPreference: {
-                      ...profile.notificationPreference,
-                      alertTypes: {
-                        ...profile.notificationPreference.alertTypes,
-                        [alertType]: event.currentTarget.checked,
-                      },
-                    },
-                  })
-                }
-                type="checkbox"
-              />
-              {formatAlertType(alertType)}
-            </label>
-          ))}
-        </fieldset>
-
-        <div className={styles.grid}>
-          <label className={styles.field}>
-            <span>Quiet hours start</span>
-            <input
-              onChange={(event) =>
-                setProfile({
-                  ...profile,
-                  notificationPreference: {
-                    ...profile.notificationPreference,
-                    quietHours: {
-                      ...profile.notificationPreference.quietHours,
-                      startLocalTime: event.currentTarget.value,
-                    },
-                  },
-                })
-              }
-              type="time"
-              value={profile.notificationPreference.quietHours.startLocalTime}
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Quiet hours end</span>
-            <input
-              onChange={(event) =>
-                setProfile({
-                  ...profile,
-                  notificationPreference: {
-                    ...profile.notificationPreference,
-                    quietHours: {
-                      ...profile.notificationPreference.quietHours,
-                      endLocalTime: event.currentTarget.value,
-                    },
-                  },
-                })
-              }
-              type="time"
-              value={profile.notificationPreference.quietHours.endLocalTime}
-            />
-          </label>
-        </div>
-
-        <section className={styles.consentPanel}>
+        <section aria-label="Account" className={styles.accountPanel}>
           <div>
-            <h2>Consent</h2>
-            <p>
-              Enable only the channels you want. carrier messaging alerts are transactional
-              garden-management messages about watering, frost, heat, severe
-              weather, and due tasks. Message and data rates may apply. Disable
-              carrier messaging here to unsubscribe.
-            </p>
+            <p className={styles.kicker}>Account</p>
+            <h2>{authUser?.displayName ?? 'Gardener'}</h2>
+            <p>{authUser?.email}</p>
           </div>
           <button
             className={styles.secondaryButton}
-            onClick={() => void enableWebPush()}
+            onClick={() => void signOut()}
             type="button"
           >
-            Enable web push
+            Sign out
           </button>
-          <p className={styles.metaText}>
-            Push permission: {profile.notificationPreference.pushPermission}
-            {profile.notificationPreference.pushTokenLastRegisteredAtIso
-              ? `, registered ${formatDateTime(
-                  profile.notificationPreference.pushTokenLastRegisteredAtIso,
-                )}`
-              : ''}
-          </p>
-          {pushMessage ? (
-            <p className={styles.metaText}>{pushMessage}</p>
-          ) : null}
         </section>
 
-        <div className={styles.actions}>
-          <button
-            className={styles.button}
-            disabled={saveStatus === 'saving'}
-            type="submit"
-          >
-            {saveStatus === 'saving' ? 'Saving...' : 'Save settings'}
-          </button>
-          {saveStatus === 'saved' ? (
-            <span className={styles.saved}>Saved</span>
-          ) : null}
-          {error ? (
-            <span className={styles.error} role="alert">
-              {error}
-            </span>
-          ) : null}
-        </div>
+        <AlertDefaultsFields onProfileChange={setProfile} profile={profile} />
+
+        <NotificationChannelFields
+          onProfileChange={setProfile}
+          profile={profile}
+        />
+
+        <AlertTypeFields onProfileChange={setProfile} profile={profile} />
+
+        <QuietHoursFields onProfileChange={setProfile} profile={profile} />
+
+        <ConsentPanel
+          onEnableWebPush={() => void enableWebPush()}
+          profile={profile}
+          pushMessage={pushMessage}
+        />
+
+        <MobileDevicePanel
+          capabilities={mobileCapabilities}
+          localMessage={localNotificationMessage}
+          nativePushMessage={nativePushMessage}
+          onEnableLocalNotifications={() => void enableLocalNotifications()}
+          onEnableNativePush={() => void enableNativePush()}
+          onSendLocalTest={() => void sendLocalTestNotification()}
+        />
+
+        <NotificationCenter
+          logs={garden?.notificationLogs ?? []}
+          onAcknowledge={(logId) =>
+            void updateNotificationLog(logId, {
+              acknowledgedAtIso: new Date().toISOString(),
+              snoozedUntilIso: null,
+            })
+          }
+          onDismiss={(logId) =>
+            void updateNotificationLog(logId, {
+              dismissedAtIso: new Date().toISOString(),
+              snoozedUntilIso: null,
+            })
+          }
+          onSnooze={(logId) =>
+            void updateNotificationLog(logId, {
+              snoozedUntilIso: new Date(
+                Date.now() + 24 * 60 * 60 * 1000,
+              ).toISOString(),
+            })
+          }
+        />
+
+        <SettingsActions error={error} saveStatus={saveStatus} />
       </form>
     </section>
   );
-}
-
-function readNumber(value: string, fallback: number) {
-  const parsed = Number(value);
-
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function formatChannel(channel: NotificationChannel) {
-  if (channel === 'inApp') {
-    return 'In-app';
-  }
-
-  return channel.toUpperCase();
-}
-
-function formatAlertType(alertType: NotificationAlertType) {
-  switch (alertType) {
-    case 'frost':
-      return 'Frost';
-    case 'heatStress':
-      return 'Heat stress';
-    case 'severeWeather':
-      return 'Severe weather';
-    case 'taskDue':
-      return 'Task due';
-    case 'watering':
-      return 'Watering';
-  }
-}
-
-function createConsent(
-  status: NotificationConsent['status'],
-  now: string,
-): NotificationConsent {
-  return {
-    consentCopyVersion: '2026-04-20',
-    grantedAtIso: status === 'granted' ? now : null,
-    revokedAtIso: status === 'revoked' || status === 'denied' ? now : null,
-    status,
-  };
-}
-
-function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
-}
-
-function toErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
 }

@@ -85,21 +85,31 @@ async function readThroughCache<T>(
   const storage = getStorage();
   const storageKey = `${cachePrefix}${key}`;
 
-  if (storage) {
-    const cached = readCachedValue<T>(storage, storageKey);
+  const cached = storage ? readCachedValue<T>(storage, storageKey) : null;
 
-    if (cached && Date.now() - cached.cachedAtMs < ttlMs) {
+  if (cached && Date.now() - cached.cachedAtMs < ttlMs) {
+    return cached.value;
+  }
+
+  try {
+    const value = await loadValue();
+
+    if (storage) {
+      writeCachedValue(storage, storageKey, value);
+    }
+
+    return value;
+  } catch (error) {
+    if (cached) {
+      console.warn('Using stale cached weather after provider failure.', {
+        error,
+        key,
+      });
       return cached.value;
     }
+
+    throw error;
   }
-
-  const value = await loadValue();
-
-  if (storage) {
-    writeCachedValue(storage, storageKey, value);
-  }
-
-  return value;
 }
 
 function readCachedValue<T>(

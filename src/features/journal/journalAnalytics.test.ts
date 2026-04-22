@@ -29,10 +29,31 @@ describe('journalAnalytics', () => {
     });
     expect(analytics.issues).toEqual({
       highSeverity: 1,
+      inProgress: 0,
+      open: 1,
+      resolved: 0,
       unresolved: 1,
+    });
+    expect(analytics.impact).toMatchObject({
+      estimatedValueLabel: '$13',
+      harvestedPlantings: 2,
+      harvestEvents: 2,
+      seedOrSeedlingCount: 2,
+    });
+    expect(analytics.yieldByBed).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          bedName: 'Main bed',
+          total: expect.stringContaining('2.5 lb'),
+        }),
+      ]),
+    );
+    expect(analytics.performance.bestPerformers[0]).toMatchObject({
+      label: 'Tomato',
     });
     expect(analytics.waterAlerts).toEqual({
       acknowledged: 1,
+      acknowledgementRate: 100,
       sent: 1,
     });
   });
@@ -73,7 +94,7 @@ function createAnalyticsGarden(): Garden {
         id: 'journal-1',
         issueCategory: 'pest',
         issueSeverity: 'high',
-        issueStatus: 'todo',
+        issueStatus: 'open',
         occurredOn: '2026-07-01',
         photos: [],
         plantingId: 'tomato-1',

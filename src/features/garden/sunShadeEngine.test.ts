@@ -1,5 +1,6 @@
 import {
   createDefaultGarden,
+  createDefaultPlanting,
   createDefaultStructure,
 } from '../../domain/gardens/GardenRepository';
 import {
@@ -8,6 +9,7 @@ import {
   createManualSunArea,
   findSunShadeLayer,
 } from './sunShadeEngine';
+import { describeCropSunFit } from './sunShadeFit';
 
 describe('sunShadeEngine', () => {
   it('computes seasonal sun/shade cells from garden location and obstacles', () => {
@@ -46,6 +48,7 @@ describe('sunShadeEngine', () => {
       sunShadeLayers: [
         {
           ...layer,
+          observedOn: '2026-04-20',
           areas: layer.areas.map((area) =>
             area.xFt === manualArea.xFt && area.yFt === manualArea.yFt
               ? manualArea
@@ -63,10 +66,111 @@ describe('sunShadeEngine', () => {
       exposure: 'fullShade',
       source: 'manual',
     });
+    expect(
+      layers.find((candidate) => candidate.season === 'summer')?.observedOn,
+    ).toBe('2026-04-20');
   });
 
   it('evaluates crop sun requirements against a modeled cell', () => {
     expect(cropSunRequirementMet('fullSun', 'partShade')).toBe(false);
     expect(cropSunRequirementMet('partShade', 'partSun')).toBe(true);
+    expect(
+      describeCropSunFit('fullSun', {
+        exposure: 'partSun',
+        source: 'modeled',
+        sunHours: 5,
+      }).label,
+    ).toBe('workable');
+    expect(
+      describeCropSunFit('fullSun', {
+        exposure: 'fullShade',
+        source: 'modeled',
+        sunHours: 1,
+      }).label,
+    ).toBe('will likely underperform');
+    expect(
+      describeCropSunFit('partSun', {
+        exposure: 'fullSun',
+        source: 'manual',
+        sunHours: 7,
+      }).label,
+    ).toBe('good fit');
+  });
+
+  it('explains tall-crop shade differently from tree or structure shade', () => {
+    const fit = describeCropSunFit('fullSun', {
+      exposure: 'partShade',
+      shadeSources: [
+        {
+          heightFt: 7,
+          itemId: 'tomato-line',
+          itemType: 'planting',
+          kind: 'trellisedCrop',
+          label: 'Tomato line',
+        },
+      ],
+      source: 'modeled',
+      sunHours: 3,
+    });
+
+    expect(fit.level).toBe('underperform');
+    expect(fit.action).toContain('trellised-crop shade from Tomato line');
+  });
+
+  it('records shade sources and microclimate notes from tall crops and hardscape', () => {
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      plantings: [
+        {
+          ...createDefaultPlanting({
+            id: 'tomato-line',
+            label: 'Tomato line',
+            xFt: 5,
+            yFt: 3,
+          }),
+          matureHeightInches: 84,
+          mode: 'trellisLine' as const,
+          rowLengthFt: 4,
+          status: 'planted' as const,
+          trellisLengthFt: 4,
+        },
+      ],
+      plot: {
+        ...createDefaultGarden('user-a').plot,
+        depthFt: 8,
+        widthFt: 10,
+      },
+      structures: [
+        {
+          ...createDefaultStructure({
+            id: 'stone-path',
+            type: 'pathway',
+            xFt: 0,
+            yFt: 0,
+          }),
+          depthFt: 8,
+          material: 'stone' as const,
+          widthFt: 1,
+        },
+      ],
+    };
+
+    const areas = buildSunShadeLayers(garden).flatMap((layer) => layer.areas);
+
+    expect(
+      areas.some((area) =>
+        area.shadeSources?.some(
+          (source) =>
+            source.itemId === 'tomato-line' && source.kind === 'trellisedCrop',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      areas.some((area) =>
+        area.microclimateNotes?.some(
+          (note) => note.kind === 'westHeat' || note.kind === 'reflectedHeat',
+        ),
+      ),
+    ).toBe(true);
   });
 });

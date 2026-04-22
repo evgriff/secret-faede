@@ -11,7 +11,8 @@ Repo intent:
 
 - keep Secret Faede as a small, functionality-first garden plot planner and
   garden operations app
-- preserve email-link auth and one saved garden per user
+- preserve password auth for the two provisioned accounts and one shared
+  published garden workspace with private drafts
 - avoid product scope beyond a real plot editor and practical garden operations
 
 Current foundation scope:
@@ -21,8 +22,8 @@ Current foundation scope:
 - access-denied handling
 - authenticated app shell
 - authenticated garden editor
-- garden, tasks, journal, and settings workspace routes
-- one Firestore garden document per user
+- Plan, Today, Feed, and Settings workspace routes with legacy redirects
+- one shared published garden workspace plus per-user drafts in Firestore
 - user profile notification preferences and consent state
 - in-app, web push, and backend carrier messaging alert pipeline for garden operations
 - generated task timeline and succession suggestions from the saved garden plan
@@ -46,6 +47,24 @@ Guardrails:
 - use `xFt` from the left edge and `yFt` from the top edge as canonical plant coordinates
 - store garden positions in feet, never raw pixels
 - prefer small files, named exports, plain TypeScript, and readable route guards
+
+Source control protocol:
+
+- start every agentic workflow with `git status --short --branch` and confirm
+  the current branch before editing
+- use a `codex/` branch for agent work unless the user explicitly asks for a
+  different branch strategy
+- never continue substantial edits directly on `main`
+- treat all pre-existing dirty files as user-owned; do not revert, reset,
+  checkout, overwrite, or reformat unrelated changes
+- before editing, identify the intended file set and keep the change scoped to
+  that set unless the code forces a documented expansion
+- when using parallel agents, assign disjoint write scopes and state that other
+  agents may be editing the repo
+- stage only explicit files you changed; never use broad `git add .` or
+  destructive cleanup commands
+- commit only when the user asks; keep commits prompt-sized, name the
+  verification commands run, and leave unrelated dirty files unstaged
 
 Before finishing:
 

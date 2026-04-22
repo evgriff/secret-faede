@@ -1,5 +1,12 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 
+import {
+  annArborClimateProfile,
+  createDefaultGarden,
+} from '../domain/gardens/GardenRepository';
+import type { AppServices } from '../infrastructure/runtime/services';
+import { rememberAppRoute } from '../features/auth/sessionResume';
+import { routePaths } from '../shared/lib/routes';
 import { renderRoute } from '../test/render';
 import { createTestServices } from '../test/testServices';
 
@@ -11,61 +18,128 @@ describe('app routing', () => {
 
     expect(
       await screen.findByRole('heading', {
-        name: 'Sign in with an email link.',
+        name: 'Sign in',
       }),
     ).toBeVisible();
   });
 
-  it('redirects allowlisted users from the root to the garden editor', async () => {
-    const services = await createTestServices({
-      signedInEmail: 'primary.gardener@example.com',
-    });
+  it('redirects allowlisted users from the root to Plan', async () => {
+    const services = await createConfiguredGardenServices();
 
     renderRoute('/', services);
 
+    expect(await screen.findByRole('heading', { name: 'Plan' })).toBeVisible();
+  });
+
+  it('redirects allowlisted users from the root to their last workspace route', async () => {
+    const services = await createConfiguredGardenServices();
+
+    rememberAppRoute(routePaths.feed);
+    renderRoute('/', services);
+
     expect(
-      await screen.findByRole('heading', { name: 'Garden editor' }),
+      await screen.findByRole('region', { name: 'Feed summary' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Feed' }),
     ).toBeVisible();
   });
 
-  it('redirects the app shell index to the garden workspace', async () => {
-    const services = await createTestServices({
-      signedInEmail: 'primary.gardener@example.com',
-    });
+  it('redirects the app shell index to Plan', async () => {
+    const services = await createConfiguredGardenServices();
 
     renderRoute('/app', services);
 
     expect(
       await screen.findByRole('heading', {
-        name: 'Garden editor',
+        name: 'Plan',
       }),
     ).toBeVisible();
   });
 
-  it('renders the authenticated tasks workspace', async () => {
+  it('renders the authenticated Today workspace', async () => {
+    const services = await createTestServices({
+      signedInEmail: 'primary.gardener@example.com',
+    });
+
+    renderRoute('/app/today', services);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Field weather' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Today' }),
+    ).toBeVisible();
+  });
+
+  it('renders the authenticated Feed workspace', async () => {
+    const services = await createTestServices({
+      signedInEmail: 'primary.gardener@example.com',
+    });
+
+    renderRoute('/app/feed', services);
+
+    expect(
+      await screen.findByRole('region', { name: 'Feed summary' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Feed' }),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Post' })).toBeVisible();
+    expect(screen.getByText(/memories shown/i)).toBeVisible();
+  });
+
+  it('redirects the legacy garden route to Plan', async () => {
+    const services = await createConfiguredGardenServices();
+
+    renderRoute('/app/garden', services);
+
+    expect(await screen.findByRole('heading', { name: 'Plan' })).toBeVisible();
+  });
+
+  it('redirects the legacy tasks route to Today', async () => {
     const services = await createTestServices({
       signedInEmail: 'primary.gardener@example.com',
     });
 
     renderRoute('/app/tasks', services);
 
-    expect(await screen.findByText('Upcoming work')).toBeVisible();
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Tasks' })).toBeVisible();
-    });
+    expect(
+      await screen.findByRole('heading', { name: 'Field weather' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Today' }),
+    ).toBeVisible();
   });
 
-  it('renders the authenticated journal workspace', async () => {
+  it('redirects the legacy log route to Feed', async () => {
+    const services = await createTestServices({
+      signedInEmail: 'primary.gardener@example.com',
+    });
+
+    renderRoute('/app/log', services);
+
+    expect(
+      await screen.findByRole('region', { name: 'Feed summary' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Feed' }),
+    ).toBeVisible();
+  });
+
+  it('redirects the legacy journal route to Feed', async () => {
     const services = await createTestServices({
       signedInEmail: 'primary.gardener@example.com',
     });
 
     renderRoute('/app/journal', services);
 
-    expect(await screen.findByText('Harvest totals')).toBeVisible();
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Journal' })).toBeVisible();
-    });
+    expect(
+      await screen.findByRole('region', { name: 'Feed summary' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Feed' }),
+    ).toBeVisible();
   });
 
   it('renders editable settings for authenticated users', async () => {
@@ -98,3 +172,24 @@ describe('app routing', () => {
     ).toBeVisible();
   });
 });
+
+async function createConfiguredGardenServices(): Promise<AppServices> {
+  const services = await createTestServices({
+    signedInEmail: 'primary.gardener@example.com',
+  });
+  const currentUser = services.authService.getCurrentUser();
+
+  if (!currentUser) {
+    throw new Error('Expected signed-in test user.');
+  }
+
+  await services.gardenRepository.saveGarden({
+    ...createDefaultGarden(currentUser.uid),
+    climateProfile: {
+      ...annArborClimateProfile,
+      source: 'user',
+    },
+  });
+
+  return services;
+}

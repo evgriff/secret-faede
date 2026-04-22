@@ -1,25 +1,17 @@
 import type { AuthUser } from './types';
 
-export interface EmailSignInRequestResult {
-  completionPath?: string;
-  delivery: 'email' | 'mock-link';
-}
-
-export interface CompleteEmailLinkOptions {
-  email?: string;
-  url: string;
+export interface PasswordSignInOptions {
+  email: string;
+  password: string;
+  rememberDevice: boolean;
 }
 
 export type AuthStateListener = (user: AuthUser | null) => void;
 
 export interface AuthService {
-  canHandleEmailLink(url: string): boolean;
-  clearStoredEmail(): void;
-  completeEmailLinkSignIn(options: CompleteEmailLinkOptions): Promise<AuthUser>;
   getCurrentUser(): AuthUser | null;
-  getStoredEmail(): string | null;
-  requestEmailSignIn(email: string): Promise<EmailSignInRequestResult>;
-  setStoredEmail(email: string): void;
+  sendPasswordReset(email: string): Promise<void>;
+  signInWithPassword(options: PasswordSignInOptions): Promise<AuthUser>;
   signOut(): Promise<void>;
   subscribe(listener: AuthStateListener): () => void;
 }

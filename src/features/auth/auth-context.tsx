@@ -10,8 +10,7 @@ import {
 
 import type {
   AuthService,
-  CompleteEmailLinkOptions,
-  EmailSignInRequestResult,
+  PasswordSignInOptions,
 } from '../../domain/auth/AuthService';
 import type { AuthState } from '../../domain/auth/types';
 import { useServices } from '../../app/providers';
@@ -19,11 +18,14 @@ import { isEmailAllowed, normalizeEmail } from '../../shared/auth/allowlist';
 
 interface AuthContextValue {
   clearAccessState(): void;
-  completeEmailLinkSignIn(
-    options: CompleteEmailLinkOptions,
-  ): Promise<{ email: string; provider: 'firebase' | 'mock'; uid: string }>;
-  requestEmailSignIn(email: string): Promise<EmailSignInRequestResult>;
+  sendPasswordReset(email: string): Promise<void>;
   service: AuthService;
+  signInWithPassword(options: PasswordSignInOptions): Promise<{
+    displayName: string | null;
+    email: string;
+    provider: 'firebase' | 'mock';
+    uid: string;
+  }>;
   signOut(): Promise<void>;
   state: AuthState;
 }
@@ -31,7 +33,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { authService, environment } = useServices();
+  const { authService, environment, telemetryService } = useServices();
   const [state, setState] = useState<AuthState>({
     accessStatus: 'unknown',
     deniedEmail: null,
@@ -39,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: null,
   });
   const autoSignOutInFlight = useRef(false);
+  const trackedSignInUid = useRef<string | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -94,6 +97,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (normalizedUser) {
+        if (trackedSignInUid.current !== normalizedUser.uid) {
+          telemetryService.trackEvent('sign_in_complete', {
+            provider: normalizedUser.provider,
+            runtime_mode: environment.runtimeMode,
+          });
+          trackedSignInUid.current = normalizedUser.uid;
+        }
+
         setState({
           accessStatus: 'allowed',
           deniedEmail: null,
@@ -124,7 +135,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       disposed = true;
       unsubscribe();
     };
-  }, [authService, environment.allowedEmails, environment.allowlistError]);
+  }, [
+    authService,
+    environment.allowedEmails,
+    environment.allowlistError,
+    environment.runtimeMode,
+    telemetryService,
+  ]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -135,16 +152,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           deniedEmail: null,
         }));
       },
-      completeEmailLinkSignIn: (options) =>
-        authService.completeEmailLinkSignIn(options),
-      requestEmailSignIn: async (email) => {
+      sendPasswordReset: (email) => authService.sendPasswordReset(email),
+      signInWithPassword: async (options) => {
         setState((currentState) => ({
           ...currentState,
           accessStatus: currentState.user ? 'allowed' : 'unknown',
           deniedEmail: null,
         }));
 
-        return authService.requestEmailSignIn(email);
+        return authService.signInWithPassword(options);
       },
       service: authService,
       signOut: async () => {

@@ -1,11 +1,16 @@
 # Deployment
 
+Date: 2026-04-21
+
 ## Summary
 
 The repo ships two Hosting paths:
 
 - preview Hosting on pull requests, built in mock mode by default
-- live Hosting on `main`, built in Firebase mode
+- live Hosting on `main`, built in Firebase mode after the full release gate
+
+The production runbook is the source of truth for manual steps:
+`docs/deploy-runbook.md`.
 
 ## GitHub configuration
 
@@ -23,6 +28,7 @@ Repository variables for live builds:
 - `VITE_FIREBASE_MESSAGING_SENDER_ID`
 - `VITE_FIREBASE_PROJECT_ID`
 - `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_VAPID_KEY`
 
 ## Local deploy commands
 
@@ -40,32 +46,31 @@ firebase hosting:channel:deploy preview --project your-project-id
 Live-style build and deploy:
 
 ```bash
-VITE_APP_RUNTIME=firebase \
-VITE_ENABLE_PWA=true \
-VITE_ALLOWED_EMAILS=primary.gardener@example.com,partner.gardener@example.com \
-VITE_FIREBASE_API_KEY=... \
-VITE_FIREBASE_APP_ID=... \
-VITE_FIREBASE_AUTH_DOMAIN=... \
-VITE_FIREBASE_MESSAGING_SENDER_ID=... \
-VITE_FIREBASE_PROJECT_ID=... \
-VITE_FIREBASE_STORAGE_BUCKET=... \
-npm run build
-
-firebase deploy --only hosting,firestore:rules --project your-project-id
+export FIREBASE_PROJECT_ID=your-project-id
+npm run ci
+npm run deploy:rules
+npm run deploy:functions
+npm run deploy:hosting
 ```
 
-Rules-only deploy for the configured live project:
+One-shot live deploy:
 
 ```bash
-firebase deploy --only firestore:rules --project secret-faeries
+export FIREBASE_PROJECT_ID=your-project-id
+npm run deploy:all
 ```
 
 ## Deployment notes
 
 - preview builds are safe-by-default because they use mock runtime unless you intentionally change that policy
 - live deploys must never rely on the mock defaults
-- live Firebase mode needs both Hosting and Firestore rules deployed
+- live Firebase mode needs Hosting, Firestore rules/indexes, Storage rules, and
+  Functions deployed together for production smoke testing
 - this repo's `.firebaserc` default points at `secret-faeries`; emulator scripts
   still pass `--project demo-secret-faede` explicitly
 - preview URLs are separate Hosting URLs and can still talk to real backend resources if you point them at a live Firebase project
 - PWA registration is disabled in preview and CI builds to avoid stale preview caches
+- seed Primary Gardener and Partner Gardener with `npm run auth:seed-users` before a live demo, then
+  run `npm run seed:dev` for a populated Detroit demo account if needed
+- keep `NOTIFICATION_DRY_RUN=true` until notification provider compliance and controlled carrier messaging
+  smoke tests are complete

@@ -1,0 +1,185 @@
+.formPanels {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.composerDialog {
+  width: min(100%, 44rem);
+}
+
+.composerModes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.35rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  padding: 0.3rem;
+}
+
+.composerModes button {
+  min-height: 2.4rem;
+  border: 0;
+  border-radius: calc(var(--radius-control) - 2px);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 760;
+  padding: 0.4rem 0.6rem;
+}
+
+.composerModes button[aria-pressed='true'] {
+  background: #fffdf7;
+  color: var(--color-text-strong);
+  box-shadow: 0 1px 4px rgba(31, 27, 24, 0.08);
+}
+
+.form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.issueGrid {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.form label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-small);
+}
+
+.form label span {
+  font-weight: 760;
+}
+
+.form input,
+.form select,
+.form textarea {
+  min-height: 2.75rem;
+  min-width: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: #fffdf7;
+  color: var(--color-text-strong);
+  font: inherit;
+  padding: 0.6rem 0.7rem;
+}
+
+.form textarea {
+  resize: vertical;
+}
+
+.fullWidth,
+.fileHint,
+.fileQueue,
+.inlineActions,
+.form button {
+  grid-column: 1 / -1;
+}
+
+.form button,
+.inlineActions button {
+  min-height: 2.75rem;
+  justify-self: start;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: #fffdf7;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 760;
+  padding: 0.65rem 0.85rem;
+}
+
+.fileHint {
+  color: var(--color-text-muted);
+}
+
+.fileQueue {
+  display: grid;
+  gap: var(--space-2);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-2);
+}
+
+.fileQueue ul {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+}
+
+.fileQueue li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.45rem;
+}
+
+.fileQueue li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.fileQueue strong {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+}
+
+.inlineActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .composerModes button:hover,
+  .form button:hover,
+  .inlineActions button:hover {
+    border-color: var(--color-accent-strong);
+    background: var(--color-surface-alt);
+  }
+}
+
+@media (max-width: 62rem) {
+  .composerModes,
+  .form,
+  .formPanels,
+  .issueGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 48rem) {
+  .form button {
+    min-height: 3.2rem;
+    width: 100%;
+  }
+
+  .form input,
+  .form select,
+  .form textarea {
+    min-height: 3.1rem;
+  }
+
+  .inlineActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .inlineActions button {
+    width: 100%;
+  }
+}

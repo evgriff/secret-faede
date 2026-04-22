@@ -4,8 +4,10 @@ import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 
 const TREFLE_SEARCH_URL = 'https://trefle.io/api/v1/plants/search';
-const CURATED_CATALOG_PATH = 'src/domain/crops/curatedCropOverrides.json';
-const DEFAULT_OUTPUT_PATH = 'src/domain/crops/trefleCropCatalog.generated.json';
+const CATALOG_INPUT_PATH =
+  'src/domain/crops/homeGardenCropCatalog.generated.json';
+const DEFAULT_OUTPUT_PATH =
+  'src/domain/crops/homeGardenCropCatalog.generated.json';
 
 loadEnvFile('.env.local');
 
@@ -18,7 +20,7 @@ if (!token) {
   );
 }
 
-const curatedCrops = JSON.parse(readFileSync(CURATED_CATALOG_PATH, 'utf8'));
+const curatedCrops = JSON.parse(readFileSync(CATALOG_INPUT_PATH, 'utf8'));
 const cropsToIngest = args.limit
   ? curatedCrops.slice(0, args.limit)
   : curatedCrops;
@@ -106,14 +108,26 @@ function normalizeCropProfile(crop, treflePlant) {
     crop.scientificName || treflePlant?.scientific_name || '';
   const family = crop.family || treflePlant?.family || '';
   const { trefleQuery, ...curatedFields } = crop;
+  const sourceTags = new Set([
+    ...(Array.isArray(crop.sourceTags) ? crop.sourceTags : []),
+    'trefle-refreshed',
+  ]);
+
+  if (treflePlant?.id) {
+    sourceTags.add(`trefle-id:${treflePlant.id}`);
+  }
 
   return {
     ...curatedFields,
     commonName,
     family,
     frostSensitive: crop.hardiness.toLowerCase().includes('frost sensitive'),
+    lastRefreshedIso: new Date().toISOString(),
+    manualOverride: crop.manualOverride ?? true,
     name: commonName,
     scientificName,
+    source: treflePlant ? 'trefle+curated-overlay' : crop.source,
+    sourceTags: [...sourceTags],
     sunExposure: crop.sunRequirement,
     trellisRequired: crop.trellisRecommended,
     waterNeeds: toWaterNeed(crop.weeklyWaterNeedInches),

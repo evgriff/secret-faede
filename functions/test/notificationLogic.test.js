@@ -10,6 +10,11 @@ const {
   redactPhone,
   shouldSendNotification,
 } = require('../notificationLogic');
+const {
+  getSmsKeywordIntent,
+  getSmsRateLimitDecision,
+  isRetryableSmsProviderError,
+} = require('../notificationCompliance');
 
 const profile = {
   notificationPreference: {
@@ -49,19 +54,36 @@ assert.equal(
     { deficitInches: 0.62, targetLabel: 'Tomatoes in Bed A' },
     { forecastRainNext24In: 0 },
   ).body,
-  'Tomatoes in Bed A are short 0.6 in of water. Rain is unlikely today.',
+  'Water Tomatoes in Bed A 0.62 in today. Rain is unlikely today.',
 );
 
-assert.match(buildFrostNotification(garden).body, /Protect Basil, Peppers/);
-assert.match(buildHeatNotification(garden).body, /Heat stress likely/);
+assert.match(buildFrostNotification(garden).body, /Cover Basil/);
+assert.match(buildHeatNotification(garden).body, /Check water early/);
 assert.equal(redactPhone('+17345550123'), '***0123');
+assert.equal(getSmsKeywordIntent({ body: 'STOP', optOutType: '' }), 'stop');
+assert.equal(getSmsKeywordIntent({ body: 'help', optOutType: '' }), 'help');
+assert.equal(
+  getSmsKeywordIntent({ body: 'hello', optOutType: 'START' }),
+  'start',
+);
+assert.equal(isRetryableSmsProviderError({ status: 500 }), true);
+assert.equal(
+  getSmsRateLimitDecision(
+    Array.from({ length: 3 }, (_, index) => ({
+      channel: 'carrier messaging',
+      createdAtIso: new Date(Date.now() - index * 1000).toISOString(),
+      status: 'sent',
+    })),
+  ).allowed,
+  false,
+);
 
 assert.equal(
   shouldSendNotification({
     channel: 'carrier messaging',
     now: new Date('2026-06-21T13:00:00-04:00'),
     profile,
-    type: 'watering',
+    type: 'frost',
   }).allowed,
   true,
 );
@@ -70,6 +92,16 @@ assert.equal(
   shouldSendNotification({
     channel: 'carrier messaging',
     now: new Date('2026-06-21T22:00:00-04:00'),
+    profile,
+    type: 'frost',
+  }).allowed,
+  false,
+);
+
+assert.equal(
+  shouldSendNotification({
+    channel: 'carrier messaging',
+    now: new Date('2026-06-21T13:00:00-04:00'),
     profile,
     type: 'watering',
   }).allowed,

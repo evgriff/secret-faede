@@ -1,0 +1,350 @@
+.fieldStack {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.panel {
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid rgba(76, 85, 70, 0.14);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-3);
+}
+
+.panel h2,
+.panel h3,
+.panel p {
+  margin: 0;
+}
+
+.panel h2,
+.panel h3 {
+  color: var(--color-text-strong);
+}
+
+.panelHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.kicker {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.panelCopy,
+.miniCard p {
+  color: var(--color-text);
+}
+
+.empty {
+  border: 1px dashed rgba(76, 85, 70, 0.2);
+  border-radius: var(--radius-card);
+  color: var(--color-text-muted);
+  padding: var(--space-3);
+}
+
+.clearNotice {
+  border: 1px solid rgba(76, 85, 70, 0.14);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  padding: var(--space-2);
+}
+
+.alertList,
+.compactList,
+.weatherFacts {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.alertItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-bottom: 1px solid rgba(76, 85, 70, 0.12);
+  padding-bottom: 0.45rem;
+}
+
+.weatherPanel {
+  min-height: 100%;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 253, 247, 0.78),
+      rgba(239, 247, 235, 0.9)
+    ),
+    #f3f8ee;
+}
+
+.weatherBody {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.weatherHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.weatherHero strong {
+  color: var(--color-text-strong);
+  font-size: 1.2rem;
+  line-height: 1.1;
+}
+
+.weatherHero span {
+  color: var(--color-text-strong);
+  font-size: 2.35rem;
+  font-weight: 850;
+  line-height: 0.95;
+}
+
+.weatherFacts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.weatherFacts span {
+  display: grid;
+  gap: 0.15rem;
+  border-top: 1px solid rgba(76, 85, 70, 0.14);
+  color: var(--color-text);
+  font-size: 0.92rem;
+  padding-top: 0.45rem;
+}
+
+.weatherFacts strong {
+  color: var(--color-text-strong);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+}
+
+.weatherNextDay,
+.weatherRisk,
+.weatherWatering,
+.weatherObserved {
+  min-width: 0;
+}
+
+.miniCard small,
+.bedList small,
+.weatherSource {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.miniCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: start;
+  border-bottom: 1px solid rgba(76, 85, 70, 0.12);
+  padding-bottom: var(--space-2);
+}
+
+.activityItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: start;
+  border-bottom: 1px solid rgba(76, 85, 70, 0.12);
+  padding-bottom: var(--space-2);
+}
+
+.activityItem h3,
+.activityItem p {
+  margin: 0;
+}
+
+.activityItem p {
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 0.45rem;
+}
+
+.harvestActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  min-width: min(20rem, 100%);
+}
+
+.delayControls {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  border: 1px solid rgba(76, 85, 70, 0.14);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  padding: 0.5rem;
+}
+
+.delayControls label {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 0.25rem;
+  color: var(--color-text-strong);
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.delayControls input {
+  min-height: 2.75rem;
+  min-width: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-solid);
+  color: var(--color-text-strong);
+  font: inherit;
+  padding: 0.55rem 0.65rem;
+}
+
+.cardActions a,
+.cardActions button,
+.harvestActions button,
+.miniCard button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-solid);
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 720;
+  padding: 0.55rem 0.75rem;
+  text-decoration: none;
+}
+
+.harvestActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.bedList {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+}
+
+.bedList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-bottom: 1px solid rgba(76, 85, 70, 0.12);
+  padding-bottom: 0.45rem;
+}
+
+.bedList span {
+  display: grid;
+  gap: 0.1rem;
+  color: var(--color-text);
+}
+
+.bedList strong {
+  color: var(--color-text-strong);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cardActions a:hover,
+  .cardActions button:hover,
+  .harvestActions button:hover,
+  .miniCard button:hover {
+    border-color: var(--color-accent-strong);
+    background: var(--color-surface-alt);
+  }
+}
+
+@media (max-width: 58rem) {
+  .fieldStack {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 48rem) {
+  .activityItem,
+  .miniCard {
+    grid-template-columns: 1fr;
+  }
+
+  .weatherPanel {
+    gap: var(--space-2);
+    padding: 0.75rem;
+  }
+
+  .weatherBody {
+    gap: 0.65rem;
+  }
+
+  .weatherHero {
+    gap: var(--space-2);
+  }
+
+  .weatherHero strong {
+    font-size: 1.05rem;
+  }
+
+  .weatherHero span {
+    font-size: 1.85rem;
+  }
+
+  .weatherFacts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+
+  .weatherFacts span {
+    font-size: 0.84rem;
+    padding-top: 0.35rem;
+  }
+
+  .weatherRisk {
+    grid-column: 1 / -1;
+  }
+
+  .weatherFacts .weatherNextDay,
+  .weatherFacts .weatherObserved,
+  .weatherSource {
+    display: none;
+  }
+
+  .cardActions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .harvestActions,
+  .delayControls {
+    grid-template-columns: 1fr;
+  }
+
+  .miniCard button {
+    width: 100%;
+  }
+
+  .cardActions a {
+    width: 100%;
+  }
+}

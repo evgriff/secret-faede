@@ -1,22 +1,18 @@
 import type {
   AuthService,
   AuthStateListener,
-  CompleteEmailLinkOptions,
-  EmailSignInRequestResult,
+  PasswordSignInOptions,
 } from '../../../domain/auth/AuthService';
 import type { AuthUser } from '../../../domain/auth/types';
-import { routePaths } from '../../../shared/lib/routes';
 import {
   readJsonStorageValue,
-  readStorageValue,
   removeStorageValue,
   writeJsonStorageValue,
-  writeStorageValue,
 } from '../../../shared/lib/storage';
 
-const mockSessionKey = 'secret-faede.auth.mock.session';
-const pendingEmailKey = 'secret-faede.auth.pending-email';
-const pendingTokenKey = 'secret-faede.auth.mock.pending-token';
+const mockLocalSessionKey = 'secret-faede.auth.mock.session';
+const mockSessionSessionKey = 'secret-faede.auth.mock.session-tab';
+const mockPassword = 'password';
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -29,6 +25,7 @@ function createMockUser(email: string): AuthUser {
     .replace(/^-|-$/g, '');
 
   return {
+    displayName: getDisplayName(normalizedEmail),
     email: normalizedEmail,
     provider: 'mock',
     uid: `mock-${safeId || 'gardener'}`,
@@ -38,71 +35,46 @@ function createMockUser(email: string): AuthUser {
 export class MockAuthService implements AuthService {
   private listeners = new Set<AuthStateListener>();
 
-  canHandleEmailLink(url: string): boolean {
-    const parsedUrl = new URL(url);
-    return parsedUrl.searchParams.has('mockSignInToken');
+  getCurrentUser(): AuthUser | null {
+    return (
+      readJsonStorageValue<AuthUser>(mockLocalSessionKey) ??
+      readSessionUser(mockSessionSessionKey)
+    );
   }
 
-  clearStoredEmail(): void {
-    removeStorageValue(pendingEmailKey);
-    removeStorageValue(pendingTokenKey);
+  async sendPasswordReset(email: string): Promise<void> {
+    void normalizeEmail(email);
   }
 
-  async completeEmailLinkSignIn(
-    options: CompleteEmailLinkOptions,
-  ): Promise<AuthUser> {
-    const parsedUrl = new URL(options.url);
-    const token = parsedUrl.searchParams.get('mockSignInToken');
-    const expectedToken = readStorageValue(pendingTokenKey);
-    const email = normalizeEmail(options.email ?? this.getStoredEmail() ?? '');
+  async signInWithPassword(options: PasswordSignInOptions): Promise<AuthUser> {
+    const normalizedEmail = normalizeEmail(options.email);
 
-    if (!token || !expectedToken || token !== expectedToken) {
-      throw new Error(
-        'This mock sign-in link is invalid or has already been used.',
-      );
+    if (!normalizedEmail || !options.password) {
+      throw new Error('Enter your email and password.');
     }
 
-    if (!email) {
-      throw new Error('Email confirmation is required to complete sign-in.');
+    if (options.password !== mockPassword) {
+      throw new Error('The email or password is incorrect.');
     }
 
-    const user = createMockUser(email);
-    writeJsonStorageValue(mockSessionKey, user);
-    this.clearStoredEmail();
+    const user = createMockUser(normalizedEmail);
+
+    removeStorageValue(mockLocalSessionKey);
+    removeSessionUser(mockSessionSessionKey);
+
+    if (options.rememberDevice) {
+      writeJsonStorageValue(mockLocalSessionKey, user);
+    } else {
+      writeSessionUser(mockSessionSessionKey, user);
+    }
+
     this.emit(user);
     return user;
   }
 
-  getCurrentUser(): AuthUser | null {
-    return readJsonStorageValue<AuthUser>(mockSessionKey);
-  }
-
-  getStoredEmail(): string | null {
-    return readStorageValue(pendingEmailKey);
-  }
-
-  async requestEmailSignIn(email: string): Promise<EmailSignInRequestResult> {
-    const normalizedEmail = normalizeEmail(email);
-    const token =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `mock-token-${Date.now()}`;
-
-    this.setStoredEmail(normalizedEmail);
-    writeStorageValue(pendingTokenKey, token);
-
-    return {
-      completionPath: `${routePaths.authComplete}?mockSignInToken=${token}`,
-      delivery: 'mock-link',
-    };
-  }
-
-  setStoredEmail(email: string): void {
-    writeStorageValue(pendingEmailKey, normalizeEmail(email));
-  }
-
   async signOut(): Promise<void> {
-    removeStorageValue(mockSessionKey);
+    removeStorageValue(mockLocalSessionKey);
+    removeSessionUser(mockSessionSessionKey);
     this.emit(null);
   }
 
@@ -119,5 +91,55 @@ export class MockAuthService implements AuthService {
     for (const listener of this.listeners) {
       listener(user);
     }
+  }
+}
+
+function getDisplayName(email: string) {
+  if (email === 'primary.gardener@example.com') {
+    return 'Primary Gardener';
+  }
+
+  if (email === 'partner.gardener@example.com') {
+    return 'Partner Gardener';
+  }
+
+  return null;
+}
+
+function readSessionUser(key: string) {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const value = window.sessionStorage.getItem(key);
+
+    return value ? (JSON.parse(value) as AuthUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionUser(key: string, user: AuthUser) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(user));
+  } catch {
+    return;
+  }
+}
+
+function removeSessionUser(key: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    return;
   }
 }

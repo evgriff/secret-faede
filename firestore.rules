@@ -2,39 +2,74 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isAllowedGardenEmail() {
-      return request.auth.token.email in [
-        'primary.gardener@example.com',
-        'partner.gardener@example.com'
-      ];
+    function hasGardenAccess() {
+      return request.auth != null
+        && request.auth.token.keys().hasAny(['gardenAccess'])
+        && request.auth.token.gardenAccess == true
+        && request.auth.token.keys().hasAny(['secretFaedeMember'])
+        && request.auth.token.secretFaedeMember == true;
+    }
+
+    function isOwner(userId) {
+      return hasGardenAccess()
+        && request.auth.uid == userId;
     }
 
     match /users/{userId} {
-      allow read, write: if request.auth != null
-        && request.auth.uid == userId
-        && isAllowedGardenEmail();
+      allow read, write: if isOwner(userId);
 
-      match /{document=**} {
-        allow read, write: if request.auth != null
-          && request.auth.uid == userId
-          && isAllowedGardenEmail();
+      match /pushTokens/{tokenId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /smsEvents/{eventId} {
+        allow read, write: if isOwner(userId);
       }
     }
 
     match /gardens/{userId} {
-      allow read, write: if request.auth != null
-        && request.auth.uid == userId
-        && isAllowedGardenEmail();
+      allow read, write: if isOwner(userId);
 
-      match /{document=**} {
-        allow read, write: if request.auth != null
-          && request.auth.uid == userId
-          && isAllowedGardenEmail();
+      match /structures/{structureId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /plantings/{plantingId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /tasks/{taskId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /journal/{entryId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /harvests/{harvestId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /notifications/{notificationId} {
+        allow read, write: if isOwner(userId);
       }
     }
 
-    match /catalog/crops/{cropId} {
-      allow read: if request.auth != null && isAllowedGardenEmail();
+    match /gardenWorkspaces/main {
+      allow read, write: if hasGardenAccess();
+
+      match /drafts/{userId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /revisions/{revisionId} {
+        allow read: if hasGardenAccess();
+        allow write: if hasGardenAccess();
+      }
+    }
+
+    match /catalog/{cropId} {
+      allow read: if hasGardenAccess();
       allow write: if false;
     }
 

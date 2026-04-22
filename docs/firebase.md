@@ -14,7 +14,6 @@
 Not included now:
 
 - blocking triggers
-- Twilio Notify
 - production email delivery
 
 ## Required web-app setup
@@ -24,14 +23,15 @@ Not included now:
 3. Copy the Firebase web config values into `.env.local` or GitHub repository variables.
 4. Enable Authentication.
 5. Enable `Email/Password`.
-6. Enable `Email link (passwordless sign-in)`.
-7. Add authorized domains for every environment that will complete the sign-in link.
+6. Leave public sign-up UI out of the app; create only the two intended users
+   through `npm run auth:seed-users`.
+7. Add authorized domains for every environment that will host the app.
 
 Important:
 
-- email-link auth for web requires `handleCodeInApp: true`
-- the app completes the sign-in flow at `/auth/complete`
-- do not put the user email in URL params
+- the app signs in with Firebase Email/Password only
+- `/auth/complete` is a legacy redirect back to `/sign-in`
+- do not add client account creation paths
 - in Firebase projects created after April 28, 2025, `localhost` is not added automatically; add it yourself
 
 ## Authorized domains checklist
@@ -84,17 +84,27 @@ Server-side function variables and secrets:
 
 ```bash
 NOTIFICATION_DRY_RUN=true
-TWILIO_ACCOUNT_SID=...
-TWILIO_AUTH_TOKEN=...
-TWILIO_MESSAGING_SERVICE_SID=...
+RETIRED_DELIVERY_PROVIDER_API_KEY=...
+RETIRED_DELIVERY_PROVIDER_FROM_NUMBER=...
+RETIRED_DELIVERY_PROVIDER_PUBLIC_KEY=...
 DEFAULT_ALERT_PHONE_E164=...
 TOMORROW_API_KEY=...
 ```
 
+Auth seed variables:
+
+```bash
+APP_LOGIN_PRIMARY_EMAIL=...
+APP_LOGIN_PARTNER_EMAIL=...
+APP_LOGIN_PRIMARY_TEMP_PASSWORD=...
+APP_LOGIN_PARTNER_TEMP_PASSWORD=...
+FIREBASE_PROJECT_ID=...
+```
+
 carrier messaging dry-run is the default. Real carrier messaging sends require
-`NOTIFICATION_DRY_RUN=false` plus all three Twilio variables. Phone numbers are
-stored only from user input or local/dev seed env; do not commit private
-numbers.
+`NOTIFICATION_DRY_RUN=false` plus notification provider API key, sender number, and webhook
+public key. Phone numbers are stored only from user input or local/dev seed env;
+do not commit private numbers.
 
 `VITE_ALLOWED_EMAILS` rules:
 
@@ -129,11 +139,14 @@ If Firebase mode is requested without complete web config, the app falls back to
 
 ## Firestore garden document
 
-Firebase mode stores one garden per authenticated user:
+Firebase mode stores one shared published garden with per-user drafts:
 
 ```text
 users/{uid}
 users/{uid}/pushTokens/{tokenId}
+gardenWorkspaces/main
+gardenWorkspaces/main/drafts/{uid}
+gardenWorkspaces/main/revisions/{revisionId}
 gardens/{uid}
 gardens/{uid}/structures/{structureId}
 gardens/{uid}/plantings/{plantingId}
@@ -141,8 +154,14 @@ gardens/{uid}/tasks/{taskId}
 gardens/{uid}/journal/{entryId}
 gardens/{uid}/harvests/{harvestId}
 gardens/{uid}/notifications/{notificationId}
-catalog/crops/{cropId}
+catalog/{cropId}
 ```
+
+`gardenWorkspaces/main` is the current published revision.
+`gardenWorkspaces/main/drafts/{uid}` is the user's private draft with
+`baseRevisionId`. `gardenWorkspaces/main/revisions/{revisionId}` stores
+published history for revert. `gardens/{uid}` remains a migration source for
+older saved gardens and seed data.
 
 Garden document shape:
 
@@ -198,11 +217,12 @@ Harvest events are stored in `gardens/{uid}/harvests/{harvestId}`. Harvests can
 attach to plantings and support count, pounds, ounces, bunches, or freeform
 amount text.
 
-Notification preferences are stored on `users/{uid}`. They include channel
-toggles for in-app, push, carrier messaging, and email placeholder; alert-type toggles for
-watering, frost, heat stress, severe weather, and task due; quiet hours; daily
-check time; thresholds; timezone; carrier messaging phone; consent records; and push
-permission metadata.
+Notification preferences are stored on `users/{uid}`. The production UI exposes
+channel toggles for in-app, push, and carrier messaging; alert-type toggles for watering,
+frost, heat stress, severe weather, and task due; quiet hours; daily check time;
+thresholds; timezone; carrier messaging phone; consent records; and push permission metadata.
+The data model still parses the older email channel flag for compatibility, but
+no production email delivery is implemented or exposed.
 
 Push tokens are stored in `users/{uid}/pushTokens/{tokenId}`. The browser writes
 these through Firebase Messaging registration after the user grants permission.
@@ -225,13 +245,18 @@ Offline behavior:
 - `FirebaseGardenRepository` also stores the latest pending garden aggregate
   save in localStorage while `navigator.onLine` reports offline, then flushes it
   on the next online event or the next online load/save.
+- Online aggregate saves replace known nested garden subcollections and delete
+  stale nested documents that are no longer present in the saved garden. This
+  keeps demo reset, delete flows, and one-garden persistence consistent.
 - The backup queue is scoped to the garden aggregate and nested garden
   collections. Firebase Storage photo uploads still require network access.
 
-Rules allow only `primary.gardener@example.com` and `partner.gardener@example.com` to read and
-write their own `users/{uid}`, nested user documents, `gardens/{uid}`, and
-nested garden documents. Authenticated allowlisted users can read
-`catalog/crops/{cropId}`; client writes to the catalog are blocked.
+Rules require the signed-in user to carry Firebase Auth custom claims
+`gardenAccess: true` and `secretFaedeMember: true`. Members can read and write
+the shared published workspace and revision history. Users can only read and
+write their own draft document, their own `users/{uid}` profile paths, and
+legacy `gardens/{uid}` paths. Authenticated garden members can read
+`catalog/{cropId}`; client writes to the catalog are blocked.
 
 ## Storage
 
@@ -241,9 +266,10 @@ Journal photos use Firebase Storage path:
 users/{uid}/journal/{entryId}/{photoId}-{fileName}
 ```
 
-`storage.rules` allows only the matching authenticated, allowlisted user to read
-or write under their own `users/{uid}/journal/...` prefix. Writes are limited to
-image content types under 10 MB.
+`storage.rules` allows only the matching authenticated user with
+`gardenAccess: true` and `secretFaedeMember: true` to read or write under their
+own `users/{uid}/journal/...` prefix. Writes are limited to image content types
+under 10 MB.
 
 In mock mode, `MockMediaStorageService` stores photo attachments as data URLs in
 the saved journal entry metadata. In Firebase emulator mode, Storage connects to
@@ -263,23 +289,41 @@ Client web push:
 
 Firebase Functions:
 
-- `dailyWateringCheck` runs on Cloud Scheduler at 7:00 AM
-  `America/Detroit`, matching the Detroit demo default.
+- `dailyWateringCheck` runs hourly in UTC, then checks each user's saved
+  timezone and `defaultWateringCheckTime` before generating work. The Detroit
+  demo default is 7:15 AM `America/Detroit`.
 - `onGardenWeatherSnapshotUpdated` dispatches frost, heat-stress, and
   severe-weather alerts when a new weather snapshot changes risk state.
-- `sendTestSmsAlert` is a callable test path for backend carrier messaging delivery.
+- `sendTestSmsAlert` is a callable test path for backend carrier messaging fallback.
 
 carrier messaging:
 
-- carrier messaging uses Twilio Programmable Messaging from Functions only.
-- Twilio credentials must stay in function env/secrets, never browser env.
-- `NOTIFICATION_DRY_RUN=true` records what would be sent without calling Twilio.
+- carrier messaging uses notification provider from Functions only.
+- notification provider credentials must stay in function env/secrets, never browser env.
+- `NOTIFICATION_DRY_RUN=true` records what would be sent without calling
+  notification provider.
 - Every carrier messaging decision writes a notification log, including skipped and failed
   attempts.
-- Use Twilio Messaging Service and complete carrier registration requirements
-  before production A2P traffic.
+- carrier messaging is fallback-only for frost, heat-stress, and severe-weather alerts when
+  push skips or fails.
+- Complete carrier registration requirements before production A2P traffic.
 
 ## Dev seed
+
+`npm run auth:seed-users`
+
+The auth seed script creates or updates the two intended production users from
+environment variables:
+
+- `APP_LOGIN_PRIMARY_EMAIL`
+- `APP_LOGIN_PARTNER_EMAIL`
+- `APP_LOGIN_PRIMARY_TEMP_PASSWORD`
+- `APP_LOGIN_PARTNER_TEMP_PASSWORD`
+
+It assigns display names `Primary Gardener` and `Partner Gardener`, verifies email, enables the
+accounts, and sets `gardenAccess: true` plus `secretFaedeMember: true`. Existing
+user passwords are not overwritten unless `-- --reset-passwords` is passed. Use
+`npm run auth:seed-users -- --dry-run` before writing to a live project.
 
 `npm run seed:dev`
 
@@ -298,7 +342,9 @@ Seeded data:
 - `gardens/{uid}` with an Detroit plot location and orientation
 - one raised bed, one trellis, and one pathway under `structures`
 - sample tomato, radish, and pole bean plantings under `plantings`
-- tomato, radish, and pole bean crop catalog records under `catalog/crops`,
+- sample weather, watering, tasks, journal, harvest, and notification records
+  for demo-ready Plan, Today, Feed, and Settings surfaces
+- tomato, radish, and pole bean crop catalog records under `catalog`,
   derived from the same curated crop catalog used by the editor
 
 `DEFAULT_ALERT_PHONE_E164` is read at seed time only and is never committed. Use
@@ -316,11 +362,13 @@ Weather provider notes:
 
 `npm run catalog:ingest:trefle`
 
-The ingestion script reads `src/domain/crops/curatedCropOverrides.json`, queries
-Trefle search with `TREFLE_API_TOKEN`, normalizes records into app
-`CropProfile` shape, and can write a local generated JSON catalog with `--write`.
-The runtime editor uses checked-in local catalog data and does not depend on
-Trefle availability during normal user interaction.
+Use `npm run catalog:build` to rebuild the checked-in offline library at
+`src/domain/crops/homeGardenCropCatalog.generated.json`. The Trefle ingestion
+script reads that local catalog, queries Trefle search with `TREFLE_API_TOKEN`,
+normalizes refreshed records into the app `CropProfile` shape, and can write the
+local generated JSON catalog with `--write`. The runtime editor uses checked-in
+local catalog data and does not depend on Trefle availability during normal user
+interaction.
 
 ## Live setup helper
 
@@ -328,7 +376,7 @@ Trefle availability during normal user interaction.
 
 This script does one thing only:
 
-- enables Email/Password plus Email link sign-in
+- enables Email/Password sign-in
 - patches authorized domains for the supplied `FIREBASE_PROJECT_ID`
 
 Optional:
@@ -337,7 +385,10 @@ Optional:
 
 ## Allowlist limitation
 
-The two-email allowlist is enough for the MVP, but it is not a hard pre-auth restriction. Unauthorized users can still complete Firebase sign-in and are then immediately signed out by the app.
+The two-email allowlist is enough for the current fallback, but it is not a hard
+pre-auth restriction. The app has no public sign-up UI and the data layer
+requires membership claims, but Firebase Email/Password projects without
+Identity Platform do not provide app-level blocking triggers.
 
 Future hard enforcement option:
 

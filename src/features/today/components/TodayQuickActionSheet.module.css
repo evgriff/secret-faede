@@ -1,0 +1,156 @@
+.quickSheet {
+  display: grid;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: #fffdf7;
+  box-shadow: var(--shadow-panel);
+  padding: var(--space-4);
+}
+
+.sheetHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.sheetHeader h2,
+.sheetHeader p {
+  margin: 0;
+}
+
+.kicker {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.sheetForm {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  align-items: end;
+}
+
+.sheetForm label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--color-text-strong);
+  font-size: 0.9rem;
+  font-weight: 760;
+}
+
+.sheetForm input,
+.sheetForm select,
+.sheetForm textarea {
+  min-height: 2.75rem;
+  min-width: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: #fffdf7;
+  color: var(--color-text-strong);
+  font: inherit;
+  font-weight: 500;
+  padding: 0.6rem 0.7rem;
+}
+
+.sheetForm textarea {
+  resize: vertical;
+}
+
+.sheetForm small {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.fullField,
+.checkboxField,
+.harvestMode {
+  grid-column: 1 / -1;
+}
+
+.checkboxField {
+  display: flex !important;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.6rem !important;
+}
+
+.checkboxField input {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.harvestMode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 0.6rem;
+}
+
+.harvestMode legend {
+  color: var(--color-text-strong);
+  font-size: 0.9rem;
+  font-weight: 760;
+}
+
+.harvestMode label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.harvestMode input {
+  width: 1.15rem;
+  height: 1.15rem;
+  min-height: auto;
+}
+
+.quickSheet button {
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: #fffdf7;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 760;
+  padding: 0.55rem 0.75rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .quickSheet button:hover {
+    border-color: var(--color-accent-strong);
+    background: var(--color-surface-alt);
+  }
+}
+
+@media (max-width: 48rem) {
+  .quickSheet {
+    position: sticky;
+    bottom: calc(5.2rem + env(safe-area-inset-bottom));
+    z-index: 8;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+  }
+
+  .sheetForm {
+    grid-template-columns: 1fr;
+  }
+
+  .quickSheet button {
+    min-height: 3.25rem;
+    width: 100%;
+  }
+
+  .sheetForm input,
+  .sheetForm select,
+  .sheetForm textarea {
+    min-height: 3.15rem;
+  }
+}

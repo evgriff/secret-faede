@@ -51,9 +51,9 @@ export default defineConfig(({ mode }) => {
                 ],
                 shortcuts: [
                   {
-                    name: 'Garden',
-                    short_name: 'Garden',
-                    url: '/app/garden',
+                    name: 'Plan',
+                    short_name: 'Plan',
+                    url: '/app/plan',
                     icons: [
                       {
                         src: '/pwa-192x192.png',
@@ -63,9 +63,9 @@ export default defineConfig(({ mode }) => {
                     ],
                   },
                   {
-                    name: 'Tasks',
-                    short_name: 'Tasks',
-                    url: '/app/tasks',
+                    name: 'Today',
+                    short_name: 'Today',
+                    url: '/app/today',
                     icons: [
                       {
                         src: '/pwa-192x192.png',
@@ -75,9 +75,9 @@ export default defineConfig(({ mode }) => {
                     ],
                   },
                   {
-                    name: 'Journal',
-                    short_name: 'Journal',
-                    url: '/app/journal',
+                    name: 'Feed',
+                    short_name: 'Feed',
+                    url: '/app/feed',
                     icons: [
                       {
                         src: '/pwa-192x192.png',
@@ -119,7 +119,7 @@ export default defineConfig(({ mode }) => {
       setupFiles: './src/test/setup.ts',
       css: true,
       testTimeout: 10_000,
-      exclude: ['e2e/**', 'functions/**', 'node_modules/**'],
+      exclude: ['e2e/**', 'functions/**', 'node_modules/**', 'test/rules/**'],
       coverage: {
         provider: 'v8',
         reporter: ['text', 'html'],
@@ -129,6 +129,35 @@ export default defineConfig(({ mode }) => {
           'functions/**',
           'playwright.config.ts',
         ],
+      },
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('vite/preload-helper')) {
+              return 'vendor';
+            }
+
+            if (!id.includes('node_modules')) {
+              return undefined;
+            }
+
+            if (id.includes('/@capacitor/')) {
+              return 'capacitor-vendor';
+            }
+
+            if (id.includes('/firebase/') || id.includes('/@firebase/')) {
+              return 'firebase-vendor';
+            }
+
+            if (id.includes('/react') || id.includes('/scheduler/')) {
+              return 'react-vendor';
+            }
+
+            return 'vendor';
+          },
+        },
       },
     },
   };

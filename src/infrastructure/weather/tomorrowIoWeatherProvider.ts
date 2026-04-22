@@ -21,7 +21,15 @@ export class TomorrowIoWeatherProvider implements WeatherProvider {
   async getCurrentConditions(
     location: WeatherLocation,
   ): Promise<WeatherCurrentConditions> {
-    const payload = await this.getForecastPayload(location);
+    const payload = await this.getForecastPayloadWithFallback(
+      location,
+      'current conditions',
+      () => this.fallbackProvider.getCurrentConditions(location),
+    );
+    if (asRecord(payload)?.conditionSummary) {
+      return payload as WeatherCurrentConditions;
+    }
+
     const firstHour = getHourlyTimelines(payload)[0];
     const values = asRecord(firstHour?.values);
     const temperatureF = readNumberOrNull(values?.temperature);
@@ -43,7 +51,15 @@ export class TomorrowIoWeatherProvider implements WeatherProvider {
   }
 
   async getForecast(location: WeatherLocation): Promise<WeatherForecast> {
-    const payload = await this.getForecastPayload(location);
+    const payload = await this.getForecastPayloadWithFallback(
+      location,
+      'forecast',
+      () => this.fallbackProvider.getForecast(location),
+    );
+    if (Array.isArray(asRecord(payload)?.periods)) {
+      return payload as WeatherForecast;
+    }
+
     const periods = getHourlyTimelines(payload).flatMap(
       (timeline): WeatherForecastPeriod[] => {
         const startIso = readStringOrNull(timeline.time);
@@ -101,7 +117,15 @@ export class TomorrowIoWeatherProvider implements WeatherProvider {
   async getOptionalAgricultureMetrics(
     location: WeatherLocation,
   ): Promise<OptionalAgricultureMetrics> {
-    const payload = await this.getForecastPayload(location);
+    const payload = await this.getForecastPayloadWithFallback(
+      location,
+      'agriculture metrics',
+      () => this.fallbackProvider.getOptionalAgricultureMetrics(location),
+    );
+    if (Array.isArray(asRecord(payload)?.notes)) {
+      return payload as OptionalAgricultureMetrics;
+    }
+
     const now = new Date();
     const next24h = addHours(now, 24);
     const evapotranspirationValues = getHourlyTimelines(payload).flatMap(
@@ -162,6 +186,22 @@ export class TomorrowIoWeatherProvider implements WeatherProvider {
     }
 
     return response.json() as Promise<unknown>;
+  }
+
+  private async getForecastPayloadWithFallback<T>(
+    location: WeatherLocation,
+    kind: string,
+    fallback: () => Promise<T>,
+  ): Promise<unknown> {
+    try {
+      return await this.getForecastPayload(location);
+    } catch (error) {
+      console.warn(`Tomorrow.io ${kind} failed; falling back to NWS.`, {
+        error,
+        location: location.locationName,
+      });
+      return fallback();
+    }
   }
 }
 

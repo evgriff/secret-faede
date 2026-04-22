@@ -1,13 +1,18 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 
 import type {
+  ClimateProfile,
   GardenLocation,
   GardenPlot,
 } from '../../domain/gardens/GardenRepository';
+import { routePaths } from '../../shared/lib/routes';
 import { clampPlotDimension, maxPlotFeet, minPlotFeet } from './gardenMath';
-import styles from './GardenEditorScreen.module.css';
+import { geocodeLocation } from './geocoding';
+import styles from '../plan/PlanModal.module.css';
 
 interface PlotSettingsModalProps {
+  climateProfile: ClimateProfile;
   geocodingApiKey: string | null;
   onApply(
     widthFt: number,
@@ -20,6 +25,7 @@ interface PlotSettingsModalProps {
 }
 
 export function PlotSettingsModal({
+  climateProfile,
   geocodingApiKey,
   onApply,
   onClose,
@@ -87,7 +93,7 @@ export function PlotSettingsModal({
         role="dialog"
       >
         <div className={styles.modalHeader}>
-          <h2 id="plot-settings-title">Plot</h2>
+          <h2 id="plot-settings-title">Plot settings</h2>
           <button
             aria-label="Close"
             className={styles.iconButton}
@@ -98,139 +104,149 @@ export function PlotSettingsModal({
           </button>
         </div>
         <form className={styles.modalForm} onSubmit={handleSubmit}>
-          <label className={styles.field}>
-            <span>Width in feet</span>
-            <input
-              inputMode="numeric"
-              max={maxPlotFeet}
-              min={minPlotFeet}
-              onChange={(event) => setWidthFt(event.currentTarget.value)}
-              step="1"
-              type="number"
-              value={widthFt}
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Depth in feet</span>
-            <input
-              inputMode="numeric"
-              max={maxPlotFeet}
-              min={minPlotFeet}
-              onChange={(event) => setDepthFt(event.currentTarget.value)}
-              step="1"
-              type="number"
-              value={depthFt}
-            />
-          </label>
-          <label className={styles.field}>
-            <span>North orientation degrees</span>
-            <input
-              inputMode="numeric"
-              max="359"
-              min="0"
-              onChange={(event) =>
-                setOrientationDegrees(event.currentTarget.value)
-              }
-              step="1"
-              type="number"
-              value={orientationDegrees}
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Garden location</span>
-            <input
-              onChange={(event) => setLocationQuery(event.currentTarget.value)}
-              type="text"
-              value={locationQuery}
-            />
-          </label>
-          <button
-            className={styles.secondaryButton}
-            disabled={!geocodingApiKey || geocodeStatus === 'loading'}
-            onClick={() => void handleGeocode()}
-            type="button"
-          >
-            {geocodeStatus === 'loading' ? 'Geocoding...' : 'Geocode'}
-          </button>
-          {geocodeStatus === 'error' ? (
-            <p className={styles.error} role="alert">
-              Unable to geocode this location. Enter latitude and longitude
-              manually.
-            </p>
-          ) : null}
-          {!geocodingApiKey ? (
+          <fieldset className={styles.settingsSection}>
+            <legend>Size</legend>
+            <div className={styles.filterGrid}>
+              <label className={styles.field}>
+                <span>Width in feet</span>
+                <input
+                  inputMode="numeric"
+                  max={maxPlotFeet}
+                  min={minPlotFeet}
+                  onChange={(event) => setWidthFt(event.currentTarget.value)}
+                  step="1"
+                  type="number"
+                  value={widthFt}
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Depth in feet</span>
+                <input
+                  inputMode="numeric"
+                  max={maxPlotFeet}
+                  min={minPlotFeet}
+                  onChange={(event) => setDepthFt(event.currentTarget.value)}
+                  step="1"
+                  type="number"
+                  value={depthFt}
+                />
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset className={styles.settingsSection}>
+            <legend>Orientation</legend>
+            <label className={styles.field}>
+              <span>North orientation degrees</span>
+              <input
+                inputMode="numeric"
+                max="359"
+                min="0"
+                onChange={(event) =>
+                  setOrientationDegrees(event.currentTarget.value)
+                }
+                step="1"
+                type="number"
+                value={orientationDegrees}
+              />
+            </label>
+          </fieldset>
+
+          <fieldset className={styles.settingsSection}>
+            <legend>Location</legend>
+            <label className={styles.field}>
+              <span>Garden location</span>
+              <input
+                onChange={(event) =>
+                  setLocationQuery(event.currentTarget.value)
+                }
+                type="text"
+                value={locationQuery}
+              />
+            </label>
+            <div className={styles.inlineAction}>
+              <button
+                className={styles.secondaryButton}
+                disabled={!geocodingApiKey || geocodeStatus === 'loading'}
+                onClick={() => void handleGeocode()}
+                type="button"
+              >
+                {geocodeStatus === 'loading' ? 'Finding...' : 'Find coords'}
+              </button>
+              <span>{plot.location.timezone || 'Timezone not set'}</span>
+            </div>
+            {geocodeStatus === 'error' ? (
+              <p className={styles.error} role="alert">
+                Unable to geocode this location. Enter latitude and longitude
+                manually.
+              </p>
+            ) : null}
+            {!geocodingApiKey ? (
+              <p className={styles.helpText}>
+                Add VITE_GOOGLE_MAPS_API_KEY to enable geocoding, or enter
+                coordinates manually.
+              </p>
+            ) : null}
+            <label className={styles.field}>
+              <span>Location name</span>
+              <input
+                onChange={(event) => setLocationName(event.currentTarget.value)}
+                type="text"
+                value={locationName}
+              />
+            </label>
+          </fieldset>
+
+          <fieldset className={styles.settingsSection}>
+            <legend>Manual coordinates</legend>
+            <div className={styles.filterGrid}>
+              <label className={styles.field}>
+                <span>Latitude</span>
+                <input
+                  inputMode="decimal"
+                  onChange={(event) => setLatitude(event.currentTarget.value)}
+                  type="number"
+                  value={latitude}
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Longitude</span>
+                <input
+                  inputMode="decimal"
+                  onChange={(event) => setLongitude(event.currentTarget.value)}
+                  type="number"
+                  value={longitude}
+                />
+              </label>
+            </div>
+          </fieldset>
+
+          <section className={styles.settingsSection}>
+            <h3>Climate defaults</h3>
             <p className={styles.helpText}>
-              Add VITE_GOOGLE_MAPS_API_KEY to enable geocoding, or enter
-              coordinates manually.
+              {formatClimateDefaults(climateProfile)}
             </p>
-          ) : null}
-          <label className={styles.field}>
-            <span>Location name</span>
-            <input
-              onChange={(event) => setLocationName(event.currentTarget.value)}
-              type="text"
-              value={locationName}
-            />
-          </label>
-          <div className={styles.filterGrid}>
-            <label className={styles.field}>
-              <span>Latitude</span>
-              <input
-                inputMode="decimal"
-                onChange={(event) => setLatitude(event.currentTarget.value)}
-                type="number"
-                value={latitude}
-              />
-            </label>
-            <label className={styles.field}>
-              <span>Longitude</span>
-              <input
-                inputMode="decimal"
-                onChange={(event) => setLongitude(event.currentTarget.value)}
-                type="number"
-                value={longitude}
-              />
-            </label>
+            <Link className={styles.inlineLink} to={routePaths.settings}>
+              Open Settings
+            </Link>
+          </section>
+
+          <div className={styles.modalActions}>
+            <button
+              className={styles.secondaryButton}
+              onClick={onClose}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button className={styles.primaryButton} type="submit">
+              Save plot
+            </button>
           </div>
-          <button className={styles.primaryButton} type="submit">
-            Save plot
-          </button>
         </form>
       </section>
     </div>
   );
-}
-
-async function geocodeLocation(query: string, apiKey: string) {
-  const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
-  url.searchParams.set('address', query);
-  url.searchParams.set('key', apiKey);
-  const response = await fetch(url);
-  const payload = (await response.json()) as {
-    results?: Array<{
-      formatted_address?: string;
-      geometry?: { location?: { lat?: number; lng?: number } };
-    }>;
-    status?: string;
-  };
-  const firstResult = payload.results?.[0];
-  const latitude = firstResult?.geometry?.location?.lat;
-  const longitude = firstResult?.geometry?.location?.lng;
-
-  if (
-    !response.ok ||
-    !firstResult ||
-    typeof latitude !== 'number' ||
-    typeof longitude !== 'number'
-  ) {
-    throw new Error(`Geocode failed: ${payload.status ?? response.status}`);
-  }
-
-  return {
-    latitude,
-    locationName: firstResult.formatted_address ?? query,
-    longitude,
-  };
 }
 
 function readCoordinate(value: string) {
@@ -245,4 +261,16 @@ function normalizeOrientation(value: number) {
 
   const normalized = Math.round(value) % 360;
   return normalized < 0 ? normalized + 360 : normalized;
+}
+
+function formatClimateDefaults(climateProfile: ClimateProfile) {
+  const zone = climateProfile.hardinessZone
+    ? `Zone ${climateProfile.hardinessZone}`
+    : 'Zone not set';
+  const frostWindow =
+    climateProfile.averageLastFrost && climateProfile.averageFirstFrost
+      ? `${climateProfile.averageLastFrost} to ${climateProfile.averageFirstFrost}`
+      : 'frost dates not set';
+
+  return `${zone}; frost window ${frostWindow}.`;
 }

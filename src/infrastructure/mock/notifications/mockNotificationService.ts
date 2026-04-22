@@ -5,6 +5,16 @@ import type {
 } from '../../../domain/notifications/NotificationService';
 
 export class MockNotificationService implements NotificationService {
+  async registerNativePush(userId: string): Promise<PushRegistrationResult> {
+    void userId;
+
+    return {
+      message: 'Native push is unavailable in mock runtime.',
+      status: 'unavailable',
+      tokenRegisteredAtIso: null,
+    };
+  }
+
   async registerWebPush(userId: string): Promise<PushRegistrationResult> {
     void userId;
 

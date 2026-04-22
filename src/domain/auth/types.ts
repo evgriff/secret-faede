@@ -1,4 +1,5 @@
 export interface AuthUser {
+  displayName: string | null;
   email: string;
   provider: 'firebase' | 'mock';
   uid: string;

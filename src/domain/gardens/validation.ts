@@ -18,6 +18,11 @@ import {
   type Planting,
   type PlantingMode,
   type Plot,
+  type SeasonCropCommitment,
+  type SeasonCropPriority,
+  type SeasonCropSelection,
+  type SeasonCropSowPreference,
+  type SeasonPlan,
   type Structure,
   type SunShadeLayer,
   type Task,
@@ -25,6 +30,10 @@ import {
   type WaterRecommendation,
   type WeatherSnapshot,
 } from './models';
+import {
+  CURRENT_GARDEN_SCHEMA_VERSION,
+  migrateGardenRecord,
+} from './schemaMigrations';
 
 const plantingModes = [
   'block',
@@ -46,6 +55,20 @@ const notificationAlertTypes = [
   'taskDue',
   'watering',
 ] as const satisfies NotificationAlertType[];
+const seasonCropCommitments = [
+  'mustGrow',
+  'niceToHave',
+] as const satisfies SeasonCropCommitment[];
+const seasonCropPriorities = [
+  'high',
+  'low',
+  'medium',
+] as const satisfies SeasonCropPriority[];
+const seasonCropSowPreferences = [
+  'directSow',
+  'noPreference',
+  'transplant',
+] as const satisfies SeasonCropSowPreference[];
 
 function isPlantingMode(value: unknown): value is PlantingMode {
   return (
@@ -64,6 +87,14 @@ export function readString(value: unknown, fallback = '') {
 
 export function readNullableString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
+}
+
+export function readStringArray(value: unknown, fallback: string[] = []) {
+  return Array.isArray(value)
+    ? value.flatMap((entry): string[] =>
+        typeof entry === 'string' && entry.trim() ? [entry] : [],
+      )
+    : fallback;
 }
 
 export function readNumber(value: unknown, fallback: number) {
@@ -104,7 +135,7 @@ export function sanitizePlotDimension(value: unknown, fallback: number) {
 }
 
 export function sanitizeFootPosition(value: unknown, max: number) {
-  return clamp(Number(readNumber(value, 0).toFixed(2)), 0, max);
+  return clamp(Number(readNumber(value, 0).toFixed(3)), 0, max);
 }
 
 export function parseClimateProfile(value: unknown): ClimateProfile {
@@ -166,7 +197,7 @@ export function parsePlot(value: unknown): Plot {
     gridUnitFt: 1,
     location: parseGardenLocation(value.location),
     orientationDegrees: clamp(readNumber(value.orientationDegrees, 0), 0, 359),
-    snapUnitFt: 0.5,
+    snapUnitFt: defaultGardenPlot.snapUnitFt,
     widthFt: sanitizePlotDimension(value.widthFt, defaultGardenPlot.widthFt),
   };
 }
@@ -320,39 +351,119 @@ export function parseStructure(value: unknown, plot: Plot): Structure | null {
 
   const widthFt = clamp(readNumber(value.widthFt, 1), 0.25, plot.widthFt);
   const depthFt = clamp(readNumber(value.depthFt, 1), 0.25, plot.depthFt);
+  const type = readStringUnion(
+    value.type,
+    [
+      'bed',
+      'compost',
+      'container',
+      'fence',
+      'fenceWall',
+      'hoseBib',
+      'inGroundBed',
+      'path',
+      'pathway',
+      'raisedBed',
+      'treeObstacle',
+      'trellis',
+      'waterSource',
+      'other',
+    ] as const,
+    'other',
+  );
+  const isPath = type === 'path' || type === 'pathway';
 
   return {
+    accessiblePath: readBoolean(value.accessiblePath, isPath && widthFt >= 4),
     canopyRadiusFt: readNullableNumber(value.canopyRadiusFt),
+    continuousPath: readBoolean(value.continuousPath, isPath),
     depthFt,
+    drainageProfile: readStringUnion(
+      value.drainageProfile,
+      ['fast', 'normal', 'slow', 'unknown'] as const,
+      'normal',
+    ),
     heightFt: readNullableNumber(value.heightFt),
     id: value.id,
+    irrigationZone: readNullableString(value.irrigationZone),
     label: readString(value.label, 'Structure'),
+    locked: readBoolean(value.locked, false),
+    material: readStringUnion(
+      value.material,
+      [
+        'gravel',
+        'lumber',
+        'metal',
+        'mixed',
+        'mulch',
+        'none',
+        'pavers',
+        'soil',
+        'stone',
+        'wire',
+        'woodChips',
+      ] as const,
+      getDefaultStructureMaterial(type),
+    ),
     mulched: readBoolean(value.mulched, false),
     notes: readString(value.notes),
     rotationDegrees: clamp(readNumber(value.rotationDegrees, 0), 0, 359),
-    type: readStringUnion(
-      value.type,
-      [
-        'bed',
-        'compost',
-        'container',
-        'fence',
-        'fenceWall',
-        'inGroundBed',
-        'path',
-        'pathway',
-        'raisedBed',
-        'treeObstacle',
-        'trellis',
-        'waterSource',
-        'other',
-      ] as const,
-      'other',
+    soilType: readStringUnion(
+      value.soilType,
+      ['clay', 'loam', 'sandy', 'unknown'] as const,
+      'unknown',
     ),
+    type,
     widthFt,
+    workingClearanceFt:
+      typeof value.workingClearanceFt === 'number' &&
+      Number.isFinite(value.workingClearanceFt)
+        ? clamp(value.workingClearanceFt, 0, 12)
+        : getDefaultWorkingClearanceFt(type),
     xFt: sanitizeFootPosition(value.xFt, Math.max(plot.widthFt - widthFt, 0)),
     yFt: sanitizeFootPosition(value.yFt, Math.max(plot.depthFt - depthFt, 0)),
   };
+}
+
+function getDefaultStructureMaterial(type: Structure['type']) {
+  switch (type) {
+    case 'bed':
+    case 'compost':
+    case 'fence':
+    case 'fenceWall':
+    case 'raisedBed':
+      return 'lumber';
+    case 'inGroundBed':
+      return 'soil';
+    case 'path':
+    case 'pathway':
+      return 'woodChips';
+    case 'trellis':
+      return 'wire';
+    case 'hoseBib':
+    case 'treeObstacle':
+    case 'waterSource':
+      return 'none';
+    case 'container':
+    case 'other':
+      return 'mixed';
+  }
+}
+
+function getDefaultWorkingClearanceFt(type: Structure['type']) {
+  if (type === 'path' || type === 'pathway') {
+    return null;
+  }
+
+  if (type === 'treeObstacle') {
+    return 3;
+  }
+
+  if (type === 'fence' || type === 'fenceWall' || type === 'trellis') {
+    return 1;
+  }
+
+  return 2;
 }
 
 export function parsePlanting(value: unknown, plot: Plot): Planting | null {
@@ -361,17 +472,21 @@ export function parsePlanting(value: unknown, plot: Plot): Planting | null {
   }
 
   return {
+    allowRelocation: readBoolean(value.allowRelocation, false),
     blockDepthFt: readNullableNumber(value.blockDepthFt),
     blockWidthFt: readNullableNumber(value.blockWidthFt),
     clusterRadiusFt: readNullableNumber(value.clusterRadiusFt),
     cropId: readNullableString(value.cropId),
     id: value.id,
+    irrigationZone: readNullableString(value.irrigationZone),
     label: readString(value.label, 'Planting'),
+    locked: readBoolean(value.locked, false),
     mode: readStringUnion(value.mode, plantingModes, 'single'),
     mulched: readBoolean(value.mulched, false),
     notes: readString(value.notes),
     plantCount: readNullableNumber(value.plantCount),
     plantedOn: readNullableString(value.plantedOn),
+    plannedFor: readNullableString(value.plannedFor),
     matureHeightInches: readNullableNumber(value.matureHeightInches),
     matureSpreadInches: readNullableNumber(value.matureSpreadInches),
     rowCount: readNullableNumber(value.rowCount),
@@ -381,7 +496,14 @@ export function parsePlanting(value: unknown, plot: Plot): Planting | null {
     spacingInches: readNullableNumber(value.spacingInches),
     status: readStringUnion(
       value.status,
-      ['growing', 'harvested', 'planned', 'removed'] as const,
+      [
+        'growing',
+        'harvest-ready',
+        'harvested',
+        'planned',
+        'planted',
+        'removed',
+      ] as const,
       'planned',
     ),
     sunRequirement:
@@ -410,6 +532,82 @@ export function parsePlantings(value: unknown, plot: Plot): Planting[] {
   });
 }
 
+export function parseSeasonPlan(value: unknown): SeasonPlan {
+  if (!isRecord(value)) {
+    return {
+      updatedAtIso: null,
+      wantedCrops: [],
+    };
+  }
+
+  return {
+    updatedAtIso: readNullableString(value.updatedAtIso),
+    wantedCrops: parseSeasonCropSelections(value.wantedCrops),
+  };
+}
+
+export function parseSeasonCropSelections(
+  value: unknown,
+): SeasonCropSelection[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((selection, index): SeasonCropSelection[] => {
+    const parsed = parseSeasonCropSelection(selection, index);
+
+    return parsed ? [parsed] : [];
+  });
+}
+
+export function parseSeasonCropSelection(
+  value: unknown,
+  index = 0,
+): SeasonCropSelection | null {
+  if (!isRecord(value) || typeof value.id !== 'string') {
+    return null;
+  }
+
+  const cropId = readString(value.cropId).trim();
+
+  if (!cropId) {
+    return null;
+  }
+
+  return {
+    commitment: readStringUnion(
+      value.commitment,
+      seasonCropCommitments,
+      'niceToHave',
+    ),
+    containerAllowed: readBoolean(value.containerAllowed, true),
+    cropId,
+    id: value.id,
+    modePreference: readStringUnion(
+      value.modePreference,
+      plantingModes,
+      'single',
+    ),
+    notes: readString(value.notes),
+    priority: readStringUnion(value.priority, seasonCropPriorities, 'medium'),
+    rank: Math.round(clamp(readNumber(value.rank, index), 0, 999)),
+    sowPreference: readStringUnion(
+      value.sowPreference,
+      seasonCropSowPreferences,
+      'noPreference',
+    ),
+    supportAllowed: readBoolean(value.supportAllowed, false),
+    targetQuantity: Math.round(
+      clamp(
+        readNumber(value.targetQuantity, readNumber(value.quantity, 1)),
+        1,
+        999,
+      ),
+    ),
+    varietyName: readString(value.varietyName),
+  };
+}
+
 export function parseStructures(value: unknown, plot: Plot): Structure[] {
   if (!Array.isArray(value)) {
     return [];
@@ -426,10 +624,15 @@ export function parseTask(value: unknown): Task | null {
     return null;
   }
 
+  const delayReason = readNullableString(value.delayReason);
+  const delaySetAtIso = readNullableString(value.delaySetAtIso);
+
   return {
     bedLabel: readNullableString(value.bedLabel),
     completedAtIso: readNullableString(value.completedAtIso),
     createdAtIso: readString(value.createdAtIso, ''),
+    ...(delayReason ? { delayReason } : {}),
+    ...(delaySetAtIso ? { delaySetAtIso } : {}),
     deferredUntilDate: readNullableString(value.deferredUntilDate),
     dueDate: readNullableString(value.dueDate),
     gardenId: readString(value.gardenId),
@@ -503,11 +706,7 @@ export function parseJournalEntry(value: unknown): JournalEntry | null {
       'low',
       'medium',
     ] as const),
-    issueStatus: readNullableStringUnion(value.issueStatus, [
-      'monitoring',
-      'resolved',
-      'todo',
-    ] as const),
+    issueStatus: parseIssueStatus(value.issueStatus),
     occurredOn: readString(value.occurredOn),
     photos: parsePhotoAttachments(value.photos),
     plantingId,
@@ -579,6 +778,8 @@ export function parseNotificationLog(value: unknown): NotificationLog | null {
   }
 
   return {
+    acknowledgedAtIso: readNullableString(value.acknowledgedAtIso),
+    attemptCount: readNumber(value.attemptCount, 0),
     body: readString(value.body),
     channel: readStringUnion(
       value.channel,
@@ -586,14 +787,22 @@ export function parseNotificationLog(value: unknown): NotificationLog | null {
       'inApp',
     ),
     createdAtIso: readString(value.createdAtIso, ''),
+    decisionReason: readNullableString(value.decisionReason),
+    dedupeKey: readNullableString(value.dedupeKey),
+    deepLink: readNullableString(value.deepLink),
+    dismissedAtIso: readNullableString(value.dismissedAtIso),
     dryRun: readBoolean(value.dryRun, false),
     errorMessage: readNullableString(value.errorMessage),
     gardenId: readNullableString(value.gardenId),
     id: value.id,
     messageSummary: readString(value.messageSummary),
     provider: readNotificationProvider(value.provider),
+    providerMessageId: readNullableString(value.providerMessageId),
+    providerStatus: readNullableString(value.providerStatus),
     recipientRedacted: readString(value.recipientRedacted),
+    retryPolicy: readNullableString(value.retryPolicy),
     sentAtIso: readNullableString(value.sentAtIso),
+    snoozedUntilIso: readNullableString(value.snoozedUntilIso),
     status: readStringUnion(
       value.status,
       ['failed', 'queued', 'sent', 'skipped'] as const,
@@ -618,11 +827,27 @@ export function parseNotificationLog(value: unknown): NotificationLog | null {
 }
 
 function readNotificationProvider(value: unknown): NotificationLog['provider'] {
-  const providers = ['firebaseCloudMessaging', 'inApp', 'twilio'] as const;
+  const providers = ['firebaseCloudMessaging', 'inApp', 'retiredDeliveryProvider'] as const;
 
   return typeof value === 'string'
     ? (providers.find((provider) => provider === value) ?? null)
     : null;
+}
+
+function parseIssueStatus(value: unknown) {
+  if (value === 'todo') {
+    return 'open';
+  }
+
+  if (value === 'monitoring') {
+    return 'inProgress';
+  }
+
+  return readNullableStringUnion(value, [
+    'inProgress',
+    'open',
+    'resolved',
+  ] as const);
 }
 
 export function parseCropProfile(value: unknown): CropProfile | null {
@@ -631,6 +856,7 @@ export function parseCropProfile(value: unknown): CropProfile | null {
   }
 
   return {
+    aliases: readStringArray(value.aliases),
     category: readStringUnion(
       value.category,
       [
@@ -646,7 +872,9 @@ export function parseCropProfile(value: unknown): CropProfile | null {
       ] as const,
       'vegetable',
     ),
+    caution: readNullableString(value.caution),
     commonName: readString(value.commonName, readString(value.name, 'Crop')),
+    completenessScore: readNumber(value.completenessScore, 0.5),
     daysToMaturity: readNullableNumber(value.daysToMaturity),
     defaultIcon: readString(value.defaultIcon, 'seedling'),
     family: readString(value.family),
@@ -673,12 +901,22 @@ export function parseCropProfile(value: unknown): CropProfile | null {
       ['annual', 'biennial', 'perennial'] as const,
       'annual',
     ),
+    lastRefreshedIso: readNullableString(value.lastRefreshedIso),
+    manualOverride: readBoolean(value.manualOverride, false),
     matureHeightInches: readNullableNumber(value.matureHeightInches),
     matureSpreadInches: readNullableNumber(value.matureSpreadInches),
     name: readString(value.name, 'Crop'),
     notes: readString(value.notes),
     perennialSuitability: readString(value.perennialSuitability),
+    pollinatorRole: readNullableString(value.pollinatorRole),
+    profileConfidence: readStringUnion(
+      value.profileConfidence,
+      ['complete', 'needsReview', 'partial'] as const,
+      'needsReview',
+    ),
     rowSpacingInches: readNullableNumber(value.rowSpacingInches),
+    rootDepthInches: readNullableNumber(value.rootDepthInches),
+    roles: readStringArray(value.roles),
     scientificName: readString(value.scientificName),
     spacingInches: readNullableNumber(value.spacingInches),
     sowMethod: readStringUnion(
@@ -686,11 +924,14 @@ export function parseCropProfile(value: unknown): CropProfile | null {
       ['both', 'directSow', 'transplant'] as const,
       'both',
     ),
+    source: readString(value.source, 'unknown'),
     supportedPlantingModes: Array.isArray(value.supportedPlantingModes)
       ? value.supportedPlantingModes.flatMap((mode): PlantingMode[] =>
           isPlantingMode(mode) ? [mode] : [],
         )
       : ['single'],
+    sourceTags: readStringArray(value.sourceTags, ['imported']),
+    synonyms: readStringArray(value.synonyms),
     sunExposure: readStringUnion(
       value.sunExposure,
       ['fullShade', 'fullSun', 'partShade', 'partSun'] as const,
@@ -706,6 +947,7 @@ export function parseCropProfile(value: unknown): CropProfile | null {
       readBoolean(value.trellisRequired, false),
     ),
     trellisRequired: readBoolean(value.trellisRequired, false),
+    varietyGroup: readNullableString(value.varietyGroup),
     weeklyWaterNeedInches: readNullableNumber(value.weeklyWaterNeedInches),
     waterNeeds: readStringUnion(
       value.waterNeeds,
@@ -726,6 +968,10 @@ export function parseSunShadeLayer(value: unknown): SunShadeLayer | null {
           if (!isRecord(area) || typeof area.id !== 'string') {
             return [];
           }
+          const shadeSources = parseSunShadeSources(area.shadeSources);
+          const microclimateNotes = parseSunShadeMicroclimateNotes(
+            area.microclimateNotes,
+          );
 
           return [
             {
@@ -736,6 +982,8 @@ export function parseSunShadeLayer(value: unknown): SunShadeLayer | null {
                 'partSun',
               ),
               id: area.id,
+              ...(microclimateNotes.length > 0 ? { microclimateNotes } : {}),
+              ...(shadeSources.length > 0 ? { shadeSources } : {}),
               source: readStringUnion(
                 area.source,
                 ['manual', 'modeled'] as const,
@@ -766,6 +1014,97 @@ export function parseSunShadeLayer(value: unknown): SunShadeLayer | null {
   };
 }
 
+function parseSunShadeSources(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap(
+    (source): NonNullable<SunShadeLayer['areas'][number]['shadeSources']> => {
+      if (!isRecord(source)) {
+        return [];
+      }
+
+      const itemId = readString(source.itemId).trim();
+      const label = readString(source.label).trim();
+
+      if (!itemId || !label) {
+        return [];
+      }
+
+      return [
+        {
+          heightFt: Math.max(readNumber(source.heightFt, 0), 0),
+          itemId,
+          itemType: readStringUnion(
+            source.itemType,
+            ['planting', 'structure'] as const,
+            'structure',
+          ),
+          kind: readStringUnion(
+            source.kind,
+            [
+              'fenceWall',
+              'structure',
+              'tallCrop',
+              'treeObstacle',
+              'trellisedCrop',
+              'trellis',
+            ] as const,
+            'structure',
+          ),
+          label,
+        },
+      ];
+    },
+  );
+}
+
+function parseSunShadeMicroclimateNotes(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap(
+    (
+      note,
+    ): NonNullable<SunShadeLayer['areas'][number]['microclimateNotes']> => {
+      if (!isRecord(note) || typeof note.id !== 'string') {
+        return [];
+      }
+
+      const label = readString(note.label).trim();
+
+      if (!label) {
+        return [];
+      }
+
+      return [
+        {
+          description: readString(note.description),
+          id: note.id,
+          kind: readStringUnion(
+            note.kind,
+            [
+              'coolShadePocket',
+              'reflectedHeat',
+              'westHeat',
+              'windExposedEdge',
+            ] as const,
+            'coolShadePocket',
+          ),
+          label,
+          source: readStringUnion(
+            note.source,
+            ['manual', 'modeled'] as const,
+            'modeled',
+          ),
+        },
+      ];
+    },
+  );
+}
+
 export function parseWeatherSnapshot(value: unknown): WeatherSnapshot | null {
   if (!isRecord(value) || typeof value.id !== 'string') {
     return null;
@@ -779,6 +1118,11 @@ export function parseWeatherSnapshot(value: unknown): WeatherSnapshot | null {
       : [],
     capturedAtIso: readString(value.capturedAtIso),
     conditionSummary: readString(value.conditionSummary),
+    dataQuality: readStringUnion(
+      value.dataQuality,
+      ['complete', 'limited', 'partial'] as const,
+      'limited',
+    ),
     evapotranspirationIn: readNullableNumber(value.evapotranspirationIn),
     forecastRainNext24In: readNullableNumber(value.forecastRainNext24In),
     forecastRainNext48In: readNullableNumber(value.forecastRainNext48In),
@@ -799,6 +1143,8 @@ export function parseWeatherSnapshot(value: unknown): WeatherSnapshot | null {
     observedForDate: readString(value.observedForDate),
     overnightLowF: readNullableNumber(value.overnightLowF),
     precipitationIn: readNullableNumber(value.precipitationIn),
+    providerDecision: readNullableString(value.providerDecision),
+    providerLabel: readString(value.providerLabel),
     recentPrecipitation72hIn: readNullableNumber(
       value.recentPrecipitation72hIn,
     ),
@@ -820,11 +1166,21 @@ export function parseWaterRecommendation(
   }
 
   return {
+    dataQuality: readStringUnion(
+      value.dataQuality,
+      ['complete', 'limited', 'partial'] as const,
+      'limited',
+    ),
     deficitInches: Math.max(
       readNumber(value.deficitInches, readNumber(value.inchesNeeded, 0)),
       0,
     ),
     generatedAtIso: readString(value.generatedAtIso),
+    generatedBy: readStringUnion(
+      value.generatedBy,
+      ['backend', 'client', 'manualRefresh'] as const,
+      'client',
+    ),
     gardenId: readString(value.gardenId),
     id: value.id,
     inchesNeeded: Math.max(readNumber(value.inchesNeeded, 0), 0),
@@ -842,6 +1198,10 @@ export function parseWaterRecommendation(
         readNumber(value.inchesNeeded, 0),
       ),
       0,
+    ),
+    refreshedAtIso: readString(
+      value.refreshedAtIso,
+      readString(value.generatedAtIso),
     ),
     status: readStringUnion(
       value.status,
@@ -969,7 +1329,7 @@ export function parseGarden(
     >
   > = {},
 ): Garden {
-  const record = isRecord(value) ? value : {};
+  const record = migrateGardenRecord(value).record;
   const plot = parsePlot(record.plot);
   const legacyPlants = parsePlantings(record.plants, plot);
   const plantings =
@@ -988,6 +1348,8 @@ export function parseGarden(
       parseNotificationLogs(record.notificationLogs),
     plantings: plantings.length > 0 ? plantings : legacyPlants,
     plot,
+    schemaVersion: CURRENT_GARDEN_SCHEMA_VERSION,
+    seasonPlan: parseSeasonPlan(record.seasonPlan),
     structures:
       collections.structures ?? parseStructures(record.structures, plot),
     sunShadeLayers: parseSunShadeLayers(record.sunShadeLayers),

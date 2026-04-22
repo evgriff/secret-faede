@@ -1,0 +1,168 @@
+.canvasHud {
+  position: absolute;
+  z-index: 16;
+  top: var(--space-3);
+  left: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+  width: min(18rem, calc(100% - 2rem));
+  pointer-events: none;
+}
+
+.zoomControls,
+.layerControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  pointer-events: auto;
+}
+
+.zoomControls button,
+.layerControls button,
+.zoomReadout {
+  display: inline-grid;
+  place-items: center;
+  min-height: 2.1rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: rgba(255, 253, 247, 0.82);
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: 720;
+  padding: 0 0.5rem;
+  box-shadow: 0 8px 20px rgba(31, 27, 24, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.zoomReadout {
+  cursor: default;
+}
+
+.zoomControls button[aria-pressed='true'],
+.layerControls button[aria-pressed='true'] {
+  border-color: rgba(36, 71, 46, 0.32);
+  background: rgba(236, 246, 229, 0.94);
+}
+
+.zoomReadout {
+  min-width: 3.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.miniMap {
+  position: absolute;
+  right: var(--space-3);
+  top: var(--space-3);
+  z-index: 14;
+  width: 7.75rem;
+  border: 1px solid rgba(76, 85, 70, 0.2);
+  border-radius: var(--radius-card);
+  background: rgba(255, 253, 247, 0.72);
+  padding: 0.45rem;
+  opacity: 0.72;
+  pointer-events: auto;
+  box-shadow: 0 12px 30px rgba(31, 27, 24, 0.1);
+  backdrop-filter: blur(10px);
+  transition: opacity var(--motion-micro);
+}
+
+.miniMap:hover,
+.miniMap:focus-within {
+  opacity: 0.98;
+}
+
+.miniMapClose {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.75rem;
+  min-height: 2rem;
+  margin-bottom: 0.35rem;
+  border: 1px solid rgba(54, 48, 40, 0.18);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 253, 247, 0.9);
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: 720;
+  padding: 0 0.5rem;
+}
+
+.miniPlot {
+  position: relative;
+  aspect-ratio: var(--mini-map-ratio);
+  overflow: hidden;
+  border: 1px solid rgba(54, 48, 40, 0.18);
+  border-radius: calc(var(--radius-card) - 2px);
+  background: #efe6d5;
+}
+
+.miniStructure,
+.miniPlant {
+  position: absolute;
+  display: block;
+  border: 1px solid rgba(31, 27, 24, 0.42);
+}
+
+.miniStructure {
+  border-radius: 2px;
+  background: rgba(144, 112, 72, 0.5);
+}
+
+.miniPlant {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: var(--radius-pill);
+  background: #2f6f43;
+  transform: translate(-50%, -50%);
+}
+
+.miniNorth {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 253, 247, 0.82);
+  color: var(--color-text-strong);
+  font-size: var(--font-size-caption);
+  font-weight: 900;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .zoomControls button:hover,
+  .layerControls button:hover,
+  .miniMapClose:hover {
+    border-color: var(--color-accent-strong);
+    background: var(--color-surface-solid);
+  }
+}
+
+@media (max-width: 48rem) {
+  .canvasHud {
+    top: var(--space-2);
+    left: var(--space-2);
+    width: calc(100% - 1rem);
+  }
+
+  .layerControls {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .miniMap {
+    top: 6.6rem;
+    right: var(--space-2);
+    width: 5.9rem;
+  }
+
+  .miniMapClose {
+    min-height: 2.4rem;
+  }
+}

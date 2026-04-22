@@ -8,6 +8,11 @@ const alertTypeByNotificationType = {
   taskDue: 'taskDue',
   watering: 'watering',
 };
+const smsFallbackNotificationTypes = new Set([
+  'frost',
+  'heatStress',
+  'severeWeather',
+]);
 
 function buildWateringNotification(recommendation, snapshot = {}) {
   const deficit = Number(
@@ -18,10 +23,12 @@ function buildWateringNotification(recommendation, snapshot = {}) {
       ? 'Rain is unlikely today.'
       : `${Number(snapshot.forecastRainNext24In || 0).toFixed(1)} in of rain may arrive today.`;
   const target = recommendation.targetLabel || 'Your garden';
+  const amountPhrase =
+    deficit >= 0.75 ? `${deficit.toFixed(1)} in` : `${deficit.toFixed(2)} in`;
 
   return {
-    body: `${target} are short ${deficit.toFixed(1)} in of water. ${rainPhrase}`,
-    title: 'Watering recommended',
+    body: `Water ${target} ${amountPhrase} today. ${rainPhrase}`,
+    title: `Water ${target}`,
     type: 'watering',
   };
 }
@@ -30,11 +37,11 @@ function buildFrostNotification(garden, snapshot = {}) {
   const tenderCrops = getTenderCropLabels(garden);
   const cropPhrase =
     tenderCrops.length > 0
-      ? `Protect ${formatList(tenderCrops)}.`
-      : 'Protect tender crops.';
+      ? `Cover ${formatList(tenderCrops)} tonight`
+      : 'Cover tender crops tonight';
 
   return {
-    body: `Frost risk tonight. ${cropPhrase}`,
+    body: `${cropPhrase}; frost is possible.`,
     title: 'Frost risk tonight',
     type: 'frost',
     urgency: snapshot.frostRisk || 'watch',
@@ -49,7 +56,7 @@ function buildHeatNotification(garden, snapshot = {}) {
       : 'for containers and shallow beds';
 
   return {
-    body: `Heat stress likely tomorrow afternoon ${targetPhrase}.`,
+    body: `Check water early ${targetPhrase}; heat stress is likely tomorrow afternoon.`,
     title: 'Heat stress likely',
     type: 'heatStress',
     urgency: snapshot.heatRisk || 'watch',
@@ -62,7 +69,9 @@ function buildSevereWeatherNotification(snapshot = {}) {
     : null;
 
   return {
-    body: summary || 'Severe weather may affect your garden today.',
+    body: summary
+      ? `Check covers and supports: ${summary}`
+      : 'Check covers and supports; severe weather may affect your garden today.',
     title: 'Severe weather alert',
     type: 'severeWeather',
   };
@@ -87,6 +96,14 @@ function shouldSendNotification({ channel, now = new Date(), profile, type }) {
   if (channel === 'carrier messaging') {
     const consent = preference.channelConsent?.carrier messaging;
 
+    if (!isSmsFallbackNotificationType(type)) {
+      return {
+        allowed: false,
+        reason:
+          'carrier messaging fallback is reserved for frost, heat, and severe-weather alerts',
+      };
+    }
+
     if (!preference.phoneE164) {
       return { allowed: false, reason: 'missing carrier messaging phone' };
     }
@@ -105,6 +122,10 @@ function shouldSendNotification({ channel, now = new Date(), profile, type }) {
   }
 
   return { allowed: true, reason: 'allowed' };
+}
+
+function isSmsFallbackNotificationType(type) {
+  return smsFallbackNotificationTypes.has(type);
 }
 
 function isQuietHours(now, preference) {
@@ -135,13 +156,20 @@ function isQuietHours(now, preference) {
 }
 
 function createNotificationLog({
+  attemptCount = 0,
   body,
   channel,
+  decisionReason = null,
+  deepLink = '/app/today',
   dryRun = false,
+  dedupeKey = null,
   errorMessage = null,
   gardenId,
   provider = null,
+  providerMessageId = null,
+  providerStatus = null,
   recipientRedacted,
+  retryPolicy = null,
   status,
   title,
   type,
@@ -150,17 +178,27 @@ function createNotificationLog({
   const now = new Date().toISOString();
 
   return {
+    acknowledgedAtIso: null,
+    attemptCount,
     body,
     channel,
     createdAtIso: now,
+    decisionReason,
+    dedupeKey: dedupeKey || `${channel}:${type}:${body}`,
+    deepLink,
+    dismissedAtIso: null,
     dryRun,
     errorMessage,
     gardenId,
     id: `${channel}-${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     messageSummary: title ? `${title}: ${body}` : body,
     provider,
+    providerMessageId,
+    providerStatus,
     recipientRedacted,
+    retryPolicy,
     sentAtIso: status === 'sent' ? now : null,
+    snoozedUntilIso: null,
     status,
     taskId: null,
     type,
@@ -238,6 +276,7 @@ module.exports = {
   buildWateringNotification,
   createGrantedConsent,
   createNotificationLog,
+  isSmsFallbackNotificationType,
   isQuietHours,
   redactPhone,
   shouldSendNotification,

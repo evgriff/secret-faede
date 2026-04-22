@@ -1,41 +1,69 @@
-.card {
+.shell {
   display: grid;
-  gap: 1rem;
+  width: min(100%, 32rem);
+  margin: 0 auto;
+  padding-block: clamp(0rem, 4vh, 3rem);
 }
 
-.form,
-.sentState {
+.card {
   display: grid;
-  gap: 0.9rem;
+  gap: var(--space-3);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  padding: clamp(var(--space-4), 5vw, var(--space-5));
+}
+
+.kicker {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 780;
+  text-transform: uppercase;
+}
+
+.lead {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.form {
+  display: grid;
+  gap: var(--space-3);
 }
 
 .field {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.4rem;
   color: var(--color-text-strong);
+  font-size: var(--font-size-small);
+  font-weight: 760;
 }
 
 .field input {
   width: 100%;
   border: 1px solid var(--color-border-strong);
-  border-radius: 8px;
-  background: #ffffff;
+  border-radius: var(--radius-control);
+  background: #fffdf7;
   color: var(--color-text-strong);
   font: inherit;
-  padding: 0.75rem 0.85rem;
+  min-height: 3.25rem;
+  padding: 0.85rem 0.9rem;
 }
 
 .primaryButton,
-.secondaryButton {
+.resetButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.75rem;
-  width: fit-content;
+  min-height: 3.25rem;
+  width: 100%;
   border: 1px solid var(--color-border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   cursor: pointer;
   font: inherit;
+  font-weight: 780;
   padding: 0 1rem;
   text-decoration: none;
 }
@@ -46,34 +74,81 @@
   color: var(--color-background);
 }
 
-.secondaryButton {
+.resetButton {
   background: var(--color-surface);
   color: var(--color-text-strong);
 }
 
-.primaryButton:disabled {
+.primaryButton:disabled,
+.resetButton:disabled {
   cursor: wait;
   opacity: 0.65;
 }
 
-.error,
-.notice,
-.runtime {
+.options {
+  display: grid;
+  gap: 0.4rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: rgba(255, 253, 247, 0.68);
+  padding: var(--space-2);
+}
+
+.checkOption {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  gap: 0.55rem;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+}
+
+.checkOption input {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--color-text-strong);
+}
+
+.sessionHint {
   margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+}
+
+.error,
+.notice {
+  margin: 0;
+  border-radius: var(--radius-control);
+  padding: 0.65rem 0.75rem;
+  font-size: var(--font-size-small);
 }
 
 .error {
+  background: rgba(163, 52, 40, 0.08);
   color: #a33428;
 }
 
-.notice,
-.runtime {
+.notice {
+  background: var(--color-surface-alt);
   color: var(--color-text-muted);
 }
 
 .primaryButton:focus-visible,
-.secondaryButton:focus-visible,
+.resetButton:focus-visible,
+.checkOption input:focus-visible,
 .field input:focus-visible {
   outline: 2px solid var(--color-plant-sky);
   outline-offset: 2px;
+}
+
+@media (max-width: 48rem) {
+  .shell {
+    width: 100%;
+    padding-block: 0;
+  }
+
+  .card {
+    border-radius: var(--radius-card);
+  }
 }

@@ -1,38 +1,36 @@
 import {
-  isSignInWithEmailLink,
+  browserLocalPersistence,
+  browserSessionPersistence,
   onAuthStateChanged,
-  sendSignInLinkToEmail,
-  signInWithEmailLink,
+  sendPasswordResetEmail,
+  setPersistence,
+  signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
 
 import type {
   AuthService,
   AuthStateListener,
-  CompleteEmailLinkOptions,
-  EmailSignInRequestResult,
+  PasswordSignInOptions,
 } from '../../../domain/auth/AuthService';
 import type { AuthUser } from '../../../domain/auth/types';
-import { routePaths } from '../../../shared/lib/routes';
-import {
-  readStorageValue,
-  removeStorageValue,
-  writeStorageValue,
-} from '../../../shared/lib/storage';
 import type { AppEnvironment } from '../../../shared/config/env';
 import { getFirebaseAuthClient } from '../app';
 import { getFirebaseAuthErrorMessage } from './firebaseAuthErrors';
 
-const pendingEmailKey = 'secret-faede.auth.pending-email';
-
 function mapFirebaseUser(
-  user: { email: string | null; uid: string } | null,
+  user: {
+    displayName: string | null;
+    email: string | null;
+    uid: string;
+  } | null,
 ): AuthUser | null {
   if (!user?.email) {
     return null;
   }
 
   return {
+    displayName: user.displayName,
     email: user.email,
     provider: 'firebase',
     uid: user.uid,
@@ -41,76 +39,52 @@ function mapFirebaseUser(
 
 export class FirebaseAuthService implements AuthService {
   private readonly authClient;
+  private persistenceReady: Promise<void>;
 
   constructor(environment: AppEnvironment) {
     this.authClient = getFirebaseAuthClient(environment);
-  }
-
-  canHandleEmailLink(url: string): boolean {
-    return isSignInWithEmailLink(this.authClient, url);
-  }
-
-  clearStoredEmail(): void {
-    removeStorageValue(pendingEmailKey);
-  }
-
-  async completeEmailLinkSignIn(
-    options: CompleteEmailLinkOptions,
-  ): Promise<AuthUser> {
-    const email = options.email ?? this.getStoredEmail();
-
-    if (!email) {
-      throw new Error('Email confirmation is required to complete sign-in.');
-    }
-
-    let result;
-
-    try {
-      result = await signInWithEmailLink(this.authClient, email, options.url);
-    } catch (error) {
-      throw new Error(getFirebaseAuthErrorMessage(error));
-    }
-
-    this.clearStoredEmail();
-
-    const user = mapFirebaseUser(result.user);
-
-    if (!user) {
-      throw new Error('Firebase auth returned an incomplete user record.');
-    }
-
-    return user;
+    this.persistenceReady = setPersistence(
+      this.authClient,
+      browserLocalPersistence,
+    ).catch(() => undefined);
   }
 
   getCurrentUser(): AuthUser | null {
     return mapFirebaseUser(this.authClient.currentUser);
   }
 
-  getStoredEmail(): string | null {
-    return readStorageValue(pendingEmailKey);
-  }
-
-  async requestEmailSignIn(email: string): Promise<EmailSignInRequestResult> {
-    const actionCodeSettings = {
-      handleCodeInApp: true,
-      url: new URL(routePaths.authComplete, window.location.origin).toString(),
-    };
-
+  async sendPasswordReset(email: string): Promise<void> {
     try {
-      await sendSignInLinkToEmail(this.authClient, email, actionCodeSettings);
+      await sendPasswordResetEmail(this.authClient, email);
     } catch (error) {
       throw new Error(getFirebaseAuthErrorMessage(error));
     }
-
-    this.setStoredEmail(email);
-
-    return {
-      delivery: 'email',
-    };
   }
 
-  setStoredEmail(email: string): void {
-    writeStorageValue(pendingEmailKey, email.trim().toLowerCase());
+  async signInWithPassword(options: PasswordSignInOptions): Promise<AuthUser> {
+    const persistence = options.rememberDevice
+      ? browserLocalPersistence
+      : browserSessionPersistence;
+
+    try {
+      await this.persistenceReady;
+      await setPersistence(this.authClient, persistence);
+      this.persistenceReady = Promise.resolve();
+      const result = await signInWithEmailAndPassword(
+        this.authClient,
+        options.email.trim().toLowerCase(),
+        options.password,
+      );
+      const user = mapFirebaseUser(result.user);
+
+      if (!user) {
+        throw new Error('Firebase auth returned an incomplete user record.');
+      }
+
+      return user;
+    } catch (error) {
+      throw new Error(getFirebaseAuthErrorMessage(error));
+    }
   }
 
   async signOut(): Promise<void> {

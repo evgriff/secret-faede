@@ -1,3 +1,5 @@
+import { CURRENT_GARDEN_SCHEMA_VERSION } from './schemaMigrations';
+
 export type IsoDateString = string;
 export type LocalDateString = string;
 export type LocalTimeString = string;
@@ -16,6 +18,7 @@ export type StructureType =
   | 'container'
   | 'fence'
   | 'fenceWall'
+  | 'hoseBib'
   | 'inGroundBed'
   | 'path'
   | 'pathway'
@@ -24,6 +27,18 @@ export type StructureType =
   | 'trellis'
   | 'waterSource'
   | 'other';
+export type StructureMaterial =
+  | 'gravel'
+  | 'lumber'
+  | 'metal'
+  | 'mixed'
+  | 'mulch'
+  | 'none'
+  | 'pavers'
+  | 'soil'
+  | 'stone'
+  | 'wire'
+  | 'woodChips';
 
 export type TaskStatus = 'done' | 'open' | 'skipped';
 export type TaskPriority = 'high' | 'low' | 'medium';
@@ -75,6 +90,18 @@ export type NotificationType =
   | 'watering'
   | 'weather';
 export type SunExposure = 'fullShade' | 'fullSun' | 'partShade' | 'partSun';
+export type SunShadeSourceKind =
+  | 'fenceWall'
+  | 'structure'
+  | 'tallCrop'
+  | 'treeObstacle'
+  | 'trellisedCrop'
+  | 'trellis';
+export type SunShadeMicroclimateKind =
+  | 'coolShadePocket'
+  | 'reflectedHeat'
+  | 'westHeat'
+  | 'windExposedEdge';
 export type CropCategory =
   | 'brassica'
   | 'flower'
@@ -96,8 +123,29 @@ export type CropGrowthForm =
   | 'upright'
   | 'vining';
 export type CropLifecycle = 'annual' | 'biennial' | 'perennial';
+export type CropProfileConfidence = 'complete' | 'needsReview' | 'partial';
 export type CropSowMethod = 'both' | 'directSow' | 'transplant';
 export type CropWaterNeed = 'high' | 'low' | 'medium';
+export type SeasonCropCommitment = 'mustGrow' | 'niceToHave';
+export type SeasonCropPriority = 'high' | 'low' | 'medium';
+export type SeasonCropSowPreference =
+  | 'directSow'
+  | 'noPreference'
+  | 'transplant';
+export type PlantingLifecycleStatus =
+  | 'growing'
+  | 'harvest-ready'
+  | 'harvested'
+  | 'planned'
+  | 'planted'
+  | 'removed';
+export type SoilType = 'clay' | 'loam' | 'sandy' | 'unknown';
+export type DrainageProfile = 'fast' | 'normal' | 'slow' | 'unknown';
+export type GardenDataQuality = 'complete' | 'limited' | 'partial';
+export type WaterRecommendationGeneratedBy =
+  | 'backend'
+  | 'client'
+  | 'manualRefresh';
 export type WaterRecommendationStatus =
   | 'accepted'
   | 'active'
@@ -116,7 +164,7 @@ export type JournalIssueCategory =
   | 'pest'
   | 'weatherDamage';
 export type IssueSeverity = 'high' | 'low' | 'medium';
-export type IssueStatus = 'monitoring' | 'resolved' | 'todo';
+export type IssueStatus = 'inProgress' | 'open' | 'resolved';
 export type JournalTargetType = 'garden' | 'planting' | 'structure';
 
 export interface GardenLocation {
@@ -180,28 +228,39 @@ export interface Plot {
   gridUnitFt: 1;
   location: GardenLocation;
   orientationDegrees: number;
-  snapUnitFt: 0.5;
+  snapUnitFt: number;
   widthFt: number;
 }
 
 export interface Structure {
+  accessiblePath: boolean;
   canopyRadiusFt: number | null;
+  continuousPath: boolean;
   depthFt: number;
+  drainageProfile?: DrainageProfile;
   heightFt: number | null;
   id: string;
+  irrigationZone?: string | null;
   label: string;
+  locked: boolean;
+  material: StructureMaterial;
   mulched: boolean;
   notes: string;
   rotationDegrees: number;
+  soilType?: SoilType;
   type: StructureType;
   widthFt: number;
+  workingClearanceFt: number | null;
   xFt: number;
   yFt: number;
 }
 
 export interface CropProfile {
+  aliases: string[];
   category: CropCategory;
+  caution: string | null;
   commonName: string;
+  completenessScore: number;
   daysToMaturity: number | null;
   defaultIcon: string;
   family: string;
@@ -210,36 +269,50 @@ export interface CropProfile {
   hardiness: string;
   id: string;
   lifecycle: CropLifecycle;
+  lastRefreshedIso: IsoDateString | null;
+  manualOverride: boolean;
   matureHeightInches: number | null;
   matureSpreadInches: number | null;
   name: string;
   notes: string;
   perennialSuitability: string;
+  pollinatorRole: string | null;
+  profileConfidence: CropProfileConfidence;
   rowSpacingInches: number | null;
+  rootDepthInches: number | null;
+  roles: string[];
   scientificName: string;
   spacingInches: number | null;
   sowMethod: CropSowMethod;
+  source: string;
+  sourceTags: string[];
   supportedPlantingModes: PlantingMode[];
+  synonyms: string[];
   sunExposure: SunExposure;
   sunRequirement: SunExposure;
   trellisRecommended: boolean;
   trellisRequired: boolean;
+  varietyGroup: string | null;
   weeklyWaterNeedInches: number | null;
   waterNeeds: CropWaterNeed;
 }
 
 export interface Planting {
+  allowRelocation: boolean;
   blockDepthFt: number | null;
   blockWidthFt: number | null;
   clusterRadiusFt: number | null;
   cropId: string | null;
   id: string;
+  irrigationZone?: string | null;
   label: string;
+  locked: boolean;
   mode: PlantingMode;
   mulched: boolean;
   notes: string;
   plantCount: number | null;
   plantedOn: LocalDateString | null;
+  plannedFor: LocalDateString | null;
   matureHeightInches: number | null;
   matureSpreadInches: number | null;
   rowCount: number | null;
@@ -247,7 +320,7 @@ export interface Planting {
   rowSpacingFt: number | null;
   rowSpacingInches: number | null;
   spacingInches: number | null;
-  status: 'growing' | 'harvested' | 'planned' | 'removed';
+  status: PlantingLifecycleStatus;
   sunRequirement: SunExposure | null;
   trellisLengthFt: number | null;
   weeklyWaterNeedInches: number | null;
@@ -255,15 +328,53 @@ export interface Planting {
   yFt: number;
 }
 
+export interface SeasonCropSelection {
+  commitment: SeasonCropCommitment;
+  containerAllowed: boolean;
+  cropId: string;
+  id: string;
+  modePreference: PlantingMode;
+  notes: string;
+  priority: SeasonCropPriority;
+  rank: number;
+  sowPreference: SeasonCropSowPreference;
+  supportAllowed: boolean;
+  targetQuantity: number;
+  varietyName: string;
+}
+
+export interface SeasonPlan {
+  updatedAtIso: IsoDateString | null;
+  wantedCrops: SeasonCropSelection[];
+}
+
 export interface SunShadeArea {
   id: string;
   depthFt: number;
   exposure: SunExposure;
+  microclimateNotes?: SunShadeMicroclimateNote[];
+  shadeSources?: SunShadeSource[];
   source: 'manual' | 'modeled';
   sunHours: number;
   widthFt: number;
   xFt: number;
   yFt: number;
+}
+
+export interface SunShadeSource {
+  heightFt: number;
+  itemId: string;
+  itemType: 'planting' | 'structure';
+  kind: SunShadeSourceKind;
+  label: string;
+}
+
+export interface SunShadeMicroclimateNote {
+  description: string;
+  id: string;
+  kind: SunShadeMicroclimateKind;
+  label: string;
+  source: 'manual' | 'modeled';
 }
 
 export interface SunShadeLayer {
@@ -284,6 +395,7 @@ export interface WeatherSnapshot {
   alertSummaries: string[];
   capturedAtIso: IsoDateString;
   conditionSummary: string;
+  dataQuality?: GardenDataQuality;
   evapotranspirationIn: number | null;
   forecastRainNext24In: number | null;
   forecastRainNext48In: number | null;
@@ -296,6 +408,8 @@ export interface WeatherSnapshot {
   observedForDate: LocalDateString;
   overnightLowF: number | null;
   precipitationIn: number | null;
+  providerDecision?: string | null;
+  providerLabel?: string;
   recentPrecipitation72hIn: number | null;
   source: 'manual' | 'nationalWeatherService' | 'tomorrowIo';
   temperatureF: number | null;
@@ -303,8 +417,10 @@ export interface WeatherSnapshot {
 }
 
 export interface WaterRecommendation {
+  dataQuality?: GardenDataQuality;
   deficitInches: number;
   generatedAtIso: IsoDateString;
+  generatedBy?: WaterRecommendationGeneratedBy;
   gardenId: string;
   id: string;
   inchesNeeded: number;
@@ -313,6 +429,7 @@ export interface WaterRecommendation {
   reason: string;
   recommendationDate: LocalDateString;
   recommendedWaterInches: number;
+  refreshedAtIso?: IsoDateString;
   status: WaterRecommendationStatus;
   suppressUntilIso: IsoDateString | null;
   targetId: string;
@@ -326,6 +443,8 @@ export interface Task {
   bedLabel: string | null;
   completedAtIso: IsoDateString | null;
   createdAtIso: IsoDateString;
+  delayReason?: string | null;
+  delaySetAtIso?: IsoDateString | null;
   deferredUntilDate: LocalDateString | null;
   dueDate: LocalDateString | null;
   gardenId: string;
@@ -384,17 +503,27 @@ export interface HarvestEvent {
 }
 
 export interface NotificationLog {
+  acknowledgedAtIso?: IsoDateString | null;
+  attemptCount?: number;
   body: string;
   channel: NotificationChannel;
   createdAtIso: IsoDateString;
+  decisionReason?: string | null;
+  dedupeKey?: string | null;
+  deepLink?: string | null;
+  dismissedAtIso?: IsoDateString | null;
   dryRun: boolean;
   errorMessage: string | null;
   gardenId: string | null;
   id: string;
   messageSummary: string;
-  provider: 'firebaseCloudMessaging' | 'inApp' | 'twilio' | null;
+  provider: 'firebaseCloudMessaging' | 'inApp' | 'retiredDeliveryProvider' | null;
+  providerMessageId?: string | null;
+  providerStatus?: string | null;
   recipientRedacted: string;
+  retryPolicy?: string | null;
   sentAtIso: IsoDateString | null;
+  snoozedUntilIso?: IsoDateString | null;
   status: NotificationStatus;
   taskId: string | null;
   type: NotificationType;
@@ -410,6 +539,8 @@ export interface Garden {
   notificationLogs: NotificationLog[];
   plantings: Planting[];
   plot: Plot;
+  schemaVersion: number;
+  seasonPlan: SeasonPlan;
   structures: Structure[];
   sunShadeLayers: SunShadeLayer[];
   tasks: Task[];
@@ -493,7 +624,7 @@ export const defaultGardenPlot: Plot = {
   gridUnitFt: 1,
   location: annArborLocation,
   orientationDegrees: 0,
-  snapUnitFt: 0.5,
+  snapUnitFt: 0.125,
   widthFt: 12,
 };
 
@@ -507,6 +638,11 @@ export function createDefaultGarden(userId: string): Garden {
     notificationLogs: [],
     plantings: [],
     plot: defaultGardenPlot,
+    schemaVersion: CURRENT_GARDEN_SCHEMA_VERSION,
+    seasonPlan: {
+      updatedAtIso: null,
+      wantedCrops: [],
+    },
     structures: [],
     sunShadeLayers: [],
     tasks: [],
@@ -529,17 +665,21 @@ export function createDefaultPlanting({
   yFt: number;
 }): Planting {
   return {
+    allowRelocation: false,
     blockDepthFt: null,
     blockWidthFt: null,
     clusterRadiusFt: null,
     cropId: null,
     id,
+    irrigationZone: null,
     label,
+    locked: false,
     mode: 'single',
     mulched: false,
     notes: '',
     plantCount: 1,
     plantedOn: null,
+    plannedFor: null,
     matureHeightInches: null,
     matureSpreadInches: null,
     rowCount: null,
@@ -557,118 +697,172 @@ export function createDefaultPlanting({
 }
 
 export function createDefaultStructure({
+  accessibleMode = false,
   id,
   type,
   xFt,
   yFt,
 }: {
+  accessibleMode?: boolean;
   id: string;
   type: StructureType;
   xFt: number;
   yFt: number;
 }): Structure {
-  const footprint = getDefaultStructureFootprint(type);
+  const footprint = getDefaultStructureFootprint(type, accessibleMode);
 
   return {
+    accessiblePath: footprint.accessiblePath,
     canopyRadiusFt: footprint.canopyRadiusFt,
+    continuousPath: footprint.continuousPath,
     depthFt: footprint.depthFt,
+    drainageProfile: 'normal',
     heightFt: footprint.heightFt,
     id,
+    irrigationZone: null,
     label: footprint.label,
+    locked: false,
+    material: footprint.material,
     mulched: false,
     notes: '',
     rotationDegrees: 0,
+    soilType: 'unknown',
     type,
     widthFt: footprint.widthFt,
+    workingClearanceFt: footprint.workingClearanceFt,
     xFt,
     yFt,
   };
 }
 
-function getDefaultStructureFootprint(type: StructureType) {
+function getDefaultStructureFootprint(
+  type: StructureType,
+  accessibleMode = false,
+) {
   switch (type) {
     case 'raisedBed':
     case 'bed':
       return {
+        accessiblePath: false,
         canopyRadiusFt: null,
+        continuousPath: false,
         depthFt: 4,
         heightFt: 1.5,
         label: 'Raised bed',
+        material: 'lumber' as const,
         widthFt: 8,
+        workingClearanceFt: 2,
       };
     case 'inGroundBed':
       return {
+        accessiblePath: false,
         canopyRadiusFt: null,
+        continuousPath: false,
         depthFt: 4,
         heightFt: null,
         label: 'In-ground bed',
+        material: 'soil' as const,
         widthFt: 10,
+        workingClearanceFt: 2,
       };
     case 'container':
       return {
+        accessiblePath: false,
         canopyRadiusFt: null,
+        continuousPath: false,
         depthFt: 2,
         heightFt: 1.5,
         label: 'Container',
+        material: 'mixed' as const,
         widthFt: 2,
+        workingClearanceFt: 2,
       };
     case 'pathway':
     case 'path':
       return {
+        accessiblePath: accessibleMode,
         canopyRadiusFt: null,
+        continuousPath: true,
         depthFt: 8,
         heightFt: null,
         label: 'Pathway',
-        widthFt: 3,
+        material: 'woodChips' as const,
+        widthFt: accessibleMode ? 4 : 3,
+        workingClearanceFt: null,
       };
     case 'trellis':
       return {
+        accessiblePath: false,
         canopyRadiusFt: null,
+        continuousPath: false,
         depthFt: 0.5,
         heightFt: 6,
         label: 'Trellis',
+        material: 'wire' as const,
         widthFt: 8,
+        workingClearanceFt: 1,
       };
     case 'fenceWall':
     case 'fence':
       return {
+        accessiblePath: false,
         canopyRadiusFt: null,
+        continuousPath: false,
         depthFt: 0.5,
         heightFt: 6,
         label: 'Fence/wall',
+        material: 'lumber' as const,
         widthFt: 10,
+        workingClearanceFt: 1,
       };
     case 'treeObstacle':
       return {
+        accessiblePath: false,
         canopyRadiusFt: 6,
+        continuousPath: false,
         depthFt: 3,
         heightFt: 18,
         label: 'Tree/obstacle',
+        material: 'none' as const,
         widthFt: 3,
+        workingClearanceFt: 3,
       };
     case 'compost':
       return {
+        accessiblePath: false,
         canopyRadiusFt: null,
+        continuousPath: false,
         depthFt: 2,
         heightFt: 3,
         label: 'Compost',
+        material: 'lumber' as const,
         widthFt: 2,
+        workingClearanceFt: 2,
       };
+    case 'hoseBib':
     case 'waterSource':
       return {
+        accessiblePath: false,
         canopyRadiusFt: null,
+        continuousPath: false,
         depthFt: 1,
         heightFt: 3,
-        label: 'Water source',
+        label: type === 'hoseBib' ? 'Hose bib' : 'Water source',
+        material: 'none' as const,
         widthFt: 1,
+        workingClearanceFt: 2,
       };
     case 'other':
       return {
+        accessiblePath: false,
         canopyRadiusFt: null,
+        continuousPath: false,
         depthFt: 2,
         heightFt: 3,
         label: 'Structure',
+        material: 'mixed' as const,
         widthFt: 2,
+        workingClearanceFt: 2,
       };
   }
 }

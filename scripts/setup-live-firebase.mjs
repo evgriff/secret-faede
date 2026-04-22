@@ -91,7 +91,7 @@ async function updateProjectAuthConfig(session, authorizedDomains) {
         signIn: {
           email: {
             enabled: true,
-            passwordRequired: false,
+            passwordRequired: true,
           },
         },
       },
@@ -117,9 +117,9 @@ async function main() {
     JSON.stringify(
       {
         authorizedDomains: updatedConfig.authorizedDomains ?? authorizedDomains,
-        emailLinkEnabled:
+        passwordAuthEnabled:
           updatedConfig.signIn?.email?.enabled === true &&
-          updatedConfig.signIn?.email?.passwordRequired !== true,
+          updatedConfig.signIn?.email?.passwordRequired === true,
         projectId,
       },
       null,

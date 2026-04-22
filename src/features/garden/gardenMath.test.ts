@@ -29,7 +29,7 @@ describe('gardenMath', () => {
   it('snaps and clamps plant positions in plot coordinates', () => {
     expect(
       normalizePointToPlot({ xFt: 3.26, yFt: 9.9 }, defaultGardenPlot, true),
-    ).toEqual({ xFt: 3.5, yFt: 8 });
+    ).toEqual({ xFt: 3.25, yFt: 8 });
     expect(
       clampPlantToPlot(
         createDefaultPlanting({

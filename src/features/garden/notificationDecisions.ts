@@ -16,28 +16,26 @@ export function buildInAppNotificationLogs(
       .filter(
         (recommendation) =>
           recommendation.status === 'active' &&
-          recommendation.deficitInches >= 0.25,
+          recommendation.deficitInches >= 0.25 &&
+          !hasRecentWateringAction(garden, recommendation, now),
       )
       .slice(0, 4)
       .map((recommendation) =>
         createNotificationLog({
           body: buildWateringBody(recommendation, snapshot),
+          dedupeKey: buildWateringDedupeKey(recommendation),
           garden,
+          messageSummary: `Water ${recommendation.targetLabel} today`,
           now,
+          taskId: getWaterTaskId(garden, recommendation),
           type: 'watering',
         }),
       ),
     ...buildWeatherLogs(garden, snapshot, now),
   ];
-  const existingKeys = new Set(
-    garden.notificationLogs.map(
-      (log) => `${log.channel}:${log.type}:${log.messageSummary}`,
-    ),
-  );
 
   return logs.filter(
-    (log) =>
-      !existingKeys.has(`${log.channel}:${log.type}:${log.messageSummary}`),
+    (log) => !isSuppressedByNotificationHistory(garden, log, now),
   );
 }
 
@@ -51,8 +49,10 @@ function buildWeatherLogs(
   if (snapshot.frostRisk !== 'none') {
     logs.push(
       createNotificationLog({
-        body: 'Frost risk tonight. Protect basil, peppers, and tender starts.',
+        body: 'Cover basil, peppers, and tender starts tonight; frost is possible.',
+        dedupeKey: `weather:frost:${snapshot.observedForDate}`,
         garden,
+        messageSummary: 'Frost cover check tonight',
         now,
         type: 'frost',
       }),
@@ -62,8 +62,10 @@ function buildWeatherLogs(
   if (snapshot.heatRisk !== 'none') {
     logs.push(
       createNotificationLog({
-        body: 'Heat stress likely tomorrow afternoon for containers and shallow beds.',
+        body: 'Check water early for containers and shallow beds; heat stress is likely tomorrow afternoon.',
+        dedupeKey: `weather:heat:${snapshot.observedForDate}`,
         garden,
+        messageSummary: 'Heat water check',
         now,
         type: 'heatStress',
       }),
@@ -74,8 +76,11 @@ function buildWeatherLogs(
     logs.push(
       createNotificationLog({
         body:
-          snapshot.alertSummaries[0] ?? 'Severe weather alert for your garden.',
+          snapshot.alertSummaries[0] ??
+          'Check covers and supports; severe weather may affect the garden.',
+        dedupeKey: `weather:severe:${snapshot.observedForDate}`,
         garden,
+        messageSummary: 'Severe weather garden check',
         now,
         type: 'severeWeather',
       }),
@@ -87,29 +92,41 @@ function buildWeatherLogs(
 
 function createNotificationLog({
   body,
+  dedupeKey,
   garden,
+  messageSummary,
   now,
+  taskId = null,
   type,
 }: {
   body: string;
+  dedupeKey: string;
   garden: Garden;
+  messageSummary: string;
   now: Date;
+  taskId?: string | null;
   type: NotificationLog['type'];
 }): NotificationLog {
   return {
+    acknowledgedAtIso: null,
     body,
     channel: 'inApp',
     createdAtIso: now.toISOString(),
+    decisionReason: 'client in-app log',
+    dedupeKey,
+    deepLink: '/app/today',
+    dismissedAtIso: null,
     dryRun: false,
     errorMessage: null,
     gardenId: garden.id,
     id: `in-app-${type}-${now.getTime()}-${slugify(body).slice(0, 20)}`,
-    messageSummary: body,
+    messageSummary,
     provider: 'inApp',
     recipientRedacted: 'in-app',
     sentAtIso: now.toISOString(),
+    snoozedUntilIso: null,
     status: 'sent',
-    taskId: null,
+    taskId,
     type,
     userId: garden.userId,
   };
@@ -124,7 +141,94 @@ function buildWateringBody(
       ? 'Rain is unlikely today.'
       : `${(snapshot.forecastRainNext24In ?? 0).toFixed(1)} in of rain may arrive today.`;
 
-  return `${recommendation.targetLabel} are short ${recommendation.deficitInches.toFixed(1)} in of water. ${rainPhrase}`;
+  const amount =
+    recommendation.deficitInches >= 0.75
+      ? recommendation.deficitInches.toFixed(1)
+      : recommendation.deficitInches.toFixed(2);
+
+  return `Water ${recommendation.targetLabel} ${amount} in today. ${rainPhrase}`;
+}
+
+function buildWateringDedupeKey(recommendation: WaterRecommendation) {
+  return [
+    'watering',
+    recommendation.targetType,
+    recommendation.targetId,
+    recommendation.recommendationDate,
+  ].join(':');
+}
+
+function getWaterTaskId(garden: Garden, recommendation: WaterRecommendation) {
+  return (
+    garden.tasks.find(
+      (task) =>
+        task.type === 'water' &&
+        task.source === 'waterRecommendation' &&
+        task.sourceId === recommendation.id,
+    )?.id ?? null
+  );
+}
+
+function hasRecentWateringAction(
+  garden: Garden,
+  recommendation: WaterRecommendation,
+  now: Date,
+) {
+  const targetDate =
+    recommendation.recommendationDate || now.toISOString().slice(0, 10);
+  const completedWaterTask = garden.tasks.some(
+    (task) =>
+      task.type === 'water' &&
+      task.sourceId === recommendation.id &&
+      task.status === 'done' &&
+      (task.completedAtIso ?? '').slice(0, 10) === targetDate,
+  );
+
+  if (completedWaterTask) {
+    return true;
+  }
+
+  const targetLabel = recommendation.targetLabel.toLowerCase();
+
+  return garden.journalEntries.some((entry) => {
+    const text = `${entry.title} ${entry.body}`.toLowerCase();
+    const matchesTarget =
+      entry.plantingId === recommendation.plantingId ||
+      entry.structureId === recommendation.targetId ||
+      entry.targetLabel === recommendation.targetLabel ||
+      text.includes(targetLabel);
+
+    return (
+      entry.occurredOn === targetDate && matchesTarget && text.includes('water')
+    );
+  });
+}
+
+function isSuppressedByNotificationHistory(
+  garden: Garden,
+  candidate: NotificationLog,
+  now: Date,
+) {
+  const cutoffMs = now.getTime() - 24 * 60 * 60 * 1000;
+
+  return garden.notificationLogs.some((log) => {
+    const createdAtMs = Date.parse(log.createdAtIso);
+    const snoozedUntilMs = Date.parse(log.snoozedUntilIso ?? '');
+    const matchesDedupe =
+      Boolean(candidate.dedupeKey && log.dedupeKey === candidate.dedupeKey) ||
+      `${log.channel}:${log.type}:${log.messageSummary}` ===
+        `${candidate.channel}:${candidate.type}:${candidate.messageSummary}`;
+
+    if (!matchesDedupe) {
+      return false;
+    }
+
+    if (Number.isFinite(snoozedUntilMs) && snoozedUntilMs > now.getTime()) {
+      return true;
+    }
+
+    return Number.isFinite(createdAtMs) && createdAtMs >= cutoffMs;
+  });
 }
 
 function slugify(value: string) {

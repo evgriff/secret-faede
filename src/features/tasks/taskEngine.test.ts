@@ -4,9 +4,11 @@ import {
   createDefaultStructure,
   type Garden,
   type WaterRecommendation,
+  type WeatherSnapshot,
 } from '../../domain/gardens/GardenRepository';
 import {
   addManualTask,
+  addSuccessionPlanting,
   buildSuccessionRecommendations,
   completeTask,
   synchronizeGardenTasks,
@@ -41,11 +43,133 @@ describe('taskEngine', () => {
         }),
         expect.objectContaining({
           source: 'waterRecommendation',
-          title: 'Water Tomato',
+          title: 'Water Tomato 0.60 in',
           type: 'water',
         }),
       ]),
     );
+  });
+
+  it('generates seedling, thinning, and weather-prep tasks when the garden implies them', () => {
+    const garden = synchronizeGardenTasks(
+      {
+        ...createTaskGarden(),
+        plantings: [
+          {
+            ...createDefaultPlanting({
+              id: 'radish-1',
+              label: 'Radish row',
+              xFt: 3,
+              yFt: 3,
+            }),
+            cropId: 'radish',
+            mode: 'row',
+            plantCount: 12,
+            status: 'planned',
+          },
+        ],
+        waterRecommendations: [],
+        weatherSnapshots: [createWeatherSnapshot()],
+      },
+      { now: new Date('2026-04-20T12:00:00.000Z') },
+    );
+
+    expect(garden.tasks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dueDate: '2026-04-19',
+          notes: expect.stringContaining('Check germination'),
+          title: 'Check Radish row seedlings',
+          type: 'inspect',
+        }),
+        expect.objectContaining({
+          dueDate: '2026-04-26',
+          notes: expect.stringContaining('spacing'),
+          title: 'Thin Radish row',
+          type: 'thin',
+        }),
+        expect.objectContaining({
+          dueDate: '2026-04-20',
+          title: 'Cover tender crops before frost risk',
+          type: 'inspect',
+        }),
+        expect.objectContaining({
+          dueDate: '2026-04-20',
+          title: 'Check heat-stressed crops',
+          type: 'inspect',
+        }),
+      ]),
+    );
+  });
+
+  it('retires stale generated tasks when their source no longer applies', () => {
+    const garden = synchronizeGardenTasks(createTaskGarden(), {
+      now: new Date('2026-04-20T12:00:00.000Z'),
+    });
+    const recommendation = garden.waterRecommendations[0];
+
+    if (!recommendation) {
+      throw new Error('Expected a water recommendation.');
+    }
+
+    const withoutWaterNeed = synchronizeGardenTasks(
+      {
+        ...garden,
+        waterRecommendations: [
+          {
+            ...recommendation,
+            status: 'completed',
+          },
+        ],
+      },
+      { now: new Date('2026-04-21T12:00:00.000Z') },
+    );
+
+    expect(
+      withoutWaterNeed.tasks.find((task) => task.id === 'water-water-1'),
+    ).toMatchObject({
+      status: 'skipped',
+    });
+  });
+
+  it('does not duplicate preexisting water tasks with the same recommendation source', () => {
+    const garden = synchronizeGardenTasks(
+      {
+        ...createTaskGarden(),
+        tasks: [
+          {
+            bedLabel: 'Main bed',
+            completedAtIso: null,
+            createdAtIso: '2026-04-20T07:00:00.000Z',
+            deferredUntilDate: null,
+            dueDate: '2026-04-20',
+            gardenId: 'user-a',
+            id: 'custom-water-task',
+            notes: '',
+            plantingId: 'tomato-1',
+            priority: 'medium',
+            snoozedUntilDate: null,
+            source: 'waterRecommendation',
+            sourceId: 'water-1',
+            status: 'open',
+            structureId: null,
+            title: 'Water Tomato',
+            type: 'water',
+          },
+        ],
+      },
+      {
+        now: new Date('2026-04-20T12:00:00.000Z'),
+        refreshOpenGenerated: true,
+      },
+    );
+
+    const waterTasks = garden.tasks.filter((task) => task.type === 'water');
+    expect(waterTasks).toHaveLength(1);
+    expect(waterTasks[0]).toMatchObject({
+      id: 'custom-water-task',
+      title: 'Water Tomato 0.60 in',
+    });
   });
 
   it('completes planting and watering tasks into downstream state', () => {
@@ -138,6 +262,62 @@ describe('taskEngine', () => {
       }),
     ]);
   });
+
+  it('approves a succession recommendation into a future planned planting', () => {
+    const garden = synchronizeGardenTasks(
+      {
+        ...createTaskGarden(),
+        plantings: [
+          {
+            ...createDefaultPlanting({
+              id: 'radish-1',
+              label: 'Radish block',
+              xFt: 3,
+              yFt: 3,
+            }),
+            cropId: 'radish',
+            plantedOn: '2026-04-01',
+            status: 'growing',
+            sunRequirement: 'fullSun',
+          },
+        ],
+        waterRecommendations: [],
+      },
+      { now: new Date('2026-04-20T12:00:00.000Z') },
+    );
+    const recommendation = buildSuccessionRecommendations(
+      garden,
+      new Date('2026-04-20T12:00:00.000Z'),
+    )[0];
+
+    if (!recommendation) {
+      throw new Error('Expected a succession recommendation.');
+    }
+
+    const updatedGarden = addSuccessionPlanting(
+      garden,
+      recommendation,
+      new Date('2026-04-20T12:00:00.000Z'),
+    );
+
+    expect(updatedGarden.plantings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          cropId: recommendation.cropId,
+          plannedFor: recommendation.earliestDate,
+          status: 'planned',
+        }),
+      ]),
+    );
+    expect(updatedGarden.tasks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          plantingId: expect.stringContaining('succession-planting-'),
+          status: 'open',
+        }),
+      ]),
+    );
+  });
 });
 
 function createTaskGarden(): Garden {
@@ -191,5 +371,29 @@ function createWaterRecommendation(): WaterRecommendation {
     targetType: 'planting',
     urgency: 'high',
     weatherSnapshotId: 'weather-1',
+  };
+}
+
+function createWeatherSnapshot(): WeatherSnapshot {
+  return {
+    alertSummaries: ['Strong wind may knock over unsupported seedlings.'],
+    capturedAtIso: '2026-04-20T11:00:00.000Z',
+    conditionSummary: 'Cold morning, hot afternoon',
+    evapotranspirationIn: null,
+    forecastRainNext24In: null,
+    forecastRainNext48In: null,
+    frostRisk: 'watch',
+    gardenId: 'user-a',
+    heatRisk: 'warning',
+    humidityPercent: null,
+    id: 'weather-1',
+    nextRainIso: null,
+    observedForDate: '2026-04-20',
+    overnightLowF: 34,
+    precipitationIn: null,
+    recentPrecipitation72hIn: null,
+    source: 'manual',
+    temperatureF: 82,
+    windMph: 14,
   };
 }

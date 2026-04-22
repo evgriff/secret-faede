@@ -1,0 +1,623 @@
+.drawer {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.mobileModeStrip {
+  display: none;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding-bottom: 0.15rem;
+}
+
+.modePill {
+  flex: 0 0 auto;
+  min-height: 2.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: #fffdf7;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  padding: 0 0.85rem;
+}
+
+.activePill {
+  border-color: rgba(36, 71, 46, 0.32);
+  background: rgba(36, 71, 46, 0.12);
+}
+
+.drawerBody {
+  display: grid;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: #fffdf7;
+  max-height: calc(100dvh - 9rem);
+  overflow: auto;
+  padding: var(--space-3);
+  box-shadow: var(--shadow-panel);
+}
+
+.drawerHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+}
+
+.drawerBody h2,
+.drawerBody p {
+  margin: 0;
+}
+
+.drawerBody h2 {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-title);
+}
+
+.drawerBody p,
+.kicker {
+  color: var(--color-text-muted);
+}
+
+.kicker {
+  font-size: var(--font-size-caption);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.primaryButton,
+.secondaryButton,
+.closeButton,
+.sunControls select,
+.structureControls select {
+  min-height: 2.75rem;
+  border-radius: var(--radius-control);
+  font: inherit;
+}
+
+.primaryButton,
+.secondaryButton,
+.closeButton {
+  justify-self: start;
+  cursor: pointer;
+  font-weight: 850;
+  padding: 0 0.9rem;
+}
+
+.primaryButton {
+  border: 1px solid var(--color-text-strong);
+  background: var(--color-text-strong);
+  color: var(--color-background);
+}
+
+.secondaryButton {
+  border: 1px solid var(--color-border-strong);
+  background: #ffffff;
+  color: var(--color-text-strong);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  border-color: rgba(54, 48, 40, 0.16);
+  background: rgba(246, 242, 233, 0.74);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.closeButton {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.4rem;
+  min-height: 2.4rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: #ffffff;
+  color: var(--color-text-strong);
+  padding: 0;
+}
+
+.sunControls,
+.structureControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.sunControls label,
+.structureControls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--color-text-muted);
+  font-weight: 750;
+}
+
+.sunControls select,
+.structureControls select {
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  color: var(--color-text-strong);
+  padding: 0 0.55rem;
+}
+
+.seasonTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.seasonTabs button {
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: #ffffff;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  display: grid;
+  gap: 0.05rem;
+  font: inherit;
+  padding: 0.35rem 0.7rem;
+  text-align: left;
+}
+
+.seasonTabs strong,
+.seasonTabs span {
+  line-height: 1;
+}
+
+.seasonTabs span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 800;
+}
+
+.activeSeason {
+  border-color: rgba(36, 71, 46, 0.32) !important;
+  background: rgba(36, 71, 46, 0.12) !important;
+}
+
+.sunSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.sunSummary span,
+.paintSwatches button {
+  border: 1px solid rgba(54, 48, 40, 0.12);
+  border-radius: var(--radius-control);
+  background: #ffffff;
+  padding: 0.45rem 0.55rem;
+}
+
+.sunSummary strong {
+  color: var(--color-text-strong);
+}
+
+.sunLegend,
+.calibrationPanel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  flex-basis: 100%;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.sunLegend span,
+.calibrationPanel span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgba(54, 48, 40, 0.12);
+  border-radius: var(--radius-control);
+  background: rgba(246, 242, 233, 0.58);
+  padding: 0.42rem 0.55rem;
+}
+
+.sunLegend i {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1px rgba(31, 27, 24, 0.12);
+}
+
+.fullSun {
+  background: rgba(242, 196, 83, 0.72);
+}
+
+.partSun {
+  background: rgba(164, 183, 93, 0.68);
+}
+
+.partShade {
+  background: rgba(92, 136, 126, 0.62);
+}
+
+.fullShade {
+  background: rgba(72, 84, 92, 0.64);
+}
+
+.paintSwatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.paintSwatches button {
+  min-height: 2.25rem;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-small);
+  font-weight: 800;
+}
+
+.paintSwatches button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.activeSwatch {
+  border-color: rgba(36, 71, 46, 0.32) !important;
+  background: rgba(36, 71, 46, 0.12) !important;
+}
+
+.measureGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.measureGrid span {
+  border: 1px solid rgba(54, 48, 40, 0.12);
+  border-radius: var(--radius-control);
+  background: rgba(246, 242, 233, 0.72);
+  color: var(--color-text-strong);
+  font-weight: 800;
+  padding: 0.65rem;
+}
+
+.warningList {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  color: #8a5a00;
+}
+
+.successText,
+.mutedText {
+  margin: 0;
+}
+
+.successText {
+  color: #1f6b3a;
+}
+
+.mutedText {
+  color: var(--color-text-muted);
+}
+
+.reviewPanel,
+.reviewGroup,
+.reviewList,
+.reviewCard,
+.reviewHero,
+.healthPanel,
+.healthGroup {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.reviewHero {
+  grid-template-columns: 1fr;
+  align-items: start;
+  border: 1px solid rgba(36, 71, 46, 0.18);
+  border-radius: var(--radius-card);
+  background: rgba(36, 71, 46, 0.06);
+  padding: 0.75rem;
+}
+
+.reviewHero h3,
+.reviewHero p {
+  margin: 0;
+}
+
+.reviewHero h3 {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-title);
+}
+
+.reviewStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.reviewStats span {
+  border: 1px solid rgba(54, 48, 40, 0.12);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 253, 247, 0.78);
+  color: var(--color-text-strong);
+  font-size: var(--font-size-caption);
+  font-weight: 850;
+  padding: 0.25rem 0.5rem;
+}
+
+.reviewHeroActions,
+.reviewBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.reviewHeroActions {
+  justify-content: start;
+}
+
+.reviewGroup h3 {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-body);
+}
+
+.reviewList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reviewCard {
+  border: 1px solid rgba(54, 48, 40, 0.12);
+  border-radius: var(--radius-card);
+  background: #ffffff;
+  padding: 0.7rem;
+}
+
+.reviewCardDecided {
+  background: rgba(246, 242, 233, 0.64);
+}
+
+.reviewCardHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.reviewCardHeader > div:first-child {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.reviewCard span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.reviewCard strong {
+  color: var(--color-text-strong);
+}
+
+.reviewCategory {
+  color: var(--color-text-muted);
+}
+
+.reviewCard p {
+  color: var(--color-text-muted);
+}
+
+.reviewMetaGrid {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.reviewMetaGrid div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.reviewMetaGrid dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.reviewMetaGrid dd {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+}
+
+.reviewDecisionText {
+  border-left: 3px solid rgba(36, 71, 46, 0.34);
+  background: rgba(36, 71, 46, 0.08);
+  color: var(--color-text-strong) !important;
+  padding: 0.45rem 0.6rem;
+}
+
+.physicalMoveText {
+  border-left: 3px solid #8a5a00;
+  background: rgba(250, 223, 134, 0.24);
+  color: #6f4500 !important;
+  padding: 0.5rem 0.65rem;
+}
+
+.physicalMoveButton {
+  border-color: rgba(138, 90, 0, 0.42) !important;
+  color: #6f4500 !important;
+}
+
+.fixText {
+  color: var(--color-text-strong) !important;
+}
+
+.previewGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.previewGrid div {
+  border: 1px solid rgba(54, 48, 40, 0.1);
+  border-radius: var(--radius-control);
+  background: rgba(246, 242, 233, 0.7);
+  padding: 0.45rem;
+}
+
+.previewGrid dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.previewGrid dd {
+  margin: 0.1rem 0 0;
+  color: var(--color-text-strong);
+  font-weight: 800;
+}
+
+.healthPanel {
+  border: 1px solid rgba(54, 48, 40, 0.12);
+  border-radius: var(--radius-card);
+  background: rgba(246, 242, 233, 0.64);
+  padding: 0.7rem;
+}
+
+.healthHeader,
+.healthItem,
+.healthActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.healthHeader,
+.healthItem {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.healthHeader h3,
+.healthGroup h4 {
+  margin: 0;
+  color: var(--color-text-strong);
+}
+
+.healthHeader h3 {
+  font-size: var(--font-size-body);
+}
+
+.healthGroup h4 {
+  font-size: var(--font-size-small);
+}
+
+.healthList {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.healthItem {
+  border-top: 1px solid rgba(54, 48, 40, 0.1);
+  padding-top: 0.45rem;
+}
+
+.healthItem > div:first-child {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.healthItem strong {
+  color: var(--color-text-strong);
+}
+
+.healthItem span,
+.healthItem small,
+.healthEmpty,
+.reviewEmpty {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.healthActions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.healthActions button {
+  min-height: 2.15rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: #fffdf7;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: 800;
+  padding: 0 0.55rem;
+}
+
+.reviewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.reviewActions button {
+  min-height: 2.25rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: #fffdf7;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-small);
+  font-weight: 800;
+  padding: 0 0.65rem;
+}
+
+@media (max-width: 58rem) {
+  .drawer {
+    display: block;
+  }
+
+  .mobileModeStrip {
+    display: none;
+  }
+
+  .drawerBody {
+    max-height: none;
+    overflow: auto;
+    padding: var(--space-3);
+  }
+
+  .measureGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .previewGrid,
+  .reviewHero {
+    grid-template-columns: 1fr;
+  }
+
+  .reviewHeroActions {
+    justify-content: start;
+  }
+}

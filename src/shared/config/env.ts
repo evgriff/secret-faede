@@ -19,6 +19,7 @@ export interface AppEnvironment {
   fallbackReason: string | null;
   firebaseConfig: FirebaseRuntimeConfig | null;
   firestoreEmulatorPort: number;
+  functionsEmulatorPort: number;
   geocodingApiKey: string | null;
   messagingVapidKey: string | null;
   pwaEnabled: boolean;
@@ -40,6 +41,7 @@ export interface AppEnvSource {
   VITE_FIREBASE_AUTH_EMULATOR_PORT?: string;
   VITE_FIREBASE_EMULATOR_HOST?: string;
   VITE_FIREBASE_FIRESTORE_EMULATOR_PORT?: string;
+  VITE_FIREBASE_FUNCTIONS_EMULATOR_PORT?: string;
   VITE_FIREBASE_MESSAGING_SENDER_ID?: string;
   VITE_FIREBASE_PROJECT_ID?: string;
   VITE_FIREBASE_STORAGE_EMULATOR_PORT?: string;
@@ -103,6 +105,10 @@ export function resolveAppEnvironmentFromEnv(
     firestoreEmulatorPort: parsePort(
       env.VITE_FIREBASE_FIRESTORE_EMULATOR_PORT,
       8080,
+    ),
+    functionsEmulatorPort: parsePort(
+      env.VITE_FIREBASE_FUNCTIONS_EMULATOR_PORT,
+      5001,
     ),
     geocodingApiKey: hasText(env.VITE_GOOGLE_MAPS_API_KEY)
       ? env.VITE_GOOGLE_MAPS_API_KEY.trim()

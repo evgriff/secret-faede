@@ -1,5 +1,6 @@
 import {
   createDefaultGarden,
+  type Garden,
   type WaterRecommendation,
   type WeatherSnapshot,
 } from '../../domain/gardens/GardenRepository';
@@ -22,9 +23,11 @@ describe('notificationDecisions', () => {
     expect(logs).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          body: 'Tomatoes in Bed A are short 0.6 in of water. Rain is unlikely today.',
+          body: 'Water Tomatoes in Bed A 0.62 in today. Rain is unlikely today.',
           channel: 'inApp',
+          messageSummary: 'Water Tomatoes in Bed A today',
           status: 'sent',
+          taskId: null,
           type: 'watering',
         }),
         expect.objectContaining({
@@ -43,6 +46,72 @@ describe('notificationDecisions', () => {
         snapshot,
         now,
       ),
+    ).toHaveLength(0);
+  });
+
+  it('suppresses watering alerts after same-day watering is logged', () => {
+    const garden: Garden = {
+      ...createDefaultGarden('user-a'),
+      journalEntries: [
+        {
+          body: 'Watered Tomatoes in Bed A with 0.6 inches.',
+          createdAtIso: '2026-06-21T10:30:00.000Z',
+          gardenId: 'user-a',
+          id: 'journal-1',
+          issueCategory: null,
+          issueSeverity: null,
+          issueStatus: null,
+          occurredOn: '2026-06-21',
+          photos: [],
+          plantingId: 'tomato-1',
+          structureId: null,
+          targetLabel: 'Tomatoes in Bed A',
+          targetType: 'planting',
+          title: 'Watered Tomatoes in Bed A',
+          type: 'note',
+          weatherSnapshotId: null,
+        },
+      ],
+    };
+
+    expect(
+      buildInAppNotificationLogs(
+        garden,
+        [createWaterRecommendation()],
+        createWeatherSnapshot(),
+        new Date('2026-06-21T11:00:00.000Z'),
+      ).filter((log) => log.type === 'watering'),
+    ).toHaveLength(0);
+  });
+
+  it('respects snoozed notification history for repeat alerts', () => {
+    const garden = createDefaultGarden('user-a');
+    const recommendation = createWaterRecommendation();
+    const firstLogs = buildInAppNotificationLogs(
+      garden,
+      [recommendation],
+      createWeatherSnapshot(),
+      new Date('2026-06-21T11:00:00.000Z'),
+    );
+    const wateringLog = firstLogs.find((log) => log.type === 'watering');
+
+    expect(wateringLog).toBeDefined();
+    expect(
+      buildInAppNotificationLogs(
+        {
+          ...garden,
+          notificationLogs: [
+            {
+              ...wateringLog!,
+              createdAtIso: '2026-06-20T08:00:00.000Z',
+              snoozedUntilIso: '2026-06-22T08:00:00.000Z',
+            },
+          ],
+        },
+        [recommendation],
+        createWeatherSnapshot(),
+        new Date('2026-06-21T12:00:00.000Z'),
+      ).filter((log) => log.type === 'watering'),
     ).toHaveLength(0);
   });
 });

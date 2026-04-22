@@ -2,12 +2,16 @@ import {
   annArborClimateProfile,
   createDefaultGarden,
   createDefaultPlanting,
+  CURRENT_GARDEN_SCHEMA_VERSION,
   isGarden,
+  migrateGardenRecord,
   parseGarden,
   parseHarvestEvent,
   parseJournalEntry,
+  parseNotificationLog,
   parseNotificationPreference,
   parsePlot,
+  parseTask,
 } from './GardenRepository';
 
 describe('garden domain validation', () => {
@@ -31,7 +35,7 @@ describe('garden domain validation', () => {
     expect(garden.plot).toMatchObject({
       depthFt: 100,
       gridUnitFt: 1,
-      snapUnitFt: 0.5,
+      snapUnitFt: 0.125,
       widthFt: 1,
     });
     expect(garden.plantings[0]).toMatchObject({
@@ -52,11 +56,42 @@ describe('garden domain validation', () => {
     });
 
     expect(garden.plantings).toHaveLength(1);
+    expect(garden.schemaVersion).toBe(CURRENT_GARDEN_SCHEMA_VERSION);
     expect(garden.plantings[0]).toMatchObject({
       id: 'plant-1',
       mode: 'single',
       xFt: 3,
       yFt: 4,
+    });
+  });
+
+  it('normalizes legacy garden records through the schema migration layer', () => {
+    const migration = migrateGardenRecord({
+      name: 'Legacy garden',
+      plants: [{ id: 'plant-1', xFt: 3, yFt: 4 }],
+      plot: { depthFt: 8, widthFt: 12 },
+    });
+
+    expect(migration).toMatchObject({
+      applied: [
+        'legacy plants copied into plantings',
+        'planner workspace defaults normalized',
+      ],
+      fromVersion: 0,
+      toVersion: CURRENT_GARDEN_SCHEMA_VERSION,
+    });
+    expect(migration.record).toMatchObject({
+      plantings: [{ id: 'plant-1', xFt: 3, yFt: 4 }],
+      plot: {
+        gridUnitFt: 1,
+        snapUnitFt: 0.125,
+      },
+      schemaVersion: CURRENT_GARDEN_SCHEMA_VERSION,
+      seasonPlan: {
+        updatedAtIso: null,
+        wantedCrops: [],
+      },
+      structures: [],
     });
   });
 
@@ -80,7 +115,11 @@ describe('garden domain validation', () => {
     });
 
     expect(garden.structures[0]).toMatchObject({
+      accessiblePath: true,
+      continuousPath: true,
+      material: 'woodChips',
       type: 'pathway',
+      workingClearanceFt: null,
       xFt: 6,
       yFt: 4,
     });
@@ -106,6 +145,104 @@ describe('garden domain validation', () => {
     });
   });
 
+  it('parses sun/shade source metadata and microclimate notes', () => {
+    const garden = parseGarden('user-a', {
+      sunShadeLayers: [
+        {
+          areas: [
+            {
+              depthFt: 1,
+              exposure: 'partShade',
+              id: 'summer-1-1',
+              microclimateNotes: [
+                {
+                  description: 'Cooler near the tree.',
+                  id: 'microclimate:coolShadePocket',
+                  kind: 'coolShadePocket',
+                  label: 'Cool shade pocket',
+                  source: 'modeled',
+                },
+              ],
+              shadeSources: [
+                {
+                  heightFt: 7,
+                  itemId: 'pea-line',
+                  itemType: 'planting',
+                  kind: 'trellisedCrop',
+                  label: 'Pea line',
+                },
+              ],
+              source: 'modeled',
+              sunHours: 3,
+              widthFt: 1,
+              xFt: 1,
+              yFt: 1,
+            },
+          ],
+          id: 'sun-summer',
+          season: 'summer',
+        },
+      ],
+    });
+
+    expect(garden.sunShadeLayers[0]?.areas[0]).toMatchObject({
+      microclimateNotes: [
+        {
+          kind: 'coolShadePocket',
+          label: 'Cool shade pocket',
+        },
+      ],
+      shadeSources: [
+        {
+          itemId: 'pea-line',
+          kind: 'trellisedCrop',
+        },
+      ],
+    });
+  });
+
+  it('parses seasonal wanted crops for pre-layout planning', () => {
+    const garden = parseGarden('user-a', {
+      seasonPlan: {
+        updatedAtIso: '2026-04-21T12:00:00.000Z',
+        wantedCrops: [
+          {
+            commitment: 'mustGrow',
+            containerAllowed: false,
+            cropId: 'tomato',
+            id: 'season-tomato',
+            modePreference: 'row',
+            notes: 'Cherry type',
+            priority: 'high',
+            rank: 2,
+            sowPreference: 'transplant',
+            supportAllowed: true,
+            targetQuantity: 0,
+            varietyName: 'Sungold',
+          },
+        ],
+      },
+    });
+
+    expect(garden.seasonPlan).toMatchObject({
+      updatedAtIso: '2026-04-21T12:00:00.000Z',
+      wantedCrops: [
+        {
+          commitment: 'mustGrow',
+          containerAllowed: false,
+          cropId: 'tomato',
+          modePreference: 'row',
+          priority: 'high',
+          rank: 2,
+          sowPreference: 'transplant',
+          supportAllowed: true,
+          targetQuantity: 1,
+          varietyName: 'Sungold',
+        },
+      ],
+    });
+  });
+
   it('provides Detroit climate and notification defaults', () => {
     const plot = parsePlot({});
     const preferences = parseNotificationPreference({});
@@ -123,6 +260,48 @@ describe('garden domain validation', () => {
       defaultWateringCheckTime: '07:00',
       timezone: 'America/Detroit',
       wateringAlertThresholdIn: 0.25,
+    });
+  });
+
+  it('parses harvest delay metadata on tasks', () => {
+    expect(
+      parseTask({
+        delayReason: 'Not ready in the field.',
+        delaySetAtIso: '2026-06-21T12:00:00.000Z',
+        id: 'task-1',
+        title: 'Check radishes for harvest',
+        type: 'harvest',
+      }),
+    ).toMatchObject({
+      delayReason: 'Not ready in the field.',
+      delaySetAtIso: '2026-06-21T12:00:00.000Z',
+      type: 'harvest',
+    });
+  });
+
+  it('parses notification acknowledgement and snooze state', () => {
+    expect(
+      parseNotificationLog({
+        acknowledgedAtIso: null,
+        body: 'Water tomatoes today.',
+        channel: 'inApp',
+        createdAtIso: '2026-06-21T11:00:00.000Z',
+        dismissedAtIso: null,
+        dryRun: false,
+        gardenId: 'user-a',
+        id: 'log-1',
+        messageSummary: 'Water tomatoes',
+        recipientRedacted: 'in-app',
+        sentAtIso: '2026-06-21T11:00:00.000Z',
+        snoozedUntilIso: '2026-06-22T11:00:00.000Z',
+        status: 'sent',
+        taskId: 'water-1',
+        type: 'watering',
+        userId: 'user-a',
+      }),
+    ).toMatchObject({
+      snoozedUntilIso: '2026-06-22T11:00:00.000Z',
+      type: 'watering',
     });
   });
 
@@ -151,7 +330,7 @@ describe('garden domain validation', () => {
     ).toMatchObject({
       issueCategory: 'pest',
       issueSeverity: 'high',
-      issueStatus: 'todo',
+      issueStatus: 'open',
       photos: [
         {
           fileName: 'basil.jpg',

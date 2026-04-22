@@ -2,21 +2,23 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    function isAllowedGardenEmail() {
-      return request.auth.token.email in [
-        'primary.gardener@example.com',
-        'partner.gardener@example.com'
-      ];
+    function hasGardenAccess() {
+      return request.auth != null
+        && request.auth.token.keys().hasAny(['gardenAccess'])
+        && request.auth.token.gardenAccess == true
+        && request.auth.token.keys().hasAny(['secretFaedeMember'])
+        && request.auth.token.secretFaedeMember == true;
+    }
+
+    function isOwner(userId) {
+      return hasGardenAccess()
+        && request.auth.uid == userId;
     }
 
     match /users/{userId}/journal/{allPaths=**} {
-      allow read: if request.auth != null
-        && request.auth.uid == userId
-        && isAllowedGardenEmail();
+      allow read: if isOwner(userId);
 
-      allow write: if request.auth != null
-        && request.auth.uid == userId
-        && isAllowedGardenEmail()
+      allow write: if isOwner(userId)
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }

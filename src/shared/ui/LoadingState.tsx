@@ -1,3 +1,8 @@
+import {
+  Panel,
+  SkeletonBlock,
+} from '../../features/shared/design/DesignPrimitives';
+
 interface LoadingStateProps {
   message: string;
   title: string;
@@ -5,9 +10,14 @@ interface LoadingStateProps {
 
 export function LoadingState({ message, title }: LoadingStateProps) {
   return (
-    <section aria-live="polite" className="pageShell pageCard stack">
-      <h1 className="pageTitle">{title}</h1>
-      <p className="pageLead">{message}</p>
-    </section>
+    <div aria-live="polite" className="pageShell">
+      <Panel>
+        <div className="stack">
+          <h1 className="pageTitle">{title}</h1>
+          <p className="pageLead">{message}</p>
+          <SkeletonBlock />
+        </div>
+      </Panel>
+    </div>
   );
 }

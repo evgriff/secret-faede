@@ -1,45 +1,74 @@
 import type { AuthService } from '../../domain/auth/AuthService';
+import type { GardenOperationsService } from '../../domain/gardens/GardenOperationsService';
 import type { GardenRepository } from '../../domain/gardens/GardenRepository';
 import type { MediaStorageService } from '../../domain/media/MediaStorageService';
+import type { MobileDeviceService } from '../../domain/mobile/MobileDeviceService';
 import type { NotificationService } from '../../domain/notifications/NotificationService';
+import type { TelemetryService } from '../../domain/telemetry/TelemetryService';
 import type { UserProfileRepository } from '../../domain/users/UserProfileRepository';
 import type { WeatherProvider } from '../../domain/weather/WeatherProvider';
 import type { AppEnvironment } from '../../shared/config/env';
 import { resolveAppEnvironment } from '../../shared/config/env';
-import { FirebaseAuthService } from '../firebase/auth/firebaseAuthService';
-import { FirebaseGardenRepository } from '../firebase/gardens/firebaseGardenRepository';
-import { FirebaseMediaStorageService } from '../firebase/media/firebaseMediaStorageService';
-import { FirebaseNotificationService } from '../firebase/notifications/firebaseNotificationService';
-import { FirebaseUserProfileRepository } from '../firebase/users/firebaseUserProfileRepository';
+import { configureNetworkStatusAdapter } from '../../shared/network/networkStatus';
+import { createLazyMobileDeviceService } from '../capacitor/lazyMobileDeviceService';
 import { MockAuthService } from '../mock/auth/mockAuthService';
+import { MockGardenOperationsService } from '../mock/gardens/mockGardenOperationsService';
 import { MockGardenRepository } from '../mock/gardens/mockGardenRepository';
 import { MockMediaStorageService } from '../mock/media/mockMediaStorageService';
 import { MockNotificationService } from '../mock/notifications/mockNotificationService';
+import { MockTelemetryService } from '../mock/telemetry/mockTelemetryService';
 import { MockUserProfileRepository } from '../mock/users/mockUserProfileRepository';
 import { createWeatherProvider } from '../weather/createWeatherProvider';
 
 export interface AppServices {
   authService: AuthService;
   environment: AppEnvironment;
+  gardenOperationsService: GardenOperationsService;
   gardenRepository: GardenRepository;
   mediaStorageService: MediaStorageService;
+  mobileDeviceService: MobileDeviceService;
   notificationService: NotificationService;
+  telemetryService: TelemetryService;
   userProfileRepository: UserProfileRepository;
   weatherProvider: WeatherProvider;
 }
 
-export function createRuntimeServices(
+export async function createRuntimeServices(
   environment: AppEnvironment = resolveAppEnvironment(),
-): AppServices {
+): Promise<AppServices> {
   const weatherProvider = createWeatherProvider(environment);
+  const mobileDeviceService = createLazyMobileDeviceService();
+
+  configureNetworkStatusAdapter(mobileDeviceService);
 
   if (environment.runtimeMode === 'firebase') {
+    const [
+      { FirebaseAuthService },
+      { FirebaseGardenOperationsService },
+      { FirebaseGardenRepository },
+      { FirebaseMediaStorageService },
+      { FirebaseNotificationService },
+      { FirebaseTelemetryService },
+      { FirebaseUserProfileRepository },
+    ] = await Promise.all([
+      import('../firebase/auth/firebaseAuthService'),
+      import('../firebase/gardens/firebaseGardenOperationsService'),
+      import('../firebase/gardens/firebaseGardenRepository'),
+      import('../firebase/media/firebaseMediaStorageService'),
+      import('../firebase/notifications/firebaseNotificationService'),
+      import('../firebase/telemetry/firebaseTelemetryService'),
+      import('../firebase/users/firebaseUserProfileRepository'),
+    ]);
+
     return {
       authService: new FirebaseAuthService(environment),
       environment,
+      gardenOperationsService: new FirebaseGardenOperationsService(environment),
       gardenRepository: new FirebaseGardenRepository(environment),
       mediaStorageService: new FirebaseMediaStorageService(environment),
+      mobileDeviceService,
       notificationService: new FirebaseNotificationService(environment),
+      telemetryService: new FirebaseTelemetryService(environment),
       userProfileRepository: new FirebaseUserProfileRepository(environment),
       weatherProvider,
     };
@@ -48,9 +77,12 @@ export function createRuntimeServices(
   return {
     authService: new MockAuthService(),
     environment,
+    gardenOperationsService: new MockGardenOperationsService(),
     gardenRepository: new MockGardenRepository(),
     mediaStorageService: new MockMediaStorageService(),
+    mobileDeviceService,
     notificationService: new MockNotificationService(),
+    telemetryService: new MockTelemetryService(),
     userProfileRepository: new MockUserProfileRepository(),
     weatherProvider,
   };

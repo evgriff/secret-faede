@@ -2,12 +2,17 @@ import SunCalc from 'suncalc';
 
 import type {
   Garden,
-  Plot,
-  Structure,
   SunExposure,
   SunShadeArea,
   SunShadeLayer,
+  SunShadeMicroclimateNote,
+  SunShadeSource,
 } from '../../domain/gardens/GardenRepository';
+import {
+  buildMicroclimateNotes,
+  buildShadeCasters,
+  getCellShadeHits,
+} from './sunShadeModeling';
 
 export type SunSeason = 'fall' | 'spring' | 'summer';
 
@@ -21,7 +26,7 @@ export const sunSeasons: Array<{
   { label: 'Fall shoulder', representativeDate: '09-15', season: 'fall' },
 ];
 
-export const sunModelVersion = 'suncalc-shadow-v1';
+export const sunModelVersion = 'suncalc-shadow-v2';
 const cellSizeFt = 1;
 const sampleMinutes = 15;
 
@@ -53,6 +58,7 @@ export function buildSunShadeLayer(
   const latitude = location.latitude ?? 42.3314;
   const longitude = location.longitude ?? -83.0458;
   const sampleTimes = createSampleTimes(options.representativeDate);
+  const shadeCasters = buildShadeCasters(garden);
   const areas: SunShadeArea[] = [];
 
   for (let yFt = 0; yFt < garden.plot.depthFt; yFt += cellSizeFt) {
@@ -61,6 +67,7 @@ export function buildSunShadeLayer(
         xFt: xFt + cellSizeFt / 2,
         yFt: yFt + cellSizeFt / 2,
       };
+      const shadeSources = new Map<string, SunShadeSource>();
       const sunHours = sampleTimes.reduce((total, date) => {
         const position = SunCalc.getPosition(date, latitude, longitude);
 
@@ -68,26 +75,48 @@ export function buildSunShadeLayer(
           return total;
         }
 
-        return isCellShaded(
+        const shadeHits = getCellShadeHits(
           cellCenter,
-          garden.structures,
+          shadeCasters,
           garden.plot,
           position,
-        )
-          ? total
-          : total + sampleMinutes / 60;
-      }, 0);
+        );
 
-      areas.push({
-        depthFt: cellSizeFt,
-        exposure: classifySunHours(sunHours),
-        id: `${options.season}-${xFt}-${yFt}`,
-        source: 'modeled',
-        sunHours: Number(sunHours.toFixed(2)),
-        widthFt: cellSizeFt,
-        xFt,
-        yFt,
+        if (shadeHits.length > 0) {
+          shadeHits.forEach((hit) =>
+            shadeSources.set(`${hit.source.itemType}:${hit.source.itemId}`, {
+              ...hit.source,
+            }),
+          );
+          return total;
+        }
+
+        return total + sampleMinutes / 60;
+      }, 0);
+      const sources = [...shadeSources.values()].slice(0, 4);
+      const microclimateNotes = buildMicroclimateNotes({
+        cell: cellCenter,
+        garden,
+        shadeSources: sources,
+        sunHours,
       });
+
+      areas.push(
+        withAreaMetadata(
+          {
+            depthFt: cellSizeFt,
+            exposure: classifySunHours(sunHours),
+            id: `${options.season}-${xFt}-${yFt}`,
+            source: 'modeled',
+            sunHours: Number(sunHours.toFixed(2)),
+            widthFt: cellSizeFt,
+            xFt,
+            yFt,
+          },
+          sources,
+          microclimateNotes,
+        ),
+      );
     }
   }
 
@@ -147,7 +176,15 @@ export function cropSunRequirementMet(
     return true;
   }
 
-  return exposureScore(actual) >= exposureScore(required);
+  if (required === 'partShade' && actual === 'fullSun') {
+    return false;
+  }
+
+  if (required === 'fullShade' && actual !== 'fullShade') {
+    return false;
+  }
+
+  return getSunExposureScore(actual) >= getSunExposureScore(required);
 }
 
 export function createManualSunArea(
@@ -155,17 +192,25 @@ export function createManualSunArea(
   xFt: number,
   yFt: number,
   exposure: SunExposure,
+  metadata: {
+    microclimateNotes?: SunShadeMicroclimateNote[] | undefined;
+    shadeSources?: SunShadeSource[] | undefined;
+  } = {},
 ): SunShadeArea {
-  return {
-    depthFt: cellSizeFt,
-    exposure,
-    id: `${season}-${Math.floor(xFt)}-${Math.floor(yFt)}`,
-    source: 'manual',
-    sunHours: manualSunHours(exposure),
-    widthFt: cellSizeFt,
-    xFt: Math.floor(xFt),
-    yFt: Math.floor(yFt),
-  };
+  return withAreaMetadata(
+    {
+      depthFt: cellSizeFt,
+      exposure,
+      id: `${season}-${Math.floor(xFt)}-${Math.floor(yFt)}`,
+      source: 'manual',
+      sunHours: manualSunHours(exposure),
+      widthFt: cellSizeFt,
+      xFt: Math.floor(xFt),
+      yFt: Math.floor(yFt),
+    },
+    metadata.shadeSources ?? [],
+    metadata.microclimateNotes ?? [],
+  );
 }
 
 function createSampleTimes(representativeDate: string) {
@@ -181,75 +226,6 @@ function createSampleTimes(representativeDate: string) {
   }
 
   return sampleTimes;
-}
-
-function isCellShaded(
-  cell: { xFt: number; yFt: number },
-  structures: Structure[],
-  plot: Plot,
-  sunPosition: { altitude: number; azimuth: number },
-) {
-  const shadowDirection = getShadowDirection(sunPosition.azimuth, plot);
-
-  return structures.some((structure) => {
-    if (!castsShade(structure)) {
-      return false;
-    }
-
-    const center = {
-      xFt: structure.xFt + structure.widthFt / 2,
-      yFt: structure.yFt + structure.depthFt / 2,
-    };
-    const dx = cell.xFt - center.xFt;
-    const dy = cell.yFt - center.yFt;
-    const projection = dx * shadowDirection.x + dy * shadowDirection.y;
-    const perpendicular = Math.abs(
-      dx * -shadowDirection.y + dy * shadowDirection.x,
-    );
-    const heightFt = structure.heightFt ?? 0;
-    const shadowLengthFt = Math.min(
-      heightFt / Math.tan(Math.max(sunPosition.altitude, 0.1)),
-      Math.max(plot.widthFt, plot.depthFt) * 2,
-    );
-    const shadowWidthFt =
-      Math.max(structure.widthFt, structure.depthFt) / 2 +
-      (structure.canopyRadiusFt ?? 0);
-
-    return (
-      projection >= 0 &&
-      projection <= shadowLengthFt &&
-      perpendicular <= Math.max(shadowWidthFt, 0.5)
-    );
-  });
-}
-
-function castsShade(structure: Structure) {
-  return (
-    (structure.heightFt ?? 0) > 0 &&
-    [
-      'compost',
-      'container',
-      'fence',
-      'fenceWall',
-      'other',
-      'raisedBed',
-      'treeObstacle',
-      'trellis',
-      'waterSource',
-    ].includes(structure.type)
-  );
-}
-
-function getShadowDirection(azimuth: number, plot: Plot) {
-  const sunAzimuthFromNorth = azimuth + Math.PI;
-  const shadowAzimuth = sunAzimuthFromNorth + Math.PI;
-  const plotRotation = (plot.orientationDegrees * Math.PI) / 180;
-  const angle = shadowAzimuth + plotRotation;
-
-  return {
-    x: Math.sin(angle),
-    y: -Math.cos(angle),
-  };
 }
 
 function classifySunHours(sunHours: number): SunExposure {
@@ -285,19 +261,31 @@ function mergeManualOverrides(
 
     return {
       ...layer,
+      observedOn: previousLayer?.observedOn ?? layer.observedOn,
       areas: layer.areas.map((area) => {
         const manualArea = manualAreas.find(
           (candidate) =>
             candidate.xFt === area.xFt && candidate.yFt === area.yFt,
         );
 
-        return manualArea ?? area;
+        return manualArea ? mergeManualArea(area, manualArea) : area;
       }),
     };
   });
 }
 
-function exposureScore(exposure: SunExposure) {
+function mergeManualArea(modeledArea: SunShadeArea, manualArea: SunShadeArea) {
+  return withAreaMetadata(
+    {
+      ...modeledArea,
+      ...manualArea,
+    },
+    modeledArea.shadeSources ?? manualArea.shadeSources ?? [],
+    manualArea.microclimateNotes ?? modeledArea.microclimateNotes ?? [],
+  );
+}
+
+export function getSunExposureScore(exposure: SunExposure) {
   switch (exposure) {
     case 'fullSun':
       return 4;
@@ -321,4 +309,21 @@ function manualSunHours(exposure: SunExposure) {
     case 'fullShade':
       return 1;
   }
+}
+
+function withAreaMetadata(
+  area: SunShadeArea,
+  shadeSources: SunShadeSource[],
+  microclimateNotes: SunShadeMicroclimateNote[],
+): SunShadeArea {
+  const baseArea = { ...area };
+
+  delete baseArea.microclimateNotes;
+  delete baseArea.shadeSources;
+
+  return {
+    ...baseArea,
+    ...(microclimateNotes.length > 0 ? { microclimateNotes } : {}),
+    ...(shadeSources.length > 0 ? { shadeSources } : {}),
+  };
 }

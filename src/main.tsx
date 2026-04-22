@@ -8,12 +8,26 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/utilities.css';
 
-const services = createRuntimeServices();
+const root = createRoot(document.getElementById('root')!);
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <AppProviders services={services}>
-      <App />
-    </AppProviders>
-  </StrictMode>,
-);
+void bootstrap().catch((error: unknown) => {
+  console.error('Unable to start Secret Faede', error);
+  root.render(
+    <div className="pageShell" role="alert">
+      <h1 className="pageTitle">Unable to start the app.</h1>
+      <p className="pageLead">Reload and try again.</p>
+    </div>,
+  );
+});
+
+async function bootstrap() {
+  const services = await createRuntimeServices();
+
+  root.render(
+    <StrictMode>
+      <AppProviders services={services}>
+        <App />
+      </AppProviders>
+    </StrictMode>,
+  );
+}

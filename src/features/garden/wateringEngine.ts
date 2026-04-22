@@ -1,9 +1,11 @@
 import { getCropById } from '../../domain/crops/cropCatalog';
 import {
   annArborLocation,
+  type DrainageProfile,
   type Garden,
   type GardenLocation,
   type Planting,
+  type SoilType,
   type Structure,
   type WaterRecommendation,
   type WeatherSnapshot,
@@ -28,10 +30,14 @@ export interface WeatherWateringContext {
 }
 
 interface WaterTarget {
+  drainageProfile: DrainageProfile;
   id: string;
+  irrigationZone: string | null;
   label: string;
   mulched: boolean;
+  soilType: SoilType;
   targetType: 'bed' | 'planting';
+  waterNeedSource: 'cropProfile' | 'fallback' | 'manual';
   weeklyWaterNeedInches: number;
 }
 
@@ -76,6 +82,7 @@ export function createWeatherSnapshot(
       .map((alert) => alert.headline || alert.event),
     capturedAtIso: now.toISOString(),
     conditionSummary: context.currentConditions.conditionSummary,
+    dataQuality: getWeatherDataQuality(context),
     evapotranspirationIn:
       context.agricultureMetrics.evapotranspirationNext24hIn,
     forecastRainNext24In: context.forecast.next24hPrecipIn,
@@ -89,6 +96,11 @@ export function createWeatherSnapshot(
     observedForDate,
     overnightLowF: context.forecast.overnightLowF,
     precipitationIn: context.recentPrecipitation.totalIn,
+    providerDecision:
+      context.currentConditions.providerId === 'tomorrowIo'
+        ? 'Tomorrow.io enhanced weather was used with NWS alerts and precipitation fallback.'
+        : 'National Weather Service was used as the default weather provider.',
+    providerLabel: context.currentConditions.sourceLabel,
     recentPrecipitation72hIn: context.recentPrecipitation.last72hIn,
     source: context.currentConditions.providerId,
     temperatureF: context.currentConditions.temperatureF,
@@ -118,8 +130,14 @@ export function buildWaterRecommendations(
   return getWaterTargets(garden).flatMap((target): WaterRecommendation[] => {
     const manualWaterIn = estimateManualWateringIn(garden, target, now);
     const mulchMultiplier = target.mulched ? 0.85 : 1;
+    const soilMultiplier = getSoilMultiplier(target.soilType);
+    const drainageMultiplier = getDrainageMultiplier(target.drainageProfile);
     const adjustedNeedInches =
-      target.weeklyWaterNeedInches * heatMultiplier * mulchMultiplier +
+      target.weeklyWaterNeedInches *
+        heatMultiplier *
+        mulchMultiplier *
+        soilMultiplier *
+        drainageMultiplier +
       etAdjustment;
     const deficitInches = Math.max(
       adjustedNeedInches - effectiveRainIn - manualWaterIn,
@@ -155,6 +173,7 @@ export function buildWaterRecommendations(
       {
         deficitInches: roundTo(deficitInches, 2),
         generatedAtIso: now.toISOString(),
+        generatedBy: 'client',
         gardenId: garden.id,
         id: `water-${target.targetType}-${target.id}-${recommendationDate}`,
         inchesNeeded: recommendedWaterInches,
@@ -163,12 +182,14 @@ export function buildWaterRecommendations(
         reason: rationale[0] ?? 'Water deficit detected.',
         recommendationDate,
         recommendedWaterInches,
+        refreshedAtIso: now.toISOString(),
         status,
         suppressUntilIso,
         targetId: target.id,
         targetLabel: target.label,
         targetType: target.targetType,
         urgency,
+        dataQuality: getRecommendationDataQuality(context, target),
         weatherSnapshotId: snapshot.id,
       },
     ];
@@ -188,17 +209,28 @@ function getWaterTargets(garden: Garden): WaterTarget[] {
 
 function createPlantingTarget(garden: Garden, planting: Planting): WaterTarget {
   const crop = getCropById(planting.cropId);
-  const containerMultiplier = getPlantingContainerMultiplier(garden, planting);
+  const structure = getPlantingStructure(garden, planting);
+  const containerMultiplier = getStructureWaterMultiplier(structure);
+  const source = planting.weeklyWaterNeedInches
+    ? 'manual'
+    : crop?.weeklyWaterNeedInches
+      ? 'cropProfile'
+      : 'fallback';
   const weeklyWaterNeedInches =
     planting.weeklyWaterNeedInches ??
     crop?.weeklyWaterNeedInches ??
     fallbackCropWaterNeed(crop?.waterNeeds ?? null);
 
   return {
+    drainageProfile: structure?.drainageProfile ?? 'unknown',
     id: planting.id,
+    irrigationZone:
+      planting.irrigationZone ?? structure?.irrigationZone ?? null,
     label: planting.label,
     mulched: planting.mulched,
+    soilType: structure?.soilType ?? 'unknown',
     targetType: 'planting',
+    waterNeedSource: source,
     weeklyWaterNeedInches: weeklyWaterNeedInches * containerMultiplier,
   };
 }
@@ -226,19 +258,25 @@ function createBedTarget(garden: Garden, structure: Structure): WaterTarget {
         : 1;
 
   return {
+    drainageProfile: structure.drainageProfile ?? 'unknown',
     id: structure.id,
+    irrigationZone: structure.irrigationZone ?? null,
     label: structure.label,
     mulched: structure.mulched,
+    soilType: structure.soilType ?? 'unknown',
     targetType: 'bed',
+    waterNeedSource: bedPlantings.length > 0 ? 'cropProfile' : 'fallback',
     weeklyWaterNeedInches: averageCropNeed * bedMultiplier,
   };
 }
 
-function getPlantingContainerMultiplier(garden: Garden, planting: Planting) {
-  const structure = garden.structures.find((candidate) =>
+function getPlantingStructure(garden: Garden, planting: Planting) {
+  return garden.structures.find((candidate) =>
     isPointInsideStructure(planting.xFt, planting.yFt, candidate),
   );
+}
 
+function getStructureWaterMultiplier(structure: Structure | undefined) {
   if (!structure) {
     return 1;
   }
@@ -349,6 +387,30 @@ function getHeatMultiplier(dailyHighF: number | null) {
   return dailyHighF >= 82 ? 1.05 : 1;
 }
 
+function getSoilMultiplier(soilType: SoilType) {
+  if (soilType === 'sandy') {
+    return 1.12;
+  }
+
+  if (soilType === 'clay') {
+    return 0.94;
+  }
+
+  return 1;
+}
+
+function getDrainageMultiplier(drainageProfile: DrainageProfile) {
+  if (drainageProfile === 'fast') {
+    return 1.12;
+  }
+
+  if (drainageProfile === 'slow') {
+    return 0.92;
+  }
+
+  return 1;
+}
+
 function getUrgency(deficitInches: number, dailyHighF: number | null) {
   if (deficitInches >= 0.75 || (dailyHighF ?? 0) >= 95) {
     return 'high';
@@ -409,6 +471,24 @@ function buildRationale({
     rationale.push('Mulch reduced the water target.');
   }
 
+  if (target.soilType === 'sandy' || target.drainageProfile === 'fast') {
+    rationale.push('Fast-draining conditions increased the water target.');
+  }
+
+  if (target.soilType === 'clay' || target.drainageProfile === 'slow') {
+    rationale.push('Slow-draining conditions reduced the water target.');
+  }
+
+  if (target.irrigationZone) {
+    rationale.push(`Assigned irrigation zone: ${target.irrigationZone}.`);
+  }
+
+  if (target.waterNeedSource === 'fallback') {
+    rationale.push(
+      'Crop-specific water data is incomplete, so a conservative default was used.',
+    );
+  }
+
   if (status === 'suppressed') {
     rationale.push(
       `Rain is expected soon, so the ${roundTo(deficitInches, 2)} in deficit is suppressed until the forecast rain window.`,
@@ -426,6 +506,31 @@ function buildRationale({
   }
 
   return rationale;
+}
+
+function getWeatherDataQuality(context: WeatherWateringContext) {
+  const missingSignals = [
+    context.currentConditions.temperatureF === null,
+    context.forecast.periods.length === 0,
+    context.recentPrecipitation.generatedAtIso === '',
+  ].filter(Boolean).length;
+
+  if (missingSignals === 0) {
+    return 'complete';
+  }
+
+  return missingSignals === 1 ? 'partial' : 'limited';
+}
+
+function getRecommendationDataQuality(
+  context: WeatherWateringContext,
+  target: WaterTarget,
+) {
+  if (target.waterNeedSource === 'fallback') {
+    return 'limited';
+  }
+
+  return getWeatherDataQuality(context);
 }
 
 function fallbackCropWaterNeed(waterNeeds: 'high' | 'low' | 'medium' | null) {

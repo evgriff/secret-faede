@@ -3,6 +3,7 @@ import type {
   NotificationService,
   PushRegistrationResult,
 } from '../../../domain/notifications/NotificationService';
+import type { PushNotificationsPlugin } from '@capacitor/push-notifications';
 import type { AppEnvironment } from '../../../shared/config/env';
 import { getFirebaseMessagingClient, getFirestoreClient } from '../app';
 import {
@@ -23,6 +24,45 @@ export class FirebaseNotificationService implements NotificationService {
 
   constructor(private readonly environment: AppEnvironment) {
     this.firestore = getFirestoreClient(environment);
+  }
+
+  async registerNativePush(userId: string): Promise<PushRegistrationResult> {
+    const { Capacitor } = await import('@capacitor/core');
+
+    if (!Capacitor.isNativePlatform()) {
+      return {
+        message: 'Native push is available only in the iOS or Android shell.',
+        status: 'unsupported',
+        tokenRegisteredAtIso: null,
+      };
+    }
+
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    const permission = await PushNotifications.requestPermissions();
+
+    if (permission.receive !== 'granted') {
+      return {
+        message: 'Native push permission was not granted.',
+        status: 'denied',
+        tokenRegisteredAtIso: null,
+      };
+    }
+
+    const token = await waitForNativePushToken(PushNotifications);
+    const tokenRegisteredAtIso = new Date().toISOString();
+
+    await this.persistPushToken({
+      platform: `native-${Capacitor.getPlatform()}`,
+      token,
+      tokenRegisteredAtIso,
+      userId,
+    });
+
+    return {
+      message: 'Native push is enabled for this device.',
+      status: 'registered',
+      tokenRegisteredAtIso,
+    };
   }
 
   async registerWebPush(userId: string): Promise<PushRegistrationResult> {
@@ -72,18 +112,12 @@ export class FirebaseNotificationService implements NotificationService {
     }
 
     const tokenRegisteredAtIso = new Date().toISOString();
-    const tokenId = await hashToken(token);
 
-    await setDoc(doc(this.firestore, 'users', userId, 'pushTokens', tokenId), {
-      createdAt: serverTimestamp(),
-      createdAtIso: tokenRegisteredAtIso,
-      lastSeenAt: serverTimestamp(),
-      lastSeenAtIso: tokenRegisteredAtIso,
-      permission: 'granted',
+    await this.persistPushToken({
       platform: 'web',
       token,
-      tokenId,
-      userAgent: navigator.userAgent,
+      tokenRegisteredAtIso,
+      userId,
     });
 
     return {
@@ -119,6 +153,42 @@ export class FirebaseNotificationService implements NotificationService {
       unsubscribe?.();
     };
   }
+
+  private async persistPushToken({
+    platform,
+    token,
+    tokenRegisteredAtIso,
+    userId,
+  }: {
+    platform: string;
+    token: string;
+    tokenRegisteredAtIso: string;
+    userId: string;
+  }) {
+    const tokenId = await hashToken(token);
+
+    await setDoc(
+      doc(this.firestore, 'users', userId, 'pushTokens', tokenId),
+      {
+        createdAtIso: tokenRegisteredAtIso,
+        firstRegisteredAt: serverTimestamp(),
+        firstRegisteredAtIso: tokenRegisteredAtIso,
+        lastSeenAt: serverTimestamp(),
+        lastSeenAtIso: tokenRegisteredAtIso,
+        permissionLastCheckedAtIso: tokenRegisteredAtIso,
+        permission: 'granted',
+        platform,
+        status: 'active',
+        token,
+        tokenId,
+        userAgent:
+          typeof navigator === 'undefined'
+            ? 'native-shell'
+            : navigator.userAgent,
+      },
+      { merge: true },
+    );
+  }
 }
 
 async function registerMessagingServiceWorker(environment: AppEnvironment) {
@@ -144,6 +214,7 @@ function toForegroundPushMessage(
 ): ForegroundPushMessage {
   return {
     body: payload.notification?.body ?? payload.data?.body ?? '',
+    link: payload.data?.link ?? '/app/today',
     title: payload.notification?.title ?? payload.data?.title ?? 'Garden alert',
     type: payload.data?.type ?? 'weather',
   };
@@ -158,4 +229,46 @@ async function hashToken(token: string) {
   return Array.from(new Uint8Array(digest))
     .map((value) => value.toString(16).padStart(2, '0'))
     .join('');
+}
+
+async function waitForNativePushToken(
+  PushNotifications: PushNotificationsPlugin,
+) {
+  let resolveToken: (token: string) => void = () => undefined;
+  let rejectToken: (error: Error) => void = () => undefined;
+  const listeners = await Promise.all([
+    PushNotifications.addListener('registration', (token) => {
+      if (!token.value) {
+        return;
+      }
+
+      resolveToken(token.value);
+    }),
+    PushNotifications.addListener('registrationError', (error) => {
+      rejectToken(new Error(error.error ?? 'Native push registration failed.'));
+    }),
+  ]);
+
+  try {
+    const token = await new Promise<string>((resolve, reject) => {
+      const timeoutId = globalThis.setTimeout(() => {
+        reject(new Error('Native push registration timed out.'));
+      }, 15_000);
+
+      resolveToken = (value: string) => {
+        globalThis.clearTimeout(timeoutId);
+        resolve(value);
+      };
+      rejectToken = (error: Error) => {
+        globalThis.clearTimeout(timeoutId);
+        reject(error);
+      };
+
+      void PushNotifications.register().catch(rejectToken);
+    });
+
+    return token;
+  } finally {
+    await Promise.all(listeners.map((listener) => listener.remove()));
+  }
 }

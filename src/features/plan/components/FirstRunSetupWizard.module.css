@@ -1,0 +1,220 @@
+.setup {
+  min-height: calc(100dvh - 7rem);
+}
+
+.card {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 68rem;
+  margin: 0 auto;
+}
+
+.header {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 46rem;
+}
+
+.header span,
+.panel h2,
+.field span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 820;
+  text-transform: uppercase;
+}
+
+.header h1 {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-display);
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.header p,
+.helpText,
+.estimate,
+.footer p,
+.template em {
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);
+  gap: var(--space-4);
+}
+
+.panel {
+  display: grid;
+  align-content: start;
+  gap: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: #fffdf7;
+  padding: var(--space-4);
+  box-shadow: var(--shadow-panel);
+}
+
+.panel h2 {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-title);
+  line-height: 1.1;
+  text-transform: none;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.field input,
+.field select {
+  min-height: 2.85rem;
+  width: 100%;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: #ffffff;
+  color: var(--color-text-strong);
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+}
+
+.twoColumn,
+.plotGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.plotGrid {
+  grid-template-columns: 1.2fr 0.7fr 0.7fr;
+}
+
+.actionRow,
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.actionRow {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.actionRow button,
+.footer button {
+  min-height: 2.85rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: #fffdf7;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 820;
+  padding: 0 0.9rem;
+}
+
+.actionRow button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.footer {
+  border-top: 1px solid rgba(54, 48, 40, 0.1);
+  padding-top: var(--space-2);
+}
+
+.footer button {
+  border-color: var(--color-text-strong);
+  background: var(--color-text-strong);
+  color: var(--color-background);
+}
+
+.templates {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.template {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem;
+  min-height: 8.5rem;
+  border: 1px solid rgba(54, 48, 40, 0.16);
+  border-radius: var(--radius-card);
+  background: #ffffff;
+  cursor: pointer;
+  padding: 0.8rem;
+}
+
+.template input {
+  margin-top: 0.2rem;
+}
+
+.template span {
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.template strong {
+  color: var(--color-text-strong);
+  line-height: 1.15;
+}
+
+.template small {
+  color: #2f6f43;
+  font-weight: 820;
+}
+
+.template em {
+  font-size: var(--font-size-small);
+  font-style: normal;
+}
+
+.selected {
+  border-color: #24472e;
+  background: #f2f8ee;
+  box-shadow: 0 0 0 3px rgba(36, 71, 46, 0.12);
+}
+
+.error {
+  margin: 0;
+  color: #a33428;
+}
+
+.field input:focus-visible,
+.field select:focus-visible,
+.actionRow button:focus-visible,
+.footer button:focus-visible,
+.template:focus-within {
+  outline: 2px solid var(--color-plant-sky);
+  outline-offset: 2px;
+}
+
+@media (max-width: 58rem) {
+  .grid,
+  .plotGrid,
+  .templates,
+  .twoColumn {
+    grid-template-columns: 1fr;
+  }
+
+  .footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .footer button {
+    width: 100%;
+  }
+}

@@ -1,0 +1,399 @@
+.entryList {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.feedSection,
+.feedList {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.pinnedIssues {
+  display: grid;
+  grid-template-columns: auto repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  align-items: stretch;
+  border-bottom: 1px solid rgba(76, 85, 70, 0.12);
+  padding-bottom: 0.7rem;
+}
+
+.pinLabel {
+  display: grid;
+  align-items: center;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.issuePin {
+  display: grid;
+  gap: 0.15rem;
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-card);
+  background: var(--color-warning-bg);
+  padding: 0.6rem 0.7rem;
+}
+
+.issuePin strong {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-small);
+}
+
+.issuePin span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+}
+
+.feedCard {
+  display: grid;
+  gap: 0.7rem;
+  border: 1px solid rgba(76, 85, 70, 0.13);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  padding: 0.7rem;
+}
+
+.unresolvedCard {
+  border-color: var(--color-warning-border);
+}
+
+.focusedCard {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: 2px;
+}
+
+.feedContent {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.feedHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+}
+
+.feedHeader span {
+  color: var(--color-text-strong);
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.feedCard h3,
+.feedCard p {
+  margin: 0;
+}
+
+.feedCard h3 {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-body);
+  line-height: 1.25;
+}
+
+.feedCard p {
+  color: var(--color-text);
+  font-size: var(--font-size-small);
+}
+
+.compactPhotoRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.compactPhotoRow img,
+.compactPhotoRow span {
+  width: 4rem;
+  height: 3rem;
+  border-radius: var(--radius-control);
+}
+
+.compactPhotoRow img {
+  border: 1px solid var(--color-border);
+  object-fit: cover;
+}
+
+.compactPhotoRow span {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  font-weight: 760;
+}
+
+.issueFooter {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.issueFooter small {
+  color: var(--color-text-muted);
+}
+
+.entryCard,
+.issueCard,
+.mediaCard,
+.metric {
+  border: 1px solid rgba(76, 85, 70, 0.14);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-3);
+}
+
+.entryCard,
+.issueCard {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.issueBoard,
+.summaryColumns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.issueColumn,
+.summaryList {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.issueColumn h3,
+.summaryList h3 {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-small);
+}
+
+.issueCard h4 {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-body);
+}
+
+.cardHeader,
+.meta,
+.simpleList li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.cardHeader,
+.meta,
+.empty,
+.disclosure,
+.mediaCard figcaption span {
+  color: var(--color-text-muted);
+}
+
+.cardHeader,
+.meta {
+  font-size: var(--font-size-caption);
+}
+
+.meta {
+  justify-content: start;
+}
+
+.meta span,
+.cardHeader span {
+  border: 1px solid rgba(76, 85, 70, 0.14);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  padding: 0.2rem 0.45rem;
+}
+
+.statusActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.statusActions button {
+  min-height: 2.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-solid);
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 720;
+  padding: 0.5rem 0.75rem;
+}
+
+.statusActions button[aria-pressed='true'] {
+  border-color: var(--color-accent-strong);
+  background: var(--color-surface-alt);
+}
+
+.linkedTaskList,
+.timeline {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+}
+
+.linkedTaskList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-bottom: 1px solid rgba(76, 85, 70, 0.12);
+  padding-bottom: 0.45rem;
+}
+
+.linkedTaskList li:last-child,
+.simpleList li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.linkedTaskList strong {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+}
+
+.photoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0.5rem;
+}
+
+.photoGrid img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-card);
+  object-fit: cover;
+}
+
+.mediaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-2);
+}
+
+.mediaCard {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.mediaCard img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.mediaCard figcaption {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0 var(--space-2) var(--space-2);
+}
+
+.mediaCard figcaption span,
+.disclosure {
+  font-size: 0.84rem;
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.metric {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.metric span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+}
+
+.metric strong {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-heading);
+  line-height: 1;
+}
+
+.simpleList {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+}
+
+.simpleList li {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.45rem;
+}
+
+.simpleList span {
+  color: var(--color-text);
+}
+
+.simpleList strong {
+  color: var(--color-text-strong);
+}
+
+.timeline {
+  border-left: 2px solid var(--color-border);
+  padding-left: var(--space-2);
+}
+
+.timeline li {
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+}
+
+.empty {
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-3);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .statusActions button:hover {
+    border-color: var(--color-accent-strong);
+    background: var(--color-surface-alt);
+  }
+}
+
+@media (max-width: 62rem) {
+  .pinnedIssues,
+  .issueBoard,
+  .metricGrid,
+  .summaryColumns {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 48rem) {
+  .statusActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .statusActions button {
+    width: 100%;
+  }
+}

@@ -1,0 +1,173 @@
+.screen {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  height: calc(100dvh - 7.25rem);
+  min-height: calc(100dvh - 7.25rem);
+  overflow: hidden;
+}
+
+.routeChrome {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.workspaceGrid {
+  display: grid;
+  grid-template-columns: 4.35rem minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: stretch;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.withSidePanel {
+  grid-template-columns: 4.35rem minmax(0, 1fr) minmax(18rem, 22rem);
+}
+
+.fullCanvas {
+  grid-template-columns: 4.35rem minmax(0, 1fr);
+}
+
+.canvasColumn {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.sidePanel {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow: auto;
+}
+
+.sidePanelLoading {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  padding: var(--space-3);
+}
+
+.errorPanel {
+  border: 1px solid rgba(163, 52, 40, 0.28);
+  border-radius: var(--radius-card);
+  background: rgba(163, 52, 40, 0.09);
+  padding: var(--space-3);
+}
+
+.draftChoice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid rgba(157, 126, 62, 0.2);
+  border-radius: var(--radius-card);
+  background: rgba(255, 248, 229, 0.72);
+  padding: 0.65rem 0.9rem;
+}
+
+.draftChoice strong,
+.draftChoice p {
+  margin: 0;
+}
+
+.draftChoice strong {
+  color: var(--color-text-strong);
+}
+
+.draftChoice p {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.draftChoiceActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.secondaryButton {
+  min-height: 2.35rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-solid);
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 720;
+  padding: 0 0.9rem;
+  box-shadow: var(--shadow-control);
+}
+
+.error {
+  margin: 0;
+  color: #a33428;
+}
+
+@media (max-width: 76rem) {
+  .withSidePanel {
+    grid-template-columns: 4.35rem minmax(0, 1fr) minmax(16rem, 18rem);
+  }
+}
+
+@media (max-width: 58rem) {
+  .screen {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    height: auto;
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .routeChrome {
+    order: 2;
+    padding-bottom: calc(8.5rem + env(safe-area-inset-bottom));
+  }
+
+  .workspaceGrid {
+    grid-template-columns: 1fr;
+    order: 1;
+    gap: 0;
+    overflow: visible;
+  }
+
+  .canvasColumn {
+    order: 1;
+  }
+
+  .sidePanel {
+    position: fixed;
+    right: 0.75rem;
+    bottom: calc(5rem + env(safe-area-inset-bottom));
+    left: 0.75rem;
+    z-index: 24;
+    max-height: min(68dvh, 40rem);
+    overflow: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface-solid);
+    box-shadow: 0 -18px 48px rgba(31, 27, 24, 0.14);
+    padding: var(--space-2);
+  }
+
+  .draftChoice {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .draftChoiceActions {
+    justify-content: flex-start;
+  }
+}

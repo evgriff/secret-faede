@@ -9,8 +9,8 @@ export function NotFoundPage() {
         <p className="pageLead">Not found</p>
         <h1 className="pageTitle">That route does not exist.</h1>
         <p className="pageLead">
-          Secret Faede only has sign-in, auth completion, access denied, and the
-          authenticated garden workspace.
+          Secret Faede only has sign-in, access denied, and the authenticated
+          garden workspace.
         </p>
         <Link className="inkLink" to={routePaths.root}>
           Return to the app root

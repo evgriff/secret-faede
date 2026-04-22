@@ -6,7 +6,13 @@ describe('getFirebaseAuthErrorMessage', () => {
   it('maps missing auth configuration to an actionable setup message', () => {
     expect(
       getFirebaseAuthErrorMessage({ code: 'auth/configuration-not-found' }),
-    ).toContain('enable Email/Password and Email link sign-in');
+    ).toContain('enable Email/Password sign-in');
+  });
+
+  it('maps invalid credentials to a calm sign-in error', () => {
+    expect(
+      getFirebaseAuthErrorMessage({ code: 'auth/invalid-credential' }),
+    ).toBe('The email or password is incorrect.');
   });
 
   it('maps unauthorized domain to an authorized domains message', () => {

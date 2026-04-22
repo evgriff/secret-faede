@@ -1,0 +1,300 @@
+import { getCropById } from '../../domain/crops/cropCatalog';
+import {
+  annArborClimateProfile,
+  createDefaultGarden,
+  createDefaultPlanting,
+  type Garden,
+} from '../../domain/gardens/GardenRepository';
+import {
+  getPlantingFootprint,
+  getStructureFootprint,
+  rectsOverlap,
+} from '../garden/gardenPlanning';
+import { isRectInsidePlot } from '../garden/gardenPlanningGeometry';
+import { scoreSunAreaFit, scoreSunFit } from './autoLayoutScoring';
+import { generateAutoLayoutCandidates } from './autoLayoutEngine';
+import {
+  createLayoutFixture,
+  createSunLayer,
+  makeSeasonSelection,
+} from './autoLayoutTestFixtures';
+
+describe('auto layout engine', () => {
+  it('generates deterministic feasible candidates from wanted crops', () => {
+    const garden = createLayoutFixture();
+    const sunLayer = createSunLayer(garden);
+    const firstRun = generateAutoLayoutCandidates(garden, { sunLayer });
+    const secondRun = generateAutoLayoutCandidates(garden, { sunLayer });
+
+    expect(firstRun).toHaveLength(3);
+    expect(firstRun.map((candidate) => candidate.id)).toEqual([
+      'auto-sunFirst',
+      'auto-supportFirst',
+      'auto-accessFirst',
+    ]);
+    expect(
+      firstRun.map((candidate) =>
+        candidate.plantings.map((planting) => [
+          planting.label,
+          planting.xFt,
+          planting.yFt,
+        ]),
+      ),
+    ).toEqual(
+      secondRun.map((candidate) =>
+        candidate.plantings.map((planting) => [
+          planting.label,
+          planting.xFt,
+          planting.yFt,
+        ]),
+      ),
+    );
+    expect(
+      new Set(
+        firstRun.map((candidate) =>
+          candidate.plantings
+            .map(
+              (planting) => `${planting.label}:${planting.xFt}:${planting.yFt}`,
+            )
+            .join('|'),
+        ),
+      ).size,
+    ).toBeGreaterThan(1);
+
+    for (const candidate of firstRun) {
+      expect(candidate.hardConstraintViolations).toEqual([]);
+      expect(candidate.score).toBeGreaterThan(60);
+      expect(candidate.plantings.length).toBeGreaterThanOrEqual(3);
+      expect(
+        candidate.structures.some((structure) => structure.type === 'trellis'),
+      ).toBe(true);
+      expectNoPlantingOverlaps(candidate.plantings);
+    }
+  });
+
+  it('keeps generated plantings and support structures clear of access paths', () => {
+    const garden = createLayoutFixture();
+    const [candidate] = generateAutoLayoutCandidates(garden, {
+      sunLayer: createSunLayer(garden),
+    });
+    const path = garden.structures.find(
+      (structure) => structure.type === 'pathway',
+    );
+
+    if (!candidate || !path) {
+      throw new Error('Expected a candidate and saved path.');
+    }
+
+    const pathFootprint = getStructureFootprint(path);
+
+    expect(candidate.hardConstraintViolations).toEqual([]);
+
+    for (const planting of candidate.plantings) {
+      expect(rectsOverlap(getPlantingFootprint(planting), pathFootprint)).toBe(
+        false,
+      );
+    }
+
+    for (const structure of candidate.structures) {
+      const footprint = getStructureFootprint(structure);
+
+      expect(isRectInsidePlot(footprint, garden.plot)).toBe(true);
+      expect(rectsOverlap(footprint, pathFootprint)).toBe(false);
+    }
+  });
+
+  it('treats partial-sun crops as better fits in partial sun than full sun', () => {
+    const lettuce = getCropById('lettuce');
+
+    if (!lettuce) {
+      throw new Error('Expected lettuce in crop catalog.');
+    }
+
+    expect(lettuce.sunRequirement).toBe('partSun');
+    expect(scoreSunFit(lettuce, 'partSun')).toBeGreaterThan(
+      scoreSunFit(lettuce, 'fullSun'),
+    );
+  });
+
+  it('penalizes full-sun placements when tall crops are the shade source', () => {
+    const tomato = getCropById('tomato');
+
+    if (!tomato) {
+      throw new Error('Expected tomato in crop catalog.');
+    }
+
+    const plainPartSun = scoreSunAreaFit(tomato, {
+      depthFt: 1,
+      exposure: 'partSun',
+      id: 'plain',
+      source: 'modeled',
+      sunHours: 5,
+      widthFt: 1,
+      xFt: 0,
+      yFt: 0,
+    });
+    const tallCropPartSun = scoreSunAreaFit(tomato, {
+      depthFt: 1,
+      exposure: 'partSun',
+      id: 'tall-shade',
+      shadeSources: [
+        {
+          heightFt: 7,
+          itemId: 'corn-row',
+          itemType: 'planting',
+          kind: 'tallCrop',
+          label: 'Corn row',
+        },
+      ],
+      source: 'modeled',
+      sunHours: 5,
+      widthFt: 1,
+      xFt: 0,
+      yFt: 0,
+    });
+
+    expect(tallCropPartSun).toBeLessThan(plainPartSun);
+  });
+
+  it('keeps unsupported must-grow trellis crops out of illegal layouts', () => {
+    const garden = createLayoutFixture({
+      supportAllowed: false,
+    });
+    const [candidate] = generateAutoLayoutCandidates(garden, {
+      sunLayer: createSunLayer(garden),
+    });
+
+    expect(candidate?.unplaced.some((entry) => entry.required)).toBe(true);
+    expect(candidate?.hardConstraintViolations).toEqual([]);
+  });
+
+  it('works around planted crops instead of moving them', () => {
+    const garden = {
+      ...createLayoutFixture(),
+      plantings: [
+        {
+          ...createDefaultPlanting({
+            id: '[auto-layout]-spring-lettuce',
+            label: 'Spring lettuce',
+            xFt: 2,
+            yFt: 2,
+          }),
+          matureSpreadInches: 36,
+          notes: '[auto-layout] already planted',
+          status: 'growing' as const,
+        },
+      ],
+    };
+    const [candidate] = generateAutoLayoutCandidates(garden, {
+      sunLayer: createSunLayer(garden),
+    });
+    const anchored = garden.plantings[0];
+
+    if (!anchored) {
+      throw new Error('Expected anchored planting.');
+    }
+
+    const anchoredFootprint = getPlantingFootprint(anchored);
+
+    expect(candidate?.tradeoffs).toEqual(
+      expect.arrayContaining([expect.stringContaining('stayed anchored')]),
+    );
+    expect(
+      candidate?.plantings.some((planting) =>
+        rectsOverlap(getPlantingFootprint(planting), anchoredFootprint),
+      ),
+    ).toBe(false);
+  });
+
+  it('does not let future succession timing create a false simultaneous block', () => {
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      climateProfile: {
+        ...annArborClimateProfile,
+        source: 'user' as const,
+      },
+      plantings: [
+        {
+          ...createDefaultPlanting({
+            id: 'future-lettuce',
+            label: 'Future lettuce',
+            xFt: 1,
+            yFt: 1,
+          }),
+          blockDepthFt: 2,
+          blockWidthFt: 2,
+          cropId: 'lettuce',
+          mode: 'block' as const,
+          plannedFor: '2026-10-01',
+          status: 'planned' as const,
+        },
+      ],
+      plot: {
+        ...createDefaultGarden('user-a').plot,
+        depthFt: 2,
+        widthFt: 2,
+      },
+      seasonPlan: {
+        updatedAtIso: '2026-04-21T12:00:00.000Z',
+        wantedCrops: [
+          makeSeasonSelection({
+            cropId: 'basil',
+            id: 'season-basil',
+            modePreference: 'single',
+            rank: 0,
+            targetQuantity: 1,
+          }),
+        ],
+      },
+      structures: [],
+    };
+    const [candidate] = generateAutoLayoutCandidates(garden);
+
+    expect(candidate?.plantings).toHaveLength(1);
+    expect(candidate?.hardConstraintViolations).toEqual([]);
+  });
+
+  it('scores height discipline when tall crops could shade shorter full-sun crops', () => {
+    const garden = createLayoutFixture();
+    const [candidate] = generateAutoLayoutCandidates(garden, {
+      sunLayer: createSunLayer(garden),
+    });
+    const tomato = candidate?.plantings.find((planting) =>
+      planting.label.startsWith('Tomato'),
+    );
+    const basil = candidate?.plantings.find((planting) =>
+      planting.label.startsWith('Basil'),
+    );
+
+    if (!candidate || !tomato || !basil) {
+      throw new Error('Expected tomato and basil candidate plantings.');
+    }
+
+    expect(candidate.scoreBreakdown.shadeManagement).toBeGreaterThan(0.75);
+
+    if (Math.abs(tomato.xFt - basil.xFt) <= 3) {
+      expect(tomato.yFt).toBeLessThanOrEqual(basil.yFt);
+    }
+  });
+});
+
+function expectNoPlantingOverlaps(plantings: Garden['plantings']) {
+  for (let leftIndex = 0; leftIndex < plantings.length; leftIndex += 1) {
+    for (
+      let rightIndex = leftIndex + 1;
+      rightIndex < plantings.length;
+      rightIndex += 1
+    ) {
+      const left = plantings[leftIndex];
+      const right = plantings[rightIndex];
+
+      if (!left || !right) {
+        continue;
+      }
+
+      expect(
+        rectsOverlap(getPlantingFootprint(left), getPlantingFootprint(right)),
+      ).toBe(false);
+    }
+  }
+}

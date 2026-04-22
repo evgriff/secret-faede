@@ -1,0 +1,150 @@
+import type { GardenSuggestionDecision } from '../../domain/gardens/gardenWorkspace';
+import type { ReviewSuggestion } from '../garden/reviewSuggestions';
+
+export interface ReviewProposalInbox {
+  batchableSuggestions: ReviewSuggestion[];
+  decidedSuggestions: ReviewSuggestion[];
+  decisionById: Map<string, GardenSuggestionDecision>;
+  openSuggestions: ReviewSuggestion[];
+  stats: {
+    layoutCount: number;
+    physicalMoveCount: number;
+    placementCount: number;
+    supportCount: number;
+  };
+}
+
+export function buildReviewProposalInbox({
+  reviewSuggestions,
+  suggestionDecisions,
+}: {
+  reviewSuggestions: ReviewSuggestion[];
+  suggestionDecisions: GardenSuggestionDecision[];
+}): ReviewProposalInbox {
+  const decisionById = new Map(
+    suggestionDecisions.map((decision) => [decision.id, decision]),
+  );
+  const openSuggestions = reviewSuggestions.filter(
+    (suggestion) => !decisionById.has(suggestion.id),
+  );
+  const decidedSuggestions = reviewSuggestions.filter((suggestion) =>
+    decisionById.has(suggestion.id),
+  );
+  const batchableSuggestions = openSuggestions.filter(
+    isBatchAcceptableReviewProposal,
+  );
+
+  return {
+    batchableSuggestions,
+    decidedSuggestions,
+    decisionById,
+    openSuggestions,
+    stats: {
+      layoutCount: openSuggestions.filter(
+        (suggestion) => suggestion.type === 'optimizerProposal',
+      ).length,
+      physicalMoveCount: openSuggestions.filter(
+        (suggestion) => suggestion.relocationImpact === 'physicalMove',
+      ).length,
+      placementCount: openSuggestions.filter(isPlacementProposal).length,
+      supportCount: openSuggestions.filter(isSupportProposal).length,
+    },
+  };
+}
+
+export function isBatchAcceptableReviewProposal(suggestion: ReviewSuggestion) {
+  return (
+    suggestion.canBatchAccept &&
+    suggestion.relocationImpact !== 'physicalMove' &&
+    isSupportProposal(suggestion)
+  );
+}
+
+export function getReviewProposalCategory(suggestion: ReviewSuggestion) {
+  switch (suggestion.type) {
+    case 'addStakeCage':
+    case 'addTrellis':
+    case 'convertToTrellisedLayout':
+      return 'Support';
+    case 'addSupportMaterial':
+      return 'Materials';
+    case 'widenPath':
+      return 'Access';
+    case 'optimizerProposal':
+      return 'Layout';
+    case 'moveShadeTolerantCrop':
+    case 'moveTallCropNorth':
+    case 'reassignCropToBed':
+    case 'splitOvercrowdedPlanting':
+    case 'flagSunMismatch':
+      return 'Placement';
+    case 'flagRotationConcern':
+    case 'flagWaterZoneMismatch':
+      return 'Diagnostics';
+  }
+}
+
+export function getReviewProposalChangeSummary(suggestion: ReviewSuggestion) {
+  switch (suggestion.type) {
+    case 'addStakeCage':
+      return 'Add a cage or stake support structure to the draft.';
+    case 'addSupportMaterial':
+      return 'Add the recommended support or material change to the draft.';
+    case 'addTrellis':
+      return 'Add a trellis support structure to the draft.';
+    case 'convertToTrellisedLayout':
+      return 'Convert the crop to a trellised planting layout.';
+    case 'flagSunMismatch':
+      return 'Move the crop to a sunnier or better-matched exposure.';
+    case 'moveShadeTolerantCrop':
+      return 'Move a shade-tolerant crop into a lower-sun pocket.';
+    case 'moveTallCropNorth':
+      return 'Move a tall crop north to reduce shade pressure.';
+    case 'optimizerProposal':
+      return 'Apply this generated layout candidate to the draft.';
+    case 'reassignCropToBed':
+      return 'Move the crop into a bed or container that fits it better.';
+    case 'splitOvercrowdedPlanting':
+      return 'Move one crop out of an overcrowded footprint.';
+    case 'widenPath':
+      return 'Widen a saved path to preserve access.';
+    case 'flagRotationConcern':
+    case 'flagWaterZoneMismatch':
+      return 'Keep this diagnostic in Plan health until it has a concrete fix.';
+  }
+}
+
+export function getReviewProposalUrgency(suggestion: ReviewSuggestion): {
+  label: string;
+  tone: 'danger' | 'neutral' | 'warning';
+} {
+  if (suggestion.relocationImpact === 'physicalMove') {
+    return { label: 'Physical move', tone: 'warning' };
+  }
+
+  if (suggestion.severity === 'critical') {
+    return { label: 'Urgent', tone: 'danger' };
+  }
+
+  if (suggestion.severity === 'warning') {
+    return { label: 'Recommended', tone: 'warning' };
+  }
+
+  return { label: 'Optional', tone: 'neutral' };
+}
+
+function isSupportProposal(suggestion: ReviewSuggestion) {
+  return ['addStakeCage', 'addSupportMaterial', 'addTrellis'].includes(
+    suggestion.type,
+  );
+}
+
+function isPlacementProposal(suggestion: ReviewSuggestion) {
+  return [
+    'flagSunMismatch',
+    'moveShadeTolerantCrop',
+    'moveTallCropNorth',
+    'reassignCropToBed',
+    'splitOvercrowdedPlanting',
+  ].includes(suggestion.type);
+}

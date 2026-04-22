@@ -1,7 +1,17 @@
 coverage
 dist
+android/.gradle
+android/**/build
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/app/src/main/assets/public
 docs/deep-research-report.md
+ios/**/.build
+ios/**/build
+ios/App/App/capacitor.config.json
+ios/App/App/public
 node_modules
+output
 package-lock.json
 playwright-report
 test-results

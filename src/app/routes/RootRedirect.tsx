@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router-dom';
 
 import { useAuth } from '../../features/auth/auth-context';
+import { readLastAppRoute } from '../../features/auth/sessionResume';
 import { routePaths } from '../../shared/lib/routes';
 import { LoadingState } from '../../shared/ui/LoadingState';
 
@@ -24,5 +25,5 @@ export function RootRedirect() {
     return <Navigate replace to={routePaths.signIn} />;
   }
 
-  return <Navigate replace to={routePaths.garden} />;
+  return <Navigate replace to={readLastAppRoute()} />;
 }

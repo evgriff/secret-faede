@@ -9,6 +9,10 @@ import type {
 import { CachedWeatherProvider } from './weatherCache';
 
 describe('CachedWeatherProvider', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it('caches normalized weather calls by provider and location', async () => {
     const provider = new CountingWeatherProvider();
     const cachedProvider = new CachedWeatherProvider(provider);
@@ -24,9 +28,35 @@ describe('CachedWeatherProvider', () => {
 
     expect(provider.forecastCalls).toBe(1);
   });
+
+  it('returns a stale cached value when a refresh fails', async () => {
+    const provider = new CountingWeatherProvider();
+    const cachedProvider = new CachedWeatherProvider(provider);
+    const location = {
+      latitude: 42.3314,
+      locationName: 'Detroit, MI',
+      longitude: -83.0458,
+      timezone: 'America/Detroit',
+    };
+
+    const firstForecast = await cachedProvider.getForecast(location);
+    window.localStorage.setItem(
+      'secret-faede.weather.v1:nationalWeatherService:forecast:42.3314:-83.0458',
+      JSON.stringify({
+        cachedAtMs: Date.now() - 60 * 60 * 1000,
+        value: firstForecast,
+      }),
+    );
+    provider.failForecast = true;
+
+    await expect(cachedProvider.getForecast(location)).resolves.toEqual(
+      firstForecast,
+    );
+  });
 });
 
 class CountingWeatherProvider implements WeatherProvider {
+  failForecast = false;
   forecastCalls = 0;
   readonly id = 'nationalWeatherService';
   readonly label = 'Counting NWS';
@@ -37,6 +67,10 @@ class CountingWeatherProvider implements WeatherProvider {
 
   getForecast(): Promise<WeatherForecast> {
     this.forecastCalls += 1;
+
+    if (this.failForecast) {
+      return Promise.reject(new Error('Forecast unavailable.'));
+    }
 
     return Promise.resolve({
       dailyHighF: 80,

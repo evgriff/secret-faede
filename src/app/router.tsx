@@ -7,7 +7,6 @@ import {
 } from 'react-router-dom';
 
 import { AccessDeniedPage } from '../features/auth/pages/AccessDeniedPage';
-import { AuthCompletePage } from '../features/auth/pages/AuthCompletePage';
 import { SignInPage } from '../features/auth/pages/SignInPage';
 import { routePaths } from '../shared/lib/routes';
 import { LoadingState } from '../shared/ui/LoadingState';
@@ -15,19 +14,19 @@ import { NotFoundPage } from './routes/NotFoundPage';
 import { ProtectedLayout } from './routes/ProtectedLayout';
 import { RootRedirect } from './routes/RootRedirect';
 
-const GardenEditorScreen = lazy(() =>
-  import('../features/garden/GardenEditorScreen').then((module) => ({
-    default: module.GardenEditorScreen,
+const PlanPage = lazy(() =>
+  import('../features/plan/PlanPage').then((module) => ({
+    default: module.PlanPage,
   })),
 );
-const TasksPage = lazy(() =>
-  import('../features/tasks/TasksPage').then((module) => ({
-    default: module.TasksPage,
+const TodayPage = lazy(() =>
+  import('../features/today/TodayPage').then((module) => ({
+    default: module.TodayPage,
   })),
 );
-const JournalPage = lazy(() =>
-  import('../features/journal/JournalPage').then((module) => ({
-    default: module.JournalPage,
+const FeedPage = lazy(() =>
+  import('../features/log/LogPage').then((module) => ({
+    default: module.LogPage,
   })),
 );
 const SettingsPage = lazy(() =>
@@ -47,7 +46,7 @@ export const appRoutes: RouteObject[] = [
   },
   {
     path: '/auth/complete',
-    element: <AuthCompletePage />,
+    element: <Navigate replace to={routePaths.signIn} />,
   },
   {
     path: '/access-denied',
@@ -59,23 +58,39 @@ export const appRoutes: RouteObject[] = [
     children: [
       {
         index: true,
-        element: <Navigate replace to={routePaths.garden} />,
+        element: <Navigate replace to={routePaths.plan} />,
       },
       {
-        path: 'garden',
-        element: withWorkspaceSuspense(<GardenEditorScreen />),
+        path: 'plan',
+        element: withWorkspaceSuspense(<PlanPage />),
       },
       {
-        path: 'tasks',
-        element: withWorkspaceSuspense(<TasksPage />),
+        path: 'today',
+        element: withWorkspaceSuspense(<TodayPage />),
       },
       {
-        path: 'journal',
-        element: withWorkspaceSuspense(<JournalPage />),
+        path: 'feed',
+        element: withWorkspaceSuspense(<FeedPage />),
       },
       {
         path: 'settings',
         element: withWorkspaceSuspense(<SettingsPage />),
+      },
+      {
+        path: 'garden',
+        element: <Navigate replace to={routePaths.plan} />,
+      },
+      {
+        path: 'tasks',
+        element: <Navigate replace to={routePaths.today} />,
+      },
+      {
+        path: 'journal',
+        element: <Navigate replace to={routePaths.feed} />,
+      },
+      {
+        path: 'log',
+        element: <Navigate replace to={routePaths.feed} />,
       },
     ],
   },

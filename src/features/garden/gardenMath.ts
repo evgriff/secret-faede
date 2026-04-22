@@ -7,6 +7,7 @@ import type {
 export const pixelsPerFoot = 32;
 export const minPlotFeet = 1;
 export const maxPlotFeet = 100;
+const feetPrecision = 3;
 
 export interface PlotPoint {
   xFt: number;
@@ -16,6 +17,7 @@ export interface PlotPoint {
 export interface PlotClientRect {
   left: number;
   top: number;
+  width?: number;
 }
 
 export function clamp(value: number, min: number, max: number) {
@@ -39,8 +41,8 @@ export function normalizePointToPlot(
   const yFt = snap ? snapFeet(point.yFt, plot.snapUnitFt) : point.yFt;
 
   return {
-    xFt: clamp(Number(xFt.toFixed(2)), 0, plot.widthFt),
-    yFt: clamp(Number(yFt.toFixed(2)), 0, plot.depthFt),
+    xFt: clamp(roundFeetForStorage(xFt), 0, plot.widthFt),
+    yFt: clamp(roundFeetForStorage(yFt), 0, plot.depthFt),
   };
 }
 
@@ -60,24 +62,29 @@ export function clampPlantToPlot(
 export function clampStructureToPlot(
   structure: Structure,
   plot: GardenPlot,
+  snap = true,
 ): Structure {
   const widthFt = clamp(structure.widthFt, 0.25, plot.widthFt);
   const depthFt = clamp(structure.depthFt, 0.25, plot.depthFt);
-  const xFt = snapFeet(
-    clamp(structure.xFt, 0, Math.max(plot.widthFt - widthFt, 0)),
-    plot.snapUnitFt,
-  );
-  const yFt = snapFeet(
-    clamp(structure.yFt, 0, Math.max(plot.depthFt - depthFt, 0)),
-    plot.snapUnitFt,
-  );
+  const rawXFt = clamp(structure.xFt, 0, Math.max(plot.widthFt - widthFt, 0));
+  const rawYFt = clamp(structure.yFt, 0, Math.max(plot.depthFt - depthFt, 0));
+  const xFt = snap ? snapFeet(rawXFt, plot.snapUnitFt) : rawXFt;
+  const yFt = snap ? snapFeet(rawYFt, plot.snapUnitFt) : rawYFt;
 
   return {
     ...structure,
     depthFt,
     widthFt,
-    xFt: clamp(Number(xFt.toFixed(2)), 0, Math.max(plot.widthFt - widthFt, 0)),
-    yFt: clamp(Number(yFt.toFixed(2)), 0, Math.max(plot.depthFt - depthFt, 0)),
+    xFt: clamp(
+      roundFeetForStorage(xFt),
+      0,
+      Math.max(plot.widthFt - widthFt, 0),
+    ),
+    yFt: clamp(
+      roundFeetForStorage(yFt),
+      0,
+      Math.max(plot.depthFt - depthFt, 0),
+    ),
   };
 }
 
@@ -86,10 +93,13 @@ export function clientPointToPlotFeet(
   rect: PlotClientRect,
   plot: GardenPlot,
 ): PlotPoint {
+  const effectivePixelsPerFoot =
+    rect.width && rect.width > 0 ? rect.width / plot.widthFt : pixelsPerFoot;
+
   return normalizePointToPlot(
     {
-      xFt: (clientPoint.clientX - rect.left) / pixelsPerFoot,
-      yFt: (clientPoint.clientY - rect.top) / pixelsPerFoot,
+      xFt: (clientPoint.clientX - rect.left) / effectivePixelsPerFoot,
+      yFt: (clientPoint.clientY - rect.top) / effectivePixelsPerFoot,
     },
     plot,
   );
@@ -107,4 +117,8 @@ export function plotFeetToPixels(point: PlotPoint): {
 
 export function formatFeet(value: number) {
   return value.toFixed(1);
+}
+
+function roundFeetForStorage(value: number) {
+  return Number(value.toFixed(feetPrecision));
 }

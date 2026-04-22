@@ -7,42 +7,57 @@ import {
   getCropById,
   type CropCatalogFilters,
 } from '../../domain/crops/cropCatalog';
+import {
+  inferPlotType,
+  scoreCropSuitability,
+} from '../../domain/crops/cropSuitability';
 import type {
-  CropProfile,
-  CropWaterNeed,
+  Garden,
   PlantingMode,
   SunExposure,
 } from '../../domain/gardens/GardenRepository';
 import { cropSunRequirementMet, type SunSeason } from './sunShadeEngine';
-import styles from './GardenEditorScreen.module.css';
+import styles from '../plan/PlanModal.module.css';
 import type { AddPlantingRequest } from './useGarden';
+import {
+  CropComparePanel,
+  CropDetailCard,
+  CropResultButton,
+  formatSuitabilityLevel,
+} from './CropPickerPanels';
+import cropStyles from './CropPickerPanels.module.css';
+import {
+  calculatePlantCount,
+  calculateRequestedAreaSqFt,
+  formatLabel,
+  formatSowMethod,
+  parsePositiveNumber,
+} from './cropPickerHelpers';
+import { PlantingModeControls } from './PlantingModeControls';
+import { VirtualCropResultList } from './VirtualCropResultList';
 
 interface AddPlantModalProps {
+  garden: Garden;
   onAddPlant(request: AddPlantingRequest): void;
   onClose(): void;
   sunExposureAtPlacement: SunExposure | null;
   sunSeason: SunSeason;
 }
 
-const modeLabels: Record<PlantingMode, string> = {
-  block: 'Block',
-  cluster: 'Cluster',
-  row: 'Row',
-  single: 'Single',
-  trellisLine: 'Trellis',
-};
-
+type CategoryFilter = NonNullable<CropCatalogFilters['category']>;
 type GrowthFormFilter = NonNullable<CropCatalogFilters['growthForm']>;
 type SowMethodFilter = NonNullable<CropCatalogFilters['sowMethod']>;
 type SunRequirementFilter = NonNullable<CropCatalogFilters['sunRequirement']>;
 type WaterNeedsFilter = NonNullable<CropCatalogFilters['waterNeeds']>;
 
 export function AddPlantModal({
+  garden,
   onAddPlant,
   onClose,
   sunExposureAtPlacement,
   sunSeason,
 }: AddPlantModalProps) {
+  const [category, setCategory] = useState<CategoryFilter>('any');
   const [growthForm, setGrowthForm] = useState<GrowthFormFilter>('any');
   const [mode, setMode] = useState<PlantingMode>('single');
   const [query, setQuery] = useState('');
@@ -59,13 +74,14 @@ export function AddPlantModal({
   const filteredCrops = useMemo(
     () =>
       filterCropCatalog({
+        category,
         growthForm,
         query,
         sowMethod,
         sunRequirement,
         waterNeeds,
-      }).slice(0, 12),
-    [growthForm, query, sowMethod, sunRequirement, waterNeeds],
+      }),
+    [category, growthForm, query, sowMethod, sunRequirement, waterNeeds],
   );
   const selectedCrop =
     filteredCrops.find((crop) => crop.id === selectedCropId) ??
@@ -81,6 +97,21 @@ export function AddPlantModal({
     quantity,
     rowLengthFt,
   });
+  const requestedAreaSqFt = calculateRequestedAreaSqFt(selectedMode, {
+    blockDepthFt,
+    blockWidthFt,
+    rowLengthFt,
+  });
+  const suitability = scoreCropSuitability({
+    climateProfile: garden.climateProfile,
+    crop: selectedCrop,
+    mode: selectedMode,
+    plantCount,
+    plotType: inferPlotType(garden),
+    requestedAreaSqFt,
+    sunExposureAtPlacement,
+  });
+  const compareCrops = filteredCrops.slice(0, 3);
   const sunWarning =
     sunExposureAtPlacement &&
     !cropSunRequirementMet(selectedCrop.sunRequirement, sunExposureAtPlacement)
@@ -142,6 +173,23 @@ export function AddPlantModal({
               </label>
 
               <div className={styles.filterGrid}>
+                <label className={styles.field}>
+                  <span>Category</span>
+                  <select
+                    onChange={(event) =>
+                      setCategory(event.currentTarget.value as CategoryFilter)
+                    }
+                    value={category}
+                  >
+                    <option value="any">Any</option>
+                    {cropCatalogFilterOptions.categories.map((option) => (
+                      <option key={option} value={option}>
+                        {formatLabel(option)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
                 <label className={styles.field}>
                   <span>Sun</span>
                   <select
@@ -217,160 +265,62 @@ export function AddPlantModal({
                 </label>
               </div>
 
-              <div className={styles.cropResults}>
-                {filteredCrops.length > 0 ? (
-                  filteredCrops.map((crop) => (
-                    <button
-                      aria-label={`${crop.commonName} crop`}
-                      aria-pressed={crop.id === selectedCrop.id}
-                      className={`${styles.cropOption} ${
-                        crop.id === selectedCrop.id
-                          ? styles.selectedCropOption
-                          : ''
-                      }`}
-                      key={crop.id}
-                      onClick={() => setSelectedCropId(crop.id)}
-                      type="button"
-                    >
-                      <span className={styles.cropGlyph} aria-hidden="true">
-                        {formatGlyph(crop)}
-                      </span>
-                      <span>
-                        <strong>{crop.commonName}</strong>
-                        <small>{crop.family}</small>
-                      </span>
-                    </button>
-                  ))
-                ) : (
-                  <p className={styles.emptyResults}>No matching crops.</p>
+              <VirtualCropResultList
+                className={cropStyles.cropResults}
+                crops={filteredCrops}
+                empty={
+                  <p className={cropStyles.emptyResults}>No matching crops.</p>
+                }
+                itemHeightPx={92}
+                renderCrop={(crop) => (
+                  <CropResultButton
+                    crop={crop}
+                    isSelected={crop.id === selectedCrop.id}
+                    key={crop.id}
+                    onSelect={() => setSelectedCropId(crop.id)}
+                    suitabilityLabel={formatSuitabilityLevel(
+                      scoreCropSuitability({
+                        climateProfile: garden.climateProfile,
+                        crop,
+                        mode: crop.supportedPlantingModes[0] ?? 'single',
+                        plantCount: null,
+                        plotType: inferPlotType(garden),
+                        requestedAreaSqFt: null,
+                        sunExposureAtPlacement,
+                      }),
+                    )}
+                  />
                 )}
-              </div>
+              />
             </div>
 
             <div className={styles.cropDetailPanel}>
-              <article className={styles.cropCard}>
-                <div className={styles.cropCardHeader}>
-                  <span className={styles.cropBadge} aria-hidden="true">
-                    {formatGlyph(selectedCrop)}
-                  </span>
-                  <div>
-                    <h3>{selectedCrop.commonName}</h3>
-                    <p>{selectedCrop.scientificName}</p>
-                  </div>
-                </div>
-                <dl className={styles.cropStats}>
-                  <div>
-                    <dt>Sun</dt>
-                    <dd>{formatLabel(selectedCrop.sunRequirement)}</dd>
-                  </div>
-                  <div>
-                    <dt>Water</dt>
-                    <dd>{formatWater(selectedCrop.waterNeeds)}</dd>
-                  </div>
-                  <div>
-                    <dt>Spacing</dt>
-                    <dd>{selectedCrop.spacingInches ?? '-'} in</dd>
-                  </div>
-                  <div>
-                    <dt>Maturity</dt>
-                    <dd>{selectedCrop.daysToMaturity ?? '-'} days</dd>
-                  </div>
-                </dl>
-                <p className={styles.cropNotes}>{selectedCrop.notes}</p>
-                {sunWarning ? (
-                  <p className={styles.warningText}>{sunWarning}</p>
-                ) : null}
-              </article>
+              <CropDetailCard
+                crop={selectedCrop}
+                suitability={suitability}
+                sunWarning={sunWarning}
+              />
 
-              <fieldset className={styles.modeFieldset}>
-                <legend>Planting mode</legend>
-                <div className={styles.modeGrid}>
-                  {selectedCrop.supportedPlantingModes.map((modeOption) => (
-                    <button
-                      aria-pressed={selectedMode === modeOption}
-                      className={`${styles.modeButton} ${
-                        selectedMode === modeOption
-                          ? styles.selectedModeButton
-                          : ''
-                      }`}
-                      key={modeOption}
-                      onClick={() => setMode(modeOption)}
-                      type="button"
-                    >
-                      {modeLabels[modeOption]}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
+              <CropComparePanel
+                crops={compareCrops}
+                onSelect={setSelectedCropId}
+                selectedCropId={selectedCrop.id}
+              />
 
-              <div className={styles.plantingControls}>
-                {selectedMode === 'row' || selectedMode === 'trellisLine' ? (
-                  <label className={styles.field}>
-                    <span>Row length in feet</span>
-                    <input
-                      inputMode="decimal"
-                      min="1"
-                      onChange={(event) =>
-                        setRowLengthFt(event.currentTarget.value)
-                      }
-                      step="0.5"
-                      type="number"
-                      value={rowLengthFt}
-                    />
-                  </label>
-                ) : null}
-
-                {selectedMode === 'block' ? (
-                  <div className={styles.filterGrid}>
-                    <label className={styles.field}>
-                      <span>Block width in feet</span>
-                      <input
-                        inputMode="decimal"
-                        min="1"
-                        onChange={(event) =>
-                          setBlockWidthFt(event.currentTarget.value)
-                        }
-                        step="0.5"
-                        type="number"
-                        value={blockWidthFt}
-                      />
-                    </label>
-                    <label className={styles.field}>
-                      <span>Block depth in feet</span>
-                      <input
-                        inputMode="decimal"
-                        min="1"
-                        onChange={(event) =>
-                          setBlockDepthFt(event.currentTarget.value)
-                        }
-                        step="0.5"
-                        type="number"
-                        value={blockDepthFt}
-                      />
-                    </label>
-                  </div>
-                ) : null}
-
-                {selectedMode === 'single' || selectedMode === 'cluster' ? (
-                  <label className={styles.field}>
-                    <span>Quantity</span>
-                    <input
-                      inputMode="numeric"
-                      min="1"
-                      onChange={(event) =>
-                        setQuantity(event.currentTarget.value)
-                      }
-                      step="1"
-                      type="number"
-                      value={quantity}
-                    />
-                  </label>
-                ) : null}
-
-                <p className={styles.cropEstimate}>
-                  Planned count: {plantCount ?? 1}
-                </p>
-              </div>
+              <PlantingModeControls
+                blockDepthFt={blockDepthFt}
+                blockWidthFt={blockWidthFt}
+                onBlockDepthChange={setBlockDepthFt}
+                onBlockWidthChange={setBlockWidthFt}
+                onModeChange={setMode}
+                onQuantityChange={setQuantity}
+                onRowLengthChange={setRowLengthFt}
+                plantCount={plantCount}
+                quantity={quantity}
+                rowLengthFt={rowLengthFt}
+                selectedCrop={selectedCrop}
+                selectedMode={selectedMode}
+              />
             </div>
           </div>
 
@@ -400,68 +350,4 @@ function getDefaultCrop() {
   }
 
   return crop;
-}
-
-function calculatePlantCount(
-  crop: CropProfile,
-  mode: PlantingMode,
-  values: {
-    blockDepthFt: string;
-    blockWidthFt: string;
-    quantity: string;
-    rowLengthFt: string;
-  },
-) {
-  const spacingFt = Math.max((crop.spacingInches ?? 12) / 12, 0.25);
-
-  if (mode === 'row' || mode === 'trellisLine') {
-    return Math.max(
-      Math.floor(parsePositiveNumber(values.rowLengthFt, 6) / spacingFt),
-      1,
-    );
-  }
-
-  if (mode === 'block') {
-    const widthFt = parsePositiveNumber(values.blockWidthFt, 4);
-    const depthFt = parsePositiveNumber(values.blockDepthFt, 3);
-    return Math.max(
-      Math.floor(widthFt / spacingFt) * Math.floor(depthFt / spacingFt),
-      1,
-    );
-  }
-
-  return Math.max(Math.round(parsePositiveNumber(values.quantity, 1)), 1);
-}
-
-function parsePositiveNumber(value: string, fallback: number) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function formatGlyph(crop: CropProfile) {
-  const source = crop.defaultIcon || crop.commonName;
-  return source
-    .split(/[-_\s]+/)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-}
-
-function formatWater(value: CropWaterNeed) {
-  return `${formatLabel(value)} water`;
-}
-
-function formatSowMethod(value: NonNullable<CropCatalogFilters['sowMethod']>) {
-  if (value === 'directSow') {
-    return 'Direct sow';
-  }
-
-  return formatLabel(value);
-}
-
-function formatLabel(value: string) {
-  return value
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/^./, (letter) => letter.toUpperCase());
 }

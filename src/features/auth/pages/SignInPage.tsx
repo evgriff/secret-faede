@@ -1,65 +1,141 @@
 import { useState, type FormEvent } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import { useServices } from '../../../app/providers';
 import {
+  isEmailAllowed,
   isEmailFormatValid,
   normalizeEmail,
 } from '../../../shared/auth/allowlist';
 import { routePaths } from '../../../shared/lib/routes';
 import { useAuth } from '../auth-context';
+import { getPostSignInRoute } from '../sessionResume';
 import styles from './SignInPage.module.css';
 
 export function SignInPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { environment } = useServices();
-  const { requestEmailSignIn, state } = useAuth();
+  const { sendPasswordReset, signInWithPassword, state } = useAuth();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [rememberDevice, setRememberDevice] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sentState, setSentState] = useState<{
-    completionPath?: string;
-    delivery: 'email' | 'mock-link';
-  } | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+
+  if (state.accessStatus === 'denied') {
+    return <Navigate replace to={routePaths.accessDenied} />;
+  }
+
+  if (state.status === 'loading') {
+    return (
+      <section className={styles.shell} data-route-shell="true">
+        <div className={styles.card}>
+          <p className={styles.kicker}>Trusted device</p>
+          <h1 className="pageTitle">Checking session</h1>
+          <p className={styles.lead}>
+            Looking for an active Secret Faede session on this device.
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   if (state.user) {
-    return <Navigate replace to={routePaths.root} />;
+    return <Navigate replace to={getPostSignInRoute(location.state)} />;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalizedEmail = normalizeEmail(email);
 
-    if (environment.allowlistError) {
-      setError(environment.allowlistError);
+    if (!canAttemptAuth(normalizedEmail)) {
       return;
     }
 
-    if (!isEmailFormatValid(normalizedEmail)) {
-      setError('Enter a valid email address to receive the sign-in link.');
+    if (!password) {
+      setError('Enter your password.');
       return;
     }
 
     setError(null);
+    setMessage(null);
     setIsSubmitting(true);
 
     try {
-      const result = await requestEmailSignIn(normalizedEmail);
-      setSentState(result);
+      await signInWithPassword({
+        email: normalizedEmail,
+        password,
+        rememberDevice,
+      });
+      await navigate(getPostSignInRoute(location.state), { replace: true });
     } catch (submissionError) {
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : 'Unable to send the sign-in link.',
+          : 'Unable to sign in.',
       );
     } finally {
       setIsSubmitting(false);
     }
   }
 
+  async function handlePasswordReset() {
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!canAttemptAuth(normalizedEmail)) {
+      return;
+    }
+
+    setError(null);
+    setMessage(null);
+    setIsResetting(true);
+
+    try {
+      await sendPasswordReset(normalizedEmail);
+      setMessage('Password reset email sent.');
+    } catch (resetError) {
+      setError(
+        resetError instanceof Error
+          ? resetError.message
+          : 'Unable to send a password reset email.',
+      );
+    } finally {
+      setIsResetting(false);
+    }
+  }
+
+  function canAttemptAuth(normalizedEmail: string) {
+    if (environment.allowlistError) {
+      setError(environment.allowlistError);
+      return false;
+    }
+
+    if (!isEmailFormatValid(normalizedEmail)) {
+      setError('Enter a valid email address.');
+      return false;
+    }
+
+    if (!isEmailAllowed(environment.allowedEmails, normalizedEmail)) {
+      setError('This email is not allowed for Secret Faede.');
+      return false;
+    }
+
+    return true;
+  }
+
   return (
-    <section className="pageShell" data-route-shell="true">
-      <div className={`pageCard ${styles.card}`}>
-        <h1 className="pageTitle">Sign in with an email link.</h1>
+    <section className={styles.shell} data-route-shell="true">
+      <div className={styles.card}>
+        <p className={styles.kicker}>Garden workspace</p>
+        <h1 className="pageTitle">Sign in</h1>
+        <p className={styles.lead}>
+          Use your Secret Faede password. Trusted devices stay signed in so you
+          can get back to the garden quickly.
+        </p>
 
         {environment.allowlistError ? (
           <p className={styles.error} role="alert">
@@ -73,63 +149,99 @@ export function SignInPage() {
           </p>
         ) : null}
 
-        {sentState ? (
-          <div className={styles.sentState}>
-            <p className="pageLead">Check your email for the sign-in link.</p>
-            {sentState.delivery === 'mock-link' && sentState.completionPath ? (
-              <Link
-                className={styles.secondaryButton}
-                to={sentState.completionPath}
-              >
-                Use mock sign-in link
-              </Link>
-            ) : null}
-            <button
-              className={styles.secondaryButton}
-              onClick={() => setSentState(null)}
-              type="button"
-            >
-              Use a different email
-            </button>
-          </div>
-        ) : (
-          <form
-            className={styles.form}
-            onSubmit={(event) => void handleSubmit(event)}
-          >
-            <label className={styles.field}>
-              <span>Email</span>
+        <form
+          className={styles.form}
+          onSubmit={(event) => void handleSubmit(event)}
+        >
+          <label className={styles.field}>
+            <span>Email</span>
+            <input
+              autoCapitalize="none"
+              autoComplete="email"
+              autoCorrect="off"
+              enterKeyHint="next"
+              id="email"
+              inputMode="email"
+              name="email"
+              onChange={(event) => setEmail(event.currentTarget.value)}
+              placeholder="you@example.com"
+              spellCheck={false}
+              type="email"
+              value={email}
+            />
+          </label>
+
+          <label className={styles.field}>
+            <span>Password</span>
+            <input
+              autoComplete="current-password"
+              enterKeyHint="go"
+              id="password"
+              name="password"
+              onChange={(event) => setPassword(event.currentTarget.value)}
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+            />
+          </label>
+
+          <div className={styles.options}>
+            <label className={styles.checkOption}>
               <input
-                autoComplete="email"
-                id="email"
-                inputMode="email"
-                name="email"
-                onChange={(event) => setEmail(event.currentTarget.value)}
-                placeholder="you@example.com"
-                type="email"
-                value={email}
+                checked={showPassword}
+                onChange={(event) =>
+                  setShowPassword(event.currentTarget.checked)
+                }
+                type="checkbox"
               />
+              <span>Show password</span>
             </label>
 
-            {error ? (
-              <p className={styles.error} role="alert">
-                {error}
-              </p>
-            ) : null}
+            <label className={styles.checkOption}>
+              <input
+                checked={rememberDevice}
+                onChange={(event) =>
+                  setRememberDevice(event.currentTarget.checked)
+                }
+                type="checkbox"
+              />
+              <span>Stay signed in on this trusted device</span>
+            </label>
+          </div>
 
-            <button
-              className={styles.primaryButton}
-              disabled={Boolean(environment.allowlistError) || isSubmitting}
-              type="submit"
-            >
-              {isSubmitting ? 'Sending link...' : 'Send sign-in link'}
-            </button>
-          </form>
-        )}
+          <p className={styles.sessionHint}>
+            This stores a Firebase/mock session token through the auth provider.
+            Secret Faede never stores your raw password.
+          </p>
 
-        <p className={styles.runtime}>
-          {environment.runtimeMode === 'mock' ? 'Mock mode' : 'Firebase mode'}
-        </p>
+          {error ? (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          ) : null}
+
+          {message ? (
+            <p className={styles.notice} role="status">
+              {message}
+            </p>
+          ) : null}
+
+          <button
+            className={styles.primaryButton}
+            disabled={Boolean(environment.allowlistError) || isSubmitting}
+            type="submit"
+          >
+            {isSubmitting ? 'Signing in...' : 'Sign in'}
+          </button>
+
+          <button
+            className={styles.resetButton}
+            disabled={Boolean(environment.allowlistError) || isResetting}
+            onClick={() => void handlePasswordReset()}
+            type="button"
+          >
+            {isResetting ? 'Sending reset...' : 'Reset password'}
+          </button>
+        </form>
       </div>
     </section>
   );
