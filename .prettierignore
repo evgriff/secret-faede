@@ -12,6 +12,8 @@ ios/App/App/capacitor.config.json
 ios/App/App/public
 node_modules
 output
+.serena/cache
+.serena/logs
 package-lock.json
 playwright-report
 test-results

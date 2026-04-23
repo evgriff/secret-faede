@@ -1,11 +1,20 @@
 # Task Completion
 
-Before finishing agent work in this repo:
+Before handoff:
 
-- Run `git status --short --branch` and report the branch.
-- Keep unrelated dirty files unstaged and untouched.
-- Run the required verification unless the task is explicitly docs-only or the user narrows the scope: `npm run lint`, `npm run typecheck`, `npm run test:unit`, `npm run test:e2e`, `npm run build`, and `npm run ci`.
-- For Firebase, rules, functions, deployment, or runtime changes, include the relevant targeted scripts from `README.md` and `docs/testing-ci.md`.
-- Commit only when the user asks.
-- If staging is requested, stage explicit files only; never use `git add .`.
-- Summarize changed files, verification commands, and any remaining dirty or untracked files.
+- run `git status --short --branch` and report the final branch plus any remaining dirty or untracked files
+- keep unrelated changes untouched and unstaged
+- default repo gate from `AGENTS.md`: `npm run lint`, `npm run typecheck`, `npm run test:unit`, `npm run test:e2e`, `npm run build`, and `npm run ci`
+- add targeted checks when relevant, especially `npm run test:integration`, `npm run test:rules`, `npm run test:visual`, `npm run functions:build`, and `npm run functions:test`
+- if a verification step cannot run, say exactly why
+
+Git discipline:
+
+- stage explicit files only
+- never use broad cleanup or `git add .`
+- commit only when the user asks
+
+Serena maintenance:
+
+- after large TypeScript refactors, refresh the Serena index
+- keep `.serena/project.yml` and tracked `.serena/memories/` aligned with the repo guardrails and architecture docs

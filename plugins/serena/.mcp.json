@@ -5,13 +5,13 @@
       "cwd": "../..",
       "args": [
         "start-mcp-server",
-        "--context=codex",
-        "--project",
-        ".",
+        "--context",
+        "plugins/serena/codex-context.yml",
+        "--project-from-cwd",
         "--enable-web-dashboard",
         "true",
         "--open-web-dashboard",
-        "true"
+        "false"
       ]
     }
   }

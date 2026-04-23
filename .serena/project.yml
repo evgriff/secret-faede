@@ -5,15 +5,18 @@ project_name: 'secret-faede'
 languages: ['typescript']
 encoding: 'utf-8'
 line_ending: 'lf'
-language_backend:
+language_backend: 'LSP'
 ignore_all_files_in_gitignore: true
 ls_specific_settings: {}
 ignored_paths:
   - 'dist/**'
   - 'coverage/**'
+  - 'output/**'
   - 'playwright-report/**'
   - 'test-results/**'
   - '.firebase/**'
+  - '.serena/cache/**'
+  - '.serena/logs/**'
   - 'src/domain/crops/homeGardenCropCatalog.generated.json'
 read_only: false
 
@@ -21,6 +24,7 @@ excluded_tools: []
 included_optional_tools: []
 fixed_tools: []
 base_modes:
+  - 'query-projects'
 default_modes:
 
 initial_prompt: |
@@ -31,8 +35,10 @@ initial_prompt: |
   Store garden positions in feet using xFt from the left edge and yFt from the top edge; never store raw pixels as canonical garden coordinates.
   Start every agentic workflow with git status --short --branch, confirm the branch, use a codex/ branch for agent edits, and do not perform substantial edits directly on main.
   Treat pre-existing dirty files as user-owned, keep edits scoped, stage only explicit files when asked, and commit only when the user asks.
-  Use Serena first for code navigation, symbol overviews, references, and symbol-safe refactors; use normal shell/git/npm tooling for repository workflow and verification.
+  Use Serena first for code navigation, symbol overviews, references, and symbol-safe refactors.
+  This repo-local Serena setup also enables read-only discovery helpers plus query-projects mode; use them selectively when symbolic tools are not enough.
+  Keep shell commands and file writes in Codex-native tools unless the user explicitly wants a Serena-specific recovery flow such as restarting the language server.
 
-symbol_info_budget:
+symbol_info_budget: 10
 read_only_memory_patterns: []
 ignored_memory_patterns: []

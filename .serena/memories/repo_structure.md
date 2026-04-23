@@ -1,16 +1,25 @@
 # Repo Structure
 
-Core app code lives under `src/`:
+Top-level layout:
 
-- `src/app`: composition root, router, providers, and route guards.
-- `src/domain`: canonical interfaces and models for auth, gardens, crops, users, weather, notifications, media, mobile, and telemetry.
-- `src/features/auth`: sign-in, access denied, and auth context.
-- `src/features/plan`: Plan workspace, canvas tools, inspector, optimizer/review helpers, and pointer/keyboard hooks.
-- `src/features/garden`: compatibility exports, garden state hook, crop picker, coordinate math, sun/shade, watering, planning, and review helpers.
-- `src/features/today`: Today route and generated field work UI.
-- `src/features/log` and `src/features/journal`: Feed route, notes, issues, photos, harvests, summaries, and compatibility exports.
-- `src/features/settings`: notification preference and alert default editing.
-- `src/infrastructure`: Firebase/mock adapters, runtime service selection, weather cache/providers, notification adapters, and media storage adapters.
-- `src/shared`: config parsing, allowlist helpers, reusable shell UI, and global styles.
+- `src/app`: composition root, providers, router, protected layout, and redirects
+- `src/domain`: canonical interfaces and garden, crop, user, weather, media, mobile, and telemetry models
+- `src/infrastructure`: runtime service assembly plus mock, Firebase, Capacitor, and weather-provider adapters
+- `functions/`: scheduled notification and garden-operations logic with tests in `functions/test`
+- `scripts/`: catalog, Firebase setup, seeding, bundle, and repo-quality scripts
+- `docs/`: architecture, Firebase, testing/CI, deployment, runbooks, and product notes
+- `plugins/serena`: repo-local Serena plugin wiring, including `.mcp.json`, plugin metadata, and the custom Codex context file used to expose the intended toolset
+- `.agents/plugins/marketplace.json`: Codex marketplace entry that auto-loads the repo-local Serena plugin
+- `.serena/`: Serena project config, caches/logs, and tracked project memories
 
-Cloud Functions source lives in `functions/`. Operational docs live in `docs/`. Utility scripts live in `scripts/`. Native shell projects live in `ios/` and `android/`.
+Feature ownership inside `src/features`:
+
+- `auth`: sign-in, access denied, auth context, session resume
+- `plan`: route page, canvas UI, chooser flows, first-run setup, review/problem inbox, optimizer, publish, and revert
+- `garden`: garden state hook, crop helpers, feet-based geometry, warning, sun, watering, and review engines, plus editor support components
+- `today`: Today page, task groupings, field actions, quick actions, and local notification helpers
+- `log` and `journal`: Feed route UI, entry composer, issues, photos, harvests, summaries, and analytics helpers
+- `settings`: alert defaults, notification center, mobile-device controls, and demo controls
+- `demo`: browser-local demo mode storage
+- `shared`: feature-level design primitives and shared utilities
+- `tasks`: task engine and compatibility route export
