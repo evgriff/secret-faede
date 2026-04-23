@@ -40,7 +40,7 @@ parsing and are not exposed by Settings, seed data, Functions, or rules.
 ## Garden Schema Version
 
 Every parsed garden aggregate now carries `schemaVersion:
-CURRENT_GARDEN_SCHEMA_VERSION`, currently `3`.
+CURRENT_GARDEN_SCHEMA_VERSION`, currently `5`.
 
 The migration helper in `src/domain/gardens/schemaMigrations.ts` runs before
 normal validation. It keeps legacy records readable by:
@@ -52,6 +52,12 @@ normal validation. It keeps legacy records readable by:
 - adding an empty `seasonPlan` when older records do not have one
 - simplifying legacy season-plan records by reading old quantity/form fields and
   dropping former weighting, sowing, container, and ordering fields
+- adding explicit `PlantSupportPlan` defaults to saved plantings and dropping
+  obsolete marker/node overlay collections that are no longer part of the Plan
+  state model
+- removing legacy utility structures such as compost, hose bibs, water sources,
+  fences, and tree obstacles from saved page-level structures while keeping
+  beds, containers, paths, and trellises readable
 
 The parser still bounds all feet-based dimensions and coordinates after the
 migration pass. Future schema changes should add a migration step instead of
@@ -160,7 +166,9 @@ physically move an already planted crop.
 ## Planting Instances And Arrangement Groups
 
 `plantings[]` now model a placed crop as an arrangement-aware group with
-individual plant nodes:
+individual plant nodes. Quantity-to-footprint geometry is centralized in
+`src/domain/gardens/plantingGeometry.ts` so rendering, optimizer proposals, and
+future sun/shade calculations use the same deterministic feet-based shape:
 
 - the parent planting stores shared crop identity, lifecycle, care defaults,
   arrangement form, and group center `xFt`/`yFt`
@@ -169,6 +177,9 @@ individual plant nodes:
 - `plantCount` is normalized to the number of saved instances
 - row, block, cluster, trellis-line, and single modes remain arrangement
   metadata for adding, rendering, optimizer output, and future group editing
+- row, block, and cluster geometry derives internal dots, footprint hulls, and
+  default arrangement dimensions from quantity, spacing, mature spread, and
+  placement mode instead of duplicating layout math in UI components
 
 Backward compatibility:
 
@@ -180,11 +191,15 @@ Backward compatibility:
 
 Runtime implications:
 
-- Plan renders and selects instance nodes while the inspector still edits the
-  shared parent planting metadata
+- Plan renders and selects parent planting groups as grouped footprints with
+  internal approximate dots; the inspector still edits the shared parent
+  planting metadata
 - Add Plant and the Plan inspector use the same arrangement editor to adjust
   quantity, form, and spacing; changing those arrangement fields regenerates
   deterministic `instances[]` in feet while preserving shared crop identity
+- reducing quantity shrinks the derived footprint and increasing quantity
+  expands it predictably unless a saved record carries explicit per-instance
+  positions that should be preserved
 - moving a parent planting moves all instances by the same feet-based delta;
   moving an instance updates only that node and recenters the parent group
 - Today tasks, Feed entries, harvest logs, water recommendations, and issue
@@ -195,6 +210,65 @@ Runtime implications:
   quantity into one visual object
 - draft save, publish, revert, offline queue, and revision history persist the
   full garden aggregate, including `instances[]`
+
+## Plant Planning Redesign Model
+
+The redesign-facing plant planning model lives in
+`src/domain/gardens/plantPlanning.ts`. It names the next UI layer in product
+terms without creating a second persistence schema:
+
+- `PlantSpecies` adapts the existing crop catalog `CropProfile`.
+- `PlantGroup` adapts a saved `Planting` as one species, one chosen quantity,
+  one placement mode, and feet-based center coordinates.
+- `PlantDot` is derived from the group quantity, spacing, row spacing, and
+  placement mode for rendering individual lightweight plant positions.
+- `PlantSupportPlan` stores per-plant supports such as cages and stakes on the
+  plant group; trellises and raised beds remain normal grid structures and can
+  be linked from the group by structure id.
+- `LayoutProblem`, `LayoutResolutionOption`, `LayoutResolution`, and
+  `LayoutVariant` model optimizer conflicts and fixes as typed actions instead
+  of parsing recommendation copy.
+- `PlantEditorModalState` and `DetailedViewState` reserve one shared state
+  shape for the future plant editor modal and Detailed View toggle.
+- Browser-local Plan UI state is versioned separately under
+  `secret-faede.plan-state.v2:{uid}`. It stores selected/hovered plant group
+  ids, label visibility, editor/Detailed View state, typed problem-resolution
+  state, and location-match defaults, but always rebuilds `PlantGroup[]` from
+  the garden aggregate instead of persisting duplicate crop geometry.
+
+## Plant Catalog And Location Match
+
+The redesign add-plants flow reads `PlantCatalogEntry` values from
+`src/domain/crops/plantCatalog.ts`. The module adapts the existing generated
+crop catalog instead of introducing a second crop database. Each plant entry
+exposes the fields the compact chooser and plant editor need: lifecycle, sun
+preference, water need, spacing, mature size, support defaults, compatible
+placement modes, timing, harvest cycle, difficulty, description, and local
+climate inputs.
+
+Location match lives in `src/domain/crops/plantLocationMatch.ts`. If the user
+has not chosen a location, it uses Detroit / southeast Michigan defaults from
+the saved garden climate profile, including USDA zone 6a, average frost dates,
+and broad cool-season, warm-season, and perennial planting windows.
+
+The match score is intentionally heuristic. It combines placement sun, local
+season timing, days to maturity before fall frost, perennial hardiness, and
+catalog confidence. The UI should show bands instead of fake precision:
+
+- `Strong match`: score 82-100.
+- `Good match`: score 66-81.
+- `Watch timing`: score 45-65.
+- `Poor match`: score below 45.
+
+Migration note:
+
+- Existing saved gardens continue to read through the current garden migration
+  and validation path. Old `plants[]` are copied to `plantings[]`, missing
+  `instances[]` are deterministically rebuilt, missing support plans default to
+  no support or the legacy support type, and `createPlantGroupFromPlanting`
+  exposes those records as `PlantGroup` values for the redesign UI. Legacy
+  browser-only marker/node state is dropped during the local Plan state
+  migration because it is not canonical garden data.
 
 ## Publish
 
@@ -221,18 +295,19 @@ The UI requires a two-step confirmation before calling this operation.
 ## Structure Layer
 
 Saved structures remain rectangular, feet-based objects with top-left
-coordinates. Beds, containers, paths, and crop supports are the primary Plan
-objects; legacy shade, utility, compost, and water-source objects remain
-parseable only when they explain planting, sun, access, support, or watering:
+coordinates. Beds, containers, access paths, and trellises are the primary Plan
+objects. Plant-level cages, stakes, and rods are stored on the planting support
+plan instead of in `structures[]`. Legacy shade, utility, compost, and
+water-source objects remain parseable only long enough for migration cleanup:
 
-- `type`: `raisedBed`, `inGroundBed`, `container`, `pathway`, `path`,
-  `trellis`, `fenceWall`, `treeObstacle` as a legacy shade-source alias,
-  `compost`, `waterSource`, `hoseBib`, or legacy aliases.
+- `type`: authorable values are `raisedBed`, `inGroundBed`, `container`,
+  `pathway`, and `trellis`; `path` and `bed` are legacy aliases that still read
+  as page structures.
 - `widthFt`, `depthFt`, `heightFt`, `xFt`, `yFt`: persisted in feet.
 - `material`: `woodChips`, `mulch`, `gravel`, `pavers`, `stone`, `lumber`,
   `wire`, `metal`, `soil`, `mixed`, or `none`.
 - `workingClearanceFt`: the aisle/maintenance clearance expected around beds,
-  containers, compost, water, and support structures.
+  containers, paths, and trellises.
 - `accessiblePath`: marks paths that should meet the larger accessible default.
 - `continuousPath`: records whether a path segment is part of a usable route.
 - `locked`: marks installed or otherwise fixed structures that should stay
@@ -248,8 +323,9 @@ Material summaries are derived from the same saved structures:
 - beds report dimensions, square footage, and raised/container soil capacity
 - paths report surface material area
 - trellises report count and total saved length
-- crop support suggestions use crop growth form, trellis flags, planting mode,
-  plant count, row length, and spacing
+- cage and stake summaries come from planting support plans, while trellis
+  suggestions use crop growth form, trellis flags, planting mode, plant count,
+  row length, and spacing
 
 ## Crop Catalog
 

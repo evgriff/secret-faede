@@ -1,4 +1,11 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react';
 
 import {
   cropCatalog,
@@ -14,6 +21,13 @@ import type {
   PlantingMode,
   SunExposure,
 } from '../../domain/gardens/GardenRepository';
+import {
+  closeOnBackdropMouseDown,
+  trapDialogFocus,
+  useDialogScrollLock,
+  useEscapeToClose,
+  useInitialDialogFocus,
+} from '../shared/design/dialogDismiss';
 import { cropSunRequirementMet, type SunSeason } from './sunShadeEngine';
 import styles from '../plan/PlanModal.module.css';
 import type { AddPlantingRequest } from './useGarden';
@@ -32,6 +46,7 @@ import {
   type WaterNeedsFilter,
 } from './CropPickerFilters';
 import cropStyles from './CropPickerPanels.module.css';
+import { buildAddPlantRequest } from './addPlantRequest';
 import {
   calculatePlantCount,
   calculateRequestedAreaSqFt,
@@ -49,6 +64,7 @@ interface AddPlantModalProps {
   garden: Garden;
   onAddPlant(request: AddPlantingRequest): void;
   onClose(): void;
+  onPreviewChange?: (request: AddPlantingRequest | null) => void;
   sunExposureAtPlacement: SunExposure | null;
   sunSeason: SunSeason;
 }
@@ -57,9 +73,12 @@ export function AddPlantModal({
   garden,
   onAddPlant,
   onClose,
+  onPreviewChange,
   sunExposureAtPlacement,
   sunSeason,
 }: AddPlantModalProps) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
   const [category, setCategory] = useState<CategoryFilter>('any');
   const [growthForm, setGrowthForm] = useState<GrowthFormFilter>('any');
   const [mode, setMode] = useState<PlantingMode>('single');
@@ -152,22 +171,51 @@ export function AddPlantModal({
           sunExposureAtPlacement,
         )} in ${formatLabel(sunSeason)}.`
       : null;
+  useEscapeToClose(onClose);
+  useDialogScrollLock();
+  useInitialDialogFocus({
+    dialogRef,
+    initialFocusRef: closeButtonRef,
+  });
+
+  useEffect(() => {
+    onPreviewChange?.(
+      buildAddPlantRequest({
+        crop: selectedCrop,
+        effectiveBlockDepthFt,
+        effectiveBlockWidthFt,
+        effectiveClusterRadiusFt,
+        effectiveRowLengthFt,
+        plantCount,
+        selectedMode,
+      }),
+    );
+
+    return () => onPreviewChange?.(null);
+  }, [
+    effectiveBlockDepthFt,
+    effectiveBlockWidthFt,
+    effectiveClusterRadiusFt,
+    effectiveRowLengthFt,
+    onPreviewChange,
+    plantCount,
+    selectedCrop,
+    selectedMode,
+  ]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    onAddPlant({
-      blockDepthFt: selectedMode === 'block' ? effectiveBlockDepthFt : null,
-      blockWidthFt: selectedMode === 'block' ? effectiveBlockWidthFt : null,
-      clusterRadiusFt:
-        selectedMode === 'cluster' ? effectiveClusterRadiusFt : null,
-      crop: selectedCrop,
-      mode: selectedMode,
-      plantCount,
-      rowLengthFt:
-        selectedMode === 'row' || selectedMode === 'trellisLine'
-          ? effectiveRowLengthFt
-          : null,
-    });
+    onAddPlant(
+      buildAddPlantRequest({
+        crop: selectedCrop,
+        effectiveBlockDepthFt,
+        effectiveBlockWidthFt,
+        effectiveClusterRadiusFt,
+        effectiveRowLengthFt,
+        plantCount,
+        selectedMode,
+      }),
+    );
   }
 
   function handleQuantityChange(value: string) {
@@ -213,20 +261,30 @@ export function AddPlantModal({
     setClusterRadiusFt('');
   }
 
+  function handleDialogKeyDown(event: KeyboardEvent<HTMLElement>) {
+    trapDialogFocus(event, dialogRef.current);
+  }
+
   return (
-    <div className={styles.modalBackdrop}>
+    <div
+      className={`${styles.modalBackdrop} ${styles.placementBackdrop}`}
+      onMouseDown={(event) => closeOnBackdropMouseDown(event, onClose)}
+    >
       <section
         aria-labelledby="add-plant-title"
         aria-modal="true"
         className={`${styles.modal} ${styles.cropModal}`}
+        onKeyDown={handleDialogKeyDown}
+        ref={dialogRef}
         role="dialog"
       >
         <div className={styles.modalHeader}>
           <h2 id="add-plant-title">Add Plant</h2>
           <button
-            aria-label="Close"
+            aria-label="Close crop picker"
             className={styles.iconButton}
             onClick={onClose}
+            ref={closeButtonRef}
             type="button"
           >
             x

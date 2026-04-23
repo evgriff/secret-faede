@@ -1,4 +1,10 @@
-import type { Garden, Structure } from '../../domain/gardens/GardenRepository';
+import {
+  normalizePlantSupportPlanForQuantity,
+  type Garden,
+  type Planting,
+  type PlantSupportPlan,
+  type Structure,
+} from '../../domain/gardens/GardenRepository';
 import {
   getPlantingFootprint,
   getStructureFootprint,
@@ -25,29 +31,39 @@ import {
 import type { AutoLayoutStrategy } from './autoLayoutTypes';
 import { autoLayoutProposalMarker, type Placement } from './autoLayoutPlanner';
 
-export function buildSupportStructures(
+export function applySupportPlansAndBuildStructures(
   garden: Garden,
   placements: Placement[],
   strategy: AutoLayoutStrategy,
   referenceDate: Date,
-): Structure[] {
+): { placements: Placement[]; structures: Structure[] } {
   const structures: Structure[] = [];
-
-  for (const placement of placements) {
+  const supportedPlacements = placements.map((placement): Placement => {
     const crop = placement.unit.crop;
     const supportNeed = getCropSupportNeed(crop);
 
-    if (
-      !supportNeed ||
-      !cropNeedsSupport(crop) ||
-      !placement.unit.request.supportAllowed
-    ) {
-      continue;
+    if (!supportNeed || !cropNeedsSupport(crop)) {
+      return placement;
+    }
+
+    if (!placement.unit.request.supportAllowed) {
+      return placement;
     }
 
     const footprint = getPlantingFootprint(placement.planting);
-    const supportKind: CropSupportKind =
-      placement.planting.mode === 'trellisLine' ? 'trellis' : supportNeed.kind;
+    const supportKind: CropSupportKind = supportNeed.kind;
+
+    if (supportKind !== 'trellis') {
+      return {
+        ...placement,
+        planting: assignPlantLevelSupport(
+          placement.planting,
+          supportKind,
+          supportNeed.required,
+        ),
+      };
+    }
+
     const blockedRects = getSupportBlockedRects(
       garden,
       placement,
@@ -64,7 +80,7 @@ export function buildSupportStructures(
     );
 
     if (hasExistingSupport(garden, footprint) || !supportFootprint) {
-      continue;
+      return placement;
     }
 
     const supportLabel = getSupportLabel(supportKind);
@@ -79,7 +95,7 @@ export function buildSupportStructures(
       irrigationZone: null,
       label: `${crop.commonName} ${supportLabel}`,
       locked: false,
-      material: supportKind === 'stake' ? 'lumber' : 'wire',
+      material: 'wire',
       mulched: false,
       notes: `${autoLayoutProposalMarker} ${capitalize(supportLabel)} support proposed for ${crop.commonName}.`,
       rotationDegrees: 0,
@@ -90,9 +106,24 @@ export function buildSupportStructures(
       xFt: supportFootprint.xFt,
       yFt: supportFootprint.yFt,
     });
-  }
+    return placement;
+  });
 
-  return structures;
+  return { placements: supportedPlacements, structures };
+}
+
+export function buildSupportStructures(
+  garden: Garden,
+  placements: Placement[],
+  strategy: AutoLayoutStrategy,
+  referenceDate: Date,
+): Structure[] {
+  return applySupportPlansAndBuildStructures(
+    garden,
+    placements,
+    strategy,
+    referenceDate,
+  ).structures;
 }
 
 export function findHardConstraintViolations(
@@ -120,7 +151,7 @@ export function findHardConstraintViolations(
 
     if (reservedRects.some((reserved) => rectsOverlap(footprint, reserved))) {
       violations.push(
-        `${footprint.label} overlaps a saved path, support, or crop.`,
+        `${footprint.label} overlaps a saved path, trellis, or crop.`,
       );
     }
 
@@ -167,11 +198,13 @@ export function findHardConstraintViolations(
     }
 
     if (
-      blockingStructureRects.some((blockedRect) =>
-        rectsOverlap(footprint, blockedRect),
+      blockingStructureRects.some(
+        (blockedRect) =>
+          blockedRect.id !== footprint.id &&
+          rectsOverlap(footprint, blockedRect),
       )
     ) {
-      violations.push(`${structure.label} support blocks saved access.`);
+      violations.push(`${structure.label} blocks saved access.`);
     }
   }
 
@@ -192,6 +225,41 @@ function getSupportBlockedRects(
       .map((candidate) => getPlantingFootprint(candidate.planting)),
     ...structures.map(getStructureFootprint),
   ];
+}
+
+function assignPlantLevelSupport(
+  planting: Planting,
+  supportKind: Exclude<CropSupportKind, 'trellis'>,
+  required: boolean,
+): Planting {
+  const support = createPlantSupportPlan(
+    supportKind,
+    Math.max(planting.plantCount ?? 1, 1),
+    required,
+  );
+
+  return {
+    ...planting,
+    support,
+  };
+}
+
+function createPlantSupportPlan(
+  supportKind: Exclude<CropSupportKind, 'trellis'>,
+  quantity: number,
+  required: boolean,
+): PlantSupportPlan {
+  return normalizePlantSupportPlanForQuantity(
+    {
+      installedAtIso: null,
+      notes: `${autoLayoutProposalMarker} ${capitalize(getSupportLabel(supportKind))} assigned as a plant-level support.`,
+      perPlant: true,
+      quantity,
+      required,
+      type: supportKind,
+    },
+    quantity,
+  );
 }
 
 function capitalize(value: string) {

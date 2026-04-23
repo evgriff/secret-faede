@@ -16,11 +16,11 @@ import type { PlanWarning, PlanWarningContext } from './gardenPlanning';
 import { cropSunRequirementMet, getSunAreaAtPoint } from './sunShadeEngine';
 import { describeCropSunFit, describeShadeSourceSummary } from './sunShadeFit';
 import {
-  findCompostPlacementConflicts,
   getCropSupportNeed,
   getPathRequiredWidthFt,
   getSupportLabel,
   getWalkablePathWidthFt,
+  hasPlantLevelSupport,
   hasNearbySupportFootprint,
   hasWalkablePathAccess,
   isBedLikeStructure,
@@ -142,7 +142,6 @@ export function addStructureWarnings(
   }
 
   addPathPlanningWarnings(garden, warnings);
-  addUtilityStructureWarnings(garden, warnings);
 }
 
 export function addBedFitWarnings(
@@ -253,10 +252,16 @@ export function addTrellisWarnings(
     const crop = getCropById(planting.cropId);
     const supportNeed = crop ? getCropSupportNeed(crop) : null;
 
+    if (!supportNeed) {
+      continue;
+    }
+
     if (
-      !supportNeed ||
-      planting.mode === 'trellisLine' ||
-      hasNearbySupportFootprint(garden, footprint)
+      supportNeed.kind === 'trellis'
+        ? planting.mode === 'trellisLine' ||
+          (planting.trellisLengthFt ?? 0) > 0 ||
+          hasNearbySupportFootprint(garden, footprint)
+        : hasPlantLevelSupport(planting, supportNeed.kind)
     ) {
       continue;
     }
@@ -267,12 +272,15 @@ export function addTrellisWarnings(
         acknowledgeable: !supportNeed.required,
         fix:
           supportNeed.kind === 'trellis'
-            ? 'Add a trellis nearby or change this to a trellis line.'
-            : `Add a ${supportLabel} nearby or save the existing support.`,
+            ? `Add a saved grid trellis next to ${planting.label}, or change the group to a trellis-line layout if that reflects the real support.`
+            : `Assign ${planting.label} a plant-level ${supportLabel}; this should live on the plant group, not as a standalone structure.`,
         id: `trellis-${planting.id}`,
         itemIds: [planting.id],
         kind: 'trellis',
-        message: `${planting.label} needs a ${supportLabel}, but no nearby support is saved. ${supportNeed.reason}`,
+        message:
+          supportNeed.kind === 'trellis'
+            ? `${planting.label} needs a saved grid trellis, but no nearby trellis structure is on the plot. ${supportNeed.reason}`
+            : `${planting.label} needs a plant-level ${supportLabel}, but the plant group has no ${supportLabel} assigned. ${supportNeed.reason}`,
         severity: supportNeed.required ? 'warning' : 'info',
         title:
           supportNeed.kind === 'trellis'
@@ -506,28 +514,6 @@ function addPathPlanningWarnings(garden: Garden, warnings: PlanWarning[]) {
         }),
       );
     }
-  }
-}
-
-function addUtilityStructureWarnings(garden: Garden, warnings: PlanWarning[]) {
-  for (const { compost, structure } of findCompostPlacementConflicts(garden)) {
-    const conflictsWithPath = isPathStructure(structure);
-
-    warnings.push(
-      createWarning({
-        fix: conflictsWithPath
-          ? 'Move the compost bay out of the walking route.'
-          : 'Move the compost bay outside the growing bed footprint.',
-        id: `structure-compost-${compost.id}-${structure.id}`,
-        itemIds: [compost.id, structure.id],
-        kind: conflictsWithPath ? 'pathway' : 'structure',
-        message: `${compost.label} overlaps ${structure.label}. Keep compost reachable without occupying beds or paths.`,
-        severity: 'warning',
-        title: conflictsWithPath
-          ? 'Compost blocks access'
-          : 'Compost bed conflict',
-      }),
-    );
   }
 }
 

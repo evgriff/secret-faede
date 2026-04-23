@@ -19,6 +19,14 @@ describe('buildMaterialsList', () => {
           }),
           cropId: 'tomato',
           plantCount: 2,
+          support: {
+            installedAtIso: null,
+            notes: '',
+            perPlant: true,
+            quantity: 2,
+            required: true,
+            type: 'cage' as const,
+          },
         },
       ],
       structures: [
@@ -68,6 +76,7 @@ describe('buildMaterialsList', () => {
     expect(materials.supports).toEqual(
       expect.arrayContaining([
         expect.stringContaining('Tomato'),
+        expect.stringContaining('2 cages'),
         expect.stringContaining('8 ft saved trellis'),
       ]),
     );

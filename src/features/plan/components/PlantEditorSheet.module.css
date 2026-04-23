@@ -1,0 +1,363 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 42;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(31, 27, 24, 0.22);
+  padding: var(--space-3);
+  overflow: hidden;
+}
+
+.pinnedLayer {
+  position: fixed;
+  top: clamp(13rem, 39vh, 19rem);
+  right: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 32;
+  width: min(34rem, calc(100vw - (var(--space-3) * 2)));
+  pointer-events: none;
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(34rem, 100%);
+  max-height: 100%;
+  border: 1px solid rgba(76, 85, 70, 0.18);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-solid);
+  box-shadow: 0 22px 64px rgba(31, 27, 24, 0.22);
+  color: var(--color-text);
+  overflow: auto;
+  padding: var(--space-3);
+  animation: sheetIn var(--motion-medium) var(--ease-out);
+}
+
+.pinnedSheet {
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.header h2,
+.header p {
+  margin: 0;
+}
+
+.header h2 {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-title);
+  line-height: 1.15;
+}
+
+.header p,
+.muted {
+  color: var(--color-text-muted);
+}
+
+.kicker {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 820;
+  text-transform: uppercase;
+}
+
+.iconButton {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  min-width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: #ffffff;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+}
+
+.summaryStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.summaryStrip span {
+  border: 1px solid rgba(76, 85, 70, 0.18);
+  border-radius: var(--radius-control);
+  background: rgba(234, 241, 230, 0.62);
+  color: var(--color-text-strong);
+  font-size: var(--font-size-caption);
+  font-weight: 780;
+  padding: 0.35rem 0.55rem;
+}
+
+.section,
+.details,
+.notice {
+  display: grid;
+  gap: var(--space-3);
+  border-top: 1px solid rgba(54, 48, 40, 0.1);
+  padding-top: var(--space-3);
+}
+
+.section h3 {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-body);
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--color-text-strong);
+  font-weight: 760;
+}
+
+.field input,
+.field select,
+.field textarea {
+  min-height: 2.75rem;
+  width: 100%;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: #ffffff;
+  color: var(--color-text-strong);
+  font: inherit;
+  padding: 0.68rem 0.75rem;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.field input:disabled {
+  background: rgba(246, 242, 233, 0.72);
+  color: var(--color-text-muted);
+}
+
+.twoColumn,
+.checkGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.checkGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  color: var(--color-text-strong);
+  font-weight: 760;
+}
+
+.checkbox input {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.photoList,
+.warningList {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.photoList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border: 1px solid rgba(76, 85, 70, 0.14);
+  border-radius: var(--radius-control);
+  background: rgba(246, 242, 233, 0.42);
+  padding: 0.5rem 0.6rem;
+}
+
+.photoMeta {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.photoList button,
+.secondaryButton,
+.footerActions button,
+.notice button {
+  min-height: 2.55rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: #ffffff;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 760;
+  padding: 0 0.8rem;
+}
+
+.details summary {
+  min-height: 2.5rem;
+  cursor: pointer;
+  color: var(--color-text-strong);
+  font-weight: 820;
+}
+
+.grid {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.grid div {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 0.5rem;
+  border-bottom: 1px solid rgba(54, 48, 40, 0.1);
+  padding-bottom: 0.45rem;
+}
+
+.grid dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.grid dd {
+  margin: 0;
+  color: var(--color-text-strong);
+}
+
+.warningList li {
+  border: 1px solid rgba(179, 90, 63, 0.16);
+  border-radius: var(--radius-control);
+  background: rgba(255, 248, 229, 0.72);
+  color: var(--color-text-strong);
+  padding: 0.55rem 0.65rem;
+}
+
+.saved {
+  color: #1f6b3a;
+}
+
+.notice {
+  border-color: rgba(138, 90, 0, 0.24);
+  background: rgba(250, 223, 134, 0.16);
+  border-radius: var(--radius-card);
+  padding: var(--space-3);
+}
+
+.notice strong,
+.notice p {
+  margin: 0;
+}
+
+.notice button {
+  justify-self: start;
+  border-color: rgba(138, 90, 0, 0.38);
+  color: #6f4500;
+}
+
+.footer {
+  position: sticky;
+  bottom: calc(-1 * var(--space-3));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-top: 1px solid rgba(54, 48, 40, 0.12);
+  background: var(--color-surface-solid);
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.footer span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.footerActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.dangerButton {
+  border-color: rgba(163, 52, 40, 0.34) !important;
+  color: #a33428 !important;
+}
+
+@keyframes sheetIn {
+  from {
+    opacity: 0;
+    transform: translateX(0.7rem);
+  }
+}
+
+@media (max-width: 58rem) {
+  .backdrop {
+    align-items: flex-end;
+    padding: 0.75rem;
+  }
+
+  .pinnedLayer {
+    top: auto;
+    right: 0.75rem;
+    bottom: calc(5.75rem + env(safe-area-inset-bottom));
+    left: 0.75rem;
+    width: auto;
+    max-height: min(66dvh, 34rem);
+  }
+
+  .sheet {
+    width: 100%;
+    max-height: min(76dvh, 38rem);
+  }
+
+  .pinnedSheet {
+    max-height: inherit;
+  }
+
+  .twoColumn,
+  .checkGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .grid div {
+    grid-template-columns: 1fr;
+  }
+
+  .footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .footerActions {
+    justify-content: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    animation: none;
+  }
+}

@@ -187,7 +187,7 @@ Canonical garden document:
 {
   id: string,
   userId: string,
-  schemaVersion: 3,
+  schemaVersion: 5,
   name: string,
   climateProfile: ClimateProfile,
   plot: {
@@ -204,16 +204,22 @@ Canonical garden document:
 Plantings are canonical garden items in `gardens/{uid}/plantings/{plantingId}`.
 Supported planting modes are `single`, `row`, `block`, `cluster`, and
 `trellisLine`. Each planting stores shared crop/care state plus `instances[]`
-for the individual plant nodes rendered on the Plan canvas. `plannedFor` stores
-an optional future date for approved succession plantings; older saved plantings
-default to `null`. Structures such as beds and trellises are separate documents
-in `gardens/{uid}/structures/{structureId}`.
+for the internal plant positions shown inside grouped Plan footprints. The
+shared `src/domain/gardens/plantingGeometry.ts` helper converts quantity,
+spacing, mature spread, and row/block/cluster mode into deterministic dots and
+footprint hulls so Plan rendering, optimizer constraints, and sun/shade logic do
+not drift apart. Per-plant cages, stakes, and similar support choices live on
+the planting support plan; trellises and raised beds remain structure documents.
+`plannedFor` stores an optional future date for approved succession plantings;
+older saved plantings default to `null`.
 
-Structure planning supports raised beds, in-ground beds, containers, pathways,
-and crop supports in the primary flow. Legacy shade, fence, compost, and water
-source objects remain parseable and can inform sun, access, watering, or support
-rules, but Plan should not behave like a general yard-survey tool. Structure
-positions and sizes use feet as canonical units.
+Structure planning supports raised beds, in-ground beds, containers, access
+paths, and trellises in the primary flow. Plant-level supports such as cages and
+stakes live on the planting support plan instead of becoming global structure
+documents. Legacy shade, fence, compost, and water-source objects remain
+migration-readable, but schema version 5 drops them from saved page structures
+so Plan does not behave like a general yard-survey tool. Structure positions and
+sizes use feet as canonical units.
 
 Crop profiles are normalized from the checked-in generated catalog in
 `src/domain/crops/homeGardenCropCatalog.generated.json`. The app can rebuild the

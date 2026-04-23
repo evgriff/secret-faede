@@ -1,3 +1,5 @@
+import { getCropById } from '../../domain/crops/cropCatalog';
+import { buildPlantMaturityProfile } from '../../domain/gardens/plantMaturity';
 import type {
   Garden,
   Planting,
@@ -12,8 +14,9 @@ import {
   type FootRect,
 } from './gardenPlanningGeometry';
 
-interface ShadeCaster {
+export interface ShadeCaster {
   canopyRadiusFt: number;
+  canopyOpacity: number;
   center: { xFt: number; yFt: number };
   depthFt: number;
   heightFt: number;
@@ -56,6 +59,21 @@ export function getCellShadeHits(
       perpendicular <= Math.max(shadowWidthFt, 0.5)
     );
   });
+}
+
+export function getShadePressure(shadeHits: ShadeCaster[]) {
+  if (shadeHits.length === 0) {
+    return 0;
+  }
+
+  return Math.min(
+    Math.max(
+      ...shadeHits.map((hit) =>
+        Number.isFinite(hit.canopyOpacity) ? hit.canopyOpacity : 1,
+      ),
+    ),
+    1,
+  );
 }
 
 export function buildMicroclimateNotes({
@@ -134,9 +152,11 @@ function createStructureShadeCaster(structure: Structure): ShadeCaster[] {
   return [
     createShadeCaster({
       canopyRadiusFt: structure.canopyRadiusFt ?? 0,
+      canopyOpacity: 0.82,
       footprint: getStructureFootprint(structure),
       heightFt,
       source: {
+        canopyOpacity: 0.82,
         heightFt,
         itemId: structure.id,
         itemType: 'structure',
@@ -152,12 +172,11 @@ function createPlantingShadeCaster(planting: Planting): ShadeCaster[] {
     return [];
   }
 
+  const crop = planting.cropId ? getCropById(planting.cropId) : null;
+  const maturity = buildPlantMaturityProfile({ crop, planting });
   const trellised =
     planting.mode === 'trellisLine' || (planting.trellisLengthFt ?? 0) > 0;
-  const heightFt = Math.max(
-    (planting.matureHeightInches ?? 0) / 12,
-    trellised ? 6 : 0,
-  );
+  const heightFt = maturity.effectiveHeightFt;
 
   if (!trellised && heightFt < 4) {
     return [];
@@ -165,15 +184,22 @@ function createPlantingShadeCaster(planting: Planting): ShadeCaster[] {
 
   return [
     createShadeCaster({
-      canopyRadiusFt: 0,
+      canopyRadiusFt: maturity.canopyRadiusFt,
+      canopyOpacity: maturity.canopyOpacity,
       footprint: getPlantingFootprint(planting),
       heightFt,
       source: {
+        canopyDensity: maturity.canopyDensity,
+        canopyOpacity: maturity.canopyOpacity,
+        growthStage: maturity.growthStage,
         heightFt,
         itemId: planting.id,
         itemType: 'planting',
         kind: trellised ? 'trellisedCrop' : 'tallCrop',
         label: planting.label,
+        matureHeightFt: maturity.matureHeightFt,
+        matureSpreadFt: maturity.matureSpreadFt,
+        supportHeightFt: maturity.supportHeightFt,
       },
     }),
   ];
@@ -181,17 +207,20 @@ function createPlantingShadeCaster(planting: Planting): ShadeCaster[] {
 
 function createShadeCaster({
   canopyRadiusFt,
+  canopyOpacity,
   footprint,
   heightFt,
   source,
 }: {
   canopyRadiusFt: number;
+  canopyOpacity: number;
   footprint: FootRect;
   heightFt: number;
   source: SunShadeSource;
 }): ShadeCaster {
   return {
     canopyRadiusFt,
+    canopyOpacity,
     center: {
       xFt: footprint.xFt + footprint.widthFt / 2,
       yFt: footprint.yFt + footprint.depthFt / 2,

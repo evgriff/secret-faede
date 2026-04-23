@@ -3,29 +3,24 @@ import type {
   SunShadeLayer,
 } from '../../domain/gardens/GardenRepository';
 import { getPlantingFootprint, type FootRect } from '../garden/gardenPlanning';
+import type { SunSeason } from '../garden/sunShadeEngine';
 import {
   buildReservedRects,
   canSupportFootprint,
   getLayoutReferenceDate,
 } from './autoLayoutConstraints';
-import { buildScoreBreakdown } from './autoLayoutScoring';
+import { scorePlacement } from './autoLayoutPlacementScoring';
 import {
-  scorePlacement,
-  toScoredPlacement,
-} from './autoLayoutPlacementScoring';
-import {
-  buildExplanations,
-  buildMaterials,
-  buildTradeoffs,
   getAnchoredOptimizerPlantings,
   getUnplacedReason,
 } from './autoLayoutCandidateSummary';
+import { compareAutoLayoutCandidates } from './autoLayoutCandidateRanking';
+import { buildWholePlotPlanningContext } from './autoLayoutWholePlot';
 import {
   buildLayoutZones,
   createLayoutUnits,
   createPlacementPlanting,
   enumerateCenters,
-  getStrategyLabel,
   isLegalRect,
   rectInsideRect,
   snap,
@@ -36,10 +31,7 @@ import {
   type Placement,
 } from './autoLayoutPlanner';
 export { autoLayoutProposalMarker } from './autoLayoutPlanner';
-import {
-  buildSupportStructures,
-  findHardConstraintViolations,
-} from './autoLayoutProposalOutput';
+import { resolveAutoLayoutCandidate } from './autoLayoutRecursiveSolver';
 import { buildSeasonCropLayoutRequests } from './seasonCropPlan';
 import type {
   AutoLayoutCandidate,
@@ -48,7 +40,13 @@ import type {
 
 export function generateAutoLayoutCandidates(
   garden: Garden,
-  options: { sunLayer?: SunShadeLayer | null } = {},
+  options: {
+    ignoredWarningIds?: string[];
+    maxSearchDepth?: number;
+    maxSearchStates?: number;
+    sunLayer?: SunShadeLayer | null;
+    sunSeason?: SunSeason;
+  } = {},
 ): AutoLayoutCandidate[] {
   const requests = buildSeasonCropLayoutRequests(garden);
   const units = requests.flatMap(createLayoutUnits);
@@ -57,27 +55,56 @@ export function generateAutoLayoutCandidates(
     return [];
   }
 
-  return (['sunFirst', 'supportFirst', 'accessFirst'] as const).map(
-    (strategy) =>
-      buildCandidate(garden, units, strategy, options.sunLayer ?? null),
-  );
+  return (['sunFirst', 'supportFirst', 'accessFirst'] as const)
+    .map((strategy) =>
+      buildCandidate({
+        garden,
+        ignoredWarningIds: options.ignoredWarningIds ?? [],
+        ...(options.maxSearchDepth !== undefined
+          ? { maxSearchDepth: options.maxSearchDepth }
+          : {}),
+        ...(options.maxSearchStates !== undefined
+          ? { maxSearchStates: options.maxSearchStates }
+          : {}),
+        strategy,
+        sunLayer: options.sunLayer ?? null,
+        ...(options.sunSeason ? { sunSeason: options.sunSeason } : {}),
+        units,
+      }),
+    )
+    .sort(compareAutoLayoutCandidates);
 }
 
-function buildCandidate(
-  garden: Garden,
-  units: LayoutUnit[],
-  strategy: AutoLayoutStrategy,
-  sunLayer: SunShadeLayer | null,
-): AutoLayoutCandidate {
+function buildCandidate({
+  garden,
+  ignoredWarningIds,
+  maxSearchDepth,
+  maxSearchStates,
+  strategy,
+  sunLayer,
+  sunSeason,
+  units,
+}: {
+  garden: Garden;
+  ignoredWarningIds: string[];
+  maxSearchDepth?: number;
+  maxSearchStates?: number;
+  strategy: AutoLayoutStrategy;
+  sunLayer: SunShadeLayer | null;
+  sunSeason?: SunSeason;
+  units: LayoutUnit[];
+}): AutoLayoutCandidate {
   const referenceDate = getLayoutReferenceDate(garden);
   const anchoredPlantings = getAnchoredOptimizerPlantings(garden);
-  const zones = buildLayoutZones(garden);
+  const wholePlotContext = buildWholePlotPlanningContext(garden, strategy);
+  const planningGarden = wholePlotContext.garden;
+  const zones = buildLayoutZones(planningGarden);
   const placements: Placement[] = [];
   const unplaced: AutoLayoutCandidate['unplaced'] = [];
 
   for (const unit of sortUnits(units, strategy)) {
     const placement = placeUnit({
-      garden,
+      garden: planningGarden,
       placedRects: placements.map((entry) =>
         getPlantingFootprint(entry.planting),
       ),
@@ -100,49 +127,28 @@ function buildCandidate(
   }
 
   const improvedPlacements = improvePlacements({
-    garden,
+    garden: planningGarden,
     placements,
     referenceDate,
     strategy,
     sunLayer,
     zones,
   });
-  const scoredPlacements = improvedPlacements.map(toScoredPlacement);
-  const structures = buildSupportStructures(
-    garden,
-    improvedPlacements,
-    strategy,
-    referenceDate,
-  );
-  const hardConstraintViolations = findHardConstraintViolations(
-    garden,
-    improvedPlacements,
-    structures,
-    referenceDate,
-  );
-  const scoreBreakdown = buildScoreBreakdown({
-    garden,
-    placements: scoredPlacements,
-  });
 
-  return {
-    explanations: buildExplanations(strategy, scoredPlacements, structures),
-    hardConstraintViolations,
-    id: `auto-${strategy}`,
-    label: getStrategyLabel(strategy),
-    materials: buildMaterials(scoredPlacements, structures),
-    plantings: improvedPlacements.map((placement) => placement.planting),
-    scoreBreakdown,
+  return resolveAutoLayoutCandidate({
+    garden: planningGarden,
+    ignoredWarningIds,
+    initialPlacements: improvedPlacements,
+    ...(maxSearchDepth !== undefined ? { maxDepth: maxSearchDepth } : {}),
+    ...(maxSearchStates !== undefined ? { maxStates: maxSearchStates } : {}),
+    proposedStructures: wholePlotContext.proposedStructures,
+    referenceDate,
     strategy,
-    structures,
-    tradeoffs: buildTradeoffs(
-      strategy,
-      unplaced,
-      scoreBreakdown,
-      anchoredPlantings,
-    ),
+    sunLayer,
+    ...(sunSeason ? { sunSeason } : {}),
     unplaced,
-  };
+    zones,
+  });
 }
 
 function placeUnit({

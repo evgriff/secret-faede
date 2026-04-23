@@ -1,38 +1,37 @@
-import {
-  formatSeasonCropFitReasonGroup,
-  formatSeasonCropPlanningState,
-  getSeasonCropPlanningRank,
-} from '../seasonCropFitDisplay';
+import type { Garden, SunExposure } from '../../../domain/gardens/models';
+import { formatGlyph } from '../../garden/cropPickerHelpers';
 import type { SeasonCropLayoutRequest } from '../seasonCropPlan';
 import sharedStyles from '../PlanModal.module.css';
-import styles from './ChoosePlantsModal.module.css';
+import { getCompactPlantFacts } from './ChoosePlantsCompactFacts';
+import styles from './ChoosePlantsCompare.module.css';
+import modalStyles from './ChoosePlantsModal.module.css';
+import { ReasonTooltip, ReasonTooltipList } from './ReasonTooltip';
 
 export function CropComparePanel({
   explicitCompareCount,
+  garden,
+  id,
   layoutRequests,
   onClearCompare,
+  sunExposureAtPlacement,
 }: {
   explicitCompareCount: number;
+  garden: Garden;
+  id?: string | undefined;
   layoutRequests: SeasonCropLayoutRequest[];
   onClearCompare(): void;
+  sunExposureAtPlacement: SunExposure | null;
 }) {
-  const rankedRequests = [...layoutRequests].sort(
-    (left, right) =>
-      getSeasonCropPlanningRank(right.fit) -
-        getSeasonCropPlanningRank(left.fit) ||
-      left.estimatedAreaSqFt - right.estimatedAreaSqFt,
-  );
-  const easiestRequest = rankedRequests[0] ?? null;
-
   return (
     <section
       aria-label="Crop planning compare"
-      className={`${styles.panelSlot} ${styles.comparePanel}`}
+      className={`${modalStyles.panelSlot} ${modalStyles.comparePanel}`}
+      id={id}
     >
       <div className={styles.compareHeader}>
         <div>
           <span className={styles.kicker}>Compare</span>
-          <h3>Plan tradeoffs</h3>
+          <h3>Quick facts</h3>
         </div>
         {explicitCompareCount > 0 ? (
           <button
@@ -44,85 +43,93 @@ export function CropComparePanel({
           </button>
         ) : null}
       </div>
-      {rankedRequests.length > 0 ? (
+      {layoutRequests.length > 0 ? (
         <ul className={styles.compareList}>
-          {rankedRequests.map((request) => (
-            <li
-              data-easiest={
-                request.cropId === easiestRequest?.cropId ? 'true' : undefined
-              }
-              key={request.cropId}
-            >
-              <div>
-                <strong>{request.crop.commonName}</strong>
-                <span>
-                  {request.quantity} plants - {request.estimatedAreaSqFt} sq ft
-                </span>
-              </div>
-              <span
-                className={styles.fitPill}
-                data-fit-level={request.fit.level}
-              >
-                {formatSeasonCropPlanningState(request.fit.level)}
-              </span>
-              <small>{getCompareLine(request, easiestRequest)}</small>
-              {request.fit.groupedReasons.length > 0 ? (
-                <div className={styles.reasonTags}>
-                  {request.fit.groupedReasons.slice(0, 3).map((reason) => (
-                    <span
-                      data-reason-severity={reason.severity}
-                      key={reason.group}
-                    >
-                      {formatSeasonCropFitReasonGroup(reason.group)}
-                    </span>
-                  ))}
+          {layoutRequests.map((request) => {
+            const facts = getCompactPlantFacts({
+              crop: request.crop,
+              garden,
+              mode: request.plantingForm,
+              sunExposureAtPlacement,
+            });
+
+            return (
+              <li key={request.cropId}>
+                <div className={styles.cropIdentity}>
+                  <span aria-hidden="true">{formatGlyph(request.crop)}</span>
+                  <strong>{request.crop.commonName}</strong>
                 </div>
-              ) : null}
-            </li>
-          ))}
+                <div className={styles.factChips}>
+                  <CompareChip
+                    label="Difficulty"
+                    value={facts.difficultyShortLabel}
+                  />
+                  <CompareChip
+                    label="Space"
+                    value={`${request.quantity} ${
+                      request.quantity === 1 ? 'plant' : 'plants'
+                    } - ${request.estimatedAreaSqFt} sq ft`}
+                  />
+                  <CompareChip
+                    label="Location Match"
+                    reasonLines={[
+                      ...facts.locationMatchDetails,
+                      facts.locationMatchBasis,
+                    ]}
+                    tone={facts.locationMatchBand}
+                    value={facts.locationMatchShortLabel}
+                  />
+                  <CompareChip
+                    label="Support"
+                    value={facts.supportShortLabel}
+                  />
+                  <CompareChip label="Lifecycle" value={facts.lifecycleLabel} />
+                  <CompareChip label="Harvest" value={facts.harvestLabel} />
+                </div>
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <p className={styles.emptyText}>
-          Select up to 3 crops to compare space, timing, and support.
+          Select up to 3 plants to compare difficulty, space, match, support,
+          and harvest timing.
         </p>
       )}
     </section>
   );
 }
 
-function getCompareLine(
-  request: SeasonCropLayoutRequest,
-  easiestRequest: SeasonCropLayoutRequest | null,
-) {
-  if (!easiestRequest || request.cropId === easiestRequest.cropId) {
-    return `Best planning match in this set: ${request.fit.summary}`;
-  }
-
-  const tradeoffs = getTradeoffGroups(request, easiestRequest);
-
-  if (tradeoffs.length > 0) {
-    return `Harder than ${easiestRequest.crop.commonName}: more ${tradeoffs.join(
-      ', ',
-    )} constraints.`;
-  }
-
-  if (request.estimatedAreaSqFt > easiestRequest.estimatedAreaSqFt * 1.2) {
-    return `Harder than ${easiestRequest.crop.commonName}: needs more room at this quantity.`;
-  }
-
-  return `Similar planning work to ${easiestRequest.crop.commonName}; choose by quantity and intent.`;
-}
-
-function getTradeoffGroups(
-  request: SeasonCropLayoutRequest,
-  easiestRequest: SeasonCropLayoutRequest,
-) {
-  const easiestGroups = new Set(
-    easiestRequest.fit.groupedReasons.map((reason) => reason.group),
+function CompareChip({
+  label,
+  reasonLines,
+  tone,
+  value,
+}: {
+  label: string;
+  reasonLines?: string[];
+  tone?: string;
+  value: string;
+}) {
+  const chip = (
+    <span
+      aria-label={`${label}: ${value}`}
+      className={styles.compareChip}
+      data-tone={tone}
+    >
+      <span aria-hidden="true">{label}</span>
+      {value}
+    </span>
   );
 
-  return request.fit.groupedReasons
-    .filter((reason) => !easiestGroups.has(reason.group))
-    .map((reason) => formatSeasonCropFitReasonGroup(reason.group).toLowerCase())
-    .slice(0, 2);
+  return reasonLines?.length ? (
+    <ReasonTooltip
+      ariaLabel={`${label} reason: ${value}`}
+      content={<ReasonTooltipList lines={reasonLines} />}
+    >
+      {chip}
+    </ReasonTooltip>
+  ) : (
+    chip
+  );
 }

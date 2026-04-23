@@ -3,6 +3,10 @@ import { memo, type PointerEvent } from 'react';
 import type { Structure } from '../../../domain/gardens/GardenRepository';
 import { formatFeet } from '../../garden/gardenMath';
 import {
+  getWalkablePathWidthFt,
+  isPathStructure,
+} from '../../garden/gardenStructureRules';
+import {
   getStructureFootprint,
   hasWarningForItem,
   type PlanWarning,
@@ -56,13 +60,14 @@ export const PlanStructureBox = memo(function PlanStructureBox({
   const isSelected = selectedStructureIds.includes(structure.id);
   const isDragging = structure.id === draggingStructureId;
   const hasWarning = hasWarningForItem(planWarnings, structure.id);
+  const isPath = isPathStructure(structure);
+  const isTrellis = structure.type === 'trellis';
   const showLabel = shouldShowStructureLabel(structure);
+  const walkablePathWidthFt = isPath ? getWalkablePathWidthFt(structure) : null;
 
   return (
     <div
-      aria-label={`${structure.label} at X: ${formatFeet(
-        structure.xFt,
-      )} ft, Y: ${formatFeet(structure.yFt)} ft`}
+      aria-label={getStructureAriaLabel(structure, walkablePathWidthFt)}
       aria-pressed={isSelected}
       className={`${styles.structure} ${styles[structure.type] ?? ''} ${
         isSelected ? styles.selectedStructure : ''
@@ -70,6 +75,16 @@ export const PlanStructureBox = memo(function PlanStructureBox({
         resizingStructureId === structure.id ? styles.resizingStructure : ''
       } ${structure.locked ? styles.lockedItem : ''} ${
         hasWarning ? styles.warningItem : ''
+      } ${isPath ? styles.accessPath : ''} ${
+        isTrellis ? styles.trellisStructure : ''
+      } ${
+        isPath && structure.widthFt <= structure.depthFt
+          ? styles.verticalPath
+          : ''
+      } ${
+        isPath && structure.widthFt > structure.depthFt
+          ? styles.horizontalPath
+          : ''
       }`}
       data-plan-item="true"
       onClick={(event) => {
@@ -85,14 +100,28 @@ export const PlanStructureBox = memo(function PlanStructureBox({
       style={footprintStyle(footprint)}
       tabIndex={0}
     >
-      {showLabel ? (
-        <span>{structure.label}</span>
+      {isPath ? (
+        <div className={styles.pathContent} data-plan-label="true">
+          <span>{structure.label}</span>
+          <small>{formatFeet(walkablePathWidthFt ?? 0)} ft walkable</small>
+        </div>
+      ) : isTrellis ? (
+        <div className={styles.trellisContent} data-plan-label="true">
+          <span>{structure.label}</span>
+          <small>{formatFeet(structure.widthFt)} ft support</small>
+        </div>
+      ) : showLabel ? (
+        <span data-plan-label="true">{structure.label}</span>
       ) : (
-        <span aria-hidden="true" className={styles.structureGlyph}>
+        <span
+          aria-hidden="true"
+          className={styles.structureGlyph}
+          data-plan-label="true"
+        >
           {getStructureGlyph(structure)}
         </span>
       )}
-      {structure.locked ? <small>locked</small> : null}
+      {structure.locked ? <small data-plan-label="true">locked</small> : null}
       {isSelected ? (
         <ResizeHandles
           onPointerCancel={onResizePointerEnd}
@@ -108,18 +137,25 @@ export const PlanStructureBox = memo(function PlanStructureBox({
   );
 });
 
+function getStructureAriaLabel(
+  structure: Structure,
+  walkablePathWidthFt: number | null,
+) {
+  const position = `at X: ${formatFeet(structure.xFt)} ft, Y: ${formatFeet(
+    structure.yFt,
+  )} ft`;
+
+  if (walkablePathWidthFt !== null) {
+    return `${structure.label}, walkable width ${formatFeet(
+      walkablePathWidthFt,
+    )} ft, ${position}`;
+  }
+
+  return `${structure.label} ${position}`;
+}
+
 function shouldShowStructureLabel(structure: Structure) {
-  if (
-    structure.type === 'fence' ||
-    structure.type === 'fenceWall' ||
-    structure.type === 'compost' ||
-    structure.type === 'hoseBib' ||
-    structure.type === 'path' ||
-    structure.type === 'pathway' ||
-    structure.type === 'treeObstacle' ||
-    structure.type === 'trellis' ||
-    structure.type === 'waterSource'
-  ) {
+  if (structure.type === 'trellis') {
     return false;
   }
 
@@ -128,22 +164,11 @@ function shouldShowStructureLabel(structure: Structure) {
 
 function getStructureGlyph(structure: Structure) {
   switch (structure.type) {
-    case 'fence':
-    case 'fenceWall':
-      return 'F';
-    case 'hoseBib':
-      return 'H';
     case 'path':
     case 'pathway':
-      return 'A';
-    case 'compost':
-      return 'C';
-    case 'treeObstacle':
-      return 'S';
+      return 'P';
     case 'trellis':
       return 'T';
-    case 'waterSource':
-      return 'W';
     default:
       return '';
   }

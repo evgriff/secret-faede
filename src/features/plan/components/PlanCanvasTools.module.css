@@ -111,12 +111,23 @@
   background: rgba(144, 112, 72, 0.5);
 }
 
+.miniPath {
+  border-color: #555a56;
+  background-color: #bfc1bd;
+  background-image: repeating-conic-gradient(
+    from 45deg,
+    #d7d8d4 0% 25%,
+    #9fa39e 0% 50%
+  );
+  background-size: 0.45rem 0.45rem;
+}
+
 .miniPlant {
-  width: 0.38rem;
-  height: 0.38rem;
-  border-radius: var(--radius-pill);
-  background: #2f6f43;
-  transform: translate(-50%, -50%);
+  min-width: 0.28rem;
+  min-height: 0.28rem;
+  border-color: rgba(36, 71, 46, 0.58);
+  border-radius: 2px;
+  background: rgba(47, 111, 67, 0.52);
 }
 
 .miniNorth {

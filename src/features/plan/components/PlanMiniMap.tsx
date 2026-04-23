@@ -1,7 +1,10 @@
 import type { CSSProperties } from 'react';
 
-import type { Garden } from '../../../domain/gardens/GardenRepository';
-import { getPlantingInstances } from '../../../domain/gardens/plantingInstances';
+import {
+  isPageStructureType,
+  type Garden,
+} from '../../../domain/gardens/GardenRepository';
+import { getPlantingFootprint } from '../../garden/gardenPlanning';
 import styles from './PlanCanvasTools.module.css';
 
 export function PlanMiniMap({
@@ -28,30 +31,43 @@ export function PlanMiniMap({
         Overview
       </button>
       <div className={styles.miniPlot}>
-        {garden.structures.map((structure) => (
-          <span
-            className={styles.miniStructure}
-            key={structure.id}
-            style={{
-              height: `${(structure.depthFt / garden.plot.depthFt) * 100}%`,
-              left: `${(structure.xFt / garden.plot.widthFt) * 100}%`,
-              top: `${(structure.yFt / garden.plot.depthFt) * 100}%`,
-              width: `${(structure.widthFt / garden.plot.widthFt) * 100}%`,
-            }}
-          />
-        ))}
-        {garden.plantings.flatMap((planting) =>
-          getPlantingInstances(planting).map((instance) => (
+        {garden.structures
+          .filter((structure) => isPageStructureType(structure.type))
+          .map((structure) => {
+            const isPath =
+              structure.type === 'path' || structure.type === 'pathway';
+
+            return (
+              <span
+                className={`${styles.miniStructure} ${
+                  isPath ? styles.miniPath : ''
+                }`}
+                key={structure.id}
+                style={{
+                  height: `${(structure.depthFt / garden.plot.depthFt) * 100}%`,
+                  left: `${(structure.xFt / garden.plot.widthFt) * 100}%`,
+                  top: `${(structure.yFt / garden.plot.depthFt) * 100}%`,
+                  width: `${(structure.widthFt / garden.plot.widthFt) * 100}%`,
+                }}
+              />
+            );
+          })}
+        {garden.plantings.map((planting) => {
+          const footprint = getPlantingFootprint(planting);
+
+          return (
             <span
               className={styles.miniPlant}
-              key={`${planting.id}:${instance.id}`}
+              key={planting.id}
               style={{
-                left: `${(instance.xFt / garden.plot.widthFt) * 100}%`,
-                top: `${(instance.yFt / garden.plot.depthFt) * 100}%`,
+                height: `${(footprint.depthFt / garden.plot.depthFt) * 100}%`,
+                left: `${(footprint.xFt / garden.plot.widthFt) * 100}%`,
+                top: `${(footprint.yFt / garden.plot.depthFt) * 100}%`,
+                width: `${(footprint.widthFt / garden.plot.widthFt) * 100}%`,
               }}
             />
-          )),
-        )}
+          );
+        })}
         <span
           className={styles.miniNorth}
           style={{

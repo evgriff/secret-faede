@@ -143,7 +143,7 @@ function CropView({ summary }: { summary: CropFocusSummary }) {
     <div className={styles.view}>
       <strong>
         {summary.crop.nodeCount}{' '}
-        {summary.crop.nodeCount === 1 ? 'plant node' : 'plant nodes'}
+        {summary.crop.nodeCount === 1 ? 'plant' : 'plants'}
       </strong>
       <p>
         Across {summary.crop.plantingCount}{' '}

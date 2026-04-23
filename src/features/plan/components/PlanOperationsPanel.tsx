@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 
 import type {
   Garden,
+  LayoutVariant,
   SunShadeLayer,
 } from '../../../domain/gardens/GardenRepository';
 import type { PlanWarning } from '../../garden/gardenPlanning';
@@ -31,19 +32,18 @@ export function PlanOperationsPanel({
   garden,
   isOffline,
   isLoading,
-  onRejectAutoLayoutCandidate,
   onApproveSuccession,
   onApplyAutoLayoutCandidate,
   onGenerateAutoLayoutCandidates,
+  onIgnoreAutoLayoutCandidate,
   onRefresh,
   onSelectAutoLayoutCandidate,
-  onSnoozeAutoLayoutCandidate,
   optimizerMessage,
   optimizerStatus,
-  rejectedAutoLayoutCandidateIds,
   refreshError,
   selectedAutoLayoutCandidateId,
-  snoozedAutoLayoutCandidateIds,
+  ignoredAutoLayoutCandidateIds,
+  layoutVariants,
   successionRecommendations,
   sunLayer,
   sunSeason,
@@ -53,19 +53,18 @@ export function PlanOperationsPanel({
   garden: Garden;
   isOffline: boolean;
   isLoading: boolean;
+  ignoredAutoLayoutCandidateIds: string[];
+  layoutVariants: LayoutVariant[];
   onApproveSuccession(recommendation: SuccessionRecommendation): void;
   onApplyAutoLayoutCandidate(): void;
   onGenerateAutoLayoutCandidates(): void;
-  onRejectAutoLayoutCandidate(candidateId: string): void;
+  onIgnoreAutoLayoutCandidate(candidateId: string): void;
   onRefresh(): void;
   onSelectAutoLayoutCandidate(candidateId: string): void;
-  onSnoozeAutoLayoutCandidate(candidateId: string): void;
   optimizerMessage: string | null;
   optimizerStatus: AutoLayoutRunStatus;
-  rejectedAutoLayoutCandidateIds: string[];
   refreshError: string | null;
   selectedAutoLayoutCandidateId: string | null;
-  snoozedAutoLayoutCandidateIds: string[];
   successionRecommendations: SuccessionRecommendation[];
   sunLayer: SunShadeLayer | null;
   sunSeason: SunSeason;
@@ -181,8 +180,8 @@ export function PlanOperationsPanel({
       >
         <div className={styles.sectionHeader}>
           <div>
-            <span className={styles.kicker}>Optimizer input</span>
-            <h3>Generated layout walkthrough</h3>
+            <span className={styles.kicker}>Variant comparison</span>
+            <h3>Checked layout variants</h3>
           </div>
           <button
             className={styles.secondaryButton}
@@ -190,7 +189,7 @@ export function PlanOperationsPanel({
             onClick={onGenerateAutoLayoutCandidates}
             type="button"
           >
-            {isOptimizing ? 'Generating...' : 'Generate layouts'}
+            {isOptimizing ? 'Checking...' : 'Generate checked variants'}
           </button>
         </div>
         {optimizerMessage ? (
@@ -239,13 +238,12 @@ export function PlanOperationsPanel({
                 autoLayoutCandidates={autoLayoutCandidates}
                 currentWarnings={currentWarnings}
                 garden={garden}
+                ignoredAutoLayoutCandidateIds={ignoredAutoLayoutCandidateIds}
+                layoutVariants={layoutVariants}
                 onApplyAutoLayoutCandidate={onApplyAutoLayoutCandidate}
-                onRejectAutoLayoutCandidate={onRejectAutoLayoutCandidate}
+                onIgnoreAutoLayoutCandidate={onIgnoreAutoLayoutCandidate}
                 onSelectAutoLayoutCandidate={onSelectAutoLayoutCandidate}
-                onSnoozeAutoLayoutCandidate={onSnoozeAutoLayoutCandidate}
-                rejectedAutoLayoutCandidateIds={rejectedAutoLayoutCandidateIds}
                 selectedAutoLayoutCandidateId={selectedAutoLayoutCandidateId}
-                snoozedAutoLayoutCandidateIds={snoozedAutoLayoutCandidateIds}
                 sunLayer={sunLayer}
                 sunSeason={sunSeason}
               />
@@ -253,7 +251,7 @@ export function PlanOperationsPanel({
           </>
         ) : (
           <p className={styles.helpText}>
-            Choose plants before running layout optimization.
+            Add plants before running layout optimization.
           </p>
         )}
       </section>

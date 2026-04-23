@@ -217,6 +217,201 @@ describe('gardenPlanning', () => {
     ).toBe(false);
   });
 
+  it('flags internal group spacing when saved plant centers are too tight', () => {
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      plantings: [
+        {
+          ...createDefaultPlanting({
+            id: 'lettuce-row',
+            label: 'Lettuce row',
+            xFt: 3,
+            yFt: 3,
+          }),
+          cropId: 'lettuce',
+          instances: [
+            {
+              id: 'lettuce-row-plant-1',
+              label: 'Lettuce 1',
+              xFt: 3,
+              yFt: 3,
+            },
+            {
+              id: 'lettuce-row-plant-2',
+              label: 'Lettuce 2',
+              xFt: 3.35,
+              yFt: 3,
+            },
+          ],
+          plantCount: 2,
+          spacingInches: 12,
+        },
+      ],
+    };
+
+    const warnings = findPlanWarnings(garden);
+
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'spacing-internal-lettuce-row',
+          itemIds: ['lettuce-row'],
+          title: 'Internal spacing too tight',
+        }),
+      ]),
+    );
+  });
+
+  it('detects early height-order shade conflicts before relying on the sun layer', () => {
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      plantings: [
+        {
+          ...createDefaultPlanting({
+            id: 'carrot-north',
+            label: 'Carrots',
+            xFt: 4,
+            yFt: 3.5,
+          }),
+          cropId: 'carrot',
+          sunRequirement: 'fullSun' as const,
+        },
+        {
+          ...createDefaultPlanting({
+            id: 'tomato-south',
+            label: 'Tomato',
+            xFt: 4,
+            yFt: 6,
+          }),
+          cropId: 'tomato',
+          sunRequirement: 'fullSun' as const,
+        },
+      ],
+    };
+
+    const warnings = findPlanWarnings(garden);
+    const shadeWarning = warnings.find((warning) =>
+      warning.id.startsWith('shade-order-tomato-south'),
+    );
+
+    expect(shadeWarning).toMatchObject({
+      itemIds: ['tomato-south', 'carrot-north'],
+      kind: 'shade',
+      severity: 'warning',
+      title: 'Height-order shade risk',
+    });
+    expect(
+      shadeWarning ? getPlanWarningDecisionCategory(shadeWarning) : null,
+    ).toBe('shade');
+    expect(shadeWarning?.message).toContain('mid-summer afternoon hours');
+  });
+
+  it('does not flag the same tall crop when it is north of shorter crops', () => {
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      plantings: [
+        {
+          ...createDefaultPlanting({
+            id: 'tomato-north',
+            label: 'Tomato',
+            xFt: 4,
+            yFt: 2,
+          }),
+          cropId: 'tomato',
+          sunRequirement: 'fullSun' as const,
+        },
+        {
+          ...createDefaultPlanting({
+            id: 'carrot-south',
+            label: 'Carrots',
+            xFt: 4,
+            yFt: 6,
+          }),
+          cropId: 'carrot',
+          sunRequirement: 'fullSun' as const,
+        },
+      ],
+    };
+
+    expect(
+      findPlanWarnings(garden).map((warning) => warning.kind),
+    ).not.toContain('shade');
+  });
+
+  it('keeps intentional shade-tolerant placements out of the problem inbox', () => {
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      plantings: [
+        {
+          ...createDefaultPlanting({
+            id: 'lettuce-north',
+            label: 'Lettuce',
+            xFt: 4,
+            yFt: 3.5,
+          }),
+          cropId: 'lettuce',
+          sunRequirement: 'partShade' as const,
+        },
+        {
+          ...createDefaultPlanting({
+            id: 'tomato-south',
+            label: 'Tomato',
+            xFt: 4,
+            yFt: 6,
+          }),
+          cropId: 'tomato',
+          sunRequirement: 'fullSun' as const,
+        },
+      ],
+    };
+
+    expect(
+      findPlanWarnings(garden).map((warning) => warning.kind),
+    ).not.toContain('shade');
+  });
+
+  it('flags trellises and other structures that block saved access paths', () => {
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      structures: [
+        {
+          ...createDefaultStructure({
+            id: 'path-main',
+            type: 'pathway',
+            xFt: 4,
+            yFt: 0,
+          }),
+          continuousPath: true,
+          label: 'Main path',
+        },
+        {
+          ...createDefaultStructure({
+            id: 'pea-trellis',
+            type: 'trellis',
+            xFt: 5,
+            yFt: 2,
+          }),
+          depthFt: 0.5,
+          label: 'Pea trellis',
+          widthFt: 2,
+        },
+      ],
+    };
+
+    const warnings = findPlanWarnings(garden);
+
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'pathway-structure-pea-trellis-path-main',
+          itemIds: ['pea-trellis', 'path-main'],
+          severity: 'critical',
+          title: 'Trellis blocks access',
+        }),
+      ]),
+    );
+  });
+
   it('warns for sun mismatch, missing supports, and container fit', () => {
     const garden = {
       ...createDefaultGarden('user-a'),

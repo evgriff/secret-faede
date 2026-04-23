@@ -4,48 +4,64 @@ import type { AutoLayoutCandidate } from './autoLayoutTypes';
 export function buildAutoLayoutReviewSuggestions(
   candidates: AutoLayoutCandidate[],
 ): ReviewSuggestion[] {
-  return candidates.map((candidate) => ({
-    actions: [
-      {
-        kind: 'replaceAutoLayoutProposal',
-        plantings: candidate.plantings,
-        structures: candidate.structures,
+  return candidates.map((candidate) => {
+    const supportCount =
+      candidate.structures.filter((structure) => structure.type === 'trellis')
+        .length +
+      candidate.plantings.filter(
+        (planting) =>
+          planting.support.type !== 'none' && planting.support.quantity > 0,
+      ).length;
+
+    return {
+      actions: [
+        {
+          kind: 'replaceAutoLayoutProposal',
+          plantings: candidate.plantings,
+          structures: candidate.structures,
+        },
+      ],
+      canBatchAccept: false,
+      id: getAutoLayoutReviewSuggestionId(candidate.id),
+      itemIds: [
+        ...candidate.plantings.map((planting) => planting.id),
+        ...candidate.structures.map((structure) => structure.id),
+      ],
+      preview: {
+        after: `${candidate.plantings.length} planting${candidate.plantings.length === 1 ? '' : 's'}, ${supportCount} support${supportCount === 1 ? '' : 's'}, ${candidate.structures.length} grid structure${candidate.structures.length === 1 ? '' : 's'}`,
+        before: 'Current draft layout',
       },
-    ],
-    canBatchAccept: false,
-    id: getAutoLayoutReviewSuggestionId(candidate.id),
-    itemIds: [
-      ...candidate.plantings.map((planting) => planting.id),
-      ...candidate.structures.map((structure) => structure.id),
-    ],
-    preview: {
-      after: `${candidate.plantings.length} planting${candidate.plantings.length === 1 ? '' : 's'}, ${candidate.structures.length} support${candidate.structures.length === 1 ? '' : 's'}`,
-      before: 'Current draft layout',
-    },
-    relocationImpact: 'plannedOnly',
-    rationale: [
-      candidate.explanations[0],
-      candidate.tradeoffs[0],
-      candidate.tradeoffs.find((tradeoff) =>
-        tradeoff.includes('stayed anchored'),
-      ),
-      candidate.hardConstraintViolations.length > 0
-        ? `${candidate.hardConstraintViolations.length} hard constraint issue${candidate.hardConstraintViolations.length === 1 ? '' : 's'} remains.`
-        : null,
-    ]
-      .filter(Boolean)
-      .join(' '),
-    severity:
-      candidate.hardConstraintViolations.length > 0
-        ? 'warning'
-        : candidate.unplaced.length > 0
+      relocationImpact: 'plannedOnly',
+      rationale: [
+        candidate.explanations[0],
+        candidate.tradeoffs[0],
+        supportCount > 0
+          ? `${supportCount} support decision${supportCount === 1 ? '' : 's'} included in the proposal.`
+          : 'No support additions are included in this proposal.',
+        candidate.search.status === 'resolved'
+          ? 'Recursive search found no active downstream problem.'
+          : `Recursive search stopped with ${candidate.search.unresolvedIssues.length} unresolved issue${candidate.search.unresolvedIssues.length === 1 ? '' : 's'}.`,
+        candidate.tradeoffs.find((tradeoff) =>
+          tradeoff.includes('stayed anchored'),
+        ),
+        candidate.hardConstraintViolations.length > 0
+          ? `${candidate.hardConstraintViolations.length} hard constraint issue${candidate.hardConstraintViolations.length === 1 ? '' : 's'} remains.`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' '),
+      severity:
+        candidate.hardConstraintViolations.length > 0
           ? 'warning'
-          : 'info',
-    source: 'optimizer',
-    sourceWarningId: null,
-    title: `Use ${candidate.label} layout`,
-    type: 'optimizerProposal',
-  }));
+          : candidate.unplaced.length > 0
+            ? 'warning'
+            : 'info',
+      source: 'optimizer',
+      sourceWarningId: null,
+      title: `Use ${candidate.label} layout`,
+      type: 'optimizerProposal',
+    };
+  });
 }
 
 export function getAutoLayoutReviewSuggestionId(candidateId: string) {

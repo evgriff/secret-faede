@@ -2,11 +2,14 @@ import { getCropById } from '../../domain/crops/cropCatalog';
 import type {
   Garden,
   Planting,
+  PlantSupportPlan,
   Structure,
 } from '../../domain/gardens/GardenRepository';
 import {
+  findPlanWarnings,
   getPlantingFootprint,
   getStructureFootprint,
+  isActivePlanWarning,
   rectsOverlap,
   type PlanWarning,
 } from './gardenPlanning';
@@ -51,38 +54,78 @@ export function buildSupportSuggestion(
     return null;
   }
 
-  const type = supportNeed.kind === 'trellis' ? 'addTrellis' : 'addStakeCage';
-  const support = createSupportStructure(
-    garden,
-    planting,
-    type,
-    supportNeed.kind,
-  );
+  const supportLabel = getSupportLabel(supportNeed.kind);
+
+  if (supportNeed.kind !== 'trellis') {
+    const support = createPlantSupportUpdate(
+      planting,
+      supportNeed.kind,
+      supportNeed.required,
+    );
+
+    return {
+      actions: [
+        {
+          id: planting.id,
+          kind: 'updatePlanting',
+          values: { support },
+        },
+      ],
+      canBatchAccept: true,
+      id: `review:addStakeCage:${planting.id}`,
+      itemIds: [planting.id],
+      preview: {
+        after: `${support.quantity} ${supportLabel}${support.quantity === 1 ? '' : 's'} assigned to plant group`,
+        before: 'No plant-level support assigned',
+      },
+      rationale: `${planting.label} is missing a ${supportLabel}. This assigns ${support.quantity} ${supportLabel}${support.quantity === 1 ? '' : 's'} on the plant group, without adding a standalone grid object.${getSupportSafetyNote(
+        garden,
+        {
+          ...garden,
+          plantings: garden.plantings.map((candidate) =>
+            candidate.id === planting.id
+              ? {
+                  ...candidate,
+                  support,
+                }
+              : candidate,
+          ),
+        },
+      )}`,
+      severity: warning.severity,
+      source: 'selfFix',
+      sourceWarningId: warning.id,
+      title: 'Add stake or cage',
+      type: 'addStakeCage',
+    };
+  }
+
+  const support = createTrellisStructure(garden, planting, 'addTrellis');
 
   if (!support) {
     return null;
   }
-
-  const supportLabel = getSupportLabel(supportNeed.kind);
+  const nextGarden = {
+    ...garden,
+    structures: [...garden.structures, support],
+  };
+  const safetyNote = getSupportSafetyNote(garden, nextGarden);
 
   return {
     actions: [{ kind: 'addStructure', structure: support }],
-    canBatchAccept: true,
-    id: `review:${type}:${planting.id}`,
+    canBatchAccept: false,
+    id: `review:addTrellis:${planting.id}`,
     itemIds: [planting.id],
     preview: {
       after: `${support.label}, ${formatMeasure(support.widthFt)} ft ${supportLabel}`,
-      before: 'No saved support within 1 ft',
+      before: 'No saved trellis within 1 ft',
     },
-    rationale:
-      type === 'addTrellis'
-        ? `${planting.label} needs trellis support from crop data.`
-        : `${planting.label} benefits from a ${supportLabel}.`,
+    rationale: `${planting.label} is missing a grid trellis. This adds ${support.label} next to the footprint and keeps it out of saved paths.${safetyNote}`,
     severity: warning.severity,
     source: 'selfFix',
     sourceWarningId: warning.id,
-    title: type === 'addTrellis' ? 'Add trellis' : 'Add stake or cage',
-    type,
+    title: 'Add trellis',
+    type: 'addTrellis',
   };
 }
 
@@ -222,35 +265,43 @@ export function buildWidenPathSuggestion(
   };
 }
 
-function createSupportStructure(
+function createPlantSupportUpdate(
+  planting: Planting,
+  supportKind: 'cage' | 'stake',
+  required: boolean,
+): PlantSupportPlan {
+  const quantity = Math.max(Math.round(planting.plantCount ?? 1), 1);
+  const supportLabel = getSupportLabel(supportKind);
+
+  return {
+    installedAtIso: null,
+    notes: `${reviewMarker} ${capitalize(supportLabel)} support assigned from Review.`,
+    perPlant: true,
+    quantity,
+    required,
+    type: supportKind,
+  };
+}
+
+function createTrellisStructure(
   garden: Garden,
   planting: Planting,
-  type: 'addStakeCage' | 'addTrellis',
-  supportKind: 'cage' | 'stake' | 'trellis',
+  type: 'addTrellis',
 ): Structure | null {
   const crop = planting.cropId ? getCropById(planting.cropId) : null;
   const footprint = getPlantingFootprint(planting);
   const widthFt = Math.min(
-    Math.max(
-      supportKind === 'trellis'
-        ? estimateSupportLengthFt(planting, crop)
-        : footprint.widthFt,
-      supportKind === 'trellis' ? 2 : 1,
-    ),
+    Math.max(estimateSupportLengthFt(planting, crop), 2),
     garden.plot.widthFt,
   );
-  const depthFt = supportKind === 'trellis' ? 0.5 : 1;
+  const depthFt = 0.5;
   const placement = findSupportPlacement(garden, footprint, widthFt, depthFt);
 
   if (!placement) {
     return null;
   }
 
-  const supportLabel = getSupportLabel(supportKind);
-  const label =
-    supportKind === 'trellis'
-      ? `${planting.label} trellis`
-      : `${planting.label} ${supportLabel}`;
+  const supportLabel = getSupportLabel('trellis');
 
   return {
     accessiblePath: false,
@@ -261,13 +312,11 @@ function createSupportStructure(
     heightFt: Math.max((crop?.matureHeightInches ?? 60) / 12, 4),
     id: `${reviewMarker}-${type}-${planting.id}`,
     irrigationZone: null,
-    label,
+    label: `${planting.label} trellis`,
     locked: false,
     material: 'wire',
     mulched: false,
-    notes: `${reviewMarker} ${
-      supportKind === 'trellis' ? 'Trellis' : capitalize(supportLabel)
-    } support accepted from Review.`,
+    notes: `${reviewMarker} ${capitalize(supportLabel)} support accepted from Review.`,
     rotationDegrees: 0,
     soilType: 'unknown',
     type: 'trellis',
@@ -291,18 +340,6 @@ function findSupportPlacement(
   const options = [
     { xFt, yFt: cropFootprint.yFt - depthFt },
     { xFt, yFt: cropFootprint.yFt + cropFootprint.depthFt },
-    {
-      xFt: clamp(
-        cropFootprint.xFt + cropFootprint.widthFt / 2 - widthFt / 2,
-        0,
-        garden.plot.widthFt - widthFt,
-      ),
-      yFt: clamp(
-        cropFootprint.yFt + cropFootprint.depthFt / 2 - depthFt / 2,
-        0,
-        garden.plot.depthFt - depthFt,
-      ),
-    },
   ];
 
   return options.find((option) => {
@@ -321,6 +358,24 @@ function findSupportPlacement(
       !blockedRects.some((rect) => rectsOverlap(rect, supportFootprint))
     );
   });
+}
+
+function getSupportSafetyNote(garden: Garden, nextGarden: Garden) {
+  const beforeWarningIds = new Set(
+    findPlanWarnings(garden)
+      .filter(isActivePlanWarning)
+      .map((warning) => warning.id),
+  );
+  const introducedWarnings = findPlanWarnings(nextGarden)
+    .filter(isActivePlanWarning)
+    .filter((warning) => !beforeWarningIds.has(warning.id))
+    .map((warning) => warning.title);
+
+  return introducedWarnings.length > 0
+    ? ` New issue to review after this support: ${[
+        ...new Set(introducedWarnings),
+      ].join(', ')}.`
+    : ' It does not introduce a new active plan warning.';
 }
 
 function capitalize(value: string) {

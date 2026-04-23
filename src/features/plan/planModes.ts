@@ -1,55 +1,34 @@
-export type PlanMode =
-  | 'measure'
-  | 'optimize'
-  | 'plant'
-  | 'select'
-  | 'structure'
-  | 'sun';
+export type PlanMode = 'optimize' | 'plant' | 'select' | 'structure' | 'sun';
 
 export const planModes: Array<{
   description: string;
-  keyboard: string;
   label: string;
-  mode: PlanMode;
+  mode: Exclude<PlanMode, 'select'>;
 }> = [
   {
-    description: 'Pick up, inspect, and edit garden items.',
-    keyboard: 'V',
-    label: 'Select',
-    mode: 'select',
-  },
-  {
-    description: 'Add crop-backed plantings to the plot.',
-    keyboard: 'P',
+    description:
+      'Place crop-backed plantings by hand when the layout needs it.',
     label: 'Plant',
     mode: 'plant',
   },
   {
-    description: 'Place beds, paths, containers, and crop supports.',
-    keyboard: 'B',
+    description: 'Place beds, containers, paths, and trellises.',
     label: 'Structure',
     mode: 'structure',
   },
   {
-    description: 'Accept, reject, or snooze layout and self-fix proposals.',
-    keyboard: 'O',
+    description:
+      'Resolve current problems and compare checked whole-plot variants.',
     label: 'Optimize',
     mode: 'optimize',
   },
   {
-    description: 'Read plot scale, coordinates, and orientation.',
-    keyboard: 'M',
-    label: 'Measure',
-    mode: 'measure',
-  },
-  {
-    description: 'Review sun layers, climate assumptions, and overrides.',
-    keyboard: 'S',
-    label: 'Sun/Climate',
+    description: 'Review sun layers, shade assumptions, and manual overrides.',
+    label: 'Sun',
     mode: 'sun',
   },
 ];
 
 export function getPlanModeLabel(mode: PlanMode) {
-  return planModes.find((entry) => entry.mode === mode)?.label ?? 'Select';
+  return planModes.find((entry) => entry.mode === mode)?.label ?? 'Plan';
 }

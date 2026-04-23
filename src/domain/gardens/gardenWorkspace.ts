@@ -255,18 +255,18 @@ export function createGardenChangesetSummary(
     ),
     ...formatCount(
       acceptedSuggestionCount,
-      'suggestion accepted',
-      'suggestions accepted',
+      'resolution applied',
+      'resolutions applied',
     ),
     ...formatCount(
       rejectedSuggestionCount,
-      'suggestion rejected',
-      'suggestions rejected',
+      'legacy decision rejected',
+      'legacy decisions rejected',
     ),
     ...formatCount(
       snoozedSuggestionCount,
-      'suggestion snoozed',
-      'suggestions snoozed',
+      'problem ignored',
+      'problems ignored',
     ),
   ];
 

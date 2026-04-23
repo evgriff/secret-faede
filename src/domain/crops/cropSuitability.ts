@@ -6,6 +6,11 @@ import type {
   SunExposure,
   StructureType,
 } from '../gardens/GardenRepository';
+import {
+  createPlantLocationContext,
+  scorePlantLocationMatch,
+} from './plantLocationMatch';
+import type { PlantLocationMatch } from './plantCatalogTypes';
 
 export type CropSuitabilityLevel = 'fit' | 'risk' | 'watch';
 
@@ -22,6 +27,7 @@ export interface CropSuitabilityInput {
 
 export interface CropSuitabilityScore {
   level: CropSuitabilityLevel;
+  locationMatch: PlantLocationMatch;
   reasons: string[];
   score: number;
   warnings: string[];
@@ -37,41 +43,15 @@ export function scoreCropSuitability({
   sunExposureAtPlacement,
   today = new Date(),
 }: CropSuitabilityInput): CropSuitabilityScore {
-  let score = 70;
-  const reasons: string[] = [];
-  const warnings: string[] = [];
-
-  if (sunExposureAtPlacement) {
-    if (sunRequirementMet(crop.sunRequirement, sunExposureAtPlacement)) {
-      score += 12;
-      reasons.push(`Sun matches ${formatSun(crop.sunRequirement)} preference.`);
-    } else {
-      score -= 20;
-      warnings.push(
-        `Needs ${formatSun(crop.sunRequirement)}; placement reads ${formatSun(
-          sunExposureAtPlacement,
-        )}.`,
-      );
-    }
-  } else {
-    score -= 4;
-    warnings.push('Sun is unknown until a placement area is selected.');
-  }
-
-  const frostState = getFrostWindowState(climateProfile, today);
-  const warmSeason = crop.frostSensitive || /warm-season/i.test(crop.hardiness);
-
-  if (warmSeason && frostState !== 'inside') {
-    score -= 18;
-    warnings.push(
-      `Warm-season crop; editable frost window is ${climateProfile.averageLastFrost} to ${climateProfile.averageFirstFrost}.`,
-    );
-  } else if (!warmSeason && frostState === 'inside') {
-    score += 4;
-    reasons.push('Fits the current frost window for this climate profile.');
-  } else {
-    reasons.push('Climate timing is workable with the saved frost dates.');
-  }
+  const locationMatch = scorePlantLocationMatch({
+    context: createPlantLocationContext({ climateProfile }),
+    crop,
+    sunExposureAtPlacement,
+    today,
+  });
+  let score = locationMatch.score;
+  const reasons: string[] = [...locationMatch.reasons];
+  const warnings: string[] = [...locationMatch.warnings];
 
   if (plotType === 'container' || plotType === 'containers') {
     if (crop.growthForm === 'vining' || (crop.matureSpreadInches ?? 0) > 48) {
@@ -113,6 +93,7 @@ export function scoreCropSuitability({
 
   return {
     level: boundedScore >= 76 ? 'fit' : boundedScore >= 52 ? 'watch' : 'risk',
+    locationMatch,
     reasons: reasons.slice(0, 4),
     score: boundedScore,
     warnings: warnings.slice(0, 4),
@@ -155,43 +136,4 @@ function getSpacingFit(
   }
 
   return ratio >= 1.2 ? 'comfortable' : 'unknown';
-}
-
-function getFrostWindowState(profile: ClimateProfile, today: Date) {
-  const current = monthDayToNumber(
-    `${String(today.getMonth() + 1).padStart(2, '0')}-${String(
-      today.getDate(),
-    ).padStart(2, '0')}`,
-  );
-  const lastFrost = monthDayToNumber(profile.averageLastFrost);
-  const firstFrost = monthDayToNumber(profile.averageFirstFrost);
-
-  return current >= lastFrost && current <= firstFrost ? 'inside' : 'outside';
-}
-
-function monthDayToNumber(value: string) {
-  const [monthText, dayText] = value.split('-');
-  const month = Number(monthText);
-  const day = Number(dayText);
-
-  if (!Number.isFinite(month) || !Number.isFinite(day)) {
-    return 0;
-  }
-
-  return month * 100 + day;
-}
-
-function sunRequirementMet(required: SunExposure, actual: SunExposure) {
-  const rank: Record<SunExposure, number> = {
-    fullShade: 1,
-    partShade: 2,
-    partSun: 3,
-    fullSun: 4,
-  };
-
-  return rank[actual] >= rank[required] - 1;
-}
-
-function formatSun(value: SunExposure) {
-  return value.replace(/([A-Z])/g, ' $1').toLowerCase();
 }

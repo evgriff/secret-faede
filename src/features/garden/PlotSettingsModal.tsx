@@ -7,6 +7,10 @@ import type {
   GardenPlot,
 } from '../../domain/gardens/GardenRepository';
 import { routePaths } from '../../shared/lib/routes';
+import {
+  closeOnBackdropMouseDown,
+  useEscapeToClose,
+} from '../shared/design/dialogDismiss';
 import { clampPlotDimension, maxPlotFeet, minPlotFeet } from './gardenMath';
 import { geocodeLocation } from './geocoding';
 import styles from '../plan/PlanModal.module.css';
@@ -50,6 +54,8 @@ export function PlotSettingsModal({
     'error' | 'idle' | 'loading'
   >('idle');
 
+  useEscapeToClose(onClose);
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onApply(
@@ -85,7 +91,10 @@ export function PlotSettingsModal({
   }
 
   return (
-    <div className={styles.modalBackdrop}>
+    <div
+      className={styles.modalBackdrop}
+      onMouseDown={(event) => closeOnBackdropMouseDown(event, onClose)}
+    >
       <section
         aria-labelledby="plot-settings-title"
         aria-modal="true"

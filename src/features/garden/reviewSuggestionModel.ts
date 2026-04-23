@@ -13,9 +13,11 @@ import {
 } from './gardenImmutability';
 
 export type ReviewSuggestionType =
+  | 'addAccessPath'
   | 'addStakeCage'
   | 'addSupportMaterial'
   | 'addTrellis'
+  | 'clearPathway'
   | 'convertToTrellisedLayout'
   | 'flagRotationConcern'
   | 'flagSunMismatch'

@@ -147,8 +147,8 @@ export function PlantingArrangementEditor({
           <p>Recommended: {formatArrangementMode(recommendedMode, quantity)}</p>
         </div>
         <span className={styles.metric}>
-          Will create {quantity}{' '}
-          {quantity === 1 ? 'plant node.' : 'plant nodes.'}
+          Will place {quantity} {quantity === 1 ? 'plant' : 'plants'} as one
+          group.
         </span>
       </div>
 
@@ -214,7 +214,7 @@ export function PlantingArrangementEditor({
                 max="8"
                 min="0.125"
                 onChange={(event) => applySpacing(event.currentTarget.value)}
-                step="0.125"
+                step="0.001"
                 type="range"
                 value={spacingFt}
               />
@@ -223,7 +223,7 @@ export function PlantingArrangementEditor({
                 inputMode="decimal"
                 min="0.125"
                 onChange={(event) => applySpacing(event.currentTarget.value)}
-                step="0.125"
+                step="0.001"
                 type="number"
                 value={formatFeetInput(spacingFt)}
               />

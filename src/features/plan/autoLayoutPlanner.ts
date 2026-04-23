@@ -6,6 +6,7 @@ import {
   type PlantingMode,
   type Structure,
 } from '../../domain/gardens/GardenRepository';
+import { derivePlantingGeometry } from '../../domain/gardens/plantingGeometry';
 import { withPlantingInstances } from '../../domain/gardens/plantingInstances';
 import {
   getStructureFootprint,
@@ -42,13 +43,12 @@ export interface LayoutZone {
 export function createLayoutUnits(
   request: SeasonCropLayoutRequest,
 ): LayoutUnit[] {
-  if (request.plantingForm === 'single' && request.quantity > 1) {
-    return Array.from({ length: Math.min(request.quantity, 12) }, (_, index) =>
-      createLayoutUnit(request, index + 1, 1, 'single'),
-    );
-  }
+  const mode =
+    request.plantingForm === 'single' && request.quantity > 1
+      ? getGroupedFallbackMode(request)
+      : request.plantingForm;
 
-  return [createLayoutUnit(request, 1, request.quantity, request.plantingForm)];
+  return [createLayoutUnit(request, 1, request.quantity, mode)];
 }
 
 export function createPlacementPlanting(
@@ -89,7 +89,8 @@ export function createPlacementPlanting(
         ? unit.size.widthFt
         : null,
     rowSpacingInches: unit.crop.rowSpacingInches,
-    spacingInches: unit.crop.spacingInches,
+    spacingInches:
+      unit.request.spacingOverrideInches ?? unit.crop.spacingInches,
     sunRequirement: unit.crop.sunRequirement,
     trellisLengthFt: unit.mode === 'trellisLine' ? unit.size.widthFt : null,
     weeklyWaterNeedInches: unit.crop.weeklyWaterNeedInches,
@@ -232,16 +233,23 @@ function createLayoutUnit(
   plantCount: number,
   mode: PlantingMode,
 ): LayoutUnit {
-  const spacingFt = Math.max((request.crop.spacingInches ?? 18) / 12, 0.75);
+  const spacingInches =
+    request.spacingOverrideInches ??
+    request.crop.spacingInches ??
+    request.crop.matureSpreadInches ??
+    18;
   const rowSpacingFt = Math.max(
-    (request.crop.rowSpacingInches ?? request.crop.spacingInches ?? 18) / 12,
+    (request.crop.rowSpacingInches ?? spacingInches) / 12,
     1,
   );
-  const size = getUnitSize(mode, spacingFt, rowSpacingFt, plantCount);
-  const suffix =
-    request.plantingForm === 'single' && request.quantity > 1
-      ? ` ${index}`
-      : '';
+  const size = getUnitSize({
+    crop: request.crop,
+    mode,
+    plantCount,
+    rowSpacingFt,
+    spacingInches,
+  });
+  const suffix = index > 1 ? ` ${index}` : '';
 
   return {
     crop: request.crop,
@@ -254,37 +262,50 @@ function createLayoutUnit(
   };
 }
 
-function getUnitSize(
-  mode: PlantingMode,
-  spacingFt: number,
-  rowSpacingFt: number,
-  plantCount: number,
-) {
-  if (mode === 'row' || mode === 'trellisLine') {
-    return {
-      depthFt:
-        mode === 'trellisLine' ? Math.max(rowSpacingFt, 0.5) : rowSpacingFt,
-      widthFt: Math.max(spacingFt * plantCount, 2),
-    };
-  }
+function getUnitSize({
+  crop,
+  mode,
+  plantCount,
+  rowSpacingFt,
+  spacingInches,
+}: {
+  crop: CropProfile;
+  mode: PlantingMode;
+  plantCount: number;
+  rowSpacingFt: number;
+  spacingInches: number;
+}) {
+  const geometry = derivePlantingGeometry({
+    matureSpreadInches: crop.matureSpreadInches,
+    mode,
+    quantity: plantCount,
+    rowSpacingFt,
+    spacingInches,
+    xFt: 0,
+    yFt: 0,
+  });
 
-  if (mode === 'block') {
-    const columns = Math.ceil(Math.sqrt(plantCount));
-    const rows = Math.ceil(plantCount / columns);
+  return {
+    depthFt: Math.max(geometry.footprint.depthFt, 0.75),
+    widthFt: Math.max(geometry.footprint.widthFt, 0.75),
+  };
+}
 
-    return {
-      depthFt: Math.max(rows * rowSpacingFt, spacingFt),
-      widthFt: Math.max(columns * spacingFt, spacingFt),
-    };
-  }
+function getGroupedFallbackMode(
+  request: SeasonCropLayoutRequest,
+): PlantingMode {
+  const groupedModes: PlantingMode[] = [
+    'trellisLine',
+    'block',
+    'row',
+    'cluster',
+  ];
 
-  if (mode === 'cluster') {
-    const diameter = Math.max(Math.sqrt(plantCount) * spacingFt, spacingFt);
-
-    return { depthFt: diameter, widthFt: diameter };
-  }
-
-  return { depthFt: spacingFt, widthFt: spacingFt };
+  return (
+    groupedModes.find((mode) =>
+      request.crop.supportedPlantingModes.includes(mode),
+    ) ?? request.plantingForm
+  );
 }
 
 export function isAutoLayoutItem(item: { id: string; notes?: string }) {

@@ -1,7 +1,8 @@
 .cropResults {
   display: block;
-  height: min(24rem, 46dvh);
-  max-height: 24rem;
+  height: auto;
+  max-height: none;
+  min-height: 0;
   overflow: auto;
   padding-right: 0.25rem;
 }

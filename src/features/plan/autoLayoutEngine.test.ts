@@ -68,15 +68,60 @@ describe('auto layout engine', () => {
 
     for (const candidate of firstRun) {
       expect(candidate.hardConstraintViolations).toEqual([]);
+      expect(candidate.search.evaluatedStates).toBeGreaterThanOrEqual(1);
+      expect(candidate.search.maxDepth).toBe(4);
       expect(candidate.plantings.length).toBeGreaterThanOrEqual(3);
       expect(
-        candidate.structures.some((structure) => structure.type === 'trellis'),
+        candidate.plantings.some(
+          (planting) =>
+            planting.label.startsWith('Tomato') &&
+            planting.support.type === 'cage',
+        ),
       ).toBe(true);
+      expect(
+        candidate.structures.some((structure) => structure.type === 'trellis'),
+      ).toBe(false);
       expectNoPlantingOverlaps(candidate.plantings);
     }
   });
 
-  it('keeps generated plantings and support structures clear of access paths', () => {
+  it('adds true trellises as grid structures for vining crops', () => {
+    const garden = {
+      ...createLayoutFixture(),
+      seasonPlan: {
+        updatedAtIso: '2026-04-21T12:00:00.000Z',
+        wantedCrops: [
+          makeSeasonSelection({
+            cropId: 'cucumber',
+            id: 'season-cucumber',
+            plantingForm: 'trellisLine',
+            quantity: 2,
+            supportAllowed: true,
+          }),
+        ],
+      },
+    };
+    const [candidate] = generateAutoLayoutCandidates(garden, {
+      sunLayer: createSunLayer(garden),
+    });
+    const cucumber = candidate?.plantings.find((planting) =>
+      planting.label.startsWith('Cucumber'),
+    );
+    const trellis = candidate?.structures.find(
+      (structure) => structure.type === 'trellis',
+    );
+
+    expect(candidate?.hardConstraintViolations).toEqual([]);
+    expect(cucumber?.support.type).toBe('none');
+    expect(trellis).toEqual(
+      expect.objectContaining({
+        label: expect.stringContaining('Cucumber'),
+        type: 'trellis',
+      }),
+    );
+  });
+
+  it('keeps generated plantings and trellis structures clear of access paths', () => {
     const garden = createLayoutFixture();
     const [candidate] = generateAutoLayoutCandidates(garden, {
       sunLayer: createSunLayer(garden),

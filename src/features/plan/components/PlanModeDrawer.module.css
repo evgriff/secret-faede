@@ -244,21 +244,6 @@
   background: rgba(36, 71, 46, 0.12) !important;
 }
 
-.measureGrid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.5rem;
-}
-
-.measureGrid span {
-  border: 1px solid rgba(54, 48, 40, 0.12);
-  border-radius: var(--radius-control);
-  background: rgba(246, 242, 233, 0.72);
-  color: var(--color-text-strong);
-  font-weight: 800;
-  padding: 0.65rem;
-}
-
 .successText,
 .mutedText {
   margin: 0;
@@ -277,6 +262,7 @@
 .reviewList,
 .reviewCard,
 .reviewHero,
+.resolutionList,
 .healthPanel {
   display: grid;
   gap: 0.6rem;
@@ -433,6 +419,19 @@
   color: var(--color-text-strong);
   font-size: var(--font-size-small);
   font-weight: 800;
+}
+
+.resolutionList {
+  gap: 0.45rem;
+}
+
+.resolutionCard {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid rgba(54, 48, 40, 0.1);
+  border-radius: var(--radius-control);
+  background: rgba(246, 242, 233, 0.5);
+  padding: 0.6rem;
 }
 
 .reviewRationale {
@@ -609,6 +608,25 @@
   gap: 0.4rem;
 }
 
+.variantStatusList {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.variantStatusList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  border: 1px solid rgba(54, 48, 40, 0.1);
+  border-radius: var(--radius-control);
+  background: rgba(255, 253, 247, 0.68);
+  padding: 0.55rem;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .reviewCard:hover {
     transform: translateY(-1px);
@@ -682,10 +700,6 @@
   .sunControls select,
   .structureControls select {
     width: 100%;
-  }
-
-  .measureGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .previewGrid,

@@ -5,6 +5,7 @@ import type {
   PlantingMode,
   SunExposure,
 } from '../../domain/gardens/GardenRepository';
+import { derivePlantingGeometry } from '../../domain/gardens/plantingGeometry';
 import type { CropCatalogFilters } from '../../domain/crops/cropCatalog';
 
 export const modeLabels: Record<PlantingMode, string> = {
@@ -110,48 +111,45 @@ export function getPlantingArrangementDefaults(
   const quantity = coercePlantQuantity(quantityInput);
   const spacingFt = getCropSpacingFt(crop);
   const rowSpacingFt = getCropRowSpacingFt(crop, spacingFt);
+  const geometry = derivePlantingGeometry({
+    matureSpreadInches: crop.matureSpreadInches,
+    mode,
+    quantity,
+    rowSpacingInches: crop.rowSpacingInches,
+    spacingInches: crop.spacingInches ?? crop.matureSpreadInches,
+    xFt: 0,
+    yFt: 0,
+  });
 
   if (mode === 'row' || mode === 'trellisLine') {
-    const rowLengthFt = Math.max(
-      quantity > 1 ? spacingFt * (quantity - 1) : spacingFt,
-      spacingFt,
-    );
+    const rowLengthFt = geometry.dimensions.rowLengthFt;
 
     return {
       blockDepthFt: null,
       blockWidthFt: null,
       clusterRadiusFt: null,
-      requestedAreaSqFt: rowLengthFt,
+      requestedAreaSqFt:
+        geometry.footprint.widthFt * geometry.footprint.depthFt,
       rowLengthFt,
     };
   }
 
   if (mode === 'block') {
-    const columns = Math.max(1, Math.ceil(Math.sqrt(quantity)));
-    const rows = Math.max(1, Math.ceil(quantity / columns));
-    const blockWidthFt = Math.max(
-      spacingFt * Math.max(columns - 1, 1),
-      spacingFt,
-    );
-    const blockDepthFt = Math.max(
-      rowSpacingFt * Math.max(rows - 1, 1),
-      rowSpacingFt,
-    );
+    const blockWidthFt = geometry.dimensions.blockWidthFt ?? spacingFt;
+    const blockDepthFt = geometry.dimensions.blockDepthFt ?? rowSpacingFt;
 
     return {
       blockDepthFt,
       blockWidthFt,
       clusterRadiusFt: null,
-      requestedAreaSqFt: blockWidthFt * blockDepthFt,
+      requestedAreaSqFt:
+        geometry.footprint.widthFt * geometry.footprint.depthFt,
       rowLengthFt: null,
     };
   }
 
   if (mode === 'cluster') {
-    const clusterRadiusFt = Math.max(
-      (Math.sqrt(quantity) * spacingFt) / 2,
-      0.5,
-    );
+    const clusterRadiusFt = geometry.dimensions.clusterRadiusFt ?? 0;
 
     return {
       blockDepthFt: null,

@@ -12,7 +12,7 @@
 }
 
 .context,
-.actions {
+.workspaceActions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -57,13 +57,15 @@
 }
 
 .syncHint {
+  display: none;
   flex-basis: 100%;
   color: var(--color-text-muted);
   font-size: var(--font-size-caption);
   line-height: 1.25;
 }
 
-.actions {
+.workspaceActions {
+  flex: 1 1 13rem;
   justify-content: flex-end;
 }
 
@@ -90,11 +92,6 @@
   color: var(--color-text-strong);
 }
 
-.activeButton {
-  border-color: rgba(36, 71, 46, 0.28);
-  background: rgba(36, 71, 46, 0.1);
-}
-
 .primaryButton:disabled,
 .secondaryButton:disabled {
   cursor: not-allowed;
@@ -108,7 +105,7 @@
   }
 
   .context,
-  .actions {
+  .workspaceActions {
     justify-content: flex-start;
   }
 }
@@ -118,7 +115,7 @@
     padding: var(--space-2);
   }
 
-  .actions {
+  .workspaceActions {
     width: 100%;
   }
 
@@ -126,9 +123,5 @@
   .secondaryButton {
     flex: 1;
     min-width: 5.25rem;
-  }
-
-  .mobileHiddenAction {
-    display: none;
   }
 }

@@ -1,4 +1,22 @@
 import { CURRENT_GARDEN_SCHEMA_VERSION } from './schemaMigrations';
+import type { PlantStatus, PlantSupportPlan } from './plantPlanningTypes';
+import type { StructureMaterial, StructureType } from './structureTypes';
+export {
+  authorableStructureTypes,
+  isAuthorableStructureType,
+  isLegacyUtilityStructureType,
+  isPageStructureType,
+  legacyUtilityStructureTypes,
+  pageStructureTypes,
+} from './structureTypes';
+export type {
+  AuthorableStructureType,
+  LegacyStructureType,
+  LegacyUtilityStructureType,
+  PageStructureType,
+  StructureMaterial,
+  StructureType,
+} from './structureTypes';
 
 export type IsoDateString = string;
 export type LocalDateString = string;
@@ -11,34 +29,6 @@ export type PlantingMode =
   | 'row'
   | 'single'
   | 'trellisLine';
-
-export type StructureType =
-  | 'bed'
-  | 'compost'
-  | 'container'
-  | 'fence'
-  | 'fenceWall'
-  | 'hoseBib'
-  | 'inGroundBed'
-  | 'path'
-  | 'pathway'
-  | 'raisedBed'
-  | 'treeObstacle'
-  | 'trellis'
-  | 'waterSource'
-  | 'other';
-export type StructureMaterial =
-  | 'gravel'
-  | 'lumber'
-  | 'metal'
-  | 'mixed'
-  | 'mulch'
-  | 'none'
-  | 'pavers'
-  | 'soil'
-  | 'stone'
-  | 'wire'
-  | 'woodChips';
 
 export type TaskStatus = 'done' | 'open' | 'skipped';
 export type TaskPriority = 'high' | 'low' | 'medium';
@@ -90,6 +80,13 @@ export type NotificationType =
   | 'watering'
   | 'weather';
 export type SunExposure = 'fullShade' | 'fullSun' | 'partShade' | 'partSun';
+export type PlantCanopyDensity = 'dense' | 'moderate' | 'open';
+export type PlantPlanningGrowthStage =
+  | 'dormant'
+  | 'early'
+  | 'mature'
+  | 'vegetative';
+export type SunTimeWindow = 'allDay' | 'afternoon' | 'midday' | 'morning';
 export type SunShadeSourceKind =
   | 'fenceWall'
   | 'structure'
@@ -304,6 +301,7 @@ export interface Planting {
   mulched: boolean;
   notes: string;
   plantCount: number | null;
+  plantStatus: PlantStatus;
   plantedOn: LocalDateString | null;
   plannedFor: LocalDateString | null;
   matureHeightInches: number | null;
@@ -314,6 +312,7 @@ export interface Planting {
   rowSpacingInches: number | null;
   spacingInches: number | null;
   status: PlantingLifecycleStatus;
+  support: PlantSupportPlan;
   sunRequirement: SunExposure | null;
   trellisLengthFt: number | null;
   weeklyWaterNeedInches: number | null;
@@ -334,6 +333,7 @@ export interface SeasonCropSelection {
   notes: string;
   plantingForm: PlantingMode;
   quantity: number;
+  spacingOverrideInches?: number | null;
   supportAllowed: boolean;
   varietyName: string;
 }
@@ -357,11 +357,17 @@ export interface SunShadeArea {
 }
 
 export interface SunShadeSource {
+  canopyDensity?: PlantCanopyDensity;
+  canopyOpacity?: number;
+  growthStage?: PlantPlanningGrowthStage;
   heightFt: number;
   itemId: string;
   itemType: 'planting' | 'structure';
   kind: SunShadeSourceKind;
   label: string;
+  matureHeightFt?: number;
+  matureSpreadFt?: number;
+  supportHeightFt?: number | null;
 }
 
 export interface SunShadeMicroclimateNote {
@@ -383,7 +389,9 @@ export interface SunShadeLayer {
   modelVersion: string;
   observedOn: LocalDateString | null;
   representativeDate: MonthDayString;
+  sampleMinutes?: number;
   season: 'fall' | 'spring' | 'summer' | 'winter';
+  timeWindow?: SunTimeWindow;
 }
 
 export interface WeatherSnapshot {
@@ -665,6 +673,7 @@ export function createDefaultPlanting({
     mulched: false,
     notes: '',
     plantCount: 1,
+    plantStatus: createDefaultPlantStatus(),
     plantedOn: null,
     plannedFor: null,
     matureHeightInches: null,
@@ -675,11 +684,38 @@ export function createDefaultPlanting({
     rowSpacingInches: null,
     spacingInches: null,
     status: 'planned',
+    support: {
+      installedAtIso: null,
+      notes: '',
+      perPlant: false,
+      quantity: 0,
+      required: false,
+      type: 'none',
+    },
     sunRequirement: null,
     trellisLengthFt: null,
     weeklyWaterNeedInches: null,
     xFt,
     yFt,
+  };
+}
+
+export function createDefaultPlantStatus({
+  lifecycle = 'planned',
+  notes = '',
+  photos = [],
+}: Partial<
+  Pick<PlantStatus, 'lifecycle' | 'notes' | 'photos'>
+> = {}): PlantStatus {
+  return {
+    dotStatus: {},
+    lifecycle,
+    notes,
+    photos,
+    thinned: false,
+    thinnedAtIso: null,
+    watered: false,
+    wateredAtIso: null,
   };
 }
 

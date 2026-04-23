@@ -1,6 +1,7 @@
 import {
   annArborClimateProfile,
   annArborLocation,
+  createDefaultPlantStatus,
   defaultGardenPlot,
   defaultNotificationPreference,
   type ClimateProfile,
@@ -27,7 +28,14 @@ import {
   type UserProfile,
   type WaterRecommendation,
   type WeatherSnapshot,
+  isPageStructureType,
 } from './models';
+import type {
+  PlantDotStatus,
+  PlantStatus,
+  PlantStatusPhoto,
+  PlantSupportPlan,
+} from './plantPlanningTypes';
 import {
   createPlantingInstances,
   normalizePlantingFromInstances,
@@ -55,6 +63,23 @@ const notificationAlertTypes = [
   'taskDue',
   'watering',
 ] as const satisfies NotificationAlertType[];
+const plantSupportTypes = [
+  'cage',
+  'custom',
+  'netting',
+  'none',
+  'rowCover',
+  'stake',
+  'stakeAndWeave',
+] as const;
+const plantingLifecycleStatuses = [
+  'growing',
+  'harvest-ready',
+  'harvested',
+  'planned',
+  'planted',
+  'removed',
+] as const;
 
 function isPlantingMode(value: unknown): value is PlantingMode {
   return (
@@ -349,6 +374,10 @@ export function parseStructure(value: unknown, plot: Plot): Structure | null {
     ] as const,
     'other',
   );
+  if (!isPageStructureType(type)) {
+    return null;
+  }
+
   const isPath = type === 'path' || type === 'pathway';
 
   return {
@@ -464,6 +493,14 @@ export function parsePlanting(value: unknown, plot: Plot): Planting | null {
     mulched: readBoolean(value.mulched, false),
     notes: readString(value.notes),
     plantCount: readNullableNumber(value.plantCount),
+    plantStatus: parsePlantStatus(value.plantStatus, {
+      lifecycle: readStringUnion(
+        value.status,
+        plantingLifecycleStatuses,
+        'planned',
+      ),
+      notes: readString(value.notes),
+    }),
     plantedOn: readNullableString(value.plantedOn),
     plannedFor: readNullableString(value.plannedFor),
     matureHeightInches: readNullableNumber(value.matureHeightInches),
@@ -473,17 +510,10 @@ export function parsePlanting(value: unknown, plot: Plot): Planting | null {
     rowSpacingFt: readNullableNumber(value.rowSpacingFt),
     rowSpacingInches: readNullableNumber(value.rowSpacingInches),
     spacingInches: readNullableNumber(value.spacingInches),
-    status: readStringUnion(
-      value.status,
-      [
-        'growing',
-        'harvest-ready',
-        'harvested',
-        'planned',
-        'planted',
-        'removed',
-      ] as const,
-      'planned',
+    status: readStringUnion(value.status, plantingLifecycleStatuses, 'planned'),
+    support: parsePlantSupportPlan(
+      value.support ?? value.supportType,
+      readNullableNumber(value.plantCount) ?? 1,
     ),
     sunRequirement:
       isRecord(value) && value.sunRequirement
@@ -505,7 +535,132 @@ export function parsePlanting(value: unknown, plot: Plot): Planting | null {
     ...planting,
     instances,
     plantCount: instances.length,
+    support: normalizePlantSupportQuantity(planting.support, instances.length),
   });
+}
+
+function parsePlantStatus(
+  value: unknown,
+  fallback: Pick<PlantStatus, 'lifecycle' | 'notes'>,
+): PlantStatus {
+  const defaults = createDefaultPlantStatus(fallback);
+
+  if (!isRecord(value)) {
+    return defaults;
+  }
+
+  return {
+    dotStatus: parsePlantDotStatusMap(value.dotStatus),
+    lifecycle: readStringUnion(
+      value.lifecycle,
+      plantingLifecycleStatuses,
+      fallback.lifecycle,
+    ),
+    notes: readString(value.notes, fallback.notes),
+    photos: parsePlantStatusPhotos(value.photos),
+    thinned: readBoolean(value.thinned, defaults.thinned),
+    thinnedAtIso: readNullableString(value.thinnedAtIso),
+    watered: readBoolean(value.watered, defaults.watered),
+    wateredAtIso: readNullableString(value.wateredAtIso),
+  };
+}
+
+function parsePlantDotStatusMap(
+  value: unknown,
+): Record<string, PlantDotStatus> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(
+      ([dotId, status]): Array<[string, PlantDotStatus]> => {
+        if (!isRecord(status)) {
+          return [];
+        }
+
+        return [
+          [
+            dotId,
+            {
+              lifecycle: readNullableStringUnion(
+                status.lifecycle,
+                plantingLifecycleStatuses,
+              ),
+              notes: readString(status.notes),
+              photoIds: readStringArray(status.photoIds),
+              thinned: readBoolean(status.thinned, false),
+              thinnedAtIso: readNullableString(status.thinnedAtIso),
+              watered: readBoolean(status.watered, false),
+              wateredAtIso: readNullableString(status.wateredAtIso),
+            },
+          ],
+        ];
+      },
+    ),
+  );
+}
+
+function parsePlantStatusPhotos(value: unknown): PlantStatusPhoto[] {
+  return Array.isArray(value)
+    ? value.flatMap((entry, index): PlantStatusPhoto[] => {
+        if (!isRecord(entry)) {
+          return [];
+        }
+
+        return [
+          {
+            contentType: readString(entry.contentType, 'image/*'),
+            downloadUrl: readNullableString(entry.downloadUrl),
+            fileName: readString(entry.fileName, `Plant photo ${index + 1}`),
+            id: readString(entry.id, `plant-photo-${index + 1}`),
+            sizeBytes: readNullableNumber(entry.sizeBytes),
+            storagePath: readNullableString(entry.storagePath),
+            uploadedAtIso: readNullableString(entry.uploadedAtIso),
+          },
+        ];
+      })
+    : [];
+}
+
+function parsePlantSupportPlan(
+  value: unknown,
+  fallbackQuantity: number,
+): PlantSupportPlan {
+  const support = isRecord(value) ? value : {};
+  const type = readStringUnion(
+    isRecord(value) ? support.type : value,
+    plantSupportTypes,
+    'none',
+  );
+  const defaultQuantity = type === 'none' ? 0 : Math.max(fallbackQuantity, 1);
+
+  return {
+    installedAtIso: readNullableString(support.installedAtIso),
+    notes: readString(support.notes),
+    perPlant: readBoolean(support.perPlant, type !== 'none'),
+    quantity: clamp(readNumber(support.quantity, defaultQuantity), 0, 500),
+    required: readBoolean(support.required, false),
+    type,
+  };
+}
+
+function normalizePlantSupportQuantity(
+  support: PlantSupportPlan,
+  plantCount: number,
+): PlantSupportPlan {
+  if (support.type === 'none') {
+    return {
+      ...support,
+      perPlant: false,
+      quantity: 0,
+    };
+  }
+
+  return {
+    ...support,
+    quantity: support.perPlant ? Math.max(plantCount, 1) : support.quantity,
+  };
 }
 
 function parsePlantingInstances(
@@ -628,6 +783,7 @@ export function parseSeasonCropSelection(
         999,
       ),
     ),
+    spacingOverrideInches: readNullableNumber(value.spacingOverrideInches),
     supportAllowed: readBoolean(value.supportAllowed, true),
     varietyName: readString(value.varietyName),
   };
@@ -1068,6 +1224,32 @@ function parseSunShadeSources(value: unknown) {
 
       return [
         {
+          ...(typeof source.canopyDensity === 'string'
+            ? {
+                canopyDensity: readStringUnion(
+                  source.canopyDensity,
+                  ['dense', 'moderate', 'open'] as const,
+                  'moderate',
+                ),
+              }
+            : {}),
+          ...(typeof source.canopyOpacity === 'number'
+            ? {
+                canopyOpacity: Math.max(
+                  0,
+                  Math.min(readNumber(source.canopyOpacity, 0), 1),
+                ),
+              }
+            : {}),
+          ...(typeof source.growthStage === 'string'
+            ? {
+                growthStage: readStringUnion(
+                  source.growthStage,
+                  ['dormant', 'early', 'mature', 'vegetative'] as const,
+                  'mature',
+                ),
+              }
+            : {}),
           heightFt: Math.max(readNumber(source.heightFt, 0), 0),
           itemId,
           itemType: readStringUnion(
@@ -1088,6 +1270,30 @@ function parseSunShadeSources(value: unknown) {
             'structure',
           ),
           label,
+          ...(typeof source.matureHeightFt === 'number'
+            ? {
+                matureHeightFt: Math.max(
+                  readNumber(source.matureHeightFt, 0),
+                  0,
+                ),
+              }
+            : {}),
+          ...(typeof source.matureSpreadFt === 'number'
+            ? {
+                matureSpreadFt: Math.max(
+                  readNumber(source.matureSpreadFt, 0),
+                  0,
+                ),
+              }
+            : {}),
+          ...(typeof source.supportHeightFt === 'number'
+            ? {
+                supportHeightFt: Math.max(
+                  readNumber(source.supportHeightFt, 0),
+                  0,
+                ),
+              }
+            : {}),
         },
       ];
     },

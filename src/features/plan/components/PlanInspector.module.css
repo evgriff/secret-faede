@@ -98,6 +98,35 @@
   gap: 0.75rem;
 }
 
+.pathWidthSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.pathWidthSummary div {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid rgba(54, 48, 40, 0.12);
+  border-radius: var(--radius-control);
+  background: #f0f1ed;
+  padding: 0.55rem;
+}
+
+.pathWidthSummary dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.pathWidthSummary dd {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-weight: 850;
+}
+
 .field {
   display: grid;
   gap: 0.35rem;

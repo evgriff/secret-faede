@@ -18,17 +18,16 @@ import {
 import { buildRotationGuidance } from './gardenRotation';
 import {
   estimateSupportLengthFt,
-  findNearestWaterDistanceFt,
   getCropSupportNeed,
   getPathRequiredWidthFt,
   getSupportLabel,
   getWalkablePathWidthFt,
+  hasPlantLevelSupport,
   hasNearbySupport,
   hasWalkablePathAccess,
   isBedLikeStructure,
   isMeaningfulAccessPath,
   isPathStructure,
-  isWaterSourceStructure,
 } from './gardenStructureRules';
 
 export type PlanHealthIssueType =
@@ -192,11 +191,15 @@ function buildSupportIssues(garden: Garden): PlanHealthIssue[] {
     const crop = getCropById(planting.cropId);
     const supportNeed = crop ? getCropSupportNeed(crop) : null;
 
-    if (!crop || !supportNeed || hasNearbySupport(garden, planting)) {
+    if (!crop || !supportNeed) {
       return [];
     }
 
     if (supportNeed.kind === 'trellis') {
+      if (hasNearbySupport(garden, planting)) {
+        return [];
+      }
+
       const lengthFt = estimateSupportLengthFt(planting, crop);
 
       return [
@@ -217,7 +220,7 @@ function buildSupportIssues(garden: Garden): PlanHealthIssue[] {
               unit: 'ft',
             },
           ],
-          message: `${planting.label} needs a support line, but no trellis is saved within reach.`,
+          message: `${planting.label} needs a trellis line, but no trellis is saved within reach.`,
           sourceWarningId: null,
           restoreWarningId: null,
           severity: supportNeed.required ? 'mustFix' : 'recommended',
@@ -225,6 +228,10 @@ function buildSupportIssues(garden: Garden): PlanHealthIssue[] {
           type: 'trellisMissing',
         },
       ];
+    }
+
+    if (hasPlantLevelSupport(planting, supportNeed.kind)) {
+      return [];
     }
 
     const count = Math.max(planting.plantCount ?? 1, 1);
@@ -251,7 +258,7 @@ function buildSupportIssues(garden: Garden): PlanHealthIssue[] {
             unit: 'count',
           },
         ],
-        message: `${planting.label} has no saved ${supportLabel} nearby.`,
+        message: `${planting.label} has no assigned ${supportLabel} support.`,
         sourceWarningId: null,
         restoreWarningId: null,
         severity: supportNeed.required ? 'recommended' : 'caution',
@@ -268,7 +275,6 @@ function buildPathAndIrrigationIssues(garden: Garden): PlanHealthIssue[] {
   const accessPaths = paths.filter((path) =>
     isMeaningfulAccessPath(path, beds),
   );
-  const waterMarkers = garden.structures.filter(isWaterSourceStructure);
   const pathIssues = paths.flatMap((path): PlanHealthIssue[] => {
     if (!isMeaningfulAccessPath(path, beds)) {
       return [];
@@ -321,57 +327,7 @@ function buildPathAndIrrigationIssues(garden: Garden): PlanHealthIssue[] {
           },
         ];
   });
-  const waterDistanceIssues = beds.flatMap((bed): PlanHealthIssue[] => {
-    const nearestWaterDistanceFt = findNearestWaterDistanceFt(garden, bed);
-
-    if (nearestWaterDistanceFt === null || nearestWaterDistanceFt <= 25) {
-      return [];
-    }
-
-    return [
-      {
-        dismissible: false,
-        dismissed: false,
-        decisionCategory: 'pathway',
-        id: `health:water-distance:${bed.id}`,
-        itemIds: [bed.id],
-        materialAddOns: [],
-        message: `${bed.label} is ${formatMeasure(nearestWaterDistanceFt)} ft from the nearest hose or water source. Add a closer marker or clear hose route.`,
-        sourceWarningId: null,
-        restoreWarningId: null,
-        severity: 'caution',
-        title: 'Irrigation reach concern',
-        type: 'irrigationAccessConcern',
-      },
-    ];
-  });
-  const waterSourceIssue =
-    beds.length > 0 && waterMarkers.length === 0
-      ? [
-          {
-            dismissible: false,
-            dismissed: false,
-            decisionCategory: 'pathway' as const,
-            id: 'health:water-source-missing',
-            itemIds: beds.map((bed) => bed.id),
-            materialAddOns: [],
-            message:
-              'Beds are planned without a hose bib or water-source marker, so watering access is easy to forget.',
-            sourceWarningId: null,
-            restoreWarningId: null,
-            severity: 'caution' as const,
-            title: 'Irrigation access concern',
-            type: 'irrigationAccessConcern' as const,
-          },
-        ]
-      : [];
-
-  return [
-    ...pathIssues,
-    ...accessIssues,
-    ...waterDistanceIssues,
-    ...waterSourceIssue,
-  ];
+  return [...pathIssues, ...accessIssues];
 }
 
 function buildRotationIssues(garden: Garden, now: Date): PlanHealthIssue[] {
@@ -552,7 +508,8 @@ function toDismissedDecisionIssue(
       id: `decision:${decision.id}`,
       itemIds: [],
       materialAddOns: [],
-      message: decision.note ?? `${decision.status} in Review.`,
+      message:
+        decision.note ?? `${formatDecisionStatus(decision.status)} in Review.`,
       sourceWarningId: null,
       restoreWarningId: null,
       severity: 'caution',
@@ -560,6 +517,10 @@ function toDismissedDecisionIssue(
       type: 'warning',
     },
   ];
+}
+
+function formatDecisionStatus(status: GardenSuggestionDecision['status']) {
+  return status === 'snoozed' ? 'ignored' : status;
 }
 
 function activePlantings(garden: Garden) {
@@ -690,12 +651,13 @@ function categoryOrder(category: PlanWarningDecisionCategory) {
     boundary: 0,
     spacing: 1,
     support: 2,
-    sun: 3,
-    pathway: 4,
-    bedFit: 5,
-    structure: 6,
-    rotation: 7,
-    care: 8,
+    shade: 3,
+    sun: 4,
+    pathway: 5,
+    bedFit: 6,
+    structure: 7,
+    rotation: 8,
+    care: 9,
   };
 
   return order[category];

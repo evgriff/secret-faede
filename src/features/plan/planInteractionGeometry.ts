@@ -371,20 +371,10 @@ export function getItemsInRect(garden: Garden, rect: FootRect): PlanItemRef[] {
       .map((structure) => getStructureFootprint(structure))
       .filter((itemRect) => rectsIntersect(itemRect, rect))
       .map((itemRect) => ({ id: itemRect.id, type: 'structure' as const })),
-    ...garden.plantings.flatMap((planting) =>
-      getPlantingInstances(planting)
-        .filter((instance) =>
-          rectsIntersect(
-            getPlantingInstanceFootprint(planting, instance),
-            rect,
-          ),
-        )
-        .map((instance) => ({
-          id: planting.id,
-          instanceId: instance.id,
-          type: 'planting' as const,
-        })),
-    ),
+    ...garden.plantings
+      .map((planting) => getPlantingFootprint(planting))
+      .filter((itemRect) => rectsIntersect(itemRect, rect))
+      .map((itemRect) => ({ id: itemRect.id, type: 'planting' as const })),
   ];
 }
 
@@ -416,25 +406,7 @@ function buildSnapTargets(
       continue;
     }
 
-    for (const instance of getPlantingInstances(planting)) {
-      if (
-        excludedKeys.has(
-          getItemKey({
-            id: planting.id,
-            instanceId: instance.id,
-            type: 'planting',
-          }),
-        )
-      ) {
-        continue;
-      }
-
-      addRectTargets(
-        targets,
-        getPlantingInstanceFootprint(planting, instance),
-        instance.label,
-      );
-    }
+    addRectTargets(targets, getPlantingFootprint(planting), planting.label);
   }
 
   targets.push(
