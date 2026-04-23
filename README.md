@@ -147,6 +147,7 @@ not the data-protection boundary.
 See:
 
 - [docs/architecture.md](docs/architecture.md)
+- [docs/product-documentation.md](docs/product-documentation.md)
 - [docs/data-model.md](docs/data-model.md)
 - [docs/architecture.md](docs/architecture.md)
 - [docs/ux-architecture.md](docs/ux-architecture.md)
