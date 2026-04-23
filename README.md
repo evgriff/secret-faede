@@ -24,8 +24,9 @@ Included:
 - plant and planting-instance positions stored as `xFt` and `yFt`
 - quantity-first Add Plant and Choose Plants flows that create individual plant
   nodes inside arrangement-aware groups
-- guided optimizer walkthroughs with before/after plot diff overlays and
-  proposal decisions, without decorative scoring surfaces
+- problem inbox and checked layout variants with before/after plot diff
+  overlays, explicit resolution actions, ignore decisions, and no decorative
+  scoring surface
 - authenticated app shell for Plan, Today, Feed, and Settings
 - editable settings for alert location, timezone, check time, thresholds, push
   delivery, quiet hours, and local/native notification support
@@ -67,6 +68,15 @@ Optional local config:
 
 - copy `.env.local.example` to `.env.local` for Firebase or emulator work
 - keep `.env.example` committed and generic
+
+## Plan interaction model
+
+Plan now centers on grouped plant footprints. Add Plants asks for crop and
+quantity first, then derives row, block, or cluster geometry from spacing data.
+On the plot, clicking a plant group shows its label; the wrench opens the plant
+editor; Detailed View keeps that editor available while moving between relevant
+items. Review Problems opens the problem inbox, Optimize generates checked
+variants, and Sun shows modeled direct sun plus maturity-based shade sources.
 
 ## Runtime modes
 

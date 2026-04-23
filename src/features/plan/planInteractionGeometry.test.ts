@@ -130,7 +130,7 @@ describe('planInteractionGeometry', () => {
     );
   });
 
-  it('treats arrangement instances as individual selectable plant nodes', () => {
+  it('selects an arrangement footprint as one plant group', () => {
     const garden = {
       ...createInteractionGarden(),
       plantings: [
@@ -163,15 +163,15 @@ describe('planInteractionGeometry', () => {
     });
     expect(
       getItemsInRect(garden, {
-        depthFt: 1,
+        depthFt: 0.5,
         id: 'selection',
         itemType: 'structure',
         label: 'Selection',
-        widthFt: 0.5,
-        xFt: 3.75,
-        yFt: 4.75,
+        widthFt: 3.8,
+        xFt: 2.1,
+        yFt: 4.8,
       }),
-    ).toEqual([item]);
+    ).toEqual([{ id: 'carrot-row', type: 'planting' }]);
   });
 
   it('allows temporary free move without snapping', () => {

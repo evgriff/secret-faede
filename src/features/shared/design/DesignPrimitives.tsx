@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
+import { closeOnBackdropMouseDown, useEscapeToClose } from './dialogDismiss';
 import overlayStyles from './DesignOverlays.module.css';
 import styles from './DesignPrimitives.module.css';
 
@@ -319,8 +320,13 @@ export function Drawer({
   onClose(): void;
   title: string;
 }) {
+  useEscapeToClose(onClose);
+
   return (
-    <div className={overlayStyles.modalBackdrop}>
+    <div
+      className={overlayStyles.modalBackdrop}
+      onMouseDown={(event) => closeOnBackdropMouseDown(event, onClose)}
+    >
       <aside
         aria-labelledby="drawer-title"
         aria-modal="true"
@@ -351,8 +357,13 @@ export function Sheet({
   onClose(): void;
   title: string;
 }) {
+  useEscapeToClose(onClose);
+
   return (
-    <div className={overlayStyles.sheetBackdrop}>
+    <div
+      className={overlayStyles.sheetBackdrop}
+      onMouseDown={(event) => closeOnBackdropMouseDown(event, onClose)}
+    >
       <section
         aria-labelledby="sheet-title"
         aria-modal="true"
@@ -403,6 +414,8 @@ export function Modal({
   onClose(): void;
   title: string;
 }) {
+  useEscapeToClose(onClose);
+
   return (
     <div
       className={`${overlayStyles.modalBackdrop} ${
@@ -410,6 +423,7 @@ export function Modal({
           ? overlayStyles.fullScreenBackdrop
           : ''
       }`}
+      onMouseDown={(event) => closeOnBackdropMouseDown(event, onClose)}
     >
       <section
         aria-describedby={description ? 'modal-description' : undefined}

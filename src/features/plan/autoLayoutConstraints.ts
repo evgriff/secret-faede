@@ -68,7 +68,13 @@ export function canSupportFootprint(
   footprint: FootRect,
   blockedRects: FootRect[] = [],
 ) {
-  if (!cropNeedsSupport(crop)) {
+  const supportNeed = getCropSupportNeed(crop);
+
+  if (!supportNeed) {
+    return true;
+  }
+
+  if (supportNeed.kind !== 'trellis') {
     return true;
   }
 
@@ -79,7 +85,7 @@ export function canSupportFootprint(
         garden,
         crop,
         footprint,
-        undefined,
+        supportNeed.kind,
         blockedRects,
       ),
     )

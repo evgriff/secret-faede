@@ -13,6 +13,7 @@ import {
 import {
   estimateSupportLengthFt,
   getCropSupportNeed,
+  getPlantSupportKind,
   getSupportLabel,
 } from '../garden/gardenStructureRules';
 
@@ -121,7 +122,17 @@ function summarizePlantSupport(planting: Planting, crop: CropProfile | null) {
 
     return `${planting.label}: ${formatMeasure(
       trellisLengthFt,
-    )} ft trellis/support line`;
+    )} ft trellis line`;
+  }
+
+  const plantSupportKind = getPlantSupportKind(planting.support.type);
+
+  if (plantSupportKind && planting.support.quantity > 0) {
+    const supportName = getSupportLabel(plantSupportKind);
+
+    return `${planting.label}: ${planting.support.quantity} ${supportName}${
+      planting.support.quantity === 1 ? '' : 's'
+    }`;
   }
 
   const supportNeed = crop ? getCropSupportNeed(crop) : null;
@@ -135,13 +146,10 @@ function summarizePlantSupport(planting: Planting, crop: CropProfile | null) {
 
     return `${planting.label}: ${formatMeasure(
       trellisLengthFt,
-    )} ft trellis/support line`;
+    )} ft trellis line`;
   }
 
-  const count = Math.max(planting.plantCount ?? 1, 1);
-  const supportName = getSupportLabel(supportNeed.kind);
-
-  return `${planting.label}: ${count} ${supportName}${count === 1 ? '' : 's'}`;
+  return null;
 }
 
 function buildMaterialTotals(

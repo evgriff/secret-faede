@@ -12,7 +12,7 @@ import {
 import { describeCropSunFit } from './sunShadeFit';
 
 describe('sunShadeEngine', () => {
-  it('computes seasonal sun/shade cells from garden location and support structures', () => {
+  it('computes seasonal sun/shade cells from garden location and trellis structures', () => {
     const garden = {
       ...createDefaultGarden('user-a'),
       structures: [
@@ -128,6 +128,7 @@ describe('sunShadeEngine', () => {
             xFt: 5,
             yFt: 3,
           }),
+          cropId: 'tomato',
           matureHeightInches: 84,
           mode: 'trellisLine' as const,
           rowLengthFt: 4,
@@ -156,14 +157,25 @@ describe('sunShadeEngine', () => {
     };
 
     const areas = buildSunShadeLayers(garden).flatMap((layer) => layer.areas);
+    const tomatoSources = areas
+      .flatMap((area) => area.shadeSources ?? [])
+      .filter((source) => source.itemId === 'tomato-line');
 
     expect(
-      areas.some((area) =>
-        area.shadeSources?.some(
-          (source) =>
-            source.itemId === 'tomato-line' && source.kind === 'trellisedCrop',
-        ),
-      ),
+      tomatoSources.some((source) => source.kind === 'trellisedCrop'),
+    ).toBe(true);
+    expect(tomatoSources[0]).toMatchObject({
+      canopyDensity: 'moderate',
+      growthStage: 'mature',
+      matureHeightFt: 7,
+    });
+    expect(tomatoSources[0]?.canopyOpacity).toBeGreaterThan(0);
+    expect(
+      areas
+        .filter((area) =>
+          area.shadeSources?.some((source) => source.itemId === 'tomato-line'),
+        )
+        .some((area) => area.sunHours > 0),
     ).toBe(true);
     expect(
       areas.some((area) =>

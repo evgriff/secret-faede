@@ -9,6 +9,11 @@ import {
   isRectInsidePlot,
 } from './gardenPlanningGeometry';
 import {
+  addEarlyShadeWarnings,
+  addInternalSpacingWarnings,
+  addStructureAccessWarnings,
+} from './gardenConstraintChecks';
+import {
   addBedFitWarnings,
   addRotationWarnings,
   addSpacingWarnings,
@@ -34,6 +39,7 @@ export type PlanWarningKind =
   | 'container'
   | 'pathway'
   | 'rotation'
+  | 'shade'
   | 'spacing'
   | 'structure'
   | 'sun'
@@ -56,6 +62,7 @@ export type PlanWarningDecisionCategory =
   | 'care'
   | 'pathway'
   | 'rotation'
+  | 'shade'
   | 'spacing'
   | 'structure'
   | 'sun'
@@ -120,9 +127,12 @@ export function findPlanWarnings(
   }
 
   addSpacingWarnings(plantingFootprints, warnings, now);
+  addInternalSpacingWarnings(plantingFootprints, warnings);
   addStructureWarnings(garden, plantingFootprints, warnings);
+  addStructureAccessWarnings(garden, warnings);
   addBedFitWarnings(garden, plantingFootprints, warnings);
   addSunWarnings(context, plantingFootprints, warnings);
+  addEarlyShadeWarnings(plantingFootprints, warnings);
   addTrellisWarnings(garden, plantingFootprints, warnings);
   addRotationWarnings(garden, warnings, now);
 
@@ -151,6 +161,8 @@ export function getPlanWarningDecisionCategory(
       return 'pathway';
     case 'rotation':
       return 'rotation';
+    case 'shade':
+      return 'shade';
     case 'spacing':
       return 'spacing';
     case 'structure':
@@ -195,6 +207,12 @@ export function getPlanWarningDecisionCategoryMeta(
         category,
         label: 'Rotation',
         prompt: 'Use saved history to decide if crop families move.',
+      };
+    case 'shade':
+      return {
+        category,
+        label: 'Shade conflict',
+        prompt: 'Move tall crops up-sun or confirm intentional shade.',
       };
     case 'spacing':
       return {

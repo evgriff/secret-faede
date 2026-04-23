@@ -7,7 +7,7 @@ import {
   signInWithMockPassword,
 } from './appSmokeHelpers';
 
-test('quantity-first Add Plant creates individual nodes without resizing the plot', async ({
+test('quantity-first Add Plant creates one grouped footprint without resizing the plot', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1365, height: 768 });
@@ -37,18 +37,18 @@ test('quantity-first Add Plant creates individual nodes without resizing the plo
     .getByRole('button', { exact: true, name: 'Tomato crop' })
     .click();
   await addPlant.getByLabel('How many plants?').fill('3');
-  await expect(addPlant.getByText('Will create 3 plant nodes.')).toBeVisible();
+  await expect(
+    addPlant.getByText(/Will place 3 plants as one group\./),
+  ).toBeVisible();
   await addPlant.getByRole('button', { name: 'Add plant' }).click();
 
   await expect(
+    page.getByRole('button', { name: /Tomato group, 3 plants at X:/ }),
+  ).toBeVisible();
+  await expect(
     page.getByRole('button', { name: /Tomato 1 at X:/ }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: /Tomato 2 at X:/ }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: /Tomato 3 at X:/ }),
-  ).toBeVisible();
+  ).toHaveCount(0);
+  await expect(page.getByLabel('Edit Tomato group')).toBeVisible();
   await expect(viewport).toHaveJSProperty('clientWidth', stableSize.width);
   await expect(
     page.getByRole('complementary', { name: 'Crop focus' }),
@@ -57,6 +57,48 @@ test('quantity-first Add Plant creates individual nodes without resizing the plo
   const focusedSize = await readViewportSize(page);
 
   expect(focusedSize.height).toBeGreaterThanOrEqual(500);
+});
+
+test('plant picking modals keep their footer actions visible on short viewports', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1365, height: 620 });
+  await signInWithMockPassword(page);
+
+  await page.getByRole('button', { name: 'Add Plants' }).first().click();
+  const choosePlants = page.getByRole('dialog', { name: 'Choose Plants' });
+
+  await expect(choosePlants).toBeVisible();
+  await expect(
+    choosePlants.getByRole('button', { name: 'Cancel' }),
+  ).toBeInViewport();
+  await expect(
+    choosePlants.getByRole('button', { name: 'Save list' }),
+  ).toBeInViewport();
+  await expect(
+    choosePlants.getByRole('button', { name: 'Save + Optimize' }),
+  ).toBeInViewport();
+  const locationReason = choosePlants
+    .getByRole('button', { name: /Location Match.*reason/ })
+    .first();
+
+  await locationReason.focus();
+  await expect(choosePlants.getByRole('tooltip').first()).toBeVisible();
+  await expect(choosePlants.getByRole('tooltip').first()).not.toHaveText('');
+  await choosePlants.getByRole('button', { name: 'Cancel' }).click();
+  await expect(choosePlants).toHaveCount(0);
+
+  await openPlanTool(page, 'Plant');
+  await page.getByRole('button', { name: 'Open plant picker' }).click();
+  const addPlant = page.getByRole('dialog', { name: 'Add Plant' });
+
+  await expect(addPlant).toBeVisible();
+  await expect(
+    addPlant.getByRole('button', { name: 'Cancel' }),
+  ).toBeInViewport();
+  await expect(
+    addPlant.getByRole('button', { name: 'Add plant' }),
+  ).toBeInViewport();
 });
 
 test('generated layouts open a visual walkthrough without certainty copy', async ({
@@ -68,19 +110,27 @@ test('generated layouts open a visual walkthrough without certainty copy', async
 
   await page.getByRole('button', { name: 'Optimize' }).first().click();
   await expect(
-    page.getByRole('heading', { name: 'Review proposals' }),
+    page.getByRole('heading', { name: 'Problem inbox and variants' }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Generate layouts' }).first().click();
+  await page
+    .getByRole('button', { name: 'Generate checked variants' })
+    .first()
+    .click();
 
   const walkthrough = page.getByRole('region', {
     name: 'Layout walkthrough',
   });
 
-  await expect(walkthrough.getByText('Proposal walkthrough')).toBeVisible();
+  await expect(
+    walkthrough.getByRole('heading', {
+      exact: true,
+      name: 'Checked layout variants',
+    }),
+  ).toBeVisible();
   await expect(
     page.getByRole('region', { name: 'Before and after preview' }),
   ).toBeVisible();
-  await expect(page.getByLabel(/Proposal diff overlay/)).toBeVisible();
+  await expect(page.getByLabel(/Layout diff overlay/)).toBeVisible();
   await expect(page.locator('body')).not.toContainText('Fit confidence');
 });
 

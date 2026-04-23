@@ -2,6 +2,7 @@ import type {
   CropProfile,
   PlantingMode,
 } from '../../domain/gardens/GardenRepository';
+import { derivePlantingGeometry } from '../../domain/gardens/plantingGeometry';
 import type { PlanWarning } from './gardenPlanning';
 import {
   formatFeetInput,
@@ -198,45 +199,19 @@ function getArrangementPoints(
   quantity: number,
   values: ArrangementEditorValues,
 ) {
-  if (mode === 'row' || mode === 'trellisLine') {
-    const lengthFt = Math.max(values.rowLengthFt ?? quantity - 1, 0.125);
-    const startX = -lengthFt / 2;
-    const stepFt = quantity > 1 ? lengthFt / (quantity - 1) : 0;
-
-    return Array.from({ length: quantity }, (_, index) => ({
-      x: quantity === 1 ? 0 : startX + stepFt * index,
-      y: 0,
-    }));
-  }
-
-  if (mode === 'block') {
-    const columns = getBlockColumns(quantity);
-    const rows = getBlockRows(quantity, columns);
-    const widthFt = Math.max(values.blockWidthFt ?? columns - 1, 0.125);
-    const depthFt = Math.max(values.blockDepthFt ?? rows - 1, 0.125);
-    const xStep = columns > 1 ? widthFt / (columns - 1) : 0;
-    const yStep = rows > 1 ? depthFt / (rows - 1) : 0;
-
-    return Array.from({ length: quantity }, (_, index) => ({
-      x: columns === 1 ? 0 : -widthFt / 2 + xStep * (index % columns),
-      y: rows === 1 ? 0 : -depthFt / 2 + yStep * Math.floor(index / columns),
-    }));
-  }
-
-  if (mode === 'cluster') {
-    const radiusFt = Math.max(values.clusterRadiusFt ?? 1, 0.125);
-
-    return Array.from({ length: quantity }, (_, index) => {
-      const angle = (Math.PI * 2 * index) / quantity - Math.PI / 2;
-
-      return {
-        x: quantity === 1 ? 0 : Math.cos(angle) * radiusFt,
-        y: quantity === 1 ? 0 : Math.sin(angle) * radiusFt,
-      };
-    });
-  }
-
-  return [{ x: 0, y: 0 }];
+  return derivePlantingGeometry({
+    blockDepthFt: values.blockDepthFt,
+    blockWidthFt: values.blockWidthFt,
+    clusterRadiusFt: values.clusterRadiusFt,
+    mode,
+    quantity,
+    rowLengthFt: values.rowLengthFt,
+    xFt: 0,
+    yFt: 0,
+  }).dots.map((dot) => ({
+    x: dot.offsetXFt,
+    y: dot.offsetYFt,
+  }));
 }
 
 function average(values: number[]) {

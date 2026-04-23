@@ -12,6 +12,7 @@ import {
   buildMicroclimateNotes,
   buildShadeCasters,
   getCellShadeHits,
+  getShadePressure,
 } from './sunShadeModeling';
 
 export type SunSeason = 'fall' | 'spring' | 'summer';
@@ -26,7 +27,7 @@ export const sunSeasons: Array<{
   { label: 'Fall shoulder', representativeDate: '09-15', season: 'fall' },
 ];
 
-export const sunModelVersion = 'suncalc-shadow-v2';
+export const sunModelVersion = 'suncalc-maturity-shadow-v3';
 const cellSizeFt = 1;
 const sampleMinutes = 15;
 
@@ -83,12 +84,14 @@ export function buildSunShadeLayer(
         );
 
         if (shadeHits.length > 0) {
+          const shadePressure = getShadePressure(shadeHits);
+
           shadeHits.forEach((hit) =>
             shadeSources.set(`${hit.source.itemType}:${hit.source.itemId}`, {
               ...hit.source,
             }),
           );
-          return total;
+          return total + (sampleMinutes / 60) * (1 - shadePressure);
         }
 
         return total + sampleMinutes / 60;
@@ -131,7 +134,9 @@ export function buildSunShadeLayer(
     modelVersion: sunModelVersion,
     observedOn: null,
     representativeDate: options.representativeDate,
+    sampleMinutes,
     season: options.season,
+    timeWindow: 'allDay',
   };
 }
 

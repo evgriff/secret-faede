@@ -1,6 +1,5 @@
 import type { Planting, PlantingInstance } from './models';
-
-const minimumInstanceSpacingFt = 0.75;
+import { derivePlantingGeometryFromPlanting } from './plantingGeometry';
 
 export function getPlantingInstances(planting: Planting): PlantingInstance[] {
   if (planting.instances.length === 0) {
@@ -23,21 +22,18 @@ export function createPlantingInstances(
   planting: Omit<Planting, 'instances'> | Planting,
 ): PlantingInstance[] {
   const count = getInstanceCount(planting);
-  const spacingFt = getInstanceSpacingFt(planting);
-  const points =
-    planting.mode === 'row' || planting.mode === 'trellisLine'
-      ? createRowPoints(planting, count, spacingFt)
-      : planting.mode === 'block'
-        ? createBlockPoints(planting, count, spacingFt)
-        : planting.mode === 'cluster'
-          ? createClusterPoints(planting, count, spacingFt)
-          : [{ xFt: planting.xFt, yFt: planting.yFt }];
+  const geometry = derivePlantingGeometryFromPlanting({
+    ...planting,
+    instances: 'instances' in planting ? planting.instances : [],
+    plantCount: count,
+  });
+  const points = geometry.dots;
 
   return points.map((point, index) => ({
     id: `${planting.id}-plant-${index + 1}`,
     label: getInstanceLabel(planting, index, points.length),
-    xFt: roundFeet(point.xFt),
-    yFt: roundFeet(point.yFt),
+    xFt: point.xFt,
+    yFt: point.yFt,
   }));
 }
 
@@ -122,82 +118,6 @@ export function normalizePlantingFromInstances(planting: Planting): Planting {
   };
 }
 
-function createRowPoints(
-  planting: Omit<Planting, 'instances'> | Planting,
-  count: number,
-  spacingFt: number,
-) {
-  const lengthFt = Math.max(
-    planting.rowLengthFt ?? spacingFt * Math.max(count - 1, 1),
-    spacingFt,
-  );
-  const startX = planting.xFt - lengthFt / 2;
-  const stepFt = count > 1 ? lengthFt / (count - 1) : 0;
-
-  return Array.from({ length: count }, (_, index) => ({
-    xFt: count === 1 ? planting.xFt : startX + stepFt * index,
-    yFt: planting.yFt,
-  }));
-}
-
-function createBlockPoints(
-  planting: Omit<Planting, 'instances'> | Planting,
-  count: number,
-  spacingFt: number,
-) {
-  const widthFt = Math.max(planting.blockWidthFt ?? spacingFt, spacingFt);
-  const depthFt = Math.max(planting.blockDepthFt ?? spacingFt, spacingFt);
-  const columns = Math.max(1, Math.ceil(Math.sqrt(count)));
-  const rows = Math.max(1, Math.ceil(count / columns));
-  const xStep = columns > 1 ? widthFt / (columns - 1) : 0;
-  const yStep = rows > 1 ? depthFt / (rows - 1) : 0;
-  const left = planting.xFt - widthFt / 2;
-  const top = planting.yFt - depthFt / 2;
-
-  const points = Array.from({ length: count }, (_, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-
-    return {
-      xFt: columns === 1 ? planting.xFt : left + xStep * column,
-      yFt: rows === 1 ? planting.yFt : top + yStep * row,
-    };
-  });
-  const offset = {
-    xFt: planting.xFt - average(points.map((point) => point.xFt)),
-    yFt: planting.yFt - average(points.map((point) => point.yFt)),
-  };
-
-  return points.map((point) => ({
-    xFt: point.xFt + offset.xFt,
-    yFt: point.yFt + offset.yFt,
-  }));
-}
-
-function createClusterPoints(
-  planting: Omit<Planting, 'instances'> | Planting,
-  count: number,
-  spacingFt: number,
-) {
-  if (count === 1) {
-    return [{ xFt: planting.xFt, yFt: planting.yFt }];
-  }
-
-  const radiusFt = Math.max(
-    planting.clusterRadiusFt ?? (Math.sqrt(count) * spacingFt) / 2,
-    spacingFt / 2,
-  );
-
-  return Array.from({ length: count }, (_, index) => {
-    const angle = (Math.PI * 2 * index) / count - Math.PI / 2;
-
-    return {
-      xFt: planting.xFt + Math.cos(angle) * radiusFt,
-      yFt: planting.yFt + Math.sin(angle) * radiusFt,
-    };
-  });
-}
-
 function getInstanceCount(planting: Omit<Planting, 'instances'> | Planting) {
   const savedCount = Math.max(Math.round(planting.plantCount ?? 0), 0);
 
@@ -205,7 +125,11 @@ function getInstanceCount(planting: Omit<Planting, 'instances'> | Planting) {
     return savedCount;
   }
 
-  const spacingFt = getInstanceSpacingFt(planting);
+  const spacingFt = derivePlantingGeometryFromPlanting({
+    ...planting,
+    instances: 'instances' in planting ? planting.instances : [],
+    plantCount: 1,
+  }).spacingFt;
 
   if (planting.mode === 'row' || planting.mode === 'trellisLine') {
     return Math.max(
@@ -228,15 +152,6 @@ function getInstanceCount(planting: Omit<Planting, 'instances'> | Planting) {
   }
 
   return 1;
-}
-
-function getInstanceSpacingFt(
-  planting: Omit<Planting, 'instances'> | Planting,
-) {
-  return Math.max(
-    (planting.spacingInches ?? planting.matureSpreadInches ?? 12) / 12,
-    minimumInstanceSpacingFt,
-  );
 }
 
 function getInstanceLabel(

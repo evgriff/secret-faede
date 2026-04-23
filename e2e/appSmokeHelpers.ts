@@ -68,15 +68,15 @@ export async function savePlan(page: Page) {
 }
 
 export async function openPlanTool(page: Page, name: string) {
-  await page.getByRole('button', { name: 'Open Plan tools' }).click();
-  const launcher = page.getByLabel('Plan tool launcher');
+  await page.getByRole('button', { name: 'Open build tools' }).click();
+  const launcher = page.getByLabel('Build tool launcher');
 
   await expect(launcher).toBeVisible();
   await launcher.getByRole('button', { exact: true, name }).click();
 }
 
 export async function addTomatoToSeasonList(page: Page) {
-  await page.getByRole('button', { name: 'Choose plants' }).first().click();
+  await page.getByRole('button', { name: 'Add Plants' }).first().click();
   await expect(
     page.getByRole('dialog', { name: 'Choose Plants' }),
   ).toBeVisible();
@@ -94,32 +94,26 @@ export async function addTomatoToSeasonList(page: Page) {
 export async function generateAndApplyFirstLayout(page: Page) {
   await page.getByRole('button', { name: 'Optimize' }).first().click();
   await expect(
-    page.getByRole('heading', { name: 'Review proposals' }),
+    page.getByRole('heading', { name: 'Problem inbox and variants' }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Generate layouts' }).first().click();
+  await page
+    .getByRole('button', { name: 'Generate checked variants' })
+    .first()
+    .click();
   const layoutWalkthrough = page.getByRole('region', {
     name: 'Layout walkthrough',
   });
   await expect(
-    layoutWalkthrough.getByText('Proposal walkthrough'),
+    layoutWalkthrough.getByRole('heading', {
+      exact: true,
+      name: 'Checked layout variants',
+    }),
   ).toBeVisible();
   await expect(
     page.getByRole('region', { name: 'Before and after preview' }),
   ).toBeVisible();
-  await expect(page.getByLabel(/Proposal diff overlay/)).toBeVisible();
+  await expect(page.getByLabel(/Layout diff overlay/)).toBeVisible();
   await layoutWalkthrough
-    .getByRole('button', { name: 'Snooze selected proposal' })
-    .click();
-  await expect(
-    layoutWalkthrough.getByRole('button', { name: /Snoozed/ }),
-  ).toBeVisible();
-  await layoutWalkthrough
-    .getByRole('button', { name: 'Reject selected proposal' })
-    .click();
-  await expect(
-    layoutWalkthrough.getByText('Rejected', { exact: true }),
-  ).toBeVisible();
-  await layoutWalkthrough
-    .getByRole('button', { name: 'Apply selected proposal to draft' })
+    .getByRole('button', { name: 'Apply full variant to draft' })
     .click();
 }

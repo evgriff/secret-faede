@@ -1,30 +1,31 @@
 import {
   memo,
+  useMemo,
   type CSSProperties,
   type PointerEvent,
   type RefObject,
 } from 'react';
 
-import type {
-  Garden,
-  SunExposure,
-  SunShadeArea,
+import {
+  isPageStructureType,
+  type Garden,
+  type Planting,
+  type SunExposure,
+  type SunShadeArea,
 } from '../../../domain/gardens/GardenRepository';
-import { getPlantingInstances } from '../../../domain/gardens/plantingInstances';
 import { pixelsPerFoot } from '../../garden/gardenMath';
 import type { PlanWarning } from '../../garden/gardenPlanning';
 import type { SunSeason } from '../../garden/sunShadeEngine';
 import type { SelectedGardenItem } from '../../garden/useGarden';
 import type { PlanInfluenceOverlayModel } from '../planInfluenceOverlay';
 import type { ResizeHandle, SnapGuide } from '../planInteractionGeometry';
-import type { PlanMode } from '../planModes';
 import { getPlantingFocusKey } from '../planCropFocus';
 import type { ProposalDiffOverlayModel } from '../proposalDiffOverlay';
 import { PlanInfluenceOverlay } from './PlanInfluenceOverlay';
-import { PlanPlantButton } from './PlanPlantButton';
+import { PlanPlantGroup } from './PlanPlantGroup';
+import { PlanPlantingPreview } from './PlanPlantingPreview';
 import { PlanProposalDiffOverlay } from './PlanProposalDiffOverlay';
 import { footprintStyle } from './planCanvasGeometry';
-import itemStyles from './PlanCanvasItems.module.css';
 import styles from './PlanCanvas.module.css';
 import { PlanRuler } from './PlanRuler';
 import { PlanStructureBox } from './PlanStructureBox';
@@ -36,15 +37,19 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   draggingStructureId,
   focusedCropKey,
   garden,
+  hoveredPlantGroupId,
   influenceOverlay,
   manualSunEdit,
   manualSunExposure,
   marqueeRect,
-  mode,
   onMarqueePointerDown,
   onMarqueePointerEnd,
   onMarqueePointerMove,
   onPaintSunShadeCell,
+  onPlantHoverChange,
+  onPlantLabelHide,
+  onPlantLabelShow,
+  onPlantEditorOpen,
   onPlantPointerDown,
   onPlantPointerEnd,
   onPlantPointerMove,
@@ -55,6 +60,7 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   onStructurePointerDown,
   onStructurePointerEnd,
   onStructurePointerMove,
+  plantingPreview,
   plotRef,
   plotStyle,
   proposalDiffOverlay,
@@ -66,12 +72,14 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   snapGuides,
   sunSeason,
   visibleWarnings,
+  visiblePlantLabelIds,
 }: {
   activeSunLayer: { areas: SunShadeArea[] };
   draggingPlantId: string | null;
   draggingStructureId: string | null;
   focusedCropKey: string | null;
   garden: Garden;
+  hoveredPlantGroupId: string | null;
   influenceOverlay: PlanInfluenceOverlayModel | null;
   manualSunEdit: boolean;
   manualSunExposure: SunExposure;
@@ -81,7 +89,6 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
     xFt: number;
     yFt: number;
   } | null;
-  mode: PlanMode;
   onMarqueePointerDown(event: PointerEvent<HTMLDivElement>): void;
   onMarqueePointerEnd(event: PointerEvent<HTMLDivElement>): void;
   onMarqueePointerMove(event: PointerEvent<HTMLDivElement>): void;
@@ -91,6 +98,10 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
     yFt: number,
     exposure: SunExposure,
   ): void;
+  onPlantHoverChange(plantId: string | null): void;
+  onPlantLabelHide(plantId: string): void;
+  onPlantLabelShow(plantId: string): void;
+  onPlantEditorOpen(plantId: string): void;
   onPlantPointerDown(
     event: PointerEvent<HTMLButtonElement>,
     plantId: string,
@@ -126,6 +137,7 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
     event: PointerEvent<HTMLDivElement>,
     structureId: string,
   ): void;
+  plantingPreview: Planting | null;
   plotRef: RefObject<HTMLDivElement | null>;
   plotStyle: CSSProperties;
   proposalDiffOverlay: ProposalDiffOverlayModel | null;
@@ -137,7 +149,38 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   snapGuides: SnapGuide[];
   sunSeason: SunSeason;
   visibleWarnings: PlanWarning[];
+  visiblePlantLabelIds: string[];
 }) {
+  const visiblePlantLabelIdSet = useMemo(
+    () => new Set(visiblePlantLabelIds),
+    [visiblePlantLabelIds],
+  );
+  const pageStructures = useMemo(
+    () =>
+      garden.structures.filter((structure) =>
+        isPageStructureType(structure.type),
+      ),
+    [garden.structures],
+  );
+  const warningsByPlantId = useMemo(() => {
+    const byPlantId = new Map<string, PlanWarning[]>();
+
+    visibleWarnings.forEach((warning) => {
+      warning.itemIds.forEach((itemId) => {
+        const current = byPlantId.get(itemId);
+
+        if (current) {
+          current.push(warning);
+          return;
+        }
+
+        byPlantId.set(itemId, [warning]);
+      });
+    });
+
+    return byPlantId;
+  }, [visibleWarnings]);
+
   return (
     <div className={styles.workbench}>
       <div className={styles.sceneTransform} style={sceneStyle}>
@@ -165,13 +208,20 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
           >
             {garden.plantings.length === 0 && garden.structures.length === 0 ? (
               <div className={styles.emptyHint}>
-                <strong>Start with a bed or crop.</strong>
-                <span>
-                  Use Plant or Structure mode to place the first item.
-                </span>
+                <strong>Build the plan in order.</strong>
+                <ol>
+                  <li>Set the boundary and beds</li>
+                  <li>Add paths and trellises</li>
+                  <li>Choose plant quantities for grouped footprints</li>
+                  <li>Optimize and resolve problems</li>
+                  <li>Review sun, then use Detailed View for care edits</li>
+                </ol>
               </div>
             ) : null}
-            <div className={styles.plotMeta} aria-hidden="true">
+            <div
+              aria-label="Plot scale and dimensions"
+              className={styles.plotMeta}
+            >
               <span>Scale: 1 square = 1 ft</span>
               <span>
                 {garden.plot.widthFt} x {garden.plot.depthFt} ft
@@ -246,7 +296,7 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
               />
             ) : null}
 
-            {garden.structures.map((structure) => (
+            {pageStructures.map((structure) => (
               <PlanStructureBox
                 draggingStructureId={draggingStructureId}
                 key={structure.id}
@@ -264,43 +314,39 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
               />
             ))}
 
-            {garden.plantings.flatMap((plant, index) =>
-              getPlantingInstances(plant).map((instance) => (
-                <PlanPlantButton
+            {plantingPreview ? (
+              <PlanPlantingPreview plant={plantingPreview} />
+            ) : null}
+
+            {garden.plantings.map((plant, index) => {
+              const plantFocusKey = getPlantingFocusKey(plant);
+
+              return (
+                <PlanPlantGroup
                   index={index}
-                  instance={instance}
-                  isCropFocused={getPlantingFocusKey(plant) === focusedCropKey}
+                  isCropFocused={plantFocusKey === focusedCropKey}
                   isFocusDimmed={Boolean(
-                    focusedCropKey &&
-                    getPlantingFocusKey(plant) !== focusedCropKey,
+                    focusedCropKey && plantFocusKey !== focusedCropKey,
                   )}
-                  isDragging={isPlantInstanceDragging(
-                    draggingPlantId,
-                    plant.id,
-                    instance.id,
-                  )}
-                  isSelected={selectedPlantIds.includes(
-                    getPlantSelectionKey(plant.id, instance.id),
-                  )}
-                  key={`${plant.id}:${instance.id}`}
+                  isHoverLabelVisible={hoveredPlantGroupId === plant.id}
+                  isLabelVisible={visiblePlantLabelIdSet.has(plant.id)}
+                  isDragging={draggingPlantId === plant.id}
+                  isSelected={selectedPlantIds.includes(plant.id)}
+                  key={plant.id}
+                  onHideLabel={onPlantLabelHide}
+                  onOpenEditor={onPlantEditorOpen}
                   onPlantPointerDown={onPlantPointerDown}
                   onPlantPointerEnd={onPlantPointerEnd}
                   onPlantPointerMove={onPlantPointerMove}
+                  onPlantHoverChange={onPlantHoverChange}
+                  onShowLabel={onPlantLabelShow}
                   onSelectItem={onSelectItem}
                   plant={plant}
-                  warnings={visibleWarnings.filter((warning) =>
-                    warning.itemIds.includes(plant.id),
-                  )}
+                  structures={garden.structures}
+                  warnings={warningsByPlantId.get(plant.id) ?? []}
                 />
-              )),
-            )}
-
-            {mode === 'measure' ? (
-              <div className={itemStyles.measureOverlay} aria-hidden="true">
-                <span>{garden.plot.widthFt} ft</span>
-                <span>{garden.plot.depthFt} ft</span>
-              </div>
-            ) : null}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -314,16 +360,4 @@ function snapGuideStyle(guide: SnapGuide): CSSProperties {
   }
 
   return { top: `${guide.valueFt * pixelsPerFoot}px` };
-}
-
-function getPlantSelectionKey(plantingId: string, instanceId: string) {
-  return `${plantingId}:${instanceId}`;
-}
-
-function isPlantInstanceDragging(
-  draggingPlantId: string | null,
-  plantingId: string,
-  instanceId: string,
-) {
-  return draggingPlantId === plantingId || draggingPlantId === instanceId;
 }

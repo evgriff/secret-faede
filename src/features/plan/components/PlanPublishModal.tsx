@@ -120,23 +120,23 @@ export function PlanPublishModal({
             ))}
           </ul>
         ) : (
-          <p className={styles.muted}>No accepted review proposals.</p>
+          <p className={styles.muted}>No applied problem resolutions.</p>
         )}
       </section>
 
       <section className={styles.section}>
-        <h3>Rejected or snoozed</h3>
+        <h3>Ignored or rejected</h3>
         {deferredDecisions.length > 0 ? (
           <ul className={styles.decisionList}>
             {deferredDecisions.map((decision) => (
               <li key={decision.id}>
-                <StatusBadge>{decision.status}</StatusBadge>
+                <StatusBadge>{formatDecisionStatus(decision)}</StatusBadge>
                 <span>{decision.label}</span>
               </li>
             ))}
           </ul>
         ) : (
-          <p className={styles.muted}>No rejected or snoozed proposals.</p>
+          <p className={styles.muted}>No ignored or rejected problems.</p>
         )}
       </section>
 
@@ -229,6 +229,10 @@ function formatRevisionTitle(revision: PublishedGardenRevision) {
   }
 
   return 'Published draft';
+}
+
+function formatDecisionStatus(decision: GardenSuggestionDecision) {
+  return decision.status === 'snoozed' ? 'ignored' : decision.status;
 }
 
 function formatDateTime(value: string) {

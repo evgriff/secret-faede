@@ -1,34 +1,48 @@
 import type { Garden } from '../../../domain/gardens/GardenRepository';
 import { getSaveFeedback } from '../../../shared/sync/syncFeedback';
 import { StatusBadge } from '../../shared/design/DesignPrimitives';
+import type { PlanMode } from '../planModes';
+import { PlanPrimaryActions } from './PlanPrimaryActions';
 import styles from './PlanTopBar.module.css';
 
 export function PlanTopBar({
+  activeMode,
   canPublish,
   dirty,
   garden,
-  isOptimizeActive,
+  hasSelection,
+  isDetailedViewOpen,
   isOffline,
-  onOpenChoosePlants,
+  onAddPlants,
+  onOpenDetails,
   onOpenHistory,
   onOpenPlot,
   onOptimize,
+  onReviewProblems,
+  onSun,
   onPublish,
   onSave,
+  problemCount,
   saveStatus,
   workspaceState,
 }: {
+  activeMode: PlanMode;
   canPublish: boolean;
   dirty: boolean;
   garden: Garden;
-  isOptimizeActive: boolean;
+  hasSelection: boolean;
+  isDetailedViewOpen: boolean;
   isOffline: boolean;
-  onOpenChoosePlants(): void;
+  onAddPlants(): void;
+  onOpenDetails(): void;
   onOpenHistory(): void;
   onOpenPlot(): void;
   onOptimize(): void;
+  onReviewProblems(): void;
+  onSun(): void;
   onPublish(): void;
   onSave(): void;
+  problemCount: number;
   saveStatus: 'error' | 'idle' | 'queued' | 'saved' | 'saving';
   workspaceState: 'draft' | 'published' | 'stale';
 }) {
@@ -67,26 +81,19 @@ export function PlanTopBar({
         </div>
       </div>
 
-      <div className={styles.actions}>
-        <button
-          className={`${styles.secondaryButton} ${styles.mobileHiddenAction}`}
-          onClick={onOpenChoosePlants}
-          title="Choose plants"
-          type="button"
-          aria-label="Choose plants"
-        >
-          Crops
-        </button>
-        <button
-          aria-pressed={isOptimizeActive}
-          className={`${styles.secondaryButton} ${
-            isOptimizeActive ? styles.activeButton : ''
-          } ${styles.mobileHiddenAction}`}
-          onClick={onOptimize}
-          type="button"
-        >
-          Optimize
-        </button>
+      <PlanPrimaryActions
+        activeMode={activeMode}
+        hasSelection={hasSelection}
+        isDetailedViewOpen={isDetailedViewOpen}
+        onAddPlants={onAddPlants}
+        onOpenDetails={onOpenDetails}
+        onOptimize={onOptimize}
+        onReviewProblems={onReviewProblems}
+        onSun={onSun}
+        problemCount={problemCount}
+      />
+
+      <div className={styles.workspaceActions}>
         <button
           className={styles.secondaryButton}
           onClick={onOpenPlot}

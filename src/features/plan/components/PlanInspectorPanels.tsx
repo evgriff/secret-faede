@@ -3,16 +3,12 @@ import { getPlantingInstances } from '../../../domain/gardens/plantingInstances'
 import type {
   Garden,
   GardenPlant,
-  PlantingMode,
   PlantingLifecycleStatus,
   Structure,
   StructureMaterial,
   SunShadeLayer,
 } from '../../../domain/gardens/GardenRepository';
-import {
-  PlantingArrangementEditor,
-  type PlantingArrangementChange,
-} from '../../garden/PlantingArrangementEditor';
+import { PlantingArrangementEditor } from '../../garden/PlantingArrangementEditor';
 import { formatFeet } from '../../garden/gardenMath';
 import {
   describePlantingOptimizerMobility,
@@ -30,6 +26,12 @@ import {
   describeShadeSourceSummary,
 } from '../../garden/sunShadeFit';
 import {
+  getPathRequiredWidthFt,
+  getWalkablePathWidthFt,
+  resizePathLength,
+  resizePathWalkableWidth,
+} from '../../garden/gardenStructureRules';
+import {
   formatMode,
   formatNullableInches,
   formatSeason,
@@ -46,6 +48,7 @@ import {
   TextField,
 } from './PlanInspectorControls';
 import { SharedInspectorTab } from './PlanInspectorSecondaryPanels';
+import { toPlantingArrangementUpdate } from '../plantingArrangementUpdates';
 import styles from './PlanInspector.module.css';
 
 export type InspectorTab =
@@ -239,39 +242,6 @@ function PlantingDetails({
       />
     </section>
   );
-}
-
-function toPlantingArrangementUpdate(
-  plant: GardenPlant,
-  values: PlantingArrangementChange,
-): Partial<GardenPlant> {
-  const nextMode = values.mode ?? plant.mode;
-  const nextRowLengthFt =
-    values.rowLengthFt === undefined ? plant.rowLengthFt : values.rowLengthFt;
-  const update: Partial<GardenPlant> = {
-    ...values,
-    rowCount: isRowLikeMode(nextMode) ? 1 : null,
-    trellisLengthFt: nextMode === 'trellisLine' ? nextRowLengthFt : null,
-  };
-
-  if (values.mode) {
-    update.blockDepthFt =
-      nextMode === 'block' ? (values.blockDepthFt ?? plant.blockDepthFt) : null;
-    update.blockWidthFt =
-      nextMode === 'block' ? (values.blockWidthFt ?? plant.blockWidthFt) : null;
-    update.clusterRadiusFt =
-      nextMode === 'cluster'
-        ? (values.clusterRadiusFt ?? plant.clusterRadiusFt)
-        : null;
-    update.rowLengthFt =
-      nextMode === 'row' || nextMode === 'trellisLine' ? nextRowLengthFt : null;
-  }
-
-  return update;
-}
-
-function isRowLikeMode(mode: PlantingMode) {
-  return mode === 'row' || mode === 'block' || mode === 'trellisLine';
 }
 
 function PlantingRelocationControl({
@@ -499,42 +469,41 @@ function StructureCare({
   return (
     <section className={styles.section}>
       <div className={styles.sizeControls}>
-        <StructureNumberField
-          label="Width feet"
-          onChange={(value) =>
-            value === null
-              ? undefined
-              : onResizeStructure(structure.id, value, structure.depthFt)
-          }
-          value={structure.widthFt}
-        />
-        <StructureNumberField
-          label="Depth feet"
-          onChange={(value) =>
-            value === null
-              ? undefined
-              : onResizeStructure(structure.id, structure.widthFt, value)
-          }
-          value={structure.depthFt}
-        />
-        <StructureNumberField
-          label="Height feet"
-          nullable
-          onChange={(value) =>
-            onUpdateStructureShade(structure.id, { heightFt: value })
-          }
-          value={structure.heightFt}
-        />
-        {structure.type === 'treeObstacle' ? (
-          <StructureNumberField
-            label="Shade radius feet"
-            nullable
-            onChange={(value) =>
-              onUpdateStructureShade(structure.id, { canopyRadiusFt: value })
-            }
-            value={structure.canopyRadiusFt}
+        {isPath ? (
+          <PathSizeControls
+            onResizeStructure={onResizeStructure}
+            structure={structure}
           />
-        ) : null}
+        ) : (
+          <>
+            <StructureNumberField
+              label="Width feet"
+              onChange={(value) =>
+                value === null
+                  ? undefined
+                  : onResizeStructure(structure.id, value, structure.depthFt)
+              }
+              value={structure.widthFt}
+            />
+            <StructureNumberField
+              label="Depth feet"
+              onChange={(value) =>
+                value === null
+                  ? undefined
+                  : onResizeStructure(structure.id, structure.widthFt, value)
+              }
+              value={structure.depthFt}
+            />
+            <StructureNumberField
+              label="Height feet"
+              nullable
+              onChange={(value) =>
+                onUpdateStructureShade(structure.id, { heightFt: value })
+              }
+              value={structure.heightFt}
+            />
+          </>
+        )}
         <StructureNumberField
           label="Working clearance feet"
           nullable
@@ -602,6 +571,63 @@ function StructureCare({
         Mulched
       </label>
     </section>
+  );
+}
+
+function PathSizeControls({
+  onResizeStructure,
+  structure,
+}: {
+  onResizeStructure(id: string, widthFt: number, depthFt: number): void;
+  structure: Structure;
+}) {
+  const walkableWidthFt = getWalkablePathWidthFt(structure);
+  const requiredWidthFt = getPathRequiredWidthFt(structure);
+  const pathLengthFt = Math.max(structure.widthFt, structure.depthFt);
+
+  return (
+    <>
+      <StructureNumberField
+        label="Walkable width feet"
+        onChange={(value) => {
+          if (value === null) {
+            return;
+          }
+
+          const nextSize = resizePathWalkableWidth(structure, value);
+
+          onResizeStructure(structure.id, nextSize.widthFt, nextSize.depthFt);
+        }}
+        value={walkableWidthFt}
+      />
+      <StructureNumberField
+        label="Path length feet"
+        onChange={(value) => {
+          if (value === null) {
+            return;
+          }
+
+          const nextSize = resizePathLength(structure, value);
+
+          onResizeStructure(structure.id, nextSize.widthFt, nextSize.depthFt);
+        }}
+        value={pathLengthFt}
+      />
+      <dl className={styles.pathWidthSummary}>
+        <div>
+          <dt>Saved standard</dt>
+          <dd>{structure.accessiblePath ? 'Accessible' : 'Standard'}</dd>
+        </div>
+        <div>
+          <dt>Current</dt>
+          <dd>{formatFeet(walkableWidthFt)} ft</dd>
+        </div>
+        <div>
+          <dt>Target</dt>
+          <dd>{formatFeet(requiredWidthFt)} ft</dd>
+        </div>
+      </dl>
+    </>
   );
 }
 

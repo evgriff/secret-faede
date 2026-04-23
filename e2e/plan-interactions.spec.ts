@@ -106,14 +106,45 @@ test('plant selection shows a preview before the inspector', async ({
   await focus.getByRole('button', { name: 'Hide influence' }).click();
   await expect(page.locator('[data-influence-overlay="true"]')).toHaveCount(0);
 
+  const tomato = page.getByRole('button', {
+    name: 'Tomato at X: 6.0 ft, Y: 4.0 ft',
+  });
+  const tomatoLabel = page
+    .locator('[role="tooltip"]')
+    .filter({ hasText: 'Tomato' });
+
+  await tomato.click();
+  await expect(tomatoLabel).toBeVisible();
+  await expect(page.getByLabel('Plan context panel')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Edit Tomato group' }).click();
+  await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toBeVisible();
+
+  await page
+    .getByTestId('plant-editor-backdrop')
+    .click({ position: { x: 8, y: 8 } });
+  await expect(page.getByLabel('Plan context panel')).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toHaveCount(
+    0,
+  );
+  await expect(tomatoLabel).toBeHidden();
+
+  await tomato.click();
+  await expect(tomatoLabel).toBeVisible();
   await focus.getByRole('tab', { name: 'Crop' }).click();
-  await expect(focus.getByText('1 plant node')).toBeVisible();
+  await expect(focus.getByText('1 plant')).toBeVisible();
 
   await focus.getByRole('tab', { name: 'Needs' }).click();
   await expect(focus.getByText(/Cage required/)).toBeVisible();
 
   await focus.getByRole('button', { name: /Open details/ }).click();
-  await expect(page.getByLabel('Selected item inspector')).toBeVisible();
+  await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toBeVisible();
+  await expect(page.getByTestId('plant-editor-layer')).toBeVisible();
+  await expect(page.getByTestId('plant-editor-backdrop')).toHaveCount(0);
+
+  await page.getByTestId('garden-plot').click({ position: { x: 18, y: 18 } });
+  await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toBeVisible();
+  await expect(tomatoLabel).toBeHidden();
 });
 
 test('plant focus and overlays stay usable with reduced motion', async ({
@@ -137,7 +168,7 @@ test('plant focus and overlays stay usable with reduced motion', async ({
   await expect(viewport).toHaveJSProperty('clientWidth', viewportWidth);
 
   await focus.getByRole('button', { name: /Open details/ }).click();
-  await expect(page.getByLabel('Selected item inspector')).toBeVisible();
+  await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toBeVisible();
   await expect(viewport).toHaveJSProperty('clientWidth', viewportWidth);
 });
 
@@ -176,17 +207,18 @@ test('mobile plant focus stays compact and leaves the plot primary', async ({
   );
 
   await focus.getByRole('button', { name: /Open details/ }).click();
-  await expect(page.getByLabel('Selected item inspector')).toBeVisible();
+  const editor = page.getByRole('dialog', { name: /Edit Tomato/ });
+  await expect(editor).toBeVisible();
 
   const panelBox = await getBox(
-    page.getByLabel('Plan context panel'),
-    'Expected mobile inspector bottom sheet to stay visible.',
+    editor,
+    'Expected mobile plant editor sheet to stay visible.',
   );
 
-  expect(panelBox.height).toBeLessThanOrEqual(viewportSize.height * 0.6);
-  expect(panelBox.y).toBeGreaterThanOrEqual(viewportSize.height * 0.25);
+  expect(panelBox.height).toBeLessThanOrEqual(viewportSize.height * 0.78);
+  expect(panelBox.y).toBeGreaterThanOrEqual(viewportSize.height * 0.18);
   expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(
-    viewportSize.height - 104,
+    viewportSize.height - 12,
   );
 });
 
@@ -195,7 +227,7 @@ async function addTomatoToPlan(page: Page) {
   await page.getByRole('button', { name: 'Open plant picker' }).click();
   await page.getByRole('searchbox', { name: 'Search crops' }).fill('tomato');
   await page.getByRole('button', { exact: true, name: 'Tomato crop' }).click();
-  await page.getByRole('button', { name: 'Add plant' }).click();
+  await page.getByRole('button', { exact: true, name: 'Add plant' }).click();
   await expect(
     page.getByRole('button', { name: 'Tomato at X: 6.0 ft, Y: 4.0 ft' }),
   ).toBeVisible();

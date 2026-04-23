@@ -34,6 +34,7 @@ describe('cropCatalog', () => {
   it('supports fast search, aliases, and practical filters', () => {
     const crops = filterCropCatalog({
       category: 'fruit',
+      lifecycle: 'annual',
       query: 'tomato',
       sunRequirement: 'fullSun',
       waterNeeds: 'high',
@@ -41,12 +42,14 @@ describe('cropCatalog', () => {
 
     expect(crops.map((crop) => crop.id)).toContain('tomato');
     expect(crops[0]?.id).toBe('tomato');
+    expect(crops.every((crop) => crop.lifecycle === 'annual')).toBe(true);
 
     expect(
       filterCropCatalog({
+        lifecycle: 'perennial',
         query: 'Solanum lycopersicum',
       }).map((crop) => crop.id),
-    ).toContain('tomato');
+    ).not.toContain('tomato');
   });
 
   it('ranks exact common crops ahead of generated variety clutter', () => {

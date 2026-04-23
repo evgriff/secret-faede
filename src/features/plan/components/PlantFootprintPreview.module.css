@@ -1,0 +1,179 @@
+.preview {
+  --footprint-accent: #2f6f43;
+  --footprint-soft: #eef7ea;
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  border: 1px solid rgba(54, 48, 40, 0.12);
+  border-radius: var(--radius-card);
+  background: #fffdf7;
+  padding: 0.55rem;
+}
+
+.preview[data-crop-tone='fruit'],
+.preview[data-crop-tone='berry'] {
+  --footprint-accent: #963852;
+  --footprint-soft: #f9edf0;
+}
+
+.preview[data-crop-tone='flower'] {
+  --footprint-accent: #93571d;
+  --footprint-soft: #fff3df;
+}
+
+.preview[data-crop-tone='root'],
+.preview[data-crop-tone='grain'] {
+  --footprint-accent: #805b2a;
+  --footprint-soft: #f7efe1;
+}
+
+.preview[data-crop-tone='legume'],
+.preview[data-crop-tone='coverCrop'],
+.preview[data-crop-tone='vining'] {
+  --footprint-accent: #217075;
+  --footprint-soft: #e8f5f4;
+}
+
+.preview[data-crop-tone='tree'] {
+  --footprint-accent: #4e5b35;
+  --footprint-soft: #eef1e2;
+}
+
+.previewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 0.6rem;
+}
+
+.previewHeader strong {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-small);
+}
+
+.previewHeader span {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 820;
+}
+
+.previewBody {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.footprintGraphic {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 4.65rem;
+  border: 1px solid color-mix(in srgb, var(--footprint-accent), transparent 70%);
+  border-radius: var(--radius-control);
+  background:
+    linear-gradient(135deg, var(--footprint-soft), #ffffff),
+    var(--footprint-soft);
+}
+
+.footprintOutline {
+  fill: rgba(255, 253, 247, 0.42);
+  stroke: var(--footprint-accent);
+  stroke-dasharray: 5 3;
+  stroke-width: 1.5;
+}
+
+.footprintDot {
+  fill: var(--footprint-accent);
+  stroke: rgba(255, 253, 247, 0.9);
+  stroke-width: 1.2;
+}
+
+.footprintDotAlt {
+  fill: color-mix(in srgb, var(--footprint-accent), #f2c453 38%);
+}
+
+.footprintMetric {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.footprintMetric div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.footprintMetric dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 780;
+}
+
+.footprintMetric dd {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-caption);
+  font-weight: 860;
+  text-align: right;
+}
+
+.modeControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.modeButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 2.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: #ffffff;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: 840;
+  padding: 0.35rem 0.55rem;
+}
+
+.modeButton[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--footprint-accent), #1f1b18 12%);
+  background: var(--footprint-soft);
+  color: var(--footprint-accent);
+}
+
+.modeButton:focus-visible {
+  outline: 2px solid var(--color-plant-sky);
+  outline-offset: 2px;
+}
+
+.compact {
+  padding: 0.45rem;
+}
+
+.compact .previewBody {
+  grid-template-columns: 6.75rem minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.compact .footprintGraphic {
+  height: 3.75rem;
+}
+
+@media (max-width: 58rem) {
+  .previewBody,
+  .compact .previewBody {
+    grid-template-columns: 1fr;
+  }
+}

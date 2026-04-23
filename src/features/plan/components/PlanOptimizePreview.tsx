@@ -51,7 +51,7 @@ export function PlanOptimizePreview({
       <div className={styles.previewHeader}>
         <div>
           <span className={styles.kicker}>Before / after</span>
-          <h4>{candidate.label} preview</h4>
+          <h4>{candidate.label} variant preview</h4>
         </div>
         <div className={styles.previewBadges}>
           <span>{preview.summary.addedCount} added</span>
@@ -93,7 +93,7 @@ export function PlanOptimizePreview({
         ) : null}
         {showAfter ? (
           <PreviewFrame
-            label="Selected proposal"
+            label="Selected variant"
             plotDepthFt={garden.plot.depthFt}
             plotWidthFt={garden.plot.widthFt}
             rects={preview.afterRects}

@@ -1,16 +1,28 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useServices } from '../../app/providers';
 import {
   createDefaultPlanting,
+  createDefaultPlantStatus,
   createDefaultStructure,
   type CropProfile,
   type Garden,
   type GardenLocation,
   type GardenPlot,
   type GardenPlant,
+  type Planting,
+  getDerivedPlantingDimensions,
+  type LayoutProblem,
+  type LayoutResolution,
+  type LayoutResolutionOption,
+  type LayoutVariant,
+  normalizePlantSupportPlanForQuantity,
+  type PlantEditorEntryPoint,
+  type PlantEditorTab,
   type PlantingInstance,
   type PlantingMode,
+  type PlantPlacementMode,
+  type PlantSupportPlan,
   type SeasonCropSelection,
   type SunExposure,
   type Structure,
@@ -61,6 +73,23 @@ import {
   describeSuggestionDecision,
   type ReviewSuggestion,
 } from './reviewSuggestions';
+import {
+  closedDetailedViewState,
+  closedPlantEditorState,
+  createDefaultGardenPlanningState,
+  openPlantDetailedView,
+  openPlantEditor,
+  syncGardenPlanningStateWithGarden,
+  type GardenPlanningState,
+  type PlantLabelVisibilityState,
+  type PlantLayoutReviewState,
+  type PlantLocationMatchState,
+} from './gardenPlanningState';
+import {
+  getGardenPlanningStorageSignature,
+  readGardenPlanningState,
+  writeGardenPlanningState,
+} from './gardenPlanningStorage';
 import { isBrowserOffline } from '../../shared/network/networkStatus';
 import {
   addSuccessionPlanting,
@@ -113,6 +142,9 @@ export function useGarden(userId: string | null) {
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [garden, setGarden] = useState<Garden | null>(null);
+  const [gardenPlanningState, setGardenPlanningState] =
+    useState<GardenPlanningState | null>(null);
+  const latestGardenPlanningState = useRef<GardenPlanningState | null>(null);
   const [redoStack, setRedoStack] = useState<Garden[]>([]);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [selectedItem, setSelectedItem] = useState<SelectedGardenItem | null>(
@@ -129,10 +161,14 @@ export function useGarden(userId: string | null) {
     selectedItem?.type === 'planting' ? selectedItem.id : null;
   const selectedStructureId =
     selectedItem?.type === 'structure' ? selectedItem.id : null;
+  const gardenPlanningStorageSignature = gardenPlanningState
+    ? getGardenPlanningStorageSignature(gardenPlanningState)
+    : null;
 
   useEffect(() => {
     if (!userId) {
       setGarden(null);
+      setGardenPlanningState(null);
       setStatus('loading');
       return;
     }
@@ -149,8 +185,10 @@ export function useGarden(userId: string | null) {
         }
 
         const loadedGarden = loadedWorkspace.draft.garden;
+        const planningHydration = readGardenPlanningState(userId, loadedGarden);
 
         setGarden(loadedGarden);
+        setGardenPlanningState(planningHydration.state);
         setDirty(false);
         setRedoStack([]);
         setSaveStatus('idle');
@@ -174,6 +212,49 @@ export function useGarden(userId: string | null) {
       active = false;
     };
   }, [gardenRepository, userId]);
+
+  useEffect(() => {
+    if (!garden) {
+      setGardenPlanningState(null);
+      return;
+    }
+
+    setGardenPlanningState((currentState) =>
+      syncGardenPlanningStateWithGarden(currentState, garden),
+    );
+  }, [garden]);
+
+  useEffect(() => {
+    setGardenPlanningState((currentState) => {
+      if (!currentState) {
+        return currentState;
+      }
+
+      const selectedPlantGroupId =
+        selectedItem?.type === 'planting' ? selectedItem.id : null;
+
+      return currentState.selectedPlantGroupId === selectedPlantGroupId
+        ? currentState
+        : {
+            ...currentState,
+            selectedPlantGroupId,
+          };
+    });
+  }, [selectedItem]);
+
+  useEffect(() => {
+    latestGardenPlanningState.current = gardenPlanningState;
+  }, [gardenPlanningState]);
+
+  useEffect(() => {
+    const stateToPersist = latestGardenPlanningState.current;
+
+    if (!gardenPlanningStorageSignature || !stateToPersist || !userId) {
+      return;
+    }
+
+    writeGardenPlanningState(userId, stateToPersist);
+  }, [gardenPlanningStorageSignature, userId]);
 
   const saveCurrentDraft = useCallback(
     async (draftGarden: Garden) => {
@@ -257,6 +338,252 @@ export function useGarden(userId: string | null) {
       return currentGarden;
     });
   }, []);
+
+  const updateGardenPlanningState = useCallback(
+    (
+      updateState: (currentState: GardenPlanningState) => GardenPlanningState,
+    ) => {
+      setGardenPlanningState((currentState) => {
+        const baseState =
+          currentState ??
+          (garden ? createDefaultGardenPlanningState(garden) : null);
+
+        return baseState ? updateState(baseState) : baseState;
+      });
+    },
+    [garden],
+  );
+
+  const setHoveredPlantGroupId = useCallback(
+    (groupId: string | null) => {
+      updateGardenPlanningState((currentState) =>
+        currentState.hoveredPlantGroupId === groupId
+          ? currentState
+          : {
+              ...currentState,
+              hoveredPlantGroupId: groupId,
+            },
+      );
+    },
+    [updateGardenPlanningState],
+  );
+
+  const setPlantLabelVisibility = useCallback(
+    (labelVisibility: PlantLabelVisibilityState) => {
+      updateGardenPlanningState((currentState) => ({
+        ...currentState,
+        labelVisibility,
+      }));
+    },
+    [updateGardenPlanningState],
+  );
+
+  const showPlantGroupLabel = useCallback(
+    (groupId: string) => {
+      updateGardenPlanningState((currentState) => ({
+        ...currentState,
+        labelVisibility: {
+          ...currentState.labelVisibility,
+          groupIds: currentState.labelVisibility.groupIds.includes(groupId)
+            ? currentState.labelVisibility.groupIds
+            : [...currentState.labelVisibility.groupIds, groupId],
+          mode:
+            currentState.labelVisibility.mode === 'hidden'
+              ? 'auto'
+              : currentState.labelVisibility.mode,
+        },
+      }));
+    },
+    [updateGardenPlanningState],
+  );
+
+  const hidePlantGroupLabel = useCallback(
+    (groupId: string) => {
+      updateGardenPlanningState((currentState) => ({
+        ...currentState,
+        labelVisibility: {
+          ...currentState.labelVisibility,
+          groupIds: currentState.labelVisibility.groupIds.filter(
+            (visibleGroupId) => visibleGroupId !== groupId,
+          ),
+        },
+      }));
+    },
+    [updateGardenPlanningState],
+  );
+
+  const openPlantGroupEditor = useCallback(
+    (
+      groupId: string,
+      source: PlantEditorEntryPoint = 'detailedView',
+      options: {
+        dotId?: string | null;
+        problemId?: string | null;
+        tab?: PlantEditorTab;
+      } = {},
+    ) => {
+      setSelectedItem({ id: groupId, type: 'planting' });
+      updateGardenPlanningState((currentState) => ({
+        ...currentState,
+        editor: openPlantEditor(groupId, source, options),
+        selectedPlantGroupId: groupId,
+      }));
+    },
+    [updateGardenPlanningState],
+  );
+
+  const closePlantGroupEditor = useCallback(() => {
+    updateGardenPlanningState((currentState) => ({
+      ...currentState,
+      editor: closedPlantEditorState,
+    }));
+  }, [updateGardenPlanningState]);
+
+  const openDetailedViewForItem = useCallback(
+    (item: SelectedGardenItem | null = selectedItem) => {
+      if (!item) {
+        return;
+      }
+
+      setSelectedItem(item);
+      updateGardenPlanningState((currentState) => ({
+        ...currentState,
+        detailedView:
+          item.type === 'planting'
+            ? openPlantDetailedView(item.id)
+            : {
+                isOpen: true,
+                presentation: 'sidePanel',
+                subject: {
+                  structureId: item.id,
+                  type: 'structure',
+                },
+              },
+      }));
+    },
+    [selectedItem, updateGardenPlanningState],
+  );
+
+  const closeDetailedView = useCallback(() => {
+    updateGardenPlanningState((currentState) => ({
+      ...currentState,
+      detailedView: closedDetailedViewState,
+    }));
+  }, [updateGardenPlanningState]);
+
+  const toggleDetailedViewForSelection = useCallback(() => {
+    if (gardenPlanningState?.detailedView.isOpen) {
+      closeDetailedView();
+      return;
+    }
+
+    openDetailedViewForItem(selectedItem);
+  }, [
+    closeDetailedView,
+    gardenPlanningState?.detailedView.isOpen,
+    openDetailedViewForItem,
+    selectedItem,
+  ]);
+
+  const setLayoutReviewState = useCallback(
+    (layoutState: Partial<PlantLayoutReviewState>) => {
+      updateGardenPlanningState((currentState) => ({
+        ...currentState,
+        layout: {
+          ...currentState.layout,
+          ...layoutState,
+        },
+      }));
+    },
+    [updateGardenPlanningState],
+  );
+
+  const selectLayoutProblem = useCallback(
+    (problemId: string | null) => {
+      updateGardenPlanningState((currentState) => ({
+        ...currentState,
+        detailedView: problemId
+          ? {
+              isOpen: true,
+              presentation: 'sidePanel',
+              subject: {
+                problemId,
+                type: 'layoutProblem',
+              },
+            }
+          : currentState.detailedView,
+        layout: {
+          ...currentState.layout,
+          selectedProblemId: problemId,
+        },
+      }));
+    },
+    [updateGardenPlanningState],
+  );
+
+  const selectLayoutVariant = useCallback(
+    (variantId: string | null) => {
+      updateGardenPlanningState((currentState) => ({
+        ...currentState,
+        detailedView: variantId
+          ? {
+              isOpen: true,
+              presentation: 'sidePanel',
+              subject: {
+                type: 'layoutVariant',
+                variantId,
+              },
+            }
+          : currentState.detailedView,
+        layout: {
+          ...currentState.layout,
+          selectedVariantId: variantId,
+        },
+      }));
+    },
+    [updateGardenPlanningState],
+  );
+
+  const recordLayoutResolution = useCallback(
+    (resolution: LayoutResolution) => {
+      updateGardenPlanningState((currentState) => ({
+        ...currentState,
+        layout: {
+          ...currentState.layout,
+          resolutions: [
+            ...currentState.layout.resolutions.filter(
+              (currentResolution) => currentResolution.id !== resolution.id,
+            ),
+            resolution,
+          ],
+        },
+      }));
+    },
+    [updateGardenPlanningState],
+  );
+
+  const setLocationMatchState = useCallback(
+    (locationMatchState: Partial<PlantLocationMatchState>) => {
+      updateGardenPlanningState((currentState) => ({
+        ...currentState,
+        locationMatch: {
+          ...currentState.locationMatch,
+          ...locationMatchState,
+        },
+      }));
+    },
+    [updateGardenPlanningState],
+  );
+
+  const setLocationMatchSunExposure = useCallback(
+    (sunExposureAtPlacement: SunExposure | null) => {
+      setLocationMatchState({
+        sunExposureAtPlacement,
+        updatedAtIso: garden?.updatedAtIso ?? new Date().toISOString(),
+      });
+    },
+    [garden?.updatedAtIso, setLocationMatchState],
+  );
 
   const recordSuggestionDecision = useCallback(
     ({
@@ -1009,6 +1336,17 @@ export function useGarden(userId: string | null) {
               ...values,
               id: planting.id,
             };
+            const nextPlantStatus = values.plantStatus ?? {
+              ...planting.plantStatus,
+              lifecycle:
+                values.status ??
+                planting.plantStatus.lifecycle ??
+                nextPlanting.status,
+              notes:
+                values.notes ??
+                planting.plantStatus.notes ??
+                nextPlanting.notes,
+            };
             const shouldRebuildInstances = arrangementFields.some(
               (field) => field in values,
             );
@@ -1023,17 +1361,79 @@ export function useGarden(userId: string | null) {
                         : `${values.label} ${index + 1}`,
                   }))
                 : nextPlanting.instances;
-
-            return normalizePlantingFromInstances({
+            const normalizedPlanting = normalizePlantingFromInstances({
               ...nextPlanting,
               instances: nextInstances,
+              plantStatus: nextPlantStatus,
             });
+
+            return {
+              ...normalizedPlanting,
+              support: normalizePlantSupportPlanForQuantity(
+                normalizedPlanting.support,
+                normalizedPlanting.plantCount ??
+                  normalizedPlanting.instances.length,
+              ),
+            };
           }),
         }),
         { id: plantingId, type: 'planting' },
       );
     },
     [commitGardenUpdate],
+  );
+
+  const updatePlantGroupQuantity = useCallback(
+    (groupId: string, quantity: number) => {
+      const planting = garden?.plantings.find((plant) => plant.id === groupId);
+      const plantCount = clampPlantGroupQuantity(quantity);
+
+      updatePlanting(groupId, {
+        ...(planting
+          ? getDerivedPlantingDimensions({
+              ...planting,
+              quantity: plantCount,
+            })
+          : {}),
+        plantCount,
+      });
+    },
+    [garden?.plantings, updatePlanting],
+  );
+
+  const updatePlantGroupPlacementMode = useCallback(
+    (groupId: string, placementMode: PlantPlacementMode) => {
+      const planting = garden?.plantings.find((plant) => plant.id === groupId);
+      const mode = toPlantingMode(placementMode);
+
+      updatePlanting(groupId, {
+        ...(planting
+          ? getDerivedPlantingDimensions({
+              ...planting,
+              mode,
+              quantity: planting.plantCount ?? planting.instances.length,
+            })
+          : {}),
+        mode,
+      });
+    },
+    [garden?.plantings, updatePlanting],
+  );
+
+  const updatePlantGroupSupport = useCallback(
+    (groupId: string, support: PlantSupportPlan) => {
+      const group = gardenPlanningState?.plantGroups.find(
+        (plantGroup) => plantGroup.id === groupId,
+      );
+
+      updatePlanting(groupId, {
+        support: normalizePlantSupportPlanForQuantity(
+          support,
+          group?.quantity ?? 1,
+        ),
+      });
+    },
+    [gardenPlanningState?.plantGroups, updatePlanting],
   );
 
   const updateStructure = useCallback(
@@ -1149,6 +1549,7 @@ export function useGarden(userId: string | null) {
         }),
         { id: duplicate.id, type: 'planting' },
       );
+      return duplicate.id;
     },
     [commitGardenUpdate, garden],
   );
@@ -1398,22 +1799,47 @@ export function useGarden(userId: string | null) {
       applyPlotSettings(widthFt, depthFt, garden?.plot.orientationDegrees ?? 0),
     applyAutoLayoutProposal,
     approveSuccessionPlanting,
-    dirty,
     canRedo: redoStack.length > 0,
     canUndo: undoStack.length > 0,
     checkpointGarden,
+    closeDetailedView,
+    closePlantGroupEditor,
     completeGardenSetup,
     deleteItems,
     deleteSelectedItem,
+    detailedViewState:
+      gardenPlanningState?.detailedView ?? closedDetailedViewState,
+    dirty,
     discardDraft,
     duplicateItems,
     duplicatePlanting,
     duplicateStructure,
     error,
     garden,
+    hoveredPlantGroupId: gardenPlanningState?.hoveredPlantGroupId ?? null,
+    hidePlantGroupLabel,
+    labelVisibility: gardenPlanningState?.labelVisibility ?? {
+      groupIds: [],
+      mode: 'auto' as const,
+    },
+    layoutReviewState: gardenPlanningState?.layout ?? {
+      problems: [] as LayoutProblem[],
+      resolutionOptions: [] as LayoutResolutionOption[],
+      resolutions: [] as LayoutResolution[],
+      selectedProblemId: null,
+      selectedVariantId: null,
+      variants: [] as LayoutVariant[],
+    },
+    locationMatchState:
+      gardenPlanningState?.locationMatch ??
+      (garden ? createDefaultGardenPlanningState(garden).locationMatch : null),
     movePlant,
     moveStructure,
+    openDetailedViewForItem,
+    openPlantGroupEditor,
     paintSunShadeCell,
+    plantEditorState: gardenPlanningState?.editor ?? closedPlantEditorState,
+    plantGroups: gardenPlanningState?.plantGroups ?? [],
     recalculateSunShade,
     refreshWeatherAndWatering,
     resizeStructure,
@@ -1421,20 +1847,34 @@ export function useGarden(userId: string | null) {
     redoGardenChange,
     publishDraft,
     recordSuggestionDecision,
+    recordLayoutResolution,
     rejectReviewSuggestion,
     revertToRevision,
     saveGarden,
     saveStatus,
+    selectLayoutProblem,
+    selectLayoutVariant,
     selectedItem,
+    selectedPlantGroupId: gardenPlanningState?.selectedPlantGroupId ?? null,
     selectedPlantId,
     selectedStructureId,
     setupRequired,
+    setHoveredPlantGroupId,
+    setLayoutReviewState,
+    setLocationMatchState,
+    setLocationMatchSunExposure,
+    setPlantLabelVisibility,
     setSelectedItem,
     setSelectedPlantId: (plantId: string | null) =>
       setSelectedItem(plantId ? { id: plantId, type: 'planting' } : null),
+    showPlantGroupLabel,
     status,
     snoozeReviewSuggestion,
+    toggleDetailedViewForSelection,
     undoGardenChange,
+    updatePlantGroupPlacementMode,
+    updatePlantGroupQuantity,
+    updatePlantGroupSupport,
     updateItemPositions,
     updatePlanting,
     updateSeasonCropSelections,
@@ -1455,12 +1895,26 @@ function isAutoLayoutProposalItem(
   );
 }
 
-function createPlanting(garden: Garden, request: AddPlantingRequest) {
-  const point = findNextPlantLocation(garden);
+export function createAddPlantingPreview(
+  garden: Garden,
+  request: AddPlantingRequest,
+): Planting {
+  return createPlanting(garden, request, {
+    id: 'add-plant-preview',
+    point: findNextPlantLocation(garden),
+  });
+}
+
+function createPlanting(
+  garden: Garden,
+  request: AddPlantingRequest,
+  options: { id?: string; point?: PlotPoint } = {},
+): Planting {
+  const point = options.point ?? findNextPlantLocation(garden);
 
   const planting = {
     ...createDefaultPlanting({
-      id: createPlantId(),
+      id: options.id ?? createPlantId(),
       label: request.crop.commonName,
       xFt: point.xFt,
       yFt: point.yFt,
@@ -1472,6 +1926,10 @@ function createPlanting(garden: Garden, request: AddPlantingRequest) {
     matureSpreadInches: request.crop.matureSpreadInches,
     mode: request.mode,
     notes: request.crop.notes,
+    plantStatus: createDefaultPlantStatus({
+      lifecycle: 'planned',
+      notes: request.crop.notes,
+    }),
     plantCount: request.plantCount,
     clusterRadiusFt:
       request.mode === 'cluster'
@@ -1684,6 +2142,18 @@ function needsProfileSetup(garden: Garden) {
 
 function createPlantId() {
   return createItemId('planting');
+}
+
+function clampPlantGroupQuantity(quantity: number) {
+  return Math.max(Math.min(Math.round(quantity), 500), 1);
+}
+
+function toPlantingMode(placementMode: PlantPlacementMode): PlantingMode {
+  return placementMode === 'block'
+    ? 'block'
+    : placementMode === 'row'
+      ? 'row'
+      : 'cluster';
 }
 
 function normalizeOrientation(value: number) {

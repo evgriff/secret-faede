@@ -68,17 +68,75 @@ describe('reviewSuggestions', () => {
     );
 
     expect(
-      withSupport.structures.some(
-        (structure) =>
-          structure.type === 'trellis' &&
-          structure.label.includes('cage') &&
-          structure.notes.includes('[review]'),
+      withSupport.plantings.some(
+        (planting) =>
+          planting.id === 'tomato-1' &&
+          planting.support.type === 'cage' &&
+          planting.support.notes.includes('[review]'),
       ),
     ).toBe(true);
     expect(
       withPath.structures.find((structure) => structure.id === 'path-1')
         ?.widthFt,
     ).toBe(4);
+  });
+
+  it('adds trellises as reviewed grid structures instead of batch support', () => {
+    const garden: Garden = {
+      ...createDefaultGarden('user-a'),
+      plantings: [
+        {
+          ...createDefaultPlanting({
+            id: 'cucumber-1',
+            label: 'Cucumber',
+            xFt: 3,
+            yFt: 3,
+          }),
+          cropId: 'cucumber',
+          mode: 'row',
+          plantCount: 2,
+          rowLengthFt: 2,
+          spacingInches: 12,
+          sunRequirement: 'fullSun',
+        },
+      ],
+    };
+    const suggestions = buildReviewSuggestions({
+      garden,
+      sunLayer: null,
+      warnings: findPlanWarnings(garden),
+    });
+    const addTrellis = suggestions.find(
+      (suggestion) => suggestion.type === 'addTrellis',
+    );
+
+    expect(addTrellis).toMatchObject({
+      canBatchAccept: false,
+      title: 'Add trellis',
+    });
+    expect(addTrellis?.rationale).toContain('grid trellis');
+    expect(addTrellis?.rationale).toContain(
+      'It does not introduce a new active plan warning.',
+    );
+
+    const nextGarden = applyReviewSuggestionActions(
+      garden,
+      addTrellis?.actions ?? [],
+    );
+
+    expect(nextGarden.structures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: expect.stringContaining('Cucumber'),
+          type: 'trellis',
+        }),
+      ]),
+    );
+    expect(
+      findPlanWarnings(nextGarden).some(
+        (warning) => warning.id === 'trellis-cucumber-1',
+      ),
+    ).toBe(false);
   });
 
   it('widens the narrow side of horizontal paths instead of assuming width', () => {

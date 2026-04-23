@@ -15,7 +15,7 @@ export function PlanProposalDiffOverlay({
 }) {
   return (
     <div
-      aria-label={`Proposal diff overlay: ${overlay.title}`}
+      aria-label={`Layout diff overlay: ${overlay.title}`}
       className={itemStyles.diffOverlay}
       role="img"
     >

@@ -10,6 +10,7 @@ import type {
   SeasonCropSelection,
   SunExposure,
 } from '../../domain/gardens/GardenRepository';
+import { derivePlantingGeometry } from '../../domain/gardens/plantingGeometry';
 import { cropSunRequirementMet } from '../garden/sunShadeEngine';
 import {
   formatSeasonCropFitReasonGroup,
@@ -55,6 +56,7 @@ export interface SeasonCropLayoutRequest {
   notes: string;
   supportAllowed: boolean;
   quantity: number;
+  spacingOverrideInches: number | null;
   varietyName: string;
 }
 
@@ -88,6 +90,7 @@ export function buildSeasonCropLayoutRequests(
           notes: selection.notes,
           supportAllowed: selection.supportAllowed,
           quantity: selection.quantity,
+          spacingOverrideInches: selection.spacingOverrideInches ?? null,
           varietyName: selection.varietyName,
         },
       ];
@@ -127,7 +130,7 @@ export function getSeasonCropFitSignal({
   ) {
     groupedReasons.push({
       group: 'sun',
-      label: `Needs ${formatSun(crop.sunRequirement)}; this area reads ${formatSun(
+      label: `Needs ${formatSun(crop.sunRequirement)}; selected sun estimate is ${formatSun(
         sunExposureAtPlacement,
       )}`,
       severity: 'watch',
@@ -220,25 +223,25 @@ export function estimateSelectionAreaSqFt(
   selection: SeasonCropSelection,
   crop: CropProfile,
 ) {
-  const spacingFt = Math.max(
-    (crop.spacingInches ?? crop.matureSpreadInches ?? 18) / 12,
-    0.75,
-  );
+  const spacingInches =
+    selection.spacingOverrideInches ??
+    crop.spacingInches ??
+    crop.matureSpreadInches ??
+    18;
   const count = Math.max(selection.quantity, 1);
+  const geometry = derivePlantingGeometry({
+    matureSpreadInches: crop.matureSpreadInches,
+    mode: selection.plantingForm,
+    quantity: count,
+    rowSpacingInches: crop.rowSpacingInches,
+    spacingInches,
+    xFt: 0,
+    yFt: 0,
+  });
 
-  if (
-    selection.plantingForm === 'row' ||
-    selection.plantingForm === 'trellisLine'
-  ) {
-    const rowWidthFt = Math.max(
-      (crop.rowSpacingInches ?? crop.spacingInches ?? 18) / 12,
-      1,
-    );
-
-    return Number((spacingFt * count * rowWidthFt).toFixed(1));
-  }
-
-  return Number((spacingFt * spacingFt * count).toFixed(1));
+  return Number(
+    (geometry.footprint.widthFt * geometry.footprint.depthFt).toFixed(1),
+  );
 }
 
 function estimateTotalWantedAreaSqFt(garden: Garden) {

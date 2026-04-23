@@ -4,9 +4,16 @@ import {
   createDefaultStructure,
 } from '../../domain/gardens/GardenRepository';
 import { findPlanWarnings } from './gardenPlanning';
+import {
+  getPathLengthDimension,
+  getPathNarrowDimension,
+  getWalkablePathWidthFt,
+  resizePathLength,
+  resizePathWalkableWidth,
+} from './gardenStructureRules';
 
 describe('garden access rules', () => {
-  it('treats blocked primary paths and compost placement conflicts as real access issues', () => {
+  it('treats blocked primary paths as real access issues', () => {
     const garden = {
       ...createDefaultGarden('user-a'),
       plantings: [
@@ -31,15 +38,6 @@ describe('garden access rules', () => {
           continuousPath: true,
           label: 'Main path',
         },
-        {
-          ...createDefaultStructure({
-            id: 'compost-1',
-            type: 'compost',
-            xFt: 4.5,
-            yFt: 2,
-          }),
-          label: 'Compost bay',
-        },
       ],
     };
 
@@ -52,11 +50,54 @@ describe('garden access rules', () => {
           severity: 'critical',
           title: 'Primary path blocked',
         }),
-        expect.objectContaining({
-          id: 'structure-compost-compost-1-path-main',
-          title: 'Compost blocks access',
-        }),
       ]),
     );
+  });
+
+  it('keeps access path width tied to the narrow side of the footprint', () => {
+    const verticalPath = {
+      ...createDefaultStructure({
+        id: 'path-vertical',
+        type: 'pathway',
+        xFt: 1,
+        yFt: 1,
+      }),
+      depthFt: 10,
+      widthFt: 2.5,
+    };
+    const horizontalPath = {
+      ...createDefaultStructure({
+        id: 'path-horizontal',
+        type: 'pathway',
+        xFt: 1,
+        yFt: 1,
+      }),
+      depthFt: 2,
+      widthFt: 8,
+    };
+
+    expect(getWalkablePathWidthFt(verticalPath)).toBe(2.5);
+    expect(getPathNarrowDimension(verticalPath)).toBe('widthFt');
+    expect(getPathLengthDimension(verticalPath)).toBe('depthFt');
+    expect(resizePathWalkableWidth(verticalPath, 3)).toMatchObject({
+      depthFt: 10,
+      widthFt: 3,
+    });
+    expect(resizePathLength(verticalPath, 12)).toMatchObject({
+      depthFt: 12,
+      widthFt: 2.5,
+    });
+
+    expect(getWalkablePathWidthFt(horizontalPath)).toBe(2);
+    expect(getPathNarrowDimension(horizontalPath)).toBe('depthFt');
+    expect(getPathLengthDimension(horizontalPath)).toBe('widthFt');
+    expect(resizePathWalkableWidth(horizontalPath, 4)).toMatchObject({
+      depthFt: 4,
+      widthFt: 8,
+    });
+    expect(resizePathLength(horizontalPath, 9)).toMatchObject({
+      depthFt: 2,
+      widthFt: 9,
+    });
   });
 });

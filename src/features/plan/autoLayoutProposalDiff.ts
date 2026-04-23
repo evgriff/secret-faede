@@ -4,7 +4,6 @@ import type {
   Structure,
   SunShadeLayer,
 } from '../../domain/gardens/GardenRepository';
-import { canOptimizerMovePlanting } from '../garden/gardenImmutability';
 import {
   findPlanWarnings,
   getPlantingFootprint,
@@ -15,7 +14,14 @@ import {
 } from '../garden/gardenPlanning';
 import type { SunSeason } from '../garden/sunShadeEngine';
 import { isAutoLayoutItem } from './autoLayoutPlanner';
+import {
+  applyAutoLayoutCandidateToGarden,
+  isReplaceableAutoLayoutPlanting,
+  isReplaceableAutoLayoutStructure,
+} from './autoLayoutCandidateGarden';
 import type { AutoLayoutCandidate } from './autoLayoutTypes';
+
+export { applyAutoLayoutCandidateToGarden } from './autoLayoutCandidateGarden';
 
 export type AutoLayoutPreviewChangeKind =
   | 'added'
@@ -100,34 +106,23 @@ export function buildAutoLayoutProposalPreview({
       movedCount: afterRects.filter((rect) => rect.kind === 'moved').length,
       removedCount: beforeRects.filter((rect) => rect.kind === 'removed')
         .length,
-      supportAdditions: candidate.structures.filter(
-        (structure) => !hasMatchingStructure(garden.structures, structure),
-      ).length,
+      supportAdditions:
+        candidate.structures.filter(
+          (structure) =>
+            structure.type === 'trellis' &&
+            !hasMatchingStructure(garden.structures, structure),
+        ).length + countPlantLevelSupportAssignments(candidate.plantings),
       totalAfterWarnings: countActiveWarnings(nextWarnings),
       totalBeforeWarnings: countActiveWarnings(currentWarnings),
     },
   };
 }
 
-export function applyAutoLayoutCandidateToGarden(
-  garden: Garden,
-  candidate: AutoLayoutCandidate,
-): Garden {
-  return {
-    ...garden,
-    plantings: [
-      ...garden.plantings.filter(
-        (planting) => !isReplaceableAutoLayoutPlanting(planting),
-      ),
-      ...candidate.plantings,
-    ],
-    structures: [
-      ...garden.structures.filter(
-        (structure) => !isReplaceableAutoLayoutStructure(structure),
-      ),
-      ...candidate.structures,
-    ],
-  };
+function countPlantLevelSupportAssignments(plantings: Planting[]) {
+  return plantings.filter(
+    (planting) =>
+      planting.support.type !== 'none' && planting.support.quantity > 0,
+  ).length;
 }
 
 function getBeforePlantingKind(
@@ -236,14 +231,6 @@ function toStructurePreviewRect(
     label: structure.label,
     rect: getStructureFootprint(structure),
   };
-}
-
-function isReplaceableAutoLayoutPlanting(planting: Planting) {
-  return isAutoLayoutItem(planting) && canOptimizerMovePlanting(planting);
-}
-
-function isReplaceableAutoLayoutStructure(structure: Structure) {
-  return isAutoLayoutItem(structure) && !structure.locked;
 }
 
 function samePlantingGeometry(left: Planting, right: Planting) {

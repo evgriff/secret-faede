@@ -288,16 +288,7 @@ function isPlantingPositionLegal(
 }
 
 function isBlockingStructure(structure: Structure) {
-  return [
-    'compost',
-    'fence',
-    'fenceWall',
-    'hoseBib',
-    'path',
-    'pathway',
-    'treeObstacle',
-    'waterSource',
-  ].includes(structure.type);
+  return structure.type === 'path' || structure.type === 'pathway';
 }
 
 function preferredExposures(required: SunExposure): SunExposure[] {

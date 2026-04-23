@@ -58,7 +58,8 @@ export function getReviewProposalNextAction(inbox: ReviewProposalInbox): {
 } {
   if (inbox.openSuggestions.length === 0) {
     return {
-      detail: 'Generate layouts or keep editing to surface decisions.',
+      detail:
+        'Generate checked variants or keep editing to surface problem decisions.',
       label: 'No draft decisions waiting',
     };
   }
@@ -100,14 +101,16 @@ export function isBatchAcceptableReviewProposal(suggestion: ReviewSuggestion) {
 
 export function getReviewProposalCategory(suggestion: ReviewSuggestion) {
   switch (suggestion.type) {
+    case 'addAccessPath':
+    case 'clearPathway':
+    case 'widenPath':
+      return 'Access';
     case 'addStakeCage':
     case 'addTrellis':
     case 'convertToTrellisedLayout':
       return 'Support';
     case 'addSupportMaterial':
       return 'Materials';
-    case 'widenPath':
-      return 'Access';
     case 'optimizerProposal':
       return 'Layout';
     case 'moveShadeTolerantCrop':
@@ -124,12 +127,16 @@ export function getReviewProposalCategory(suggestion: ReviewSuggestion) {
 
 export function getReviewProposalChangeSummary(suggestion: ReviewSuggestion) {
   switch (suggestion.type) {
+    case 'addAccessPath':
+      return 'Add a saved access path near the bed.';
     case 'addStakeCage':
-      return 'Add a cage or stake support structure to the draft.';
+      return 'Assign a cage or stake to the plant group.';
     case 'addSupportMaterial':
       return 'Add the recommended support or material change to the draft.';
     case 'addTrellis':
-      return 'Add a trellis support structure to the draft.';
+      return 'Add a trellis structure to the draft.';
+    case 'clearPathway':
+      return 'Move the blocking item off a saved access path.';
     case 'convertToTrellisedLayout':
       return 'Convert the crop to a trellised planting layout.';
     case 'flagSunMismatch':
@@ -179,6 +186,8 @@ function isSupportProposal(suggestion: ReviewSuggestion) {
 
 function isPlacementProposal(suggestion: ReviewSuggestion) {
   return [
+    'addAccessPath',
+    'clearPathway',
     'flagSunMismatch',
     'moveShadeTolerantCrop',
     'moveTallCropNorth',

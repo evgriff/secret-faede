@@ -12,6 +12,7 @@ import {
 
 import type {
   Garden,
+  Planting,
   SunExposure,
   SunShadeArea,
 } from '../../../domain/gardens/GardenRepository';
@@ -41,11 +42,16 @@ export const PlanCanvas = memo(function PlanCanvas({
   draggingStructureId,
   focusedCropKey,
   garden,
+  hoveredPlantGroupId,
   influenceOverlay,
   manualSunEdit,
   manualSunExposure,
   mode,
   onPaintSunShadeCell,
+  onPlantHoverChange,
+  onPlantLabelHide,
+  onPlantLabelShow,
+  onPlantEditorOpen,
   onMarqueePointerDown,
   onMarqueePointerEnd,
   onMarqueePointerMove,
@@ -60,6 +66,7 @@ export const PlanCanvas = memo(function PlanCanvas({
   onStructurePointerDown,
   onStructurePointerEnd,
   onStructurePointerMove,
+  plantingPreview,
   planWarnings,
   proposalDiffOverlay,
   plotRef,
@@ -70,12 +77,14 @@ export const PlanCanvas = memo(function PlanCanvas({
   showSunOverlay,
   snapGuides,
   sunSeason,
+  visiblePlantLabelIds,
 }: {
   activeSunLayer: { areas: SunShadeArea[] };
   draggingPlantId: string | null;
   draggingStructureId: string | null;
   focusedCropKey: string | null;
   garden: Garden;
+  hoveredPlantGroupId: string | null;
   influenceOverlay: PlanInfluenceOverlayModel | null;
   manualSunEdit: boolean;
   manualSunExposure: SunExposure;
@@ -86,6 +95,10 @@ export const PlanCanvas = memo(function PlanCanvas({
     yFt: number,
     exposure: SunExposure,
   ): void;
+  onPlantHoverChange(plantId: string | null): void;
+  onPlantLabelHide(plantId: string): void;
+  onPlantLabelShow(plantId: string): void;
+  onPlantEditorOpen(plantId: string): void;
   onMarqueePointerDown(event: PointerEvent<HTMLDivElement>): void;
   onMarqueePointerEnd(event: PointerEvent<HTMLDivElement>): void;
   onMarqueePointerMove(event: PointerEvent<HTMLDivElement>): void;
@@ -125,6 +138,7 @@ export const PlanCanvas = memo(function PlanCanvas({
     event: PointerEvent<HTMLDivElement>,
     structureId: string,
   ): void;
+  plantingPreview: Planting | null;
   planWarnings: PlanWarning[];
   proposalDiffOverlay: ProposalDiffOverlayModel | null;
   plotRef: RefObject<HTMLDivElement | null>;
@@ -140,6 +154,7 @@ export const PlanCanvas = memo(function PlanCanvas({
   showSunOverlay: boolean;
   snapGuides: SnapGuide[];
   sunSeason: SunSeason;
+  visiblePlantLabelIds: string[];
 }) {
   const [layers, setLayers] = useState<PlanCanvasLayers>({
     grid: true,
@@ -318,15 +333,19 @@ export const PlanCanvas = memo(function PlanCanvas({
           draggingStructureId={draggingStructureId}
           focusedCropKey={focusedCropKey}
           garden={garden}
+          hoveredPlantGroupId={hoveredPlantGroupId}
           influenceOverlay={influenceOverlay}
           manualSunEdit={manualSunEdit}
           manualSunExposure={manualSunExposure}
           marqueeRect={marqueeRect}
-          mode={mode}
           onMarqueePointerDown={onMarqueePointerDown}
           onMarqueePointerEnd={onMarqueePointerEnd}
           onMarqueePointerMove={onMarqueePointerMove}
           onPaintSunShadeCell={onPaintSunShadeCell}
+          onPlantEditorOpen={onPlantEditorOpen}
+          onPlantHoverChange={onPlantHoverChange}
+          onPlantLabelHide={onPlantLabelHide}
+          onPlantLabelShow={onPlantLabelShow}
           onPlantPointerDown={onPlantPointerDown}
           onPlantPointerEnd={onPlantPointerEnd}
           onPlantPointerMove={onPlantPointerMove}
@@ -337,6 +356,7 @@ export const PlanCanvas = memo(function PlanCanvas({
           onStructurePointerDown={onStructurePointerDown}
           onStructurePointerEnd={onStructurePointerEnd}
           onStructurePointerMove={onStructurePointerMove}
+          plantingPreview={plantingPreview}
           plotRef={plotRef}
           plotStyle={plotStyle}
           proposalDiffOverlay={proposalDiffOverlay}
@@ -348,6 +368,7 @@ export const PlanCanvas = memo(function PlanCanvas({
           snapGuides={snapGuides}
           sunSeason={sunSeason}
           visibleWarnings={visibleWarnings}
+          visiblePlantLabelIds={visiblePlantLabelIds}
         />
       </div>
       {layers.miniMap ? (

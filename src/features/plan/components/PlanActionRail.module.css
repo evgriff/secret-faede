@@ -5,8 +5,12 @@
   z-index: 28;
   display: grid;
   gap: var(--space-2);
-  max-width: min(20rem, calc(100% - 2rem));
+  max-width: min(22rem, calc(100% - 2rem));
   pointer-events: none;
+}
+
+.railAvoidFocus {
+  left: calc(var(--space-3) + 25rem);
 }
 
 .launcherBar {
@@ -17,10 +21,8 @@
 }
 
 .launcherButton,
-.inspectButton,
 .panelHeader button,
-.toolButton,
-.wideToolButton {
+.toolButton {
   border: 1px solid rgba(54, 48, 40, 0.2);
   border-radius: var(--radius-control);
   background: rgba(255, 253, 247, 0.92);
@@ -36,7 +38,7 @@
   align-items: center;
   gap: 0.45rem;
   min-height: 2.65rem;
-  max-width: 9.75rem;
+  max-width: 10.75rem;
   padding: 0 0.7rem 0 0.55rem;
 }
 
@@ -62,20 +64,13 @@
   white-space: nowrap;
 }
 
-.inspectButton {
-  min-height: 2.45rem;
-  padding: 0 0.7rem;
-  font-size: var(--font-size-caption);
-  font-weight: 820;
-}
-
 .launcherPanel {
   position: absolute;
   bottom: calc(100% + 0.55rem);
   left: 0;
   display: grid;
   gap: var(--space-2);
-  width: min(19.5rem, calc(100vw - 1.5rem));
+  width: min(20.5rem, calc(100vw - 1.5rem));
   border: 1px solid rgba(76, 85, 70, 0.16);
   border-radius: var(--radius-card);
   background: rgba(255, 253, 247, 0.94);
@@ -133,21 +128,10 @@
 }
 
 .toolButton small {
-  overflow: hidden;
   color: var(--color-text-muted);
   font-size: 0.68rem;
   font-weight: 780;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wideToolButton {
-  min-height: 2.6rem;
-  padding: 0 0.7rem;
-  font-size: var(--font-size-caption);
-  font-weight: 840;
-  text-align: center;
-  box-shadow: none;
+  line-height: 1.15;
 }
 
 .activeMode {
@@ -157,10 +141,8 @@
 
 @media (hover: hover) and (pointer: fine) {
   .launcherButton:hover,
-  .inspectButton:hover,
   .panelHeader button:hover,
-  .toolButton:hover,
-  .wideToolButton:hover {
+  .toolButton:hover {
     border-color: var(--color-accent-strong);
     background: var(--color-surface-solid);
   }
@@ -175,6 +157,10 @@
     max-width: none;
   }
 
+  .railAvoidFocus {
+    left: 0.75rem;
+  }
+
   .launcherBar {
     justify-content: space-between;
   }
@@ -186,8 +172,7 @@
     overflow: auto;
   }
 
-  .launcherButton,
-  .inspectButton {
+  .launcherButton {
     min-height: 2.9rem;
   }
 
@@ -195,7 +180,6 @@
     min-height: 3.25rem;
   }
 
-  .wideToolButton,
   .panelHeader button {
     min-height: 2.65rem;
   }

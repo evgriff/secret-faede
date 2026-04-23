@@ -1,23 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { planModes, type PlanMode } from '../planModes';
+import type { PlanMode } from '../planModes';
 import styles from './PlanActionRail.module.css';
+
+const buildModes: Array<{
+  description: string;
+  label: string;
+  mode: Extract<PlanMode, 'plant' | 'structure'>;
+}> = [
+  {
+    description: 'Manual crop placement',
+    label: 'Plant',
+    mode: 'plant',
+  },
+  {
+    description: 'Beds, paths, trellises',
+    label: 'Structure',
+    mode: 'structure',
+  },
+];
 
 export function PlanActionRail({
   activeMode,
-  hasSelection,
-  isPanelOpen,
-  onOpenChoosePlants,
-  onOpenInspector,
-  onOptimize,
+  avoidFocusCard,
   setActiveMode,
 }: {
   activeMode: PlanMode;
-  hasSelection: boolean;
-  isPanelOpen: boolean;
-  onOpenChoosePlants(): void;
-  onOpenInspector(): void;
-  onOptimize(): void;
+  avoidFocusCard: boolean;
   setActiveMode(mode: PlanMode): void;
 }) {
   const [isLauncherOpen, setIsLauncherOpen] = useState(false);
@@ -42,30 +51,15 @@ export function PlanActionRail({
     return () => window.removeEventListener('pointerdown', handlePointerDown);
   }, [isLauncherOpen]);
 
-  function handleToolMode(mode: PlanMode) {
-    if (mode === 'optimize') {
-      onOptimize();
-    } else {
-      setActiveMode(mode);
-    }
-
-    setIsLauncherOpen(false);
-  }
-
-  function handleChoosePlants() {
-    onOpenChoosePlants();
-    setIsLauncherOpen(false);
-  }
-
-  function handleInspect() {
-    onOpenInspector();
+  function handleBuildMode(mode: PlanMode) {
+    setActiveMode(mode);
     setIsLauncherOpen(false);
   }
 
   return (
     <aside
-      className={styles.rail}
-      aria-label="Plan tools"
+      className={`${styles.rail} ${avoidFocusCard ? styles.railAvoidFocus : ''}`}
+      aria-label="Build tools"
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           setIsLauncherOpen(false);
@@ -75,40 +69,28 @@ export function PlanActionRail({
     >
       <div className={styles.launcherBar}>
         <button
-          aria-controls="plan-tool-launcher"
+          aria-controls="plan-build-launcher"
           aria-expanded={isLauncherOpen}
-          aria-label="Open Plan tools"
+          aria-label="Open build tools"
           className={styles.launcherButton}
           onClick={() => setIsLauncherOpen((value) => !value)}
           type="button"
         >
           <span aria-hidden="true">+</span>
-          <strong>{getActiveLabel(activeMode)}</strong>
+          <strong>Build</strong>
         </button>
-        {hasSelection ? (
-          <button
-            aria-label="Open selected item panel"
-            aria-pressed={activeMode === 'select' && isPanelOpen}
-            className={styles.inspectButton}
-            onClick={handleInspect}
-            title="Open selected item panel"
-            type="button"
-          >
-            Inspect
-          </button>
-        ) : null}
       </div>
 
       {isLauncherOpen ? (
         <div
           className={styles.launcherPanel}
-          id="plan-tool-launcher"
-          aria-label="Plan tool launcher"
+          id="plan-build-launcher"
+          aria-label="Build tool launcher"
         >
           <div className={styles.panelHeader}>
-            <span>Plan tools</span>
+            <span>Build the plot</span>
             <button
-              aria-label="Close Plan tools"
+              aria-label="Close build tools"
               onClick={() => setIsLauncherOpen(false)}
               type="button"
             >
@@ -116,16 +98,7 @@ export function PlanActionRail({
             </button>
           </div>
           <div className={styles.toolGrid}>
-            <button
-              aria-label="Choose plants"
-              className={styles.toolButton}
-              onClick={handleChoosePlants}
-              type="button"
-            >
-              <span>Crops</span>
-              <small>Choose list</small>
-            </button>
-            {planModes.map((entry) => (
+            {buildModes.map((entry) => (
               <button
                 aria-label={entry.label}
                 aria-pressed={activeMode === entry.mode}
@@ -133,62 +106,17 @@ export function PlanActionRail({
                   activeMode === entry.mode ? styles.activeMode : ''
                 }`}
                 key={entry.mode}
-                onClick={() => handleToolMode(entry.mode)}
-                title={`${entry.label} (${entry.keyboard})`}
+                onClick={() => handleBuildMode(entry.mode)}
+                title={entry.description}
                 type="button"
               >
-                <span>{getToolLabel(entry.mode)}</span>
-                <small>{entry.keyboard}</small>
+                <span>{entry.label}</span>
+                <small>{entry.description}</small>
               </button>
             ))}
           </div>
-          {hasSelection ? (
-            <button
-              aria-label="Open selected item panel"
-              aria-pressed={activeMode === 'select' && isPanelOpen}
-              className={styles.wideToolButton}
-              onClick={handleInspect}
-              type="button"
-            >
-              Reopen selected item panel
-            </button>
-          ) : null}
         </div>
       ) : null}
     </aside>
   );
-}
-
-function getActiveLabel(mode: PlanMode) {
-  switch (mode) {
-    case 'measure':
-      return 'Measure';
-    case 'optimize':
-      return 'Review';
-    case 'plant':
-      return 'Plant';
-    case 'select':
-      return 'Tools';
-    case 'structure':
-      return 'Build';
-    case 'sun':
-      return 'Sun';
-  }
-}
-
-function getToolLabel(mode: PlanMode) {
-  switch (mode) {
-    case 'measure':
-      return 'Measure';
-    case 'optimize':
-      return 'Review';
-    case 'plant':
-      return 'Plant';
-    case 'select':
-      return 'Select';
-    case 'structure':
-      return 'Build';
-    case 'sun':
-      return 'Sun';
-  }
 }

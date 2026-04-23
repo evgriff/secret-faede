@@ -4,6 +4,7 @@ import type {
   Plot,
   Structure,
 } from '../../domain/gardens/GardenRepository';
+import { derivePlantingGeometryFromPlanting } from '../../domain/gardens/plantingGeometry';
 
 export interface FootRect {
   depthFt: number;
@@ -15,55 +16,15 @@ export interface FootRect {
   yFt: number;
 }
 
-const minimumPlantingFootprintFt = 0.75;
-
 export function getPlantingFootprint(planting: Planting): FootRect {
-  const spacingFt = inchesToFeet(
-    planting.matureSpreadInches ?? planting.spacingInches ?? 12,
-  );
-  const rowDepthFt = Math.max(
-    inchesToFeet(planting.rowSpacingInches ?? planting.spacingInches ?? 12),
-    minimumPlantingFootprintFt,
-  );
+  const footprint = derivePlantingGeometryFromPlanting(planting).footprint;
 
-  if (planting.mode === 'row' || planting.mode === 'trellisLine') {
-    const widthFt = Math.max(
-      planting.rowLengthFt ?? spacingFt * Math.max(planting.plantCount ?? 1, 1),
-      minimumPlantingFootprintFt,
-    );
-    const depthFt =
-      planting.mode === 'trellisLine'
-        ? Math.max(rowDepthFt, 0.5)
-        : Math.max(rowDepthFt, spacingFt);
-
-    return centeredFootprint(planting, widthFt, depthFt);
-  }
-
-  if (planting.mode === 'block') {
-    return centeredFootprint(
-      planting,
-      Math.max(planting.blockWidthFt ?? spacingFt, minimumPlantingFootprintFt),
-      Math.max(planting.blockDepthFt ?? spacingFt, minimumPlantingFootprintFt),
-    );
-  }
-
-  if (planting.mode === 'cluster') {
-    const count = Math.max(planting.plantCount ?? 1, 1);
-    const diameterFt = Math.max(
-      planting.clusterRadiusFt
-        ? planting.clusterRadiusFt * 2
-        : Math.sqrt(count) * spacingFt,
-      minimumPlantingFootprintFt,
-    );
-
-    return centeredFootprint(planting, diameterFt, diameterFt);
-  }
-
-  return centeredFootprint(
-    planting,
-    Math.max(spacingFt, minimumPlantingFootprintFt),
-    Math.max(spacingFt, minimumPlantingFootprintFt),
-  );
+  return {
+    ...footprint,
+    id: planting.id,
+    itemType: 'planting',
+    label: planting.label,
+  };
 }
 
 export function getPlantingInstanceFootprint(
@@ -84,10 +45,7 @@ export function getPlantingInstanceFootprint(
 }
 
 function getPlantingInstanceSizeFt(planting: Planting) {
-  return Math.max(
-    inchesToFeet(planting.matureSpreadInches ?? planting.spacingInches ?? 12),
-    minimumPlantingFootprintFt,
-  );
+  return derivePlantingGeometryFromPlanting(planting).plantDiameterFt;
 }
 
 export function getStructureFootprint(structure: Structure): FootRect {
@@ -146,26 +104,6 @@ export function rectDistanceFt(left: FootRect, right: FootRect) {
   );
 
   return Math.sqrt(dx * dx + dy * dy);
-}
-
-function centeredFootprint(
-  planting: Planting,
-  widthFt: number,
-  depthFt: number,
-): FootRect {
-  return {
-    depthFt,
-    id: planting.id,
-    itemType: 'planting',
-    label: planting.label,
-    widthFt,
-    xFt: planting.xFt - widthFt / 2,
-    yFt: planting.yFt - depthFt / 2,
-  };
-}
-
-function inchesToFeet(inches: number) {
-  return Math.max(inches / 12, minimumPlantingFootprintFt);
 }
 
 function formatMeasure(value: number) {

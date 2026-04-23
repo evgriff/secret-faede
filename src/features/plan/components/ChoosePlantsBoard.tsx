@@ -1,28 +1,40 @@
+import { useId, useState, type ReactNode } from 'react';
+
 import { getCropById } from '../../../domain/crops/cropCatalog';
 import type {
   CropProfile,
   Garden,
-  PlantingMode,
   SeasonCropSelection,
   SunExposure,
 } from '../../../domain/gardens/GardenRepository';
 import {
   coercePlantQuantity,
   formatGlyph,
-  getRecommendedPlantingMode,
   getCropIconTone,
   modeLabels,
 } from '../../garden/cropPickerHelpers';
-import {
-  formatSeasonCropFitReasonGroup,
-  formatSeasonCropPlanningState,
-  needsSeasonCropReview,
-} from '../seasonCropFitDisplay';
+import { needsSeasonCropReview } from '../seasonCropFitDisplay';
 import {
   getSeasonCropFitSignal,
   type SeasonCropFitSignal,
   type SeasonCropLayoutRequest,
 } from '../seasonCropPlan';
+import compactStyles from './ChoosePlantsCompact.module.css';
+import { getCompactPlantFacts } from './ChoosePlantsCompactFacts';
+import disclosureStyles from './ChoosePlantsDisclosure.module.css';
+import {
+  BoardExpandedDetails,
+  ReviewDisclosure,
+} from './ChoosePlantsExpandedDetails';
+import { PlacementGlyph } from './ChoosePlantsPlacementGlyph';
+import {
+  getQuantityFirstPlantingModes,
+  normalizeSeasonPlantingForm,
+} from './choosePlantsSelection';
+import {
+  buildPlantFootprintPreview,
+  type PlantFootprintPreviewModel,
+} from './PlantFootprintPreview';
 import styles from './ChoosePlantsBoard.module.css';
 
 export function SeasonCropBoard({
@@ -100,6 +112,8 @@ export function SeasonCropBoard({
                 onRemove={() => onRemoveSelection(selection.id)}
                 onUpdate={(values) => onUpdateSelection(selection.id, values)}
                 selection={selection}
+                sunExposureAtPlacement={sunExposureAtPlacement}
+                garden={garden}
               />
             ) : null;
           })}
@@ -121,9 +135,12 @@ function CropBoardItem({
   onRemove,
   onUpdate,
   selection,
+  sunExposureAtPlacement,
+  garden,
 }: {
   crop: CropProfile;
   fit: SeasonCropFitSignal;
+  garden: Garden;
   isFirst: boolean;
   isLast: boolean;
   onMoveDown(): void;
@@ -131,102 +148,67 @@ function CropBoardItem({
   onRemove(): void;
   onUpdate(values: Partial<SeasonCropSelection>): void;
   selection: SeasonCropSelection;
+  sunExposureAtPlacement: SunExposure | null;
 }) {
-  const recommendedMode = getRecommendedPlantingMode(crop, selection.quantity);
-  const reviewReasons = fit.groupedReasons
-    .filter((reason) => reason.severity !== 'notice')
-    .slice(0, 2);
-  const showReview = needsSeasonCropReview(fit);
-  const reviewText =
-    reviewReasons.length > 0
-      ? reviewReasons
-          .map(
-            (reason) =>
-              `${formatSeasonCropFitReasonGroup(reason.group)}: ${reason.label}`,
-          )
-          .join(' ')
-      : (fit.uncertainty ?? fit.summary);
-  const currentModeLabel = modeLabels[selection.plantingForm];
-  const recommendedModeLabel = modeLabels[recommendedMode];
-  const formText =
-    selection.plantingForm === recommendedMode
-      ? recommendedModeLabel
-      : `${currentModeLabel} (recommended ${recommendedModeLabel})`;
+  const [isExpanded, setIsExpanded] = useState(false);
+  const detailsId = useId();
+  const recommendedMode = normalizeSeasonPlantingForm(crop, selection.quantity);
+  const currentMode = normalizeSeasonPlantingForm(
+    crop,
+    selection.quantity,
+    selection.plantingForm,
+  );
+  const modeOptions = getQuantityFirstPlantingModes(crop, selection.quantity);
+  const currentModeLabel = modeLabels[currentMode];
+  const formText = currentModeLabel;
   const showSupportOption = crop.trellisRequired || crop.trellisRecommended;
+  const showReview = needsSeasonCropReview(fit);
+  const facts = getCompactPlantFacts({
+    crop,
+    garden,
+    mode: currentMode,
+    sunExposureAtPlacement,
+  });
+  const footprint = buildPlantFootprintPreview({
+    crop,
+    mode: currentMode,
+    quantity: selection.quantity,
+    spacingOverrideInches: selection.spacingOverrideInches ?? null,
+  });
+  const showSupport = facts.supportShortLabel !== 'No support';
 
   function handleQuantityChange(value: string) {
     const nextQuantity = coercePlantQuantity(value);
-    const nextRecommendedMode = getRecommendedPlantingMode(crop, nextQuantity);
+    const nextRecommendedMode = normalizeSeasonPlantingForm(crop, nextQuantity);
+    const nextModeOptions = getQuantityFirstPlantingModes(crop, nextQuantity);
 
     onUpdate({
       plantingForm:
-        selection.plantingForm === recommendedMode
+        currentMode === recommendedMode ||
+        !nextModeOptions.includes(currentMode)
           ? nextRecommendedMode
-          : selection.plantingForm,
+          : currentMode,
       quantity: nextQuantity,
     });
   }
 
   return (
-    <article className={styles.boardItem} data-fit-level={fit.level}>
-      <div className={styles.boardItemHeader}>
+    <article className={compactStyles.boardCard} data-fit-level={fit.level}>
+      <div className={compactStyles.boardHeader}>
         <span
-          className={styles.cropGlyph}
+          className={compactStyles.plantGlyph}
           data-crop-tone={getCropIconTone(crop)}
           aria-hidden="true"
         >
           {formatGlyph(crop)}
         </span>
-        <div>
+        <div className={compactStyles.boardTitle}>
           <h4>{crop.commonName}</h4>
-          <span className={styles.itemMeta}>
-            {selection.quantity} {selection.quantity === 1 ? 'plant' : 'plants'}{' '}
-            - {formText}
-          </span>
         </div>
-        {showReview ? (
-          <span className={styles.stateBadge} data-fit-level={fit.level}>
-            {formatSeasonCropPlanningState(fit.level)}
-          </span>
-        ) : null}
-        <div className={styles.rowActions}>
-          <button
-            aria-label={`Move ${crop.commonName} up`}
-            className={styles.iconAction}
-            disabled={isFirst}
-            onClick={onMoveUp}
-            type="button"
-          >
-            ↑
-          </button>
-          <button
-            aria-label={`Move ${crop.commonName} down`}
-            className={styles.iconAction}
-            disabled={isLast}
-            onClick={onMoveDown}
-            type="button"
-          >
-            ↓
-          </button>
-          <button
-            aria-label={`Remove ${crop.commonName}`}
-            className={styles.iconAction}
-            onClick={onRemove}
-            type="button"
-          >
-            ×
-          </button>
-        </div>
-      </div>
-
-      <p className={styles.fitLine}>
-        {showReview ? reviewText : 'Ready for layout.'}
-      </p>
-
-      <div className={styles.primaryGrid}>
-        <label className={styles.compactField}>
-          <span>How many plants?</span>
+        <label className={compactStyles.quantityField}>
+          <span>Qty</span>
           <input
+            aria-label={`${crop.commonName} quantity`}
             inputMode="numeric"
             min="1"
             onChange={(event) =>
@@ -237,70 +219,110 @@ function CropBoardItem({
             value={selection.quantity}
           />
         </label>
-
-        <div className={styles.formIntent}>
-          <span>Recommended form</span>
-          <strong>{formText}</strong>
+        <div className={compactStyles.rowActions}>
+          <button
+            aria-label={`Move ${crop.commonName} up`}
+            className={compactStyles.iconAction}
+            disabled={isFirst}
+            onClick={onMoveUp}
+            type="button"
+          >
+            ↑
+          </button>
+          <button
+            aria-label={`Move ${crop.commonName} down`}
+            className={compactStyles.iconAction}
+            disabled={isLast}
+            onClick={onMoveDown}
+            type="button"
+          >
+            ↓
+          </button>
+          <button
+            aria-label={`Remove ${crop.commonName}`}
+            className={compactStyles.iconAction}
+            onClick={onRemove}
+            type="button"
+          >
+            ×
+          </button>
+          <button
+            aria-controls={detailsId}
+            aria-expanded={isExpanded}
+            aria-label={`${isExpanded ? 'Hide' : 'Show'} ${crop.commonName} details`}
+            className={compactStyles.iconAction}
+            onClick={() => setIsExpanded((current) => !current)}
+            type="button"
+          >
+            <span className={disclosureStyles.chevron} aria-hidden="true">
+              ⌄
+            </span>
+          </button>
         </div>
       </div>
 
-      <label className={styles.notesField}>
-        <span>Variety or notes</span>
-        <input
-          onChange={(event) => onUpdate({ notes: event.currentTarget.value })}
-          placeholder="Cultivar, timing, or placement"
-          type="text"
-          value={selection.notes}
+      <div
+        className={compactStyles.factStrip}
+        aria-label="Selected plant facts"
+      >
+        <FactPill label={`${formText} form`}>
+          <PlacementGlyph mode={currentMode} />
+        </FactPill>
+        <FactPill icon="space" label={formatFootprintFact(footprint)} />
+        {showSupport ? (
+          <FactPill icon="support" label={facts.supportShortLabel} />
+        ) : null}
+        <FactPill icon="sun" label={facts.sunShortLabel} />
+        <FactPill icon="water" label={facts.waterShortLabel} />
+        {showReview ? (
+          <ReviewDisclosure cropName={crop.commonName} fit={fit} />
+        ) : null}
+      </div>
+
+      {isExpanded ? (
+        <BoardExpandedDetails
+          crop={crop}
+          facts={facts}
+          fit={fit}
+          id={detailsId}
+          modeOptions={modeOptions}
+          onUpdate={onUpdate}
+          selection={{ ...selection, plantingForm: currentMode }}
+          showSupportOption={showSupportOption}
         />
-      </label>
-
-      <details className={styles.advancedFields}>
-        <summary>More options</summary>
-        <div className={styles.secondaryGrid}>
-          <label className={styles.compactField}>
-            <span>Planting form</span>
-            <select
-              onChange={(event) =>
-                onUpdate({
-                  plantingForm: event.currentTarget.value as PlantingMode,
-                })
-              }
-              value={selection.plantingForm}
-            >
-              {crop.supportedPlantingModes.map((mode) => (
-                <option key={mode} value={mode}>
-                  {modeLabels[mode]}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className={styles.compactField}>
-            <span>Variety</span>
-            <input
-              onChange={(event) =>
-                onUpdate({ varietyName: event.currentTarget.value })
-              }
-              type="text"
-              value={selection.varietyName}
-            />
-          </label>
-
-          {showSupportOption ? (
-            <label className={styles.checkField}>
-              <input
-                checked={selection.supportAllowed}
-                onChange={(event) =>
-                  onUpdate({ supportAllowed: event.currentTarget.checked })
-                }
-                type="checkbox"
-              />
-              <span>Allow support structures</span>
-            </label>
-          ) : null}
-        </div>
-      </details>
+      ) : null}
     </article>
+  );
+}
+
+function FactPill({
+  children,
+  difficulty,
+  icon,
+  label,
+  matchBand,
+}: {
+  children?: ReactNode;
+  difficulty?: string;
+  icon?: string;
+  label: string;
+  matchBand?: string;
+}) {
+  return (
+    <span
+      className={compactStyles.factPill}
+      data-difficulty={difficulty}
+      data-match-band={matchBand}
+    >
+      <span
+        className={compactStyles.factIcon}
+        data-icon={children ? undefined : icon}
+        aria-hidden="true"
+      >
+        {children}
+      </span>
+      {label}
+    </span>
   );
 }
 
@@ -308,4 +330,8 @@ function getSelectionId(cropId: string, selections: SeasonCropSelection[]) {
   return (
     selections.find((selection) => selection.cropId === cropId)?.id ?? cropId
   );
+}
+
+function formatFootprintFact(footprint: PlantFootprintPreviewModel) {
+  return `${footprint.metricLabel} · ${footprint.areaLabel}`;
 }

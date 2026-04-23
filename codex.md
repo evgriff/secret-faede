@@ -66,6 +66,15 @@ Deferred until the local product model needs them:
 
 ## Repo navigation
 
+Use Serena when its tools are available:
+
+- activate this project as `secret-faede`
+- prefer symbol overview, symbol lookup, and reference-search tools for code
+  navigation before reading whole source files
+- prefer Serena symbol refactors for whole-symbol changes where they apply
+- use shell, git, npm, and Playwright commands directly for repo workflow and
+  verification
+
 `src/app`
 
 - composition root
@@ -155,12 +164,14 @@ Do not add a dependency until all answers are yes:
    `docs/source-control-protocol.md`.
 2. Start with `git status --short --branch` and move agent work to a `codex/`
    branch before substantial edits.
-3. Keep mock mode working.
-4. Keep `AuthService` explicit and avoid bypassing it from UI code.
-5. Keep `GardenRepository` as the only garden persistence boundary and
+3. Activate/use Serena for symbol-aware code navigation and refactors when its
+   tools are available.
+4. Keep mock mode working.
+5. Keep `AuthService` explicit and avoid bypassing it from UI code.
+6. Keep `GardenRepository` as the only garden persistence boundary and
    `UserProfileRepository` as the user-profile persistence boundary.
-6. Store plot and plant data in feet, not pixels.
-7. Update docs when runtime, scripts, persistence, or deployment requirements change.
-8. Re-run `npm run lint`, `npm run typecheck`, `npm run test:unit`, `npm run test:e2e`, `npm run build`, and `npm run ci`.
-9. Do not reintroduce carrier messaging as product scope; treat any new carrier
-   delivery path as a scope regression.
+7. Store plot and plant data in feet, not pixels.
+8. Update docs when runtime, scripts, persistence, or deployment requirements change.
+9. Re-run `npm run lint`, `npm run typecheck`, `npm run test:unit`, `npm run test:e2e`, `npm run build`, and `npm run ci`.
+10. Do not reintroduce carrier messaging as product scope; treat any new carrier
+    delivery path as a scope regression.

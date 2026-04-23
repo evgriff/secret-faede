@@ -11,6 +11,7 @@ import {
   findBedPlacement,
   findFirstPlanting,
   findNearestLegalPoint,
+  findNorthLegalPoint,
   findSunFitPoint,
 } from './reviewSuggestionGeometry';
 import {
@@ -21,6 +22,7 @@ import {
   type ReviewSuggestion,
   type ReviewSuggestionType,
 } from './reviewSuggestionModel';
+import { isPlantingAnchoredByLifecycle } from './gardenImmutability';
 
 export function buildSplitSuggestion(
   garden: Garden,
@@ -190,6 +192,64 @@ export function buildSunMoveSuggestion(
   };
 }
 
+export function buildShadeConflictSuggestion(
+  garden: Garden,
+  warning: PlanWarning,
+): ReviewSuggestion | null {
+  const plantings = warning.itemIds
+    .map((id) => garden.plantings.find((planting) => planting.id === id))
+    .filter((planting): planting is Planting => Boolean(planting));
+  const tallPlanting = plantings
+    .filter(
+      (planting) =>
+        !planting.locked && !isPlantingAnchoredByLifecycle(planting),
+    )
+    .sort(
+      (left, right) =>
+        getMatureHeightInches(right) - getMatureHeightInches(left),
+    )[0];
+
+  if (!tallPlanting) {
+    return null;
+  }
+
+  const point = findNorthLegalPoint(garden, tallPlanting);
+
+  if (!point) {
+    return null;
+  }
+
+  return {
+    actions: [
+      {
+        id: tallPlanting.id,
+        kind: 'updatePlanting',
+        values: {
+          notes: appendNote(
+            tallPlanting.notes,
+            `${reviewMarker} Moved north/up-sun from a height-order shade warning.`,
+          ),
+          xFt: point.xFt,
+          yFt: point.yFt,
+        },
+      },
+    ],
+    canBatchAccept: false,
+    id: `review:move-tall-north:${warning.id}`,
+    itemIds: warning.itemIds,
+    preview: {
+      after: formatPoint(point),
+      before: formatPoint(tallPlanting),
+    },
+    rationale: warning.message,
+    severity: warning.severity,
+    source: 'selfFix',
+    sourceWarningId: warning.id,
+    title: 'Move tall crop north',
+    type: 'moveTallCropNorth',
+  };
+}
+
 export function createFlagSuggestion(
   garden: Garden,
   warning: PlanWarning,
@@ -237,4 +297,10 @@ export function createFlagSuggestion(
           : warning.title,
     type: resolvedType,
   };
+}
+
+function getMatureHeightInches(planting: Planting) {
+  const crop = planting.cropId ? getCropById(planting.cropId) : null;
+
+  return planting.matureHeightInches ?? crop?.matureHeightInches ?? 0;
 }

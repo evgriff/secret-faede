@@ -133,11 +133,19 @@ function getSelectedInstance(
   planting: Planting,
   instanceId: string | undefined,
 ): PlantingInstance {
+  if (!instanceId) {
+    return {
+      id: `${planting.id}:group`,
+      label: planting.label,
+      xFt: planting.xFt,
+      yFt: planting.yFt,
+    };
+  }
+
   const instances = getPlantingInstances(planting);
 
   return (
-    instances.find((instance) => instance.id === instanceId) ??
-    instances[0] ?? {
+    instances.find((instance) => instance.id === instanceId) ?? {
       id: `${planting.id}-plant-1`,
       label: planting.label,
       xFt: planting.xFt,

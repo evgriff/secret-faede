@@ -4,6 +4,11 @@ import type {
 } from '../../domain/gardens/GardenRepository';
 import type { PlanWarning } from './gardenPlanning';
 import {
+  buildAddAccessPathSuggestion,
+  buildClearPathSuggestion,
+} from './reviewAccessSuggestions';
+import {
+  buildShadeConflictSuggestion,
   buildReassignCropSuggestion,
   buildSplitSuggestion,
   buildSunMoveSuggestion,
@@ -30,11 +35,20 @@ export function buildWarningSuggestions(
 
       return widenPath
         ? [widenPath]
-        : compact([createFlagSuggestion(garden, warning)]);
+        : compact([
+            buildClearPathSuggestion(garden, warning),
+            buildAddAccessPathSuggestion(garden, warning),
+            createFlagSuggestion(garden, warning),
+          ]);
     }
     case 'rotation':
       return compact([
         createFlagSuggestion(garden, warning, 'flagRotationConcern'),
+      ]);
+    case 'shade':
+      return compact([
+        buildShadeConflictSuggestion(garden, warning),
+        createFlagSuggestion(garden, warning, 'flagSunMismatch'),
       ]);
     case 'spacing':
       return compact([buildSplitSuggestion(garden, warning)]);

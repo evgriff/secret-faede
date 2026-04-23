@@ -1,4 +1,6 @@
-export const CURRENT_GARDEN_SCHEMA_VERSION = 3;
+import { isPageStructureType } from './structureTypes';
+
+export const CURRENT_GARDEN_SCHEMA_VERSION = 5;
 export const LEGACY_GARDEN_SCHEMA_VERSION = 0;
 
 export interface GardenMigrationResult {
@@ -23,6 +25,14 @@ export function migrateGardenRecord(value: unknown): GardenMigrationResult {
 
   if (fromVersion < 3) {
     migrateSimplifiedSeasonPlan(record, applied);
+  }
+
+  if (fromVersion < 4) {
+    migratePlantPlanningDefaults(record, applied);
+  }
+
+  if (fromVersion < 5) {
+    migratePageLevelStructures(record, applied);
   }
 
   record.schemaVersion = CURRENT_GARDEN_SCHEMA_VERSION;
@@ -158,6 +168,84 @@ function simplifySeasonCropSelection(value: unknown) {
         typeof value.varietyName === 'string' ? value.varietyName : '',
     },
   ];
+}
+
+function migratePlantPlanningDefaults(
+  record: Record<string, unknown>,
+  applied: string[],
+) {
+  if (Array.isArray(record.plantings)) {
+    record.plantings = record.plantings.map((planting) =>
+      migratePlantingSupportDefaults(planting),
+    );
+  }
+
+  for (const key of ['markerLayer', 'markers', 'plantNodes']) {
+    if (key in record) {
+      delete record[key];
+    }
+  }
+
+  applied.push('plant planning defaults normalized');
+}
+
+function migratePageLevelStructures(
+  record: Record<string, unknown>,
+  applied: string[],
+) {
+  if (!Array.isArray(record.structures)) {
+    return;
+  }
+
+  const nextStructures = record.structures.filter(
+    (structure) =>
+      isPlainRecord(structure) &&
+      typeof structure.type === 'string' &&
+      isPageStructureType(structure.type),
+  );
+
+  if (nextStructures.length === record.structures.length) {
+    return;
+  }
+
+  record.structures = nextStructures;
+  applied.push('legacy utility structures removed');
+}
+
+function migratePlantingSupportDefaults(value: unknown) {
+  if (!isPlainRecord(value) || isPlainRecord(value.support)) {
+    return value;
+  }
+
+  const supportType = readSupportType(value.supportType);
+  const plantCount = Math.max(readNumber(value.plantCount, 1), 1);
+
+  return {
+    ...value,
+    support: {
+      installedAtIso: null,
+      notes: '',
+      perPlant: supportType !== 'none',
+      quantity: supportType === 'none' ? 0 : plantCount,
+      required: false,
+      type: supportType,
+    },
+  };
+}
+
+function readSupportType(value: unknown) {
+  return typeof value === 'string' &&
+    [
+      'cage',
+      'custom',
+      'netting',
+      'none',
+      'rowCover',
+      'stake',
+      'stakeAndWeave',
+    ].includes(value)
+    ? value
+    : 'none';
 }
 
 function readNumber(value: unknown, fallback: number) {

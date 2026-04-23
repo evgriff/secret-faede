@@ -1,0 +1,38 @@
+# Project configuration for Serena.
+# See https://oraios.github.io/serena/02-usage/040_workflow.html
+project_name: 'secret-faede'
+
+languages: ['typescript']
+encoding: 'utf-8'
+line_ending: 'lf'
+language_backend:
+ignore_all_files_in_gitignore: true
+ls_specific_settings: {}
+ignored_paths:
+  - 'dist/**'
+  - 'coverage/**'
+  - 'playwright-report/**'
+  - 'test-results/**'
+  - '.firebase/**'
+  - 'src/domain/crops/homeGardenCropCatalog.generated.json'
+read_only: false
+
+excluded_tools: []
+included_optional_tools: []
+fixed_tools: []
+base_modes:
+default_modes:
+
+initial_prompt: |
+  Secret Faede is a small, functionality-first garden plot planner and garden operations app.
+  Preserve password auth for the two provisioned accounts, one shared published garden workspace, and private per-user drafts.
+  Keep product scope centered on the real plot editor and practical operations; do not add dashboards, charts, maps, collaboration, lore, AI, carrier messaging, or onboarding flows.
+  Keep seams explicit: AuthService owns auth, GardenRepository owns garden persistence, and UserProfileRepository owns profile preferences.
+  Store garden positions in feet using xFt from the left edge and yFt from the top edge; never store raw pixels as canonical garden coordinates.
+  Start every agentic workflow with git status --short --branch, confirm the branch, use a codex/ branch for agent edits, and do not perform substantial edits directly on main.
+  Treat pre-existing dirty files as user-owned, keep edits scoped, stage only explicit files when asked, and commit only when the user asks.
+  Use Serena first for code navigation, symbol overviews, references, and symbol-safe refactors; use normal shell/git/npm tooling for repository workflow and verification.
+
+symbol_info_budget:
+read_only_memory_patterns: []
+ignored_memory_patterns: []

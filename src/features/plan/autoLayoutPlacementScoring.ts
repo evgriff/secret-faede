@@ -4,6 +4,7 @@ import type {
 } from '../../domain/gardens/GardenRepository';
 import {
   scoreAccess,
+  scoreCompatibleGrouping,
   scoreNorthTallPlacement,
   scoreSeasonalSuitability,
   scoreSpacingQuality,
@@ -42,6 +43,10 @@ export function scorePlacement(
     scoredPlacement,
     ...scoredPlacedPlacements,
   ]);
+  const compatibleGrouping = scoreCompatibleGrouping(
+    scoredPlacement,
+    scoredPlacedPlacements,
+  );
   const weights = getPlacementWeights(strategy);
 
   return (
@@ -52,6 +57,7 @@ export function scorePlacement(
     seasonal * weights.seasonal +
     shadeDiscipline * weights.shade +
     spacing * weights.spacing +
+    compatibleGrouping * weights.grouping +
     getStrategyBias(garden, placement, strategy) * 0.04
   );
 }
@@ -68,6 +74,7 @@ function getPlacementWeights(strategy: AutoLayoutStrategy) {
   if (strategy === 'accessFirst') {
     return {
       access: 0.28,
+      grouping: 0.08,
       seasonal: 0.08,
       shade: 0.13,
       spacing: 0.08,
@@ -80,6 +87,7 @@ function getPlacementWeights(strategy: AutoLayoutStrategy) {
   if (strategy === 'supportFirst') {
     return {
       access: 0.1,
+      grouping: 0.1,
       seasonal: 0.08,
       shade: 0.18,
       spacing: 0.08,
@@ -91,6 +99,7 @@ function getPlacementWeights(strategy: AutoLayoutStrategy) {
 
   return {
     access: 0.1,
+    grouping: 0.08,
     seasonal: 0.1,
     shade: 0.14,
     spacing: 0.08,

@@ -1,0 +1,127 @@
+.compareHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.compareHeader h3 {
+  margin: 0.1rem 0 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-body);
+  line-height: 1.1;
+}
+
+.kicker {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 780;
+  text-transform: uppercase;
+}
+
+.compareList {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.compareList li {
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid rgba(54, 48, 40, 0.13);
+  border-radius: var(--radius-card);
+  background: #ffffff;
+  padding: 0.52rem;
+}
+
+.cropIdentity {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.cropIdentity span {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 1px solid rgba(47, 111, 67, 0.18);
+  border-radius: var(--radius-control);
+  background: #eef7ea;
+  color: #24472e;
+  font-size: var(--font-size-small);
+  font-weight: 860;
+}
+
+.cropIdentity strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.factChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+}
+
+.compareChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  border-radius: 999px;
+  background: #f7f1e8;
+  color: #453b31;
+  font-size: var(--font-size-caption);
+  font-weight: 800;
+  line-height: 1;
+  padding: 0.22rem 0.42rem;
+  white-space: nowrap;
+}
+
+.compareChip span {
+  color: rgba(69, 59, 49, 0.72);
+  font-weight: 720;
+}
+
+.compareChip[data-tone='strong'] {
+  background: #eef7ea;
+  color: #24472e;
+}
+
+.compareChip[data-tone='good'] {
+  background: #e8f5f4;
+  color: #164f52;
+}
+
+.compareChip[data-tone='watch'] {
+  background: #fff3df;
+  color: #704211;
+}
+
+.compareChip[data-tone='poor'] {
+  background: #f9edf0;
+  color: #6d2037;
+}
+
+.compareChip[data-tone='strong'] span,
+.compareChip[data-tone='good'] span,
+.compareChip[data-tone='watch'] span,
+.compareChip[data-tone='poor'] span {
+  color: currentColor;
+  opacity: 0.74;
+}
+
+.emptyText {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}

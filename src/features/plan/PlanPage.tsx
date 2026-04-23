@@ -11,8 +11,11 @@ import {
 import { useServices } from '../../app/providers';
 import type {
   Garden,
+  AuthorableStructureType,
+  LayoutProblem,
+  LayoutResolutionOption,
+  Planting,
   SunExposure,
-  StructureType,
 } from '../../domain/gardens/GardenRepository';
 import {
   createGardenChangesetSummary,
@@ -20,7 +23,6 @@ import {
   prepareGardenForUser,
   type GardenPublishConflict,
 } from '../../domain/gardens/gardenWorkspace';
-import { getPlantingInstances } from '../../domain/gardens/plantingInstances';
 import { LoadingState } from '../../shared/ui/LoadingState';
 import { useNetworkStatus } from '../../shared/network/networkStatus';
 import { useAuth } from '../auth/auth-context';
@@ -42,7 +44,12 @@ import {
   getSunAreaAtPoint,
   type SunSeason,
 } from '../garden/sunShadeEngine';
-import { useGarden, type SelectedGardenItem } from '../garden/useGarden';
+import {
+  createAddPlantingPreview,
+  useGarden,
+  type AddPlantingRequest,
+  type SelectedGardenItem,
+} from '../garden/useGarden';
 import { buildSuccessionRecommendations } from '../tasks/taskEngine';
 import {
   buildAutoLayoutReviewSuggestions,
@@ -61,6 +68,7 @@ import { usePlanKeyboardShortcuts } from './hooks/usePlanKeyboardShortcuts';
 import { usePlanPointerInteractions } from './hooks/usePlanPointerInteractions';
 import { buildCropFocusSummary } from './planCropFocus';
 import { buildPlanInfluenceOverlay } from './planInfluenceOverlay';
+import { buildLayoutProblemResolutionModel } from './layoutProblemResolution';
 import { syncSetupProfile } from './planPageActions';
 import {
   buildAutoLayoutProposalDiffOverlay,
@@ -100,6 +108,11 @@ const PlanInspector = lazy(() =>
     default: module.PlanInspector,
   })),
 );
+const PlantEditorSheet = lazy(() =>
+  import('./components/PlantEditorSheet').then((module) => ({
+    default: module.PlantEditorSheet,
+  })),
+);
 const PlanModeDrawer = lazy(() =>
   import('./components/PlanModeDrawer').then((module) => ({
     default: module.PlanModeDrawer,
@@ -132,16 +145,18 @@ export function PlanPage() {
     window.location.search.match(/[?&]p=([^&]+)/)?.[1] ?? null;
   const {
     acceptReviewSuggestion,
-    acceptReviewSuggestions,
     addPlant,
     addStructure,
     applyAutoLayoutProposal,
     applyPlotSettings,
     approveSuccessionPlanting,
     checkpointGarden,
+    closeDetailedView,
+    closePlantGroupEditor,
     completeGardenSetup,
     deleteItems,
     deleteSelectedItem,
+    detailedViewState,
     discardDraft,
     dirty,
     duplicateItems,
@@ -149,11 +164,16 @@ export function PlanPage() {
     duplicateStructure,
     error,
     garden,
+    hidePlantGroupLabel,
+    hoveredPlantGroupId,
+    labelVisibility,
+    openDetailedViewForItem,
+    openPlantGroupEditor,
     paintSunShadeCell,
+    plantEditorState,
     publishDraft,
     recalculateSunShade,
     recordSuggestionDecision,
-    rejectReviewSuggestion,
     refreshWeatherAndWatering,
     redoGardenChange,
     revertToRevision,
@@ -161,9 +181,16 @@ export function PlanPage() {
     resizeStructureRect,
     saveGarden,
     saveStatus,
+    selectLayoutProblem,
+    selectLayoutVariant,
     selectedItem,
     setupRequired,
+    setHoveredPlantGroupId,
+    setPlantLabelVisibility,
+    setLayoutReviewState,
+    setLocationMatchSunExposure,
     setSelectedItem,
+    showPlantGroupLabel,
     snoozeReviewSuggestion,
     status,
     undoGardenChange,
@@ -179,6 +206,7 @@ export function PlanPage() {
   const [isContextPanelOpen, setIsContextPanelOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<PlanItemRef[]>([]);
   const [isAddPlantOpen, setIsAddPlantOpen] = useState(false);
+  const [addPlantPreview, setAddPlantPreview] = useState<Planting | null>(null);
   const [isChoosePlantsOpen, setIsChoosePlantsOpen] = useState(false);
   const [autoLayoutCandidates, setAutoLayoutCandidates] = useState<
     AutoLayoutCandidate[]
@@ -188,11 +216,12 @@ export function PlanPage() {
   const [activeReviewSuggestionId, setActiveReviewSuggestionId] = useState<
     string | null
   >(null);
+  const [selectedLayoutProblemId, setSelectedLayoutProblemId] = useState<
+    string | null
+  >(null);
   const [optimizerStatus, setOptimizerStatus] =
     useState<AutoLayoutRunStatus>('idle');
   const [optimizerMessage, setOptimizerMessage] = useState<string | null>(null);
-  const [rejectedAutoLayoutCandidateIds, setRejectedAutoLayoutCandidateIds] =
-    useState<string[]>([]);
   const [snoozedAutoLayoutCandidateIds, setSnoozedAutoLayoutCandidateIds] =
     useState<string[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -200,7 +229,7 @@ export function PlanPage() {
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [showDraftChoice, setShowDraftChoice] = useState(true);
   const [structureType, setStructureType] =
-    useState<StructureType>('raisedBed');
+    useState<AuthorableStructureType>('raisedBed');
   const [accessiblePathDefaults, setAccessiblePathDefaults] = useState(false);
   const [showSunOverlay, setShowSunOverlay] = useState(false);
   const [sunSeason, setSunSeason] = useState<SunSeason>('summer');
@@ -263,11 +292,11 @@ export function PlanPage() {
             ...buildReviewSuggestions({
               garden,
               sunLayer: activeSunLayer,
-              warnings: planWarnings,
+              warnings: activePlanWarnings,
             }),
           ]
         : [],
-    [activeSunLayer, autoLayoutCandidates, garden, planWarnings],
+    [activePlanWarnings, activeSunLayer, autoLayoutCandidates, garden],
   );
   const activeReviewSuggestion =
     reviewSuggestions.find(
@@ -277,6 +306,30 @@ export function PlanPage() {
     autoLayoutCandidates.find(
       (candidate) => candidate.id === selectedAutoLayoutCandidateId,
     ) ?? null;
+  const layoutProblemResolutionModel = useMemo(
+    () =>
+      garden
+        ? buildLayoutProblemResolutionModel({
+            candidates: autoLayoutCandidates,
+            garden,
+            reviewSuggestions,
+            suggestionDecisions,
+            warnings: activePlanWarnings,
+          })
+        : {
+            problems: [],
+            resolutionOptions: [],
+            resolutions: [],
+            variants: [],
+          },
+    [
+      autoLayoutCandidates,
+      activePlanWarnings,
+      garden,
+      reviewSuggestions,
+      suggestionDecisions,
+    ],
+  );
   const proposalDiffOverlay = useMemo(() => {
     if (!garden || activeMode !== 'optimize') {
       return null;
@@ -291,9 +344,6 @@ export function PlanPage() {
 
     if (
       selectedAutoLayoutCandidate &&
-      !rejectedAutoLayoutCandidateIds.includes(
-        selectedAutoLayoutCandidate.id,
-      ) &&
       !snoozedAutoLayoutCandidateIds.includes(selectedAutoLayoutCandidate.id)
     ) {
       return buildAutoLayoutProposalDiffOverlay({
@@ -312,7 +362,6 @@ export function PlanPage() {
     activeSunLayer,
     garden,
     planWarnings,
-    rejectedAutoLayoutCandidateIds,
     selectedAutoLayoutCandidate,
     snoozedAutoLayoutCandidateIds,
     sunSeason,
@@ -328,6 +377,28 @@ export function PlanPage() {
           })
         : null,
     [acknowledgedWarningIds, garden, planWarnings, suggestionDecisions],
+  );
+
+  useEffect(() => {
+    setLayoutReviewState({
+      problems: layoutProblemResolutionModel.problems,
+      resolutionOptions: layoutProblemResolutionModel.resolutionOptions,
+      resolutions: layoutProblemResolutionModel.resolutions,
+      selectedProblemId: selectedLayoutProblemId,
+      selectedVariantId: selectedAutoLayoutCandidateId,
+      variants: layoutProblemResolutionModel.variants,
+    });
+  }, [
+    layoutProblemResolutionModel.problems,
+    layoutProblemResolutionModel.resolutionOptions,
+    layoutProblemResolutionModel.resolutions,
+    layoutProblemResolutionModel.variants,
+    selectedAutoLayoutCandidateId,
+    selectedLayoutProblemId,
+    setLayoutReviewState,
+  ]);
+  const reviewProblemCount = countCurrentOpenLayoutProblems(
+    layoutProblemResolutionModel,
   );
   const successionRecommendations = useMemo(
     () => (garden ? buildSuccessionRecommendations(garden) : []),
@@ -360,6 +431,10 @@ export function PlanPage() {
       yFt: garden.plot.depthFt / 2,
     });
   }, [activeSunLayer, garden]);
+
+  useEffect(() => {
+    setLocationMatchSunExposure(nextPlacementSunArea?.exposure ?? null);
+  }, [nextPlacementSunArea?.exposure, setLocationMatchSunExposure]);
 
   useEffect(() => {
     setAcknowledgedWarningIds((currentIds) =>
@@ -397,8 +472,26 @@ export function PlanPage() {
   useEffect(() => {
     if (!selectedItem) {
       setSelectedItems([]);
+      setPlantLabelVisibility({ groupIds: [], mode: 'auto' });
+
+      if (!detailedViewState.isOpen) {
+        closePlantGroupEditor();
+      }
     }
-  }, [selectedItem]);
+  }, [
+    closePlantGroupEditor,
+    detailedViewState.isOpen,
+    selectedItem,
+    setPlantLabelVisibility,
+  ]);
+
+  useEffect(() => {
+    if (selectedItem?.type !== 'planting') {
+      return;
+    }
+
+    setPlantLabelVisibility({ groupIds: [selectedItem.id], mode: 'auto' });
+  }, [selectedItem, setPlantLabelVisibility]);
 
   useEffect(() => {
     if (!garden || !routeTargetId) {
@@ -470,27 +563,14 @@ export function PlanPage() {
   }, [activeMode, selectedItem]);
 
   const selectedPlantIds = useMemo(
-    () =>
-      selectedItems.flatMap((item) => {
-        if (item.type !== 'planting') {
-          return [];
-        }
-
-        if (item.instanceId) {
-          return [`${item.id}:${item.instanceId}`];
-        }
-
-        const planting = garden?.plantings.find(
-          (candidate) => candidate.id === item.id,
-        );
-
-        return planting
-          ? getPlantingInstances(planting).map(
-              (instance) => `${planting.id}:${instance.id}`,
-            )
-          : [item.id];
-      }),
-    [garden?.plantings, selectedItems],
+    () => [
+      ...new Set(
+        selectedItems
+          .filter((item) => item.type === 'planting')
+          .map((item) => item.id),
+      ),
+    ],
+    [selectedItems],
   );
   const selectedStructureIds = useMemo(
     () =>
@@ -498,6 +578,73 @@ export function PlanPage() {
         .filter((item) => item.type === 'structure')
         .map((item) => item.id),
     [selectedItems],
+  );
+  const visiblePlantLabelIds = useMemo(() => {
+    if (!garden || labelVisibility.mode === 'hidden') {
+      return [];
+    }
+
+    if (labelVisibility.mode === 'visible') {
+      return garden.plantings.map((planting) => planting.id);
+    }
+
+    return [...new Set(labelVisibility.groupIds)];
+  }, [garden, labelVisibility]);
+
+  const syncTransientPlantInteraction = useCallback(
+    (nextSelection: PlanItemRef[], primaryItem: SelectedGardenItem | null) => {
+      const labelGroupIds = nextSelection.flatMap((item) =>
+        item.type === 'planting' ? [item.id] : [],
+      );
+      const nextPrimaryPlantId =
+        primaryItem?.type === 'planting' ? primaryItem.id : null;
+
+      setHoveredPlantGroupId(null);
+      setPlantLabelVisibility({
+        groupIds: [...new Set(labelGroupIds)],
+        mode: 'auto',
+      });
+
+      if (detailedViewState.isOpen && primaryItem) {
+        openDetailedViewForItem(primaryItem);
+
+        if (primaryItem.type === 'planting') {
+          setIsContextPanelOpen(false);
+          openPlantGroupEditor(primaryItem.id, 'detailedView', {
+            tab: plantEditorState.tab,
+          });
+          return;
+        }
+
+        closePlantGroupEditor();
+        setIsContextPanelOpen(true);
+        return;
+      }
+
+      if (
+        !detailedViewState.isOpen &&
+        plantEditorState.isOpen &&
+        plantEditorState.groupId !== nextPrimaryPlantId
+      ) {
+        closePlantGroupEditor();
+
+        if (activeMode === 'select') {
+          setIsContextPanelOpen(false);
+        }
+      }
+    },
+    [
+      activeMode,
+      closePlantGroupEditor,
+      detailedViewState.isOpen,
+      openDetailedViewForItem,
+      openPlantGroupEditor,
+      plantEditorState.groupId,
+      plantEditorState.isOpen,
+      plantEditorState.tab,
+      setHoveredPlantGroupId,
+      setPlantLabelVisibility,
+    ],
   );
 
   const handleSelectItem = useCallback(
@@ -509,10 +656,11 @@ export function PlanPage() {
         const primaryItem = nextSelection.at(-1) ?? null;
 
         setSelectedItem(primaryItem);
+        syncTransientPlantInteraction(nextSelection, primaryItem);
         return nextSelection;
       });
     },
-    [setSelectedItem],
+    [setSelectedItem, syncTransientPlantInteraction],
   );
 
   const handleMarqueeSelect = useCallback(
@@ -521,12 +669,26 @@ export function PlanPage() {
         const nextSelection = additive
           ? mergeSelection(currentSelection, items)
           : items;
+        const primaryItem = nextSelection.at(-1) ?? null;
 
-        setSelectedItem(nextSelection.at(-1) ?? null);
+        if (nextSelection.length === 0 && detailedViewState.isOpen) {
+          setHoveredPlantGroupId(null);
+          setPlantLabelVisibility({ groupIds: [], mode: 'auto' });
+          return currentSelection;
+        }
+
+        setSelectedItem(primaryItem);
+        syncTransientPlantInteraction(nextSelection, primaryItem);
         return nextSelection;
       });
     },
-    [setSelectedItem],
+    [
+      detailedViewState.isOpen,
+      setHoveredPlantGroupId,
+      setPlantLabelVisibility,
+      setSelectedItem,
+      syncTransientPlantInteraction,
+    ],
   );
 
   const handleDeleteSelection = useCallback(() => {
@@ -590,14 +752,158 @@ export function PlanPage() {
     [selectedItem],
   );
 
+  const handleAddPlantPreviewChange = useCallback(
+    (request: AddPlantingRequest | null) => {
+      setAddPlantPreview(
+        garden && request ? createAddPlantingPreview(garden, request) : null,
+      );
+    },
+    [garden],
+  );
+
+  const handleCloseAddPlantModal = useCallback(() => {
+    setAddPlantPreview(null);
+    setIsAddPlantOpen(false);
+  }, []);
+
   const handleOpenInspector = useCallback(() => {
     if (!selectedItem) {
       return;
     }
 
     setActiveMode('select');
+
+    if (
+      selectedItem.type === 'planting' &&
+      detailedViewState.isOpen &&
+      detailedViewState.subject?.type === 'plantGroup' &&
+      detailedViewState.subject.groupId === selectedItem.id
+    ) {
+      closeDetailedView();
+      closePlantGroupEditor();
+      setPlantLabelVisibility({ groupIds: [], mode: 'auto' });
+      return;
+    }
+
+    if (
+      selectedItem.type === 'structure' &&
+      detailedViewState.isOpen &&
+      detailedViewState.subject?.type === 'structure' &&
+      detailedViewState.subject.structureId === selectedItem.id
+    ) {
+      closeDetailedView();
+      setIsContextPanelOpen(false);
+      return;
+    }
+
+    openDetailedViewForItem(selectedItem);
+
+    if (selectedItem.type === 'planting') {
+      setIsContextPanelOpen(false);
+      showPlantGroupLabel(selectedItem.id);
+      openPlantGroupEditor(selectedItem.id, 'detailedView', { tab: 'summary' });
+      return;
+    }
+
     setIsContextPanelOpen(true);
-  }, [selectedItem]);
+  }, [
+    closeDetailedView,
+    closePlantGroupEditor,
+    detailedViewState.isOpen,
+    detailedViewState.subject,
+    openDetailedViewForItem,
+    openPlantGroupEditor,
+    selectedItem,
+    setPlantLabelVisibility,
+    showPlantGroupLabel,
+  ]);
+
+  const handleOpenPlantGroupEditor = useCallback(
+    (plantId: string) => {
+      const item = { id: plantId, type: 'planting' as const };
+
+      setActiveMode('select');
+      setIsContextPanelOpen(false);
+      setSelectedItems([item]);
+      setSelectedItem(item);
+      showPlantGroupLabel(plantId);
+
+      if (detailedViewState.isOpen) {
+        openDetailedViewForItem(item);
+        openPlantGroupEditor(plantId, 'detailedView', { tab: 'summary' });
+        return;
+      }
+
+      closeDetailedView();
+      openPlantGroupEditor(plantId, 'wrench', { tab: 'summary' });
+    },
+    [
+      closeDetailedView,
+      detailedViewState.isOpen,
+      openDetailedViewForItem,
+      openPlantGroupEditor,
+      setSelectedItem,
+      showPlantGroupLabel,
+    ],
+  );
+
+  const handleClosePlantEditor = useCallback(() => {
+    closePlantGroupEditor();
+    setIsContextPanelOpen(false);
+    setPlantLabelVisibility({ groupIds: [], mode: 'auto' });
+
+    if (detailedViewState.subject?.type === 'plantGroup') {
+      closeDetailedView();
+    }
+  }, [
+    closeDetailedView,
+    closePlantGroupEditor,
+    detailedViewState.subject,
+    setPlantLabelVisibility,
+  ]);
+
+  const handleDeleteFromPlantEditor = useCallback(() => {
+    handleDeleteSelection();
+    closePlantGroupEditor();
+    closeDetailedView();
+    setPlantLabelVisibility({ groupIds: [], mode: 'auto' });
+    setIsContextPanelOpen(false);
+  }, [
+    closeDetailedView,
+    closePlantGroupEditor,
+    handleDeleteSelection,
+    setPlantLabelVisibility,
+  ]);
+
+  const handleDuplicateFromPlantEditor = useCallback(
+    (plantId: string) => {
+      const duplicateId = duplicatePlanting(plantId);
+
+      if (!duplicateId) {
+        return;
+      }
+
+      const item = { id: duplicateId, type: 'planting' as const };
+      setSelectedItems([item]);
+      setSelectedItem(item);
+      showPlantGroupLabel(duplicateId);
+      if (plantEditorState.source === 'detailedView') {
+        openDetailedViewForItem(item);
+      }
+      openPlantGroupEditor(duplicateId, plantEditorState.source ?? 'wrench', {
+        tab: plantEditorState.tab,
+      });
+    },
+    [
+      duplicatePlanting,
+      openDetailedViewForItem,
+      openPlantGroupEditor,
+      plantEditorState.source,
+      plantEditorState.tab,
+      setSelectedItem,
+      showPlantGroupLabel,
+    ],
+  );
 
   const handleCloseCropFocus = useCallback(() => {
     if (cropFocusSummary) {
@@ -607,7 +913,9 @@ export function PlanPage() {
 
   const handleCloseContextPanel = useCallback(() => {
     setIsContextPanelOpen(false);
-  }, []);
+    closeDetailedView();
+    closePlantGroupEditor();
+  }, [closeDetailedView, closePlantGroupEditor]);
 
   const handleAlignSelection = useCallback(
     (alignment: PlanAlignment) => {
@@ -742,9 +1050,21 @@ export function PlanPage() {
     }
   }
 
+  function handleOpenReviewProblems() {
+    setActiveMode('optimize');
+    setIsContextPanelOpen(true);
+  }
+
+  function handleOpenSunMode() {
+    setActiveMode('sun');
+    setShowSunOverlay(true);
+    setIsContextPanelOpen(true);
+  }
+
   function handleSelectAutoLayoutCandidate(candidateId: string) {
     setSelectedAutoLayoutCandidateId(candidateId);
     setActiveReviewSuggestionId(null);
+    selectLayoutVariant(candidateId);
   }
 
   async function handleGenerateAutoLayouts(sourceGarden = garden) {
@@ -755,8 +1075,7 @@ export function PlanPage() {
     }
 
     setOptimizerStatus('running');
-    setOptimizerMessage('Generating layouts...');
-    setRejectedAutoLayoutCandidateIds([]);
+    setOptimizerMessage('Checking layout variants...');
     setSnoozedAutoLayoutCandidateIds([]);
     setActiveReviewSuggestionId(null);
 
@@ -764,11 +1083,15 @@ export function PlanPage() {
       const { generateAutoLayoutCandidates } =
         await import('./autoLayoutEngine');
       const candidates = generateAutoLayoutCandidates(sourceGarden, {
+        ignoredWarningIds: acknowledgedWarningIds,
         sunLayer: activeSunLayer,
+        sunSeason,
       });
+      const nextCandidateId = candidates[0]?.id ?? null;
 
       setAutoLayoutCandidates(candidates);
-      setSelectedAutoLayoutCandidateId(candidates[0]?.id ?? null);
+      setSelectedAutoLayoutCandidateId(nextCandidateId);
+      selectLayoutVariant(nextCandidateId);
 
       if (candidates.length === 0) {
         const hasLayoutRequests =
@@ -778,18 +1101,19 @@ export function PlanPage() {
         setOptimizerMessage(
           hasLayoutRequests
             ? 'No legal layouts found. Check quantities, supports, and anchored crops.'
-            : 'Choose plants before optimizing layouts.',
+            : 'Add plants before optimizing layouts.',
         );
         return;
       }
 
       setOptimizerStatus('ready');
       setOptimizerMessage(
-        `${candidates.length} layouts ready. Preview before applying.`,
+        `${candidates.length} checked variant${candidates.length === 1 ? '' : 's'} ready. Compare before applying.`,
       );
     } catch (generationError) {
       setAutoLayoutCandidates([]);
       setSelectedAutoLayoutCandidateId(null);
+      selectLayoutVariant(null);
       setOptimizerStatus('error');
       setOptimizerMessage(
         generationError instanceof Error
@@ -803,28 +1127,36 @@ export function PlanPage() {
     const selectedCandidate = autoLayoutCandidates.find(
       (candidate) => candidate.id === selectedAutoLayoutCandidateId,
     );
+    const selectedVariant = layoutProblemResolutionModel.variants.find(
+      (variant) => variant.id === selectedAutoLayoutCandidateId,
+    );
 
     if (!selectedCandidate) {
       setOptimizerStatus('error');
-      setOptimizerMessage('Select a layout first.');
-      return;
-    }
-
-    if (rejectedAutoLayoutCandidateIds.includes(selectedCandidate.id)) {
-      setOptimizerStatus('error');
-      setOptimizerMessage('Rejected layouts cannot be applied.');
+      setOptimizerMessage('Select a checked variant first.');
       return;
     }
 
     if (snoozedAutoLayoutCandidateIds.includes(selectedCandidate.id)) {
       setOptimizerStatus('error');
-      setOptimizerMessage('Snoozed layouts cannot be applied.');
+      setOptimizerMessage('Ignored variants cannot be applied.');
+      return;
+    }
+
+    if (selectedVariant?.downstreamValidation.status === 'failed') {
+      setOptimizerStatus('error');
+      setOptimizerMessage(
+        selectedVariant.downstreamValidation.message ??
+          'This variant still has unresolved must-fix problems.',
+      );
       return;
     }
 
     if (selectedCandidate.hardConstraintViolations.length > 0) {
       setOptimizerStatus('error');
-      setOptimizerMessage('Resolve hard constraints before applying.');
+      setOptimizerMessage(
+        'Resolve hard constraints before applying a variant.',
+      );
       return;
     }
 
@@ -834,65 +1166,24 @@ export function PlanPage() {
     );
     recordSuggestionDecision({
       id: getAutoLayoutReviewSuggestionId(selectedCandidate.id),
-      label: `Use ${selectedCandidate.label} layout`,
+      label: `Use ${selectedCandidate.label} variant`,
       note: selectedCandidate.explanations[0] ?? null,
       status: 'accepted',
     });
     setOptimizerStatus('applied');
     setOptimizerMessage(
-      `${selectedCandidate.label} applied to the draft. Review before publishing.`,
+      `${selectedCandidate.label} variant applied to the draft. Review before publishing.`,
     );
   }
 
-  function handleRejectAutoLayoutCandidate(candidateId: string) {
-    const rejectedCandidate = autoLayoutCandidates.find(
+  function handleIgnoreAutoLayoutCandidate(candidateId: string) {
+    const ignoredCandidate = autoLayoutCandidates.find(
       (candidate) => candidate.id === candidateId,
     );
 
-    if (!rejectedCandidate) {
+    if (!ignoredCandidate) {
       setOptimizerStatus('error');
-      setOptimizerMessage('That layout candidate is no longer available.');
-      return;
-    }
-
-    setRejectedAutoLayoutCandidateIds((ids) =>
-      ids.includes(candidateId) ? ids : [...ids, candidateId],
-    );
-    recordSuggestionDecision({
-      id: getAutoLayoutReviewSuggestionId(candidateId),
-      label: `Reject ${rejectedCandidate.label} layout`,
-      note:
-        rejectedCandidate.tradeoffs[0] ??
-        rejectedCandidate.explanations[0] ??
-        null,
-      status: 'rejected',
-    });
-
-    if (selectedAutoLayoutCandidateId === candidateId) {
-      const nextCandidate = autoLayoutCandidates.find(
-        (candidate) =>
-          candidate.id !== candidateId &&
-          !rejectedAutoLayoutCandidateIds.includes(candidate.id) &&
-          !snoozedAutoLayoutCandidateIds.includes(candidate.id),
-      );
-
-      setSelectedAutoLayoutCandidateId(nextCandidate?.id ?? null);
-    }
-
-    setOptimizerStatus('ready');
-    setOptimizerMessage(
-      `${rejectedCandidate.label} rejected. Select another proposal or generate again.`,
-    );
-  }
-
-  function handleSnoozeAutoLayoutCandidate(candidateId: string) {
-    const snoozedCandidate = autoLayoutCandidates.find(
-      (candidate) => candidate.id === candidateId,
-    );
-
-    if (!snoozedCandidate) {
-      setOptimizerStatus('error');
-      setOptimizerMessage('That layout candidate is no longer available.');
+      setOptimizerMessage('That checked variant is no longer available.');
       return;
     }
 
@@ -901,10 +1192,10 @@ export function PlanPage() {
     );
     recordSuggestionDecision({
       id: getAutoLayoutReviewSuggestionId(candidateId),
-      label: `Snooze ${snoozedCandidate.label} layout`,
+      label: `Ignore ${ignoredCandidate.label} variant`,
       note:
-        snoozedCandidate.tradeoffs[0] ??
-        snoozedCandidate.explanations[0] ??
+        ignoredCandidate.tradeoffs[0] ??
+        ignoredCandidate.explanations[0] ??
         null,
       status: 'snoozed',
     });
@@ -913,16 +1204,16 @@ export function PlanPage() {
       const nextCandidate = autoLayoutCandidates.find(
         (candidate) =>
           candidate.id !== candidateId &&
-          !rejectedAutoLayoutCandidateIds.includes(candidate.id) &&
           !snoozedAutoLayoutCandidateIds.includes(candidate.id),
       );
 
       setSelectedAutoLayoutCandidateId(nextCandidate?.id ?? null);
+      selectLayoutVariant(nextCandidate?.id ?? null);
     }
 
     setOptimizerStatus('ready');
     setOptimizerMessage(
-      `${snoozedCandidate.label} snoozed for this draft. Select another proposal or generate again.`,
+      `${ignoredCandidate.label} ignored for this draft. Select another checked variant or generate again.`,
     );
   }
 
@@ -930,30 +1221,14 @@ export function PlanPage() {
     acceptReviewSuggestion(suggestion);
     markSuggestionWarningAcknowledged(suggestion);
     setActiveReviewSuggestionId((id) => (id === suggestion.id ? null : id));
+    setSelectedLayoutProblemId(null);
   }
 
-  function handleAcceptReviewBatch(suggestions: ReviewSuggestion[]) {
-    acceptReviewSuggestions(suggestions);
-
-    for (const suggestion of suggestions) {
-      markSuggestionWarningAcknowledged(suggestion);
-    }
-
-    setActiveReviewSuggestionId((id) =>
-      suggestions.some((suggestion) => suggestion.id === id) ? null : id,
-    );
-  }
-
-  function handleRejectReviewSuggestion(suggestion: ReviewSuggestion) {
-    rejectReviewSuggestion(suggestion);
-    markSuggestionWarningAcknowledged(suggestion);
-    setActiveReviewSuggestionId((id) => (id === suggestion.id ? null : id));
-  }
-
-  function handleSnoozeReviewSuggestion(suggestion: ReviewSuggestion) {
+  function handleIgnoreReviewSuggestion(suggestion: ReviewSuggestion) {
     snoozeReviewSuggestion(suggestion);
     markSuggestionWarningAcknowledged(suggestion);
     setActiveReviewSuggestionId((id) => (id === suggestion.id ? null : id));
+    setSelectedLayoutProblemId(null);
   }
 
   function handlePreviewReviewSuggestion(suggestion: ReviewSuggestion) {
@@ -962,14 +1237,79 @@ export function PlanPage() {
     setActiveReviewSuggestionId(suggestion.id);
   }
 
-  function handleJumpToSuggestion(suggestion: ReviewSuggestion) {
-    handlePreviewReviewSuggestion(suggestion);
+  function handleSelectLayoutProblem(problemId: string | null) {
+    setSelectedLayoutProblemId(problemId);
+    setActiveReviewSuggestionId(null);
+    selectLayoutProblem(problemId);
+  }
+
+  function handleApplyResolutionOption(option: LayoutResolutionOption) {
+    const suggestion = getSuggestionForResolutionOption(option);
+
+    if (!suggestion) {
+      recordSuggestionDecision({
+        id: option.id,
+        label: option.label,
+        note: option.description,
+        status: 'snoozed',
+      });
+      setSelectedLayoutProblemId(null);
+      return;
+    }
+
+    handleAcceptReviewSuggestion(suggestion);
+  }
+
+  function handlePreviewResolutionOption(option: LayoutResolutionOption) {
+    setSelectedLayoutProblemId(option.problemId);
+    selectLayoutProblem(option.problemId);
+
+    const suggestion = getSuggestionForResolutionOption(option);
+
+    if (suggestion) {
+      handlePreviewReviewSuggestion(suggestion);
+    }
+  }
+
+  function handleIgnoreProblem(problem: LayoutProblem) {
+    const suggestions = layoutProblemResolutionModel.resolutionOptions
+      .filter(
+        (option) =>
+          option.problemId === problem.id &&
+          !option.actions.some((action) => action.type === 'useLayoutVariant'),
+      )
+      .flatMap((option) => {
+        const suggestion = getSuggestionForResolutionOption(option);
+        return suggestion ? [suggestion] : [];
+      });
+
+    if (suggestions.length > 0) {
+      for (const suggestion of suggestions) {
+        handleIgnoreReviewSuggestion(suggestion);
+      }
+    } else {
+      acknowledgeProblemWarning(problem);
+      recordSuggestionDecision({
+        id: problem.id,
+        label: `Ignore ${problem.title}`,
+        note: problem.description,
+        status: 'snoozed',
+      });
+    }
+
+    setSelectedLayoutProblemId(null);
+    selectLayoutProblem(null);
+  }
+
+  function handleJumpToProblem(problem: LayoutProblem) {
+    handleSelectLayoutProblem(problem.id);
 
     if (!garden) {
       return;
     }
 
-    const selection = getSelectionForItemIds(garden, suggestion.itemIds);
+    const targetIds = problem.targets.map((target) => target.id);
+    const selection = getSelectionForItemIds(garden, targetIds);
 
     if (selection) {
       setSelectedItems([selection]);
@@ -1011,6 +1351,26 @@ export function PlanPage() {
 
     setAcknowledgedWarningIds((ids) =>
       ids.includes(warningId) ? ids : [...ids, warningId],
+    );
+  }
+
+  function acknowledgeProblemWarning(problem: LayoutProblem) {
+    const warningId = getWarningIdFromLayoutProblem(problem);
+
+    if (!warningId) {
+      return;
+    }
+
+    setAcknowledgedWarningIds((ids) =>
+      ids.includes(warningId) ? ids : [...ids, warningId],
+    );
+  }
+
+  function getSuggestionForResolutionOption(option: LayoutResolutionOption) {
+    return (
+      reviewSuggestions.find(
+        (suggestion) => suggestion.id === option.sourceId,
+      ) ?? null
     );
   }
 
@@ -1083,23 +1443,48 @@ export function PlanPage() {
     }
   }
 
+  const plantEditorPlant =
+    plantEditorState.isOpen && plantEditorState.groupId
+      ? (garden.plantings.find(
+          (planting) => planting.id === plantEditorState.groupId,
+        ) ?? null)
+      : null;
+  const plantEditorWarnings = plantEditorPlant
+    ? inspectorPlanWarnings.filter((warning) =>
+        warning.itemIds.includes(plantEditorPlant.id),
+      )
+    : [];
+  const isPlantEditorDetailedView =
+    Boolean(plantEditorPlant) &&
+    detailedViewState.isOpen &&
+    detailedViewState.subject?.type === 'plantGroup' &&
+    detailedViewState.subject.groupId === plantEditorPlant?.id;
   const contextPanelState =
-    activeMode !== 'select' ? 'mode' : selectedItem ? 'inspector' : null;
+    activeMode !== 'select'
+      ? 'mode'
+      : selectedItem?.type === 'structure'
+        ? 'inspector'
+        : null;
   const sidePanelState = isContextPanelOpen ? contextPanelState : null;
 
   return (
     <section className={styles.screen} data-route-shell="true">
       <div className={styles.routeChrome}>
         <PlanTopBar
+          activeMode={activeMode}
           canPublish={canPublish || dirty}
           dirty={dirty}
           garden={garden}
-          isOptimizeActive={activeMode === 'optimize'}
+          hasSelection={Boolean(selectedItem)}
+          isDetailedViewOpen={detailedViewState.isOpen}
           isOffline={isOffline}
-          onOpenChoosePlants={() => setIsChoosePlantsOpen(true)}
+          onAddPlants={() => setIsChoosePlantsOpen(true)}
+          onOpenDetails={handleOpenInspector}
           onOpenHistory={() => setIsHistoryOpen(true)}
           onOpenPlot={() => setIsPlotSettingsOpen(true)}
           onOptimize={handleOpenOptimizeMode}
+          onReviewProblems={handleOpenReviewProblems}
+          onSun={handleOpenSunMode}
           onPublish={() => {
             setPublishConflict(
               workspace?.draftIsStale
@@ -1115,6 +1500,7 @@ export function PlanPage() {
             setIsPublishOpen(true);
           }}
           onSave={() => void saveGarden()}
+          problemCount={reviewProblemCount}
           saveStatus={saveStatus}
           workspaceState={workspaceState}
         />
@@ -1162,11 +1548,7 @@ export function PlanPage() {
       >
         <PlanActionRail
           activeMode={activeMode}
-          hasSelection={Boolean(selectedItem)}
-          isPanelOpen={Boolean(sidePanelState)}
-          onOpenChoosePlants={() => setIsChoosePlantsOpen(true)}
-          onOpenInspector={handleOpenInspector}
-          onOptimize={handleOpenOptimizeMode}
+          avoidFocusCard={Boolean(visibleCropFocusSummary)}
           setActiveMode={handleSetActiveMode}
         />
 
@@ -1177,6 +1559,7 @@ export function PlanPage() {
             draggingStructureId={pointerInteractions.draggingStructureId}
             garden={garden}
             focusedCropKey={focusedCropKey}
+            hoveredPlantGroupId={hoveredPlantGroupId}
             influenceOverlay={visibleInfluenceOverlay}
             manualSunEdit={manualSunEdit}
             manualSunExposure={manualSunExposure}
@@ -1186,6 +1569,10 @@ export function PlanPage() {
             onMarqueePointerEnd={pointerInteractions.handleMarqueePointerEnd}
             onMarqueePointerMove={pointerInteractions.handleMarqueePointerMove}
             onPaintSunShadeCell={paintSunShadeCell}
+            onPlantEditorOpen={handleOpenPlantGroupEditor}
+            onPlantHoverChange={setHoveredPlantGroupId}
+            onPlantLabelHide={hidePlantGroupLabel}
+            onPlantLabelShow={showPlantGroupLabel}
             onPlantPointerDown={pointerInteractions.handlePlantPointerDown}
             onPlantPointerEnd={pointerInteractions.handlePlantPointerEnd}
             onPlantPointerMove={pointerInteractions.handlePlantPointerMove}
@@ -1203,6 +1590,7 @@ export function PlanPage() {
             onStructurePointerMove={
               pointerInteractions.handleStructurePointerMove
             }
+            plantingPreview={addPlantPreview}
             planWarnings={activePlanWarnings}
             proposalDiffOverlay={proposalDiffOverlay}
             plotRef={pointerInteractions.plotRef}
@@ -1212,6 +1600,7 @@ export function PlanPage() {
             showSunOverlay={showSunOverlay}
             snapGuides={pointerInteractions.snapGuides}
             sunSeason={sunSeason}
+            visiblePlantLabelIds={visiblePlantLabelIds}
           />
           {visibleCropFocusSummary ? (
             <PlanCropFocusCard
@@ -1251,7 +1640,6 @@ export function PlanPage() {
                 <>
                   <PlanModeDrawer
                     activeSunLayer={activeSunLayer}
-                    garden={garden}
                     manualSunEdit={manualSunEdit}
                     manualSunExposure={manualSunExposure}
                     mode={activeMode}
@@ -1268,26 +1656,25 @@ export function PlanPage() {
                       });
                     }}
                     onClose={handleCloseContextPanel}
-                    onAcceptReviewBatch={handleAcceptReviewBatch}
-                    onAcceptReviewSuggestion={handleAcceptReviewSuggestion}
+                    activeProblemId={selectedLayoutProblemId}
+                    layoutProblemResolutionModel={layoutProblemResolutionModel}
+                    onApplyResolutionOption={handleApplyResolutionOption}
                     onDismissHealthIssue={handleDismissHealthIssue}
                     onGenerateAutoLayoutCandidates={() =>
                       void handleGenerateAutoLayouts()
                     }
+                    onIgnoreProblem={handleIgnoreProblem}
                     onJumpToHealthIssue={handleJumpToHealthIssue}
-                    onJumpToSuggestion={handleJumpToSuggestion}
-                    onPreviewReviewSuggestion={handlePreviewReviewSuggestion}
+                    onJumpToProblem={handleJumpToProblem}
+                    onPreviewResolutionOption={handlePreviewResolutionOption}
                     onRecalculateSun={recalculateSunShade}
-                    onRejectReviewSuggestion={handleRejectReviewSuggestion}
                     onRestoreWarning={(warningId) =>
                       setAcknowledgedWarningIds((ids) =>
                         ids.filter((id) => id !== warningId),
                       )
                     }
-                    onSnoozeReviewSuggestion={handleSnoozeReviewSuggestion}
+                    onSelectProblem={handleSelectLayoutProblem}
                     planHealthReport={planHealthReport}
-                    activeReviewSuggestionId={activeReviewSuggestionId}
-                    reviewSuggestions={reviewSuggestions}
                     setManualSunEdit={setManualSunEdit}
                     setManualSunExposure={setManualSunExposure}
                     setAccessiblePathDefaults={setAccessiblePathDefaults}
@@ -1297,7 +1684,6 @@ export function PlanPage() {
                     showSunOverlay={showSunOverlay}
                     accessiblePathDefaults={accessiblePathDefaults}
                     structureType={structureType}
-                    suggestionDecisions={suggestionDecisions}
                     sunSeason={sunSeason}
                   />
                   {activeMode === 'optimize' ? (
@@ -1314,27 +1700,22 @@ export function PlanPage() {
                       onGenerateAutoLayoutCandidates={() =>
                         void handleGenerateAutoLayouts()
                       }
-                      onRejectAutoLayoutCandidate={
-                        handleRejectAutoLayoutCandidate
+                      ignoredAutoLayoutCandidateIds={
+                        snoozedAutoLayoutCandidateIds
+                      }
+                      layoutVariants={layoutProblemResolutionModel.variants}
+                      onIgnoreAutoLayoutCandidate={
+                        handleIgnoreAutoLayoutCandidate
                       }
                       onRefresh={() => void handleRefreshOperations()}
                       onSelectAutoLayoutCandidate={
                         handleSelectAutoLayoutCandidate
                       }
-                      onSnoozeAutoLayoutCandidate={
-                        handleSnoozeAutoLayoutCandidate
-                      }
                       optimizerMessage={optimizerMessage}
                       optimizerStatus={optimizerStatus}
-                      rejectedAutoLayoutCandidateIds={
-                        rejectedAutoLayoutCandidateIds
-                      }
                       refreshError={operationsError}
                       selectedAutoLayoutCandidateId={
                         selectedAutoLayoutCandidateId
-                      }
-                      snoozedAutoLayoutCandidateIds={
-                        snoozedAutoLayoutCandidateIds
                       }
                       successionRecommendations={successionRecommendations}
                       sunLayer={activeSunLayer}
@@ -1375,6 +1756,23 @@ export function PlanPage() {
         ) : null}
       </div>
 
+      {plantEditorPlant ? (
+        <Suspense fallback={null}>
+          <PlantEditorSheet
+            garden={garden}
+            isDetailedViewPinned={isPlantEditorDetailedView}
+            onClose={handleClosePlantEditor}
+            onDeleteSelected={handleDeleteFromPlantEditor}
+            onDuplicatePlanting={handleDuplicateFromPlantEditor}
+            onUpdatePlanting={updatePlanting}
+            plant={plantEditorPlant}
+            sunLayer={activeSunLayer}
+            sunSeason={sunSeason}
+            warnings={plantEditorWarnings}
+          />
+        </Suspense>
+      ) : null}
+
       {isPlotSettingsOpen ? (
         <PlotSettingsModal
           geocodingApiKey={environment.geocodingApiKey}
@@ -1394,6 +1792,7 @@ export function PlanPage() {
             garden={garden}
             onAddPlant={(request) => {
               addPlant(request);
+              setAddPlantPreview(null);
               telemetryService.trackEvent('planting_added', {
                 crop_id: request.crop.id,
                 mode: request.mode,
@@ -1402,7 +1801,8 @@ export function PlanPage() {
               setActiveMode('select');
               setIsContextPanelOpen(false);
             }}
-            onClose={() => setIsAddPlantOpen(false)}
+            onClose={handleCloseAddPlantModal}
+            onPreviewChange={handleAddPlantPreviewChange}
             sunExposureAtPlacement={nextPlacementSunArea?.exposure ?? null}
             sunSeason={sunSeason}
           />
@@ -1439,7 +1839,7 @@ export function PlanPage() {
               setIsContextPanelOpen(true);
               void handleGenerateAutoLayouts(optimizedGarden);
             }}
-            sunExposureAtPlacement={nextPlacementSunArea?.exposure ?? null}
+            sunExposureAtPlacement={null}
           />
         </Suspense>
       ) : null}
@@ -1488,4 +1888,41 @@ function getSelectionForItemIds(
   }
 
   return null;
+}
+
+function countCurrentOpenLayoutProblems({
+  problems,
+  resolutionOptions,
+}: {
+  problems: LayoutProblem[];
+  resolutionOptions: LayoutResolutionOption[];
+}) {
+  const variantProblemIds = new Set(
+    resolutionOptions
+      .filter((option) =>
+        option.actions.some((action) => action.type === 'useLayoutVariant'),
+      )
+      .map((option) => option.problemId),
+  );
+
+  return problems.filter(
+    (problem) =>
+      problem.status === 'open' && !variantProblemIds.has(problem.id),
+  ).length;
+}
+
+function getWarningIdFromLayoutProblem(problem: LayoutProblem) {
+  const sourceId = problem.evidence
+    .map((entry) => entry.sourceId)
+    .find((id): id is string => Boolean(id));
+
+  if (sourceId?.startsWith('warning:')) {
+    return sourceId;
+  }
+
+  const warningPrefix = 'layout:problem:warning:';
+
+  return problem.id.startsWith(warningPrefix)
+    ? problem.id.slice(warningPrefix.length)
+    : null;
 }

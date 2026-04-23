@@ -20,7 +20,7 @@ test('allowlisted mock sign-in reaches and saves Plan', async ({ page }) => {
   await page.getByRole('button', { name: 'Open plant picker' }).click();
   await page.getByRole('searchbox', { name: 'Search crops' }).fill('tomato');
   await page.getByRole('button', { exact: true, name: 'Tomato crop' }).click();
-  await page.getByRole('button', { name: 'Add plant' }).click();
+  await page.getByRole('button', { exact: true, name: 'Add plant' }).click();
   await expect(
     page.getByRole('button', { name: 'Tomato at X: 6.0 ft, Y: 4.0 ft' }),
   ).toBeVisible();
@@ -48,31 +48,20 @@ test('allowlisted mock sign-in reaches and saves Plan', async ({ page }) => {
   ).toBeVisible();
   await openPlanTool(page, 'Structure');
   await page
-    .getByRole('combobox', { name: 'Garden support type' })
+    .getByRole('combobox', { name: 'Plot structure type' })
     .selectOption('trellis');
-  await page.getByRole('button', { name: 'Place garden support' }).click();
+  await page.getByRole('button', { name: 'Place structure' }).click();
   await expect(
     page.getByRole('button', { name: 'Trellis at X: 1.0 ft, Y: 1.0 ft' }),
   ).toBeVisible();
-  const trellisBox = await page
+  await page
     .getByRole('button', { name: 'Trellis at X: 1.0 ft, Y: 1.0 ft' })
-    .boundingBox();
-
-  if (!trellisBox) {
-    throw new Error('Expected trellis to have a visible bounding box.');
-  }
-
-  await page.mouse.move(
-    trellisBox.x + trellisBox.width / 2,
-    trellisBox.y + trellisBox.height / 2,
-  );
-  await page.mouse.down();
-  await page.mouse.move(trellisBox.x - 96, trellisBox.y - 96);
-  await page.mouse.up();
+    .click();
+  await page.keyboard.press('Shift+ArrowLeft');
+  await page.keyboard.press('Shift+ArrowUp');
   await expect(
     page.getByRole('button', { name: 'Trellis at X: 0.0 ft, Y: 0.0 ft' }),
   ).toBeVisible();
-  await openPlanTool(page, 'Select');
   await page.keyboard.press('Control+A');
   await expect(page.getByText('2 selected')).toBeVisible();
   await savePlan(page);
@@ -245,7 +234,7 @@ test('non-allowlisted email has no sign-in path', async ({ page }) => {
   ).toBeVisible();
 });
 
-test('Plan supports choose plants, generated proposals, publish, and revert', async ({
+test('Plan supports choose plants, checked variants, publish, and revert', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1365, height: 768 });
@@ -255,7 +244,9 @@ test('Plan supports choose plants, generated proposals, publish, and revert', as
 
   await expect(page.getByText('Draft differs')).toBeVisible();
   await expect(
-    page.getByRole('button', { name: /Tomato(?: \d+)? at X:/ }).first(),
+    page
+      .getByRole('button', { name: /Tomato(?: group, \d+ plants)? at X:/ })
+      .first(),
   ).toBeVisible();
 
   await page.getByRole('button', { exact: true, name: 'Publish' }).click();

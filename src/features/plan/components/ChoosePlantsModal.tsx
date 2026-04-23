@@ -1,12 +1,20 @@
-import { useState } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 
 import { getCropById } from '../../../domain/crops/cropCatalog';
 import type {
   CropProfile,
   Garden,
+  PlantingMode,
   SeasonCropSelection,
   SunExposure,
 } from '../../../domain/gardens/GardenRepository';
+import {
+  closeOnBackdropMouseDown,
+  trapDialogFocus,
+  useDialogScrollLock,
+  useEscapeToClose,
+  useInitialDialogFocus,
+} from '../../shared/design/dialogDismiss';
 import { buildSeasonCropLayoutRequests } from '../seasonCropPlan';
 import { needsSeasonCropReview } from '../seasonCropFitDisplay';
 import sharedStyles from '../PlanModal.module.css';
@@ -22,6 +30,11 @@ import {
 type MobileTab = 'board' | 'compare' | 'library';
 const maxCompareCrops = 3;
 
+interface CompareCropSelection {
+  cropId: string;
+  quantity: number;
+}
+
 export function ChoosePlantsModal({
   garden,
   onClose,
@@ -35,11 +48,16 @@ export function ChoosePlantsModal({
   onSave(wantedCrops: SeasonCropSelection[]): void;
   sunExposureAtPlacement: SunExposure | null;
 }) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
   const [activeTab, setActiveTab] = useState<MobileTab>('library');
   const [selections, setSelections] = useState<SeasonCropSelection[]>(
     () => garden.seasonPlan.wantedCrops,
   );
-  const [compareCropIds, setCompareCropIds] = useState<string[]>([]);
+  const [compareSelections, setCompareSelections] = useState<
+    CompareCropSelection[]
+  >([]);
+  const compareCropIds = compareSelections.map((selection) => selection.cropId);
   const selectedCropIds = new Set(
     selections.map((selection) => selection.cropId),
   );
@@ -59,7 +77,7 @@ export function ChoosePlantsModal({
       ...draftGarden,
       seasonPlan: {
         ...draftGarden.seasonPlan,
-        wantedCrops: buildCompareSelections(compareCropIds),
+        wantedCrops: buildCompareSelections(compareSelections),
       },
     },
     sunExposureAtPlacement,
@@ -73,29 +91,59 @@ export function ChoosePlantsModal({
     needsSeasonCropReview(request.fit),
   ).length;
 
-  function addCrop(crop: CropProfile) {
+  useEscapeToClose(onClose);
+  useDialogScrollLock();
+  useInitialDialogFocus({
+    dialogRef,
+    initialFocusRef: closeButtonRef,
+  });
+
+  function handleDialogKeyDown(event: KeyboardEvent<HTMLElement>) {
+    trapDialogFocus(event, dialogRef.current);
+  }
+
+  function addCrop(
+    crop: CropProfile,
+    quantity = 1,
+    plantingForm?: PlantingMode,
+  ) {
     if (selectedCropIds.has(crop.id)) {
       return;
     }
 
     setSelections((currentSelections) => [
       ...currentSelections,
-      createSeasonCropSelection(crop),
+      createSeasonCropSelection(crop, quantity, plantingForm),
     ]);
   }
 
-  function toggleCompareCrop(crop: CropProfile) {
-    setCompareCropIds((currentCropIds) => {
-      if (currentCropIds.includes(crop.id)) {
-        return currentCropIds.filter((cropId) => cropId !== crop.id);
+  function toggleCompareCrop(crop: CropProfile, quantity = 1) {
+    setCompareSelections((currentSelections) => {
+      if (currentSelections.some((selection) => selection.cropId === crop.id)) {
+        return currentSelections.filter(
+          (selection) => selection.cropId !== crop.id,
+        );
       }
 
-      if (currentCropIds.length >= maxCompareCrops) {
-        return currentCropIds;
+      if (currentSelections.length >= maxCompareCrops) {
+        return currentSelections;
       }
 
-      return [...currentCropIds, crop.id];
+      return [
+        ...currentSelections,
+        { cropId: crop.id, quantity: coerceTargetQuantity(quantity) },
+      ];
     });
+  }
+
+  function updateCompareQuantity(crop: CropProfile, quantity: number) {
+    setCompareSelections((currentSelections) =>
+      currentSelections.map((selection) =>
+        selection.cropId === crop.id
+          ? { ...selection, quantity: coerceTargetQuantity(quantity) }
+          : selection,
+      ),
+    );
   }
 
   function handleSave() {
@@ -151,11 +199,16 @@ export function ChoosePlantsModal({
   }
 
   return (
-    <div className={`${sharedStyles.modalBackdrop} ${styles.backdrop}`}>
+    <div
+      className={`${sharedStyles.modalBackdrop} ${styles.backdrop}`}
+      onMouseDown={(event) => closeOnBackdropMouseDown(event, onClose)}
+    >
       <section
         aria-labelledby="choose-plants-title"
         aria-modal="true"
         className={`${sharedStyles.modal} ${styles.modal}`}
+        onKeyDown={handleDialogKeyDown}
+        ref={dialogRef}
         role="dialog"
       >
         <div className={`${sharedStyles.modalHeader} ${styles.header}`}>
@@ -174,9 +227,10 @@ export function ChoosePlantsModal({
             <span>{reviewCount} review</span>
           </div>
           <button
-            aria-label="Close"
+            aria-label="Close choose plants"
             className={sharedStyles.iconButton}
             onClick={onClose}
+            ref={closeButtonRef}
             type="button"
           >
             x
@@ -190,16 +244,26 @@ export function ChoosePlantsModal({
         >
           <TabButton
             activeTab={activeTab}
+            controlsId="choose-plants-library-panel"
+            id="choose-plants-library-tab"
             tab="library"
             onSelect={setActiveTab}
           >
             Library
           </TabButton>
-          <TabButton activeTab={activeTab} tab="board" onSelect={setActiveTab}>
+          <TabButton
+            activeTab={activeTab}
+            controlsId="choose-plants-board-panel"
+            id="choose-plants-board-tab"
+            tab="board"
+            onSelect={setActiveTab}
+          >
             Season Board
           </TabButton>
           <TabButton
             activeTab={activeTab}
+            controlsId="choose-plants-compare-panel"
+            id="choose-plants-compare-tab"
             tab="compare"
             onSelect={setActiveTab}
           >
@@ -208,18 +272,29 @@ export function ChoosePlantsModal({
         </div>
 
         <div className={styles.layout} data-active-tab={activeTab}>
-          <div className={`${styles.panelSlot} ${styles.librarySlot}`}>
+          <div
+            aria-labelledby="choose-plants-library-tab"
+            className={`${styles.panelSlot} ${styles.librarySlot}`}
+            id="choose-plants-library-panel"
+            role="tabpanel"
+          >
             <ChoosePlantsLibrary
               compareCropIds={compareCropIds}
               garden={garden}
               onAddCrop={addCrop}
+              onCompareQuantityChange={updateCompareQuantity}
               onToggleCompare={toggleCompareCrop}
               selectedCropIds={selectedCropIds}
               sunExposureAtPlacement={sunExposureAtPlacement}
             />
           </div>
 
-          <div className={`${styles.panelSlot} ${styles.boardSlot}`}>
+          <div
+            aria-labelledby="choose-plants-board-tab"
+            className={`${styles.panelSlot} ${styles.boardSlot}`}
+            id="choose-plants-board-panel"
+            role="tabpanel"
+          >
             <SeasonCropBoard
               garden={garden}
               layoutRequests={layoutRequests}
@@ -241,42 +316,52 @@ export function ChoosePlantsModal({
 
           <CropComparePanel
             explicitCompareCount={compareCropIds.length}
-            layoutRequests={
-              compareRequests.length > 0 ? compareRequests : layoutRequests
-            }
-            onClearCompare={() => setCompareCropIds([])}
+            garden={garden}
+            id="choose-plants-compare-panel"
+            layoutRequests={compareRequests}
+            onClearCompare={() => setCompareSelections([])}
+            sunExposureAtPlacement={sunExposureAtPlacement}
           />
         </div>
 
-        <div className={`${sharedStyles.modalActions} ${styles.footer}`}>
+        <footer className={styles.footer}>
           <p className={styles.footerSummary}>
             {layoutRequests.length} crops - {plantCount} plants - {reviewCount}{' '}
             review
           </p>
-          <button
-            className={sharedStyles.secondaryButton}
-            disabled={!hasSelections}
-            onClick={() => setSelections([])}
-            type="button"
-          >
-            Clear list
-          </button>
-          <button
-            className={sharedStyles.secondaryButton}
-            onClick={handleSave}
-            type="button"
-          >
-            Save list
-          </button>
-          <button
-            className={sharedStyles.primaryButton}
-            disabled={!hasSelections}
-            onClick={handleOptimize}
-            type="button"
-          >
-            Save + Optimize
-          </button>
-        </div>
+          <div className={styles.footerActions}>
+            <button
+              className={sharedStyles.secondaryButton}
+              onClick={onClose}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className={sharedStyles.secondaryButton}
+              disabled={!hasSelections}
+              onClick={() => setSelections([])}
+              type="button"
+            >
+              Clear list
+            </button>
+            <button
+              className={sharedStyles.secondaryButton}
+              onClick={handleSave}
+              type="button"
+            >
+              Save list
+            </button>
+            <button
+              className={sharedStyles.primaryButton}
+              disabled={!hasSelections}
+              onClick={handleOptimize}
+              type="button"
+            >
+              Save + Optimize
+            </button>
+          </div>
+        </footer>
       </section>
     </div>
   );
@@ -285,17 +370,23 @@ export function ChoosePlantsModal({
 function TabButton({
   activeTab,
   children,
+  controlsId,
+  id,
   onSelect,
   tab,
 }: {
   activeTab: MobileTab;
   children: string;
+  controlsId: string;
+  id: string;
   onSelect(tab: MobileTab): void;
   tab: MobileTab;
 }) {
   return (
     <button
+      aria-controls={controlsId}
       aria-selected={activeTab === tab}
+      id={id}
       onClick={() => onSelect(tab)}
       role="tab"
       type="button"
@@ -309,10 +400,10 @@ function coerceTargetQuantity(value: number) {
   return Math.max(1, Math.min(999, Math.round(value || 1)));
 }
 
-function buildCompareSelections(cropIds: string[]) {
-  return cropIds.flatMap((cropId): SeasonCropSelection[] => {
-    const crop = getCropById(cropId);
+function buildCompareSelections(compareSelections: CompareCropSelection[]) {
+  return compareSelections.flatMap((selection): SeasonCropSelection[] => {
+    const crop = getCropById(selection.cropId);
 
-    return crop ? [createSeasonCropSelection(crop)] : [];
+    return crop ? [createSeasonCropSelection(crop, selection.quantity)] : [];
   });
 }

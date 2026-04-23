@@ -93,11 +93,7 @@ export function usePlanKeyboardShortcuts({
 function getModeFromKey(key: string): PlanMode | null {
   const shortcuts: Record<string, PlanMode> = {
     b: 'structure',
-    m: 'measure',
-    o: 'optimize',
     p: 'plant',
-    s: 'sun',
-    v: 'select',
   };
 
   return shortcuts[key] ?? null;

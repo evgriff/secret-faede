@@ -1,135 +1,212 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
+import { filterCropCatalog } from '../../../domain/crops/cropCatalog';
 import {
-  cropCatalogFilterOptions,
-  filterCropCatalog,
-  type CropCatalogFilters,
-} from '../../../domain/crops/cropCatalog';
+  createPlantLocationContext,
+  scorePlantLocationMatch,
+} from '../../../domain/crops/plantLocationMatch';
 import type {
   CropProfile,
   Garden,
+  PlantingMode,
   SunExposure,
 } from '../../../domain/gardens/GardenRepository';
-import { CropResultFacts } from '../../garden/CropPickerPanels';
-import {
-  formatCropFamilyLine,
-  formatGlyph,
-  formatLabel,
-  getCropIconTone,
-} from '../../garden/cropPickerHelpers';
+import { coercePlantQuantity } from '../../garden/cropPickerHelpers';
 import { VirtualCropResultList } from '../../garden/VirtualCropResultList';
-import { getSeasonCropFitSignal } from '../seasonCropPlan';
-import sharedStyles from '../PlanModal.module.css';
+import {
+  ChoosePlantsFilters,
+  type CategoryFilter,
+  type LifecycleFilter,
+  type LocationMatchFilter,
+  type SunRequirementFilter,
+  type WaterNeedsFilter,
+} from './ChoosePlantsFilters';
+import { CropLibraryResult } from './ChoosePlantsLibraryResult';
 import styles from './ChoosePlantsModal.module.css';
-import { createSeasonCropSelection } from './choosePlantsSelection';
+import {
+  getQuantityFirstPlantingModes,
+  normalizeSeasonPlantingForm,
+} from './choosePlantsSelection';
+import { useChooserCardHeight } from './useChooserCardHeight';
 
-type CategoryFilter = NonNullable<CropCatalogFilters['category']>;
-type SunRequirementFilter = NonNullable<CropCatalogFilters['sunRequirement']>;
-type WaterNeedsFilter = NonNullable<CropCatalogFilters['waterNeeds']>;
+interface ChoosePlantsLibraryProps {
+  compareCropIds: string[];
+  garden: Garden;
+  onAddCrop: (
+    crop: CropProfile,
+    quantity?: number,
+    plantingForm?: PlantingMode,
+  ) => void;
+  onCompareQuantityChange: (crop: CropProfile, quantity: number) => void;
+  onToggleCompare: (crop: CropProfile, quantity?: number) => void;
+  selectedCropIds: Set<string>;
+  sunExposureAtPlacement: SunExposure | null;
+}
 
 export function ChoosePlantsLibrary({
   compareCropIds,
   garden,
   onAddCrop,
+  onCompareQuantityChange,
   onToggleCompare,
   selectedCropIds,
   sunExposureAtPlacement,
-}: {
-  compareCropIds: string[];
-  garden: Garden;
-  onAddCrop(crop: CropProfile): void;
-  onToggleCompare(crop: CropProfile): void;
-  selectedCropIds: Set<string>;
-  sunExposureAtPlacement: SunExposure | null;
-}) {
+}: ChoosePlantsLibraryProps) {
   const [category, setCategory] = useState<CategoryFilter>('any');
+  const [lifecycle, setLifecycle] = useState<LifecycleFilter>('any');
+  const [locationMatch, setLocationMatch] =
+    useState<LocationMatchFilter>('any');
   const [query, setQuery] = useState('');
   const [sunRequirement, setSunRequirement] =
     useState<SunRequirementFilter>('any');
   const [waterNeeds, setWaterNeeds] = useState<WaterNeedsFilter>('any');
-  const filteredCrops = useMemo(
+  const [quantityValuesByCropId, setQuantityValuesByCropId] = useState<
+    Record<string, string>
+  >({});
+  const [plantingModesByCropId, setPlantingModesByCropId] = useState<
+    Record<string, PlantingMode>
+  >({});
+  const [expandedCropId, setExpandedCropId] = useState<string | null>(null);
+  const itemHeightPx = useChooserCardHeight(expandedCropId !== null);
+  const locationContext = useMemo(
+    () =>
+      createPlantLocationContext({
+        climateProfile: garden.climateProfile,
+        location: garden.plot.location,
+      }),
+    [garden.climateProfile, garden.plot.location],
+  );
+  const catalogCrops = useMemo(
     () =>
       filterCropCatalog({
         category,
+        lifecycle,
         query,
         sunRequirement,
         waterNeeds,
       }),
-    [category, query, sunRequirement, waterNeeds],
+    [category, lifecycle, query, sunRequirement, waterNeeds],
   );
+  const filteredCrops = useMemo(
+    () =>
+      locationMatch === 'any'
+        ? catalogCrops
+        : catalogCrops.filter(
+            (crop) =>
+              scorePlantLocationMatch({
+                context: locationContext,
+                crop,
+                sunExposureAtPlacement,
+              }).band === locationMatch,
+          ),
+    [catalogCrops, locationContext, locationMatch, sunExposureAtPlacement],
+  );
+
+  useEffect(() => {
+    if (
+      expandedCropId &&
+      !filteredCrops.some((crop) => crop.id === expandedCropId)
+    ) {
+      setExpandedCropId(null);
+    }
+  }, [expandedCropId, filteredCrops]);
+
+  function getQuantity(crop: CropProfile) {
+    return coercePlantQuantity(getQuantityValue(crop));
+  }
+
+  function getMode(crop: CropProfile) {
+    return normalizeSeasonPlantingForm(
+      crop,
+      getQuantity(crop),
+      plantingModesByCropId[crop.id],
+    );
+  }
+
+  function getQuantityValue(crop: CropProfile) {
+    return quantityValuesByCropId[crop.id] ?? '1';
+  }
+
+  function updateQuantity(crop: CropProfile, value: string) {
+    const currentQuantity = getQuantity(crop);
+    const currentRecommendedMode = normalizeSeasonPlantingForm(
+      crop,
+      currentQuantity,
+    );
+    const currentMode = getMode(crop);
+    const quantity = coercePlantQuantity(value);
+    const nextRecommendedMode = normalizeSeasonPlantingForm(crop, quantity);
+    const nextModeOptions = getQuantityFirstPlantingModes(crop, quantity);
+
+    setQuantityValuesByCropId((currentQuantities) => ({
+      ...currentQuantities,
+      [crop.id]: value,
+    }));
+    setPlantingModesByCropId((currentModes) => {
+      if (
+        currentMode !== currentRecommendedMode &&
+        nextModeOptions.includes(currentMode)
+      ) {
+        return currentModes;
+      }
+
+      return {
+        ...currentModes,
+        [crop.id]: nextRecommendedMode,
+      };
+    });
+
+    if (compareCropIds.includes(crop.id)) {
+      onCompareQuantityChange(crop, quantity);
+    }
+  }
+
+  function normalizeQuantity(crop: CropProfile) {
+    const quantity = getQuantity(crop);
+
+    setQuantityValuesByCropId((currentQuantities) => ({
+      ...currentQuantities,
+      [crop.id]: String(quantity),
+    }));
+    setPlantingModesByCropId((currentModes) => ({
+      ...currentModes,
+      [crop.id]: normalizeSeasonPlantingForm(
+        crop,
+        quantity,
+        currentModes[crop.id],
+      ),
+    }));
+  }
+
+  function updateMode(crop: CropProfile, mode: PlantingMode) {
+    setPlantingModesByCropId((currentModes) => ({
+      ...currentModes,
+      [crop.id]: normalizeSeasonPlantingForm(crop, getQuantity(crop), mode),
+    }));
+  }
 
   return (
     <section className={styles.library} aria-label="Plant library">
-      <label className={sharedStyles.field}>
-        <span>Search plants</span>
-        <input
-          autoFocus
-          onChange={(event) => setQuery(event.currentTarget.value)}
-          type="search"
-          value={query}
-        />
-      </label>
-
-      <div className={styles.filters}>
-        <label className={sharedStyles.field}>
-          <span>Category</span>
-          <select
-            onChange={(event) =>
-              setCategory(event.currentTarget.value as CategoryFilter)
-            }
-            value={category}
-          >
-            <option value="any">Any</option>
-            {cropCatalogFilterOptions.categories.map((option) => (
-              <option key={option} value={option}>
-                {formatLabel(option)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className={sharedStyles.field}>
-          <span>Sun</span>
-          <select
-            onChange={(event) =>
-              setSunRequirement(
-                event.currentTarget.value as SunRequirementFilter,
-              )
-            }
-            value={sunRequirement}
-          >
-            <option value="any">Any</option>
-            {cropCatalogFilterOptions.sunRequirements.map((option) => (
-              <option key={option} value={option}>
-                {formatLabel(option)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className={sharedStyles.field}>
-          <span>Water</span>
-          <select
-            onChange={(event) =>
-              setWaterNeeds(event.currentTarget.value as WaterNeedsFilter)
-            }
-            value={waterNeeds}
-          >
-            <option value="any">Any</option>
-            {cropCatalogFilterOptions.waterNeeds.map((option) => (
-              <option key={option} value={option}>
-                {formatLabel(option)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <ChoosePlantsFilters
+        category={category}
+        lifecycle={lifecycle}
+        locationMatch={locationMatch}
+        onCategoryChange={setCategory}
+        onLifecycleChange={setLifecycle}
+        onLocationMatchChange={setLocationMatch}
+        onQueryChange={setQuery}
+        onSunRequirementChange={setSunRequirement}
+        onWaterNeedsChange={setWaterNeeds}
+        query={query}
+        sunRequirement={sunRequirement}
+        waterNeeds={waterNeeds}
+      />
 
       <VirtualCropResultList
         className={styles.results}
         crops={filteredCrops}
         empty={<p className={styles.emptyText}>No matching plants.</p>}
-        itemHeightPx={122}
+        itemHeightPx={itemHeightPx}
         renderCrop={(crop) => (
           <CropLibraryResult
             compareDisabled={
@@ -137,84 +214,27 @@ export function ChoosePlantsLibrary({
             }
             crop={crop}
             garden={garden}
+            isExpanded={expandedCropId === crop.id}
             isComparing={compareCropIds.includes(crop.id)}
             isSelected={selectedCropIds.has(crop.id)}
-            onAdd={() => onAddCrop(crop)}
-            onToggleCompare={() => onToggleCompare(crop)}
+            mode={getMode(crop)}
+            modeOptions={getQuantityFirstPlantingModes(crop, getQuantity(crop))}
+            onAdd={() => onAddCrop(crop, getQuantity(crop), getMode(crop))}
+            onModeChange={(mode) => updateMode(crop, mode)}
+            onQuantityBlur={() => normalizeQuantity(crop)}
+            onQuantityChange={(value) => updateQuantity(crop, value)}
+            onToggleExpanded={() =>
+              setExpandedCropId((currentCropId) =>
+                currentCropId === crop.id ? null : crop.id,
+              )
+            }
+            onToggleCompare={() => onToggleCompare(crop, getQuantity(crop))}
+            quantity={getQuantity(crop)}
+            quantityValue={getQuantityValue(crop)}
             sunExposureAtPlacement={sunExposureAtPlacement}
           />
         )}
       />
     </section>
-  );
-}
-
-function CropLibraryResult({
-  compareDisabled,
-  crop,
-  garden,
-  isComparing,
-  isSelected,
-  onAdd,
-  onToggleCompare,
-  sunExposureAtPlacement,
-}: {
-  compareDisabled: boolean;
-  crop: CropProfile;
-  garden: Garden;
-  isComparing: boolean;
-  isSelected: boolean;
-  onAdd(): void;
-  onToggleCompare(): void;
-  sunExposureAtPlacement: SunExposure | null;
-}) {
-  const fit = getSeasonCropFitSignal({
-    crop,
-    garden,
-    selection: createSeasonCropSelection(crop),
-    sunExposureAtPlacement,
-  });
-  return (
-    <article className={styles.resultCard}>
-      <span
-        className={styles.cropGlyph}
-        data-crop-tone={getCropIconTone(crop)}
-        aria-hidden="true"
-      >
-        {formatGlyph(crop)}
-      </span>
-      <div className={styles.resultBody}>
-        <strong>{crop.commonName}</strong>
-        <span className={styles.resultMeta}>{formatCropFamilyLine(crop)}</span>
-        <span className={styles.resultFit}>{fit.summary}</span>
-        <CropResultFacts crop={crop} />
-      </div>
-      <div className={styles.resultActions}>
-        <button
-          aria-label={
-            isComparing
-              ? `Remove ${crop.commonName} from compare`
-              : `Compare ${crop.commonName}`
-          }
-          className={sharedStyles.secondaryButton}
-          disabled={compareDisabled}
-          onClick={onToggleCompare}
-          type="button"
-        >
-          {isComparing ? 'Comparing' : 'Compare'}
-        </button>
-        <button
-          aria-label={
-            isSelected ? `${crop.commonName} added` : `Add ${crop.commonName}`
-          }
-          className={sharedStyles.secondaryButton}
-          disabled={isSelected}
-          onClick={onAdd}
-          type="button"
-        >
-          {isSelected ? 'Added' : 'Add'}
-        </button>
-      </div>
-    </article>
   );
 }

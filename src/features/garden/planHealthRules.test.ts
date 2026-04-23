@@ -8,7 +8,7 @@ import { findPlanWarnings } from './gardenPlanning';
 import { buildPlanHealthReport } from './planHealthRules';
 
 describe('planHealthRules', () => {
-  it('catches missing tomato support, narrow paths, irrigation access, and mulch add-ons', () => {
+  it('catches missing tomato support, narrow paths, and mulch add-ons', () => {
     const garden: Garden = {
       ...createDefaultGarden('user-a'),
       plantings: [
@@ -66,10 +66,6 @@ describe('planHealthRules', () => {
         expect.objectContaining({
           title: 'Tomato support missing',
           type: 'tomatoSupportMissing',
-        }),
-        expect.objectContaining({
-          title: 'Irrigation access concern',
-          type: 'irrigationAccessConcern',
         }),
         expect.objectContaining({
           title: 'Mulch reminder',
@@ -262,15 +258,6 @@ describe('planHealthRules', () => {
           label: 'Cross path',
           widthFt: 8,
         },
-        {
-          ...createDefaultStructure({
-            id: 'hose-1',
-            type: 'hoseBib',
-            xFt: 0,
-            yFt: 0,
-          }),
-          label: 'House hose bib',
-        },
       ],
     };
     const report = buildPlanHealthReport({
@@ -285,10 +272,6 @@ describe('planHealthRules', () => {
           message: expect.stringContaining('1 ft of walkable width'),
           title: 'Path too narrow',
           type: 'pathTooNarrow',
-        }),
-        expect.objectContaining({
-          title: 'Irrigation reach concern',
-          type: 'irrigationAccessConcern',
         }),
         expect.objectContaining({
           title: 'Cage support missing',

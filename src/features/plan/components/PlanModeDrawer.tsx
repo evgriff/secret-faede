@@ -1,18 +1,19 @@
 import { useEffect } from 'react';
 
 import type {
-  Garden,
+  AuthorableStructureType,
+  LayoutProblem,
+  LayoutResolutionOption,
   StructureType,
   SunExposure,
   SunShadeLayer,
 } from '../../../domain/gardens/GardenRepository';
-import type { GardenSuggestionDecision } from '../../../domain/gardens/gardenWorkspace';
 import type {
   PlanHealthIssue,
   PlanHealthReport,
 } from '../../garden/planHealthRules';
-import type { ReviewSuggestion } from '../../garden/reviewSuggestions';
 import type { SunSeason } from '../../garden/sunShadeEngine';
+import type { LayoutProblemResolutionModel } from '../layoutProblemResolution';
 import { getPlanModeLabel, planModes, type PlanMode } from '../planModes';
 import { PlanHealthPanel } from './PlanHealthPanel';
 import { PlanReviewPanel } from './PlanReviewPanel';
@@ -21,28 +22,26 @@ import styles from './PlanModeDrawer.module.css';
 
 export function PlanModeDrawer({
   accessiblePathDefaults,
-  activeReviewSuggestionId,
+  activeProblemId,
   activeSunLayer,
-  garden,
   manualSunEdit,
   manualSunExposure,
   mode,
-  onAcceptReviewBatch,
-  onAcceptReviewSuggestion,
   onAddPlant,
   onAddStructure,
+  onApplyResolutionOption,
   onClose,
   onGenerateAutoLayoutCandidates,
   onDismissHealthIssue,
+  onIgnoreProblem,
   onJumpToHealthIssue,
-  onJumpToSuggestion,
-  onPreviewReviewSuggestion,
+  onJumpToProblem,
+  onPreviewResolutionOption,
   onRecalculateSun,
-  onRejectReviewSuggestion,
   onRestoreWarning,
-  onSnoozeReviewSuggestion,
+  onSelectProblem,
+  layoutProblemResolutionModel,
   planHealthReport,
-  reviewSuggestions,
   setManualSunEdit,
   setManualSunExposure,
   setAccessiblePathDefaults,
@@ -52,41 +51,37 @@ export function PlanModeDrawer({
   showSunOverlay,
   sunSeason,
   structureType,
-  suggestionDecisions,
 }: {
   accessiblePathDefaults: boolean;
-  activeReviewSuggestionId: string | null;
+  activeProblemId: string | null;
   activeSunLayer: SunShadeLayer;
-  garden: Garden;
+  layoutProblemResolutionModel: LayoutProblemResolutionModel;
   manualSunEdit: boolean;
   manualSunExposure: SunExposure;
   mode: PlanMode;
-  onAcceptReviewBatch(suggestions: ReviewSuggestion[]): void;
-  onAcceptReviewSuggestion(suggestion: ReviewSuggestion): void;
   onAddPlant(): void;
   onAddStructure(): void;
+  onApplyResolutionOption(option: LayoutResolutionOption): void;
   onClose(): void;
   onDismissHealthIssue(issue: PlanHealthIssue): void;
   onGenerateAutoLayoutCandidates(): void;
+  onIgnoreProblem(problem: LayoutProblem): void;
   onJumpToHealthIssue(issue: PlanHealthIssue): void;
-  onJumpToSuggestion(suggestion: ReviewSuggestion): void;
-  onPreviewReviewSuggestion(suggestion: ReviewSuggestion): void;
+  onJumpToProblem(problem: LayoutProblem): void;
+  onPreviewResolutionOption(option: LayoutResolutionOption): void;
   onRecalculateSun(): void;
-  onRejectReviewSuggestion(suggestion: ReviewSuggestion): void;
   onRestoreWarning(warningId: string): void;
-  onSnoozeReviewSuggestion(suggestion: ReviewSuggestion): void;
+  onSelectProblem(problemId: string | null): void;
   planHealthReport: PlanHealthReport;
-  reviewSuggestions: ReviewSuggestion[];
   setManualSunEdit(value: boolean): void;
   setManualSunExposure(value: SunExposure): void;
   setAccessiblePathDefaults(value: boolean): void;
   setShowSunOverlay(value: boolean): void;
   setSunSeason(value: SunSeason): void;
-  setStructureType(type: StructureType): void;
+  setStructureType(type: AuthorableStructureType): void;
   showSunOverlay: boolean;
   sunSeason: SunSeason;
   structureType: StructureType;
-  suggestionDecisions: GardenSuggestionDecision[];
 }) {
   return (
     <section className={styles.drawer} aria-label="Mode controls">
@@ -138,27 +133,17 @@ export function PlanModeDrawer({
             sunSeason={sunSeason}
           />
         ) : null}
-        {mode === 'measure' ? (
-          <div className={styles.measureGrid}>
-            <span>Width {garden.plot.widthFt} ft</span>
-            <span>Depth {garden.plot.depthFt} ft</span>
-            <span>Grid 1 ft</span>
-            <span>Snap {garden.plot.snapUnitFt} ft</span>
-          </div>
-        ) : null}
         {mode === 'optimize' ? (
           <>
             <PlanReviewPanel
-              activeSuggestionId={activeReviewSuggestionId}
-              onAcceptBatch={onAcceptReviewBatch}
-              onAcceptSuggestion={onAcceptReviewSuggestion}
-              onGenerateAutoLayoutCandidates={onGenerateAutoLayoutCandidates}
-              onJumpToSuggestion={onJumpToSuggestion}
-              onPreviewSuggestion={onPreviewReviewSuggestion}
-              onRejectSuggestion={onRejectReviewSuggestion}
-              onSnoozeSuggestion={onSnoozeReviewSuggestion}
-              reviewSuggestions={reviewSuggestions}
-              suggestionDecisions={suggestionDecisions}
+              activeProblemId={activeProblemId}
+              layoutModel={layoutProblemResolutionModel}
+              onApplyResolutionOption={onApplyResolutionOption}
+              onGenerateVariants={onGenerateAutoLayoutCandidates}
+              onIgnoreProblem={onIgnoreProblem}
+              onJumpToProblem={onJumpToProblem}
+              onPreviewResolutionOption={onPreviewResolutionOption}
+              onSelectProblem={onSelectProblem}
             />
             <PlanHealthPanel
               onDismissIssue={onDismissHealthIssue}
@@ -179,18 +164,16 @@ export function PlanModeDrawer({
 
 function getDrawerTitle(mode: PlanMode) {
   switch (mode) {
-    case 'measure':
-      return 'Scale and orientation';
     case 'optimize':
-      return 'Review proposals';
+      return 'Problem inbox and variants';
     case 'plant':
-      return 'Add crops deliberately';
+      return 'Place plants manually';
     case 'select':
-      return 'Select, drag, and inspect';
+      return 'Detailed view';
     case 'structure':
-      return 'Support planting areas';
+      return 'Beds, paths, and trellises';
     case 'sun':
-      return 'Model and correct exposure';
+      return 'Review sun and shade';
   }
 }
 
@@ -198,12 +181,15 @@ function getDrawerCopy(mode: PlanMode) {
   return planModes.find((entry) => entry.mode === mode)?.description ?? '';
 }
 
-const primarySupportOptions: Array<{ label: string; type: StructureType }> = [
+const primaryStructureOptions: Array<{
+  label: string;
+  type: AuthorableStructureType;
+}> = [
   { label: 'Raised bed', type: 'raisedBed' },
   { label: 'In-ground bed', type: 'inGroundBed' },
   { label: 'Container', type: 'container' },
-  { label: 'Pathway', type: 'pathway' },
-  { label: 'Trellis / crop support', type: 'trellis' },
+  { label: 'Access path', type: 'pathway' },
+  { label: 'Trellis', type: 'trellis' },
 ];
 
 function StructureControls({
@@ -216,33 +202,34 @@ function StructureControls({
   accessiblePathDefaults: boolean;
   onAddStructure(): void;
   setAccessiblePathDefaults(value: boolean): void;
-  setStructureType(type: StructureType): void;
+  setStructureType(type: AuthorableStructureType): void;
   structureType: StructureType;
 }) {
-  const selectedSupportType = isPrimarySupportType(structureType)
+  const selectedStructureType = isPrimaryStructureType(structureType)
     ? structureType
     : 'raisedBed';
-  const isPath =
-    selectedSupportType === 'path' || selectedSupportType === 'pathway';
+  const isPath = selectedStructureType === 'pathway';
 
   useEffect(() => {
-    if (structureType !== selectedSupportType) {
-      setStructureType(selectedSupportType);
+    if (structureType !== selectedStructureType) {
+      setStructureType(selectedStructureType);
     }
-  }, [selectedSupportType, setStructureType, structureType]);
+  }, [selectedStructureType, setStructureType, structureType]);
 
   return (
     <div className={styles.structureControls}>
       <label>
-        <span>Garden support</span>
+        <span>Plot structure</span>
         <select
-          aria-label="Garden support type"
+          aria-label="Plot structure type"
           onChange={(event) =>
-            setStructureType(event.currentTarget.value as StructureType)
+            setStructureType(
+              event.currentTarget.value as AuthorableStructureType,
+            )
           }
-          value={selectedSupportType}
+          value={selectedStructureType}
         >
-          {primarySupportOptions.map((option) => (
+          {primaryStructureOptions.map((option) => (
             <option key={option.type} value={option.type}>
               {option.label}
             </option>
@@ -266,12 +253,14 @@ function StructureControls({
         onClick={onAddStructure}
         type="button"
       >
-        Place garden support
+        Place structure
       </button>
     </div>
   );
 }
 
-function isPrimarySupportType(type: StructureType) {
-  return primarySupportOptions.some((option) => option.type === type);
+function isPrimaryStructureType(
+  type: StructureType,
+): type is AuthorableStructureType {
+  return primaryStructureOptions.some((option) => option.type === type);
 }

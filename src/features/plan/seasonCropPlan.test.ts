@@ -85,6 +85,36 @@ describe('season crop plan', () => {
     expect(request?.fit.reasons.join(' ')).toContain('Support');
   });
 
+  it('uses spacing overrides when estimating wanted crop footprints', () => {
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      seasonPlan: {
+        updatedAtIso: null,
+        wantedCrops: [
+          makeSelection({
+            cropId: 'tomato',
+            id: 'season-tomato-default',
+            quantity: 4,
+          }),
+          makeSelection({
+            cropId: 'tomato',
+            id: 'season-tomato-compact',
+            quantity: 4,
+            spacingOverrideInches: 12,
+          }),
+        ],
+      },
+    };
+
+    const [defaultRequest, compactRequest] =
+      buildSeasonCropLayoutRequests(garden);
+
+    expect(compactRequest?.spacingOverrideInches).toBe(12);
+    expect(compactRequest?.estimatedAreaSqFt).toBeLessThan(
+      defaultRequest?.estimatedAreaSqFt ?? 0,
+    );
+  });
+
   it('uses workable language when fit is based on partial crop data', () => {
     const lettuce = getCropById('lettuce');
 
@@ -178,6 +208,7 @@ function makeSelection(
     notes: '',
     supportAllowed: true,
     quantity: 1,
+    spacingOverrideInches: null,
     varietyName: '',
     ...values,
   };

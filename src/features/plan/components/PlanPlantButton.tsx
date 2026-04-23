@@ -24,6 +24,7 @@ export const PlanPlantButton = memo(function PlanPlantButton({
   onPlantPointerDown,
   onPlantPointerEnd,
   onPlantPointerMove,
+  onPlantHoverChange,
   onSelectItem,
   plant,
   warnings,
@@ -49,6 +50,7 @@ export const PlanPlantButton = memo(function PlanPlantButton({
     plantId: string,
     instanceId?: string,
   ): void;
+  onPlantHoverChange(plantId: string | null): void;
   onSelectItem(item: SelectedGardenItem, additive: boolean): void;
   plant: Planting;
   warnings: PlanWarning[];
@@ -93,6 +95,8 @@ export const PlanPlantButton = memo(function PlanPlantButton({
       onPointerDown={(event) =>
         onPlantPointerDown(event, plant.id, instance.id)
       }
+      onPointerEnter={() => onPlantHoverChange(plant.id)}
+      onPointerLeave={() => onPlantHoverChange(null)}
       onPointerMove={(event) =>
         onPlantPointerMove(event, plant.id, instance.id)
       }

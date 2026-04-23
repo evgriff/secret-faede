@@ -77,6 +77,7 @@ describe('garden domain validation', () => {
         'legacy plants copied into plantings',
         'planner workspace defaults normalized',
         'season plan inputs simplified',
+        'plant planning defaults normalized',
       ],
       fromVersion: 0,
       toVersion: CURRENT_GARDEN_SCHEMA_VERSION,
@@ -121,7 +122,10 @@ describe('garden domain validation', () => {
     });
 
     expect(migration).toMatchObject({
-      applied: ['season plan inputs simplified'],
+      applied: [
+        'season plan inputs simplified',
+        'plant planning defaults normalized',
+      ],
       fromVersion: 2,
       toVersion: CURRENT_GARDEN_SCHEMA_VERSION,
     });
@@ -144,6 +148,63 @@ describe('garden domain validation', () => {
     ).not.toHaveProperty('priority');
   });
 
+  it('adds explicit plant support defaults and drops legacy node overlays', () => {
+    const migration = migrateGardenRecord({
+      markerLayer: [{ id: 'marker-1' }],
+      plantNodes: [{ id: 'node-1' }],
+      plantings: [
+        {
+          id: 'tomato-row',
+          label: 'Tomato',
+          plantCount: 3,
+          supportType: 'cage',
+          xFt: 3,
+          yFt: 4,
+        },
+      ],
+      schemaVersion: 3,
+    });
+
+    expect(migration).toMatchObject({
+      applied: ['plant planning defaults normalized'],
+      fromVersion: 3,
+      toVersion: CURRENT_GARDEN_SCHEMA_VERSION,
+    });
+    expect(migration.record.plantings).toMatchObject([
+      {
+        id: 'tomato-row',
+        support: {
+          perPlant: true,
+          quantity: 3,
+          type: 'cage',
+        },
+      },
+    ]);
+    expect(migration.record).not.toHaveProperty('markerLayer');
+    expect(migration.record).not.toHaveProperty('plantNodes');
+  });
+
+  it('removes legacy utility structures while keeping page-level planning structures', () => {
+    const migration = migrateGardenRecord({
+      schemaVersion: 4,
+      structures: [
+        { id: 'bed-1', type: 'raisedBed' },
+        { id: 'path-1', type: 'pathway' },
+        { id: 'trellis-1', type: 'trellis' },
+        { id: 'tree-1', type: 'treeObstacle' },
+        { id: 'compost-1', type: 'compost' },
+        { id: 'hose-1', type: 'waterSource' },
+      ],
+    });
+
+    expect(migration.applied).toEqual(['legacy utility structures removed']);
+    expect(migration.record.structures).toEqual([
+      { id: 'bed-1', type: 'raisedBed' },
+      { id: 'path-1', type: 'pathway' },
+      { id: 'trellis-1', type: 'trellis' },
+    ]);
+  });
+
   it('parses structure planner types and keeps footprints inside the plot', () => {
     const garden = parseGarden('user-a', {
       plot: {
@@ -160,9 +221,19 @@ describe('garden domain validation', () => {
           xFt: 20,
           yFt: 20,
         },
+        {
+          depthFt: 1,
+          id: 'legacy-water-1',
+          label: 'Water source',
+          type: 'waterSource',
+          widthFt: 1,
+          xFt: 2,
+          yFt: 2,
+        },
       ],
     });
 
+    expect(garden.structures).toHaveLength(1);
     expect(garden.structures[0]).toMatchObject({
       accessiblePath: true,
       continuousPath: true,
@@ -191,6 +262,30 @@ describe('garden domain validation', () => {
     expect(garden.plantings[0]).toMatchObject({
       matureHeightInches: 72,
       matureSpreadInches: 36,
+    });
+  });
+
+  it('parses per-plant support plans with quantity-safe defaults', () => {
+    const garden = parseGarden('user-a', {
+      plantings: [
+        {
+          id: 'tomato-row',
+          label: 'Tomato',
+          mode: 'row',
+          plantCount: 3,
+          supportType: 'stake',
+          xFt: 4,
+          yFt: 4,
+        },
+      ],
+    });
+
+    expect(garden.plantings[0]).toMatchObject({
+      support: {
+        perPlant: true,
+        quantity: 3,
+        type: 'stake',
+      },
     });
   });
 

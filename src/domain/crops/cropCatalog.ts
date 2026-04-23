@@ -51,6 +51,7 @@ interface CatalogCropRecord {
 export interface CropCatalogFilters {
   category?: CropCategory | 'any';
   growthForm?: CropGrowthForm | 'any';
+  lifecycle?: CropLifecycle | 'any';
   query?: string;
   sowMethod?: CropSowMethod | 'any';
   sunRequirement?: SunExposure | 'any';
@@ -70,6 +71,7 @@ export const cropCatalogById = new Map(
 export const cropCatalogFilterOptions = {
   categories: uniqueSorted(cropCatalog.map((crop) => crop.category)),
   growthForms: uniqueSorted(cropCatalog.map((crop) => crop.growthForm)),
+  lifecycles: uniqueSorted(cropCatalog.map((crop) => crop.lifecycle)),
   sowMethods: uniqueSorted(cropCatalog.map((crop) => crop.sowMethod)),
   sunRequirements: uniqueSorted(cropCatalog.map((crop) => crop.sunRequirement)),
   waterNeeds: uniqueSorted(cropCatalog.map((crop) => crop.waterNeeds)),
@@ -90,6 +92,7 @@ export function filterCropCatalog(filters: CropCatalogFilters) {
         matchesFilter(crop.sunRequirement, filters.sunRequirement) &&
         matchesFilter(crop.waterNeeds, filters.waterNeeds) &&
         matchesFilter(crop.growthForm, filters.growthForm) &&
+        matchesFilter(crop.lifecycle, filters.lifecycle) &&
         matchesSowMethod(crop.sowMethod, filters.sowMethod),
     )
     .sort((left, right) =>

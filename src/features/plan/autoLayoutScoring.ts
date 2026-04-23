@@ -202,6 +202,39 @@ export function scoreWaterGrouping(placements: ScoredPlacement[]) {
   return comparisons ? score / comparisons : 1;
 }
 
+export function scoreCompatibleGrouping(
+  placement: ScoredPlacement,
+  existingPlacements: ScoredPlacement[],
+) {
+  if (existingPlacements.length === 0) {
+    return 1;
+  }
+
+  let comparisons = 0;
+  let score = 0;
+
+  for (const existingPlacement of existingPlacements) {
+    const distance = rectDistanceFt(
+      getPlantingFootprint(placement.planting),
+      getPlantingFootprint(existingPlacement.planting),
+    );
+    const close = distance <= 4;
+    const compatible =
+      placement.crop.waterNeeds === existingPlacement.crop.waterNeeds &&
+      compatibleSunNeeds(
+        placement.crop.sunRequirement,
+        existingPlacement.crop.sunRequirement,
+      );
+    const bothTall =
+      isTallCrop(placement.crop) && isTallCrop(existingPlacement.crop);
+
+    comparisons += 1;
+    score += compatible === close || (bothTall && close) ? 1 : 0.62;
+  }
+
+  return comparisons ? score / comparisons : 1;
+}
+
 export function scoreSpacingQuality(placements: ScoredPlacement[]) {
   if (placements.length < 2) {
     return 1;
@@ -280,4 +313,18 @@ function rectsTouch(
     left.yFt < right.yFt + right.depthFt &&
     left.yFt + left.depthFt > right.yFt
   );
+}
+
+function compatibleSunNeeds(left: SunExposure, right: SunExposure) {
+  if (left === right) {
+    return true;
+  }
+
+  return [left, right].every((exposure) =>
+    ['partShade', 'partSun'].includes(exposure),
+  );
+}
+
+function isTallCrop(crop: CropProfile) {
+  return (crop.matureHeightInches ?? 0) >= 42 || crop.trellisRecommended;
 }

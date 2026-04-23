@@ -1,0 +1,46 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+}
+
+.trigger {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: help;
+  font: inherit;
+  padding: 0;
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--color-plant-sky);
+  outline-offset: 2px;
+}
+
+.tooltip {
+  position: absolute;
+  z-index: 40;
+  bottom: calc(100% + 0.45rem);
+  left: 0;
+  width: min(18rem, 82vw);
+  border: 1px solid rgba(54, 48, 40, 0.16);
+  border-radius: var(--radius-card);
+  background: #ffffff;
+  box-shadow: var(--shadow-panel);
+  color: var(--color-text-strong);
+  font-size: var(--font-size-caption);
+  font-weight: 720;
+  line-height: 1.35;
+  padding: 0.58rem;
+  text-transform: none;
+  white-space: normal;
+}
+
+.list {
+  display: grid;
+  gap: 0.24rem;
+  margin: 0;
+  padding-left: 1rem;
+}

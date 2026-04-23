@@ -11,12 +11,39 @@ export type AutoLayoutRunStatus =
   | 'idle'
   | 'ready'
   | 'running';
+export type AutoLayoutSearchStatus = 'blocked' | 'partial' | 'resolved';
 
 export interface AutoLayoutScoreBreakdown {
   seasonalSuitability: number;
   shadeManagement: number;
   spacingQuality: number;
   waterGrouping: number;
+}
+
+export interface AutoLayoutSearchReport {
+  activeWarningCount: number;
+  evaluatedStates: number;
+  maxDepth: number;
+  maxStates: number;
+  prunedStates: number;
+  rankingScore: number;
+  reachedDepth: number;
+  repeatedStates: number;
+  status: AutoLayoutSearchStatus;
+  unresolvedIssues: string[];
+}
+
+export interface AutoLayoutPlantZone {
+  id: string;
+  label: string;
+  plantingIds: string[];
+  rationale: string;
+}
+
+export interface AutoLayoutWholePlotPlan {
+  accessPathIds: string[];
+  heuristics: string[];
+  plantZones: AutoLayoutPlantZone[];
 }
 
 export interface AutoLayoutCandidate {
@@ -27,6 +54,7 @@ export interface AutoLayoutCandidate {
   materials: string[];
   plantings: Planting[];
   scoreBreakdown: AutoLayoutScoreBreakdown;
+  search: AutoLayoutSearchReport;
   strategy: AutoLayoutStrategy;
   structures: Structure[];
   tradeoffs: string[];
@@ -34,4 +62,5 @@ export interface AutoLayoutCandidate {
     cropName: string;
     reason: string;
   }>;
+  wholePlot: AutoLayoutWholePlotPlan;
 }

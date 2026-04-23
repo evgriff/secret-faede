@@ -107,9 +107,8 @@ Editor workflows:
 
 - Select: choose, drag, inspect, lock, duplicate, and delete garden items.
 - Plant: open crop placement while preserving the central canvas.
-- Structure: place beds, paths, trellises, compost areas, irrigation, and
-  other planting-support context only when it materially affects crop placement
-  or field operations.
+- Structure: place beds, paths, and trellises. Single-plant cages, stakes, and
+  rods are edited on the plant group, not added as global plot objects.
 - Optimize: review spacing, trellis, shade, rotation, succession, weather, and
   material guidance without keeping those panels always visible.
 - Sun/Climate: show, recalculate, and manually paint sun exposure when the model
