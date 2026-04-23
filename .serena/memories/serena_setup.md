@@ -12,7 +12,7 @@ Project-level Serena policy:
 - `.serena/project.yml` pins the language backend to `LSP`
 - ignored paths explicitly skip generated output plus Serena cache and log directories
 - `query-projects` mode is enabled so `list_queryable_projects` and `query_project` are available when another registered Serena project is relevant
-- the web dashboard is enabled but should not auto-open on startup; open it on demand instead
+- the web dashboard is enabled and should auto-open on startup
 
 Usage guidance:
 
