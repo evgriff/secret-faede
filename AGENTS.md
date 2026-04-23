@@ -9,11 +9,14 @@ Read these first:
 
 Serena:
 
+- keep the repo-local Codex Serena plugin wiring in `plugins/serena` and
+  `.agents/plugins/marketplace.json` aligned with this document so the Codex
+  app can auto-load Serena for this repo
 - activate the current project with Serena before code navigation when Serena
   tools are available
 - use Serena for symbol overviews, symbol lookup, reference searches, and
-  symbol-safe refactors before falling back to broad file reads or text-only
-  search
+  symbol-safe refactors via the repo-local Serena Codex plugin before falling
+  back to broad file reads or text-only search
 - keep `.serena/project.yml` and tracked `.serena/memories/` files free of
   secrets and aligned with this document
 - refresh the Serena index after large TypeScript refactors with

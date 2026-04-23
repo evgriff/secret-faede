@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "serena": {
+      "command": "serena",
+      "cwd": "../..",
+      "args": [
+        "start-mcp-server",
+        "--context=codex",
+        "--project",
+        ".",
+        "--enable-web-dashboard",
+        "true",
+        "--open-web-dashboard",
+        "false"
+      ]
+    }
+  }
+}

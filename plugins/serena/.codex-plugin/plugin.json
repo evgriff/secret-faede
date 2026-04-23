@@ -1,0 +1,39 @@
+{
+  "name": "serena",
+  "version": "0.1.0",
+  "description": "Expose Serena's symbol-aware code navigation and refactors to Codex for Secret Faede.",
+  "author": {
+    "name": "Secret Faede",
+    "url": "https://github.com/evgriff/secret-faede"
+  },
+  "homepage": "https://oraios.github.io/serena/",
+  "repository": "https://github.com/evgriff/secret-faede.git",
+  "license": "UNLICENSED",
+  "keywords": [
+    "serena",
+    "codex",
+    "mcp",
+    "typescript",
+    "code-navigation",
+    "refactoring"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Serena",
+    "shortDescription": "Use Serena for symbol-aware navigation and refactors in Secret Faede",
+    "longDescription": "Launch Serena as a repo-local Codex plugin so Codex can use symbol overview, symbol lookup, reference search, and symbol-safe refactors while working in Secret Faede.",
+    "developerName": "Secret Faede",
+    "category": "Coding",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "websiteURL": "https://oraios.github.io/serena/",
+    "privacyPolicyURL": "https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement",
+    "termsOfServiceURL": "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
+    "defaultPrompt": [
+      "Use Serena to map the symbols involved in this feature",
+      "Find references for this symbol before editing it",
+      "Use Serena refactors when renaming or rewriting a symbol"
+    ],
+    "brandColor": "#2563EB",
+    "screenshots": []
+  }
+}
