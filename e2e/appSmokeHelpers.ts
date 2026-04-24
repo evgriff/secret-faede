@@ -34,10 +34,10 @@ export async function enterDemoFromShell(page: Page) {
   await openSampleGardenDisclosure(page);
   await page.getByRole('button', { name: 'Open sample garden' }).click();
 
-  await expect(
-    page.getByRole('region', { name: 'Sample garden' }),
-  ).toBeVisible();
-  await expect(page.getByText('Sample garden active.')).toBeVisible();
+  const sampleGarden = page.getByRole('region', { name: 'Sample garden' });
+
+  await expect(sampleGarden).toBeVisible();
+  await expect(sampleGarden).toContainText('Sample garden active.');
   await page.getByRole('link', { exact: true, name: 'Plan' }).click();
   await expect(
     page.getByRole('heading', { exact: true, name: 'Plan' }),
@@ -50,10 +50,20 @@ export async function expectSampleSettings(page: Page) {
     page.getByRole('region', { name: 'Sample garden' }),
   ).toContainText('Sample garden active.');
   await expect(page.getByLabel('Watering check time')).toHaveValue('07:15');
+  const recentAlertsDisclosure = page
+    .locator('details')
+    .filter({ has: page.locator('summary', { hasText: 'Recent alerts' }) })
+    .first();
+  const activeAlerts = recentAlertsDisclosure.getByLabel('Active alerts');
+
+  if (!(await activeAlerts.isVisible().catch(() => false))) {
+    await recentAlertsDisclosure.locator('summary').click();
+  }
+
   await expect(
-    page
-      .getByLabel('Active alerts')
-      .getByRole('heading', { name: 'Water roots and salad bed today' }),
+    activeAlerts.getByRole('heading', {
+      name: 'Water roots and salad bed today',
+    }),
   ).toBeVisible();
 }
 
@@ -64,10 +74,8 @@ export async function resetAndExitSample(page: Page) {
   await demoPanel.getByRole('button', { name: 'Reset sample garden' }).click();
   await expect(page.getByText('Sample garden reset.')).toBeVisible();
   await expect(page.getByLabel('Watering check time')).toHaveValue('07:15');
-  await demoPanel
-    .getByRole('button', { name: 'Return to saved garden' })
-    .click();
-  await expect(page.getByText('Saved garden restored.')).toHaveCount(1);
+  await demoPanel.getByRole('button', { name: 'Back to my garden' }).click();
+  await expect(page.getByText('Returned to your garden.')).toHaveCount(1);
 }
 
 export async function savePlan(page: Page) {
@@ -108,7 +116,7 @@ export async function addTomatoToSeasonList(page: Page) {
 }
 
 export async function generateAndApplyFirstLayout(page: Page) {
-  await openPlanTool(page, 'Generated layouts');
+  await openPlanTool(page, 'Generate layout');
   await expect(
     page.getByRole('heading', { name: 'Review problems' }),
   ).toBeVisible();
@@ -118,13 +126,13 @@ export async function generateAndApplyFirstLayout(page: Page) {
 
   if (!(await preview.isVisible().catch(() => false))) {
     await page
-      .getByRole('button', { name: /Generate layouts|Refresh layouts/ })
+      .getByRole('button', { name: /Generate layout|Check again/ })
       .first()
       .click();
   }
 
   const layoutWalkthrough = page.getByRole('region', {
-    name: 'Generated layouts',
+    name: 'Layout suggestion',
   });
   await expect(
     layoutWalkthrough.getByRole('heading', {

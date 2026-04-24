@@ -167,7 +167,7 @@ function getDrawerTitle(mode: PlanMode) {
 function getDrawerCopy(mode: PlanMode) {
   switch (mode) {
     case 'optimize':
-      return 'Work through spacing, access, and support issues here. If you want a different arrangement, try the layout ideas below.';
+      return 'Work through spacing, access, and support issues here. If you want a different arrangement, check the layout suggestion below.';
     case 'plant':
       return 'Place crop-backed plantings by hand when the layout needs a direct edit.';
     case 'select':

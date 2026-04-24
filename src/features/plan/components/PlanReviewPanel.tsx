@@ -49,7 +49,7 @@ export function PlanReviewPanel({
           <div className={styles.reviewNextAction}>
             <span>Next step</span>
             <strong>
-              Fix one issue at a time, or try a simpler layout idea below.
+              Fix one issue at a time, or check the layout suggestion below.
             </strong>
           </div>
         ) : null}
@@ -76,7 +76,7 @@ export function PlanReviewPanel({
         <div className={styles.reviewEmpty}>
           <p className={styles.successText}>No current layout problems.</p>
           <p className={styles.mutedText}>
-            If you want another arrangement, review the layout ideas below.
+            If you want another arrangement, review the layout suggestion below.
           </p>
         </div>
       )}
@@ -432,7 +432,7 @@ function formatResolutionAction(action: LayoutResolutionAction) {
     case 'updateStructure':
       return 'Adjust the related structure.';
     case 'useLayoutVariant':
-      return 'Apply the matching layout idea.';
+      return 'Apply the layout suggestion.';
   }
 }
 

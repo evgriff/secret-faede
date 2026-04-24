@@ -7,6 +7,8 @@ import type {
 } from '../../domain/gardens/GardenRepository';
 import { derivePlantingGeometry } from '../../domain/gardens/plantingGeometry';
 import type { CropCatalogFilters } from '../../domain/crops/cropCatalog';
+import type { CropSuitabilityScore } from '../../domain/crops/cropSuitability';
+import type { PlantTimingStatus } from '../../domain/crops/plantCatalogTypes';
 
 export const modeLabels: Record<PlantingMode, string> = {
   block: 'Block',
@@ -15,6 +17,12 @@ export const modeLabels: Record<PlantingMode, string> = {
   single: 'Single',
   trellisLine: 'Trellis',
 };
+
+export interface RankedCropPickerResult {
+  baseOrder: number;
+  crop: CropProfile;
+  suitability: CropSuitabilityScore;
+}
 
 export function calculatePlantCount(
   _crop: CropProfile,
@@ -254,6 +262,114 @@ export function formatProfileCompleteness(
   };
 
   return labels[value];
+}
+
+export function compareCropPickerResults(
+  left: RankedCropPickerResult,
+  right: RankedCropPickerResult,
+  options: {
+    query: string;
+  },
+) {
+  const normalizedQuery = options.query.trim();
+
+  if (normalizedQuery) {
+    const searchDelta = left.baseOrder - right.baseOrder;
+
+    if (searchDelta !== 0) {
+      return searchDelta;
+    }
+  }
+
+  return (
+    getLocationBandRank(right.suitability) -
+      getLocationBandRank(left.suitability) ||
+    getTimingRank(right.suitability.timing.status) -
+      getTimingRank(left.suitability.timing.status) ||
+    getSunRank(right.suitability) - getSunRank(left.suitability) ||
+    right.suitability.score - left.suitability.score ||
+    left.baseOrder - right.baseOrder
+  );
+}
+
+export function formatLocationFilterLabel(suitability: CropSuitabilityScore) {
+  return suitability.locationHeadline;
+}
+
+export function formatLocationSource(
+  suitability: CropSuitabilityScore,
+  options: {
+    concise?: boolean;
+  } = {},
+) {
+  if (suitability.locationContext.source === 'annArborDefault') {
+    return options.concise
+      ? 'Using Detroit default'
+      : `Using ${suitability.locationContext.regionName} as the current default`;
+  }
+
+  return options.concise
+    ? 'Using saved garden location'
+    : `Using ${suitability.locationContext.regionName} from the saved garden`;
+}
+
+export function formatTimingLabel(status: PlantTimingStatus) {
+  const labels: Record<PlantTimingStatus, string> = {
+    goodForFall: 'Good for fall',
+    plantNow: 'Plant now',
+    startIndoorsNow: 'Start indoors now',
+    waitUntilAfterFrost: 'Wait until after frost',
+  };
+
+  return labels[status];
+}
+
+export function isLocationFit(
+  suitability: CropSuitabilityScore,
+  filter: 'any' | 'fitsMyLocation',
+) {
+  if (filter === 'any') {
+    return true;
+  }
+
+  return (
+    suitability.locationMatch.band === 'good' ||
+    suitability.locationMatch.band === 'strong'
+  );
+}
+
+function getLocationBandRank(suitability: CropSuitabilityScore) {
+  const ranks = {
+    good: 2,
+    poor: 0,
+    strong: 3,
+    watch: 1,
+  } satisfies Record<CropSuitabilityScore['locationMatch']['band'], number>;
+
+  return ranks[suitability.locationMatch.band];
+}
+
+function getTimingRank(status: PlantTimingStatus) {
+  const ranks: Record<PlantTimingStatus, number> = {
+    goodForFall: 2,
+    plantNow: 4,
+    startIndoorsNow: 3,
+    waitUntilAfterFrost: 1,
+  };
+
+  return ranks[status];
+}
+
+function getSunRank(suitability: CropSuitabilityScore) {
+  if (suitability.sunCompatible === true) {
+    return 2;
+  }
+
+  if (suitability.sunCompatible === null) {
+    return 1;
+  }
+
+  return 0;
 }
 
 const cropIconGlyphs: Record<string, string> = {

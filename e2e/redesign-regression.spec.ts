@@ -113,14 +113,80 @@ test('plant picking modals keep their footer actions visible on short viewports'
   ).toBeInViewport();
 });
 
-test('generated layouts open a visual walkthrough without certainty copy', async ({
+for (const viewport of [
+  { height: 768, name: 'desktop', width: 1365 },
+  { height: 780, name: 'mobile', width: 390 },
+] as const) {
+  test(`Add Plant keeps filters clear of results on ${viewport.name}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({
+      height: viewport.height,
+      width: viewport.width,
+    });
+    await signInWithMockPassword(page);
+    await openPlanTool(page, 'Plant');
+    await page.getByRole('button', { name: 'Open plant picker' }).click();
+
+    const addPlant = page.getByRole('dialog', { name: 'Add Plant' });
+    const cropType = addPlant.getByRole('combobox', { name: /Crop type/i });
+    const advancedFilters = addPlant.getByRole('button', {
+      name: 'Advanced filters',
+    });
+    const cropButtons = addPlant.locator('button[aria-label$=" crop"]');
+    const firstResult = cropButtons.first();
+    const secondResult = cropButtons.nth(1);
+
+    await expect(addPlant).toBeVisible();
+    await expect(cropType).toBeVisible();
+    await expect(firstResult).toBeVisible();
+    await expect(secondResult).toBeVisible();
+    await expect(
+      addPlant.getByRole('button', { name: 'Cancel' }),
+    ).toBeInViewport();
+    await expect(
+      addPlant.getByRole('button', { name: 'Add plant' }),
+    ).toBeInViewport();
+
+    const [cropTypeBox, advancedFiltersBox, firstResultBox, secondResultBox] =
+      await Promise.all([
+        cropType.boundingBox(),
+        advancedFilters.boundingBox(),
+        firstResult.boundingBox(),
+        secondResult.boundingBox(),
+      ]);
+    const firstResultHeight: number = await firstResult.evaluate(
+      (element) => element.getBoundingClientRect().height,
+    );
+    const secondResultHeight: number = await secondResult.evaluate(
+      (element) => element.getBoundingClientRect().height,
+    );
+
+    expect(cropTypeBox).not.toBeNull();
+    expect(advancedFiltersBox).not.toBeNull();
+    expect(firstResultBox).not.toBeNull();
+    expect(secondResultBox).not.toBeNull();
+
+    const filterBottom = Math.max(
+      (cropTypeBox?.y ?? 0) + (cropTypeBox?.height ?? 0),
+      (advancedFiltersBox?.y ?? 0) + (advancedFiltersBox?.height ?? 0),
+    );
+
+    expect(firstResultBox?.y ?? 0).toBeGreaterThan(filterBottom + 8);
+    expect(
+      Math.abs(firstResultHeight - secondResultHeight),
+    ).toBeLessThanOrEqual(1);
+  });
+}
+
+test('generate layout opens a visual walkthrough without certainty copy', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1365, height: 768 });
   await signInWithMockPassword(page);
   await addTomatoToSeasonList(page);
 
-  await openPlanTool(page, 'Generated layouts');
+  await openPlanTool(page, 'Generate layout');
   await expect(
     page.getByRole('heading', { name: 'Review problems' }),
   ).toBeVisible();
@@ -130,24 +196,33 @@ test('generated layouts open a visual walkthrough without certainty copy', async
 
   if (!(await beforeAfterPreview.isVisible().catch(() => false))) {
     await page
-      .getByRole('button', { name: /Generate layouts|Refresh layouts/ })
+      .getByRole('button', { name: /Generate layout|Check again/ })
       .first()
       .click();
   }
 
   const walkthrough = page.getByRole('region', {
-    name: 'Generated layouts',
+    name: 'Layout suggestion',
+  });
+  const suggestionHeading = page.getByRole('heading', {
+    exact: true,
+    name: 'Try a different arrangement',
   });
 
-  await expect(
-    walkthrough.getByRole('heading', {
-      exact: true,
-      name: 'Try a different arrangement',
-    }),
-  ).toBeVisible();
+  await expect(walkthrough.first()).toBeVisible();
+  await expect(suggestionHeading).toHaveCount(1);
+  await expect(suggestionHeading).toBeVisible();
   await expect(beforeAfterPreview).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Apply this layout' }),
+  ).toHaveCount(1);
+  await expect(
+    page.getByRole('button', { name: 'Keep current layout' }),
+  ).toHaveCount(1);
   await expect(page.getByLabel(/Layout diff overlay/)).toBeVisible();
   await expect(page.locator('body')).not.toContainText('Fit confidence');
+  await expect(page.locator('body')).not.toContainText(/checked variants/i);
+  await expect(page.locator('body')).not.toContainText(/selected variant/i);
 });
 
 test('Feed compose launcher exposes explicit private memory actions only', async ({
@@ -204,14 +279,14 @@ test('reduced motion keeps Today sheet and Feed composer settled', async ({
 
   await page.goto('/app/today');
   await page
-    .getByRole('heading', { name: 'Log what happened' })
+    .getByRole('heading', { name: 'Field follow-up' })
     .scrollIntoViewIfNeeded();
   await page.getByText('Field entry').click();
-  await page.getByRole('button', { name: 'Add note' }).click();
-  const todaySheet = page.getByRole('dialog', { name: 'Add note' });
+  await page.getByRole('button', { name: 'Report issue' }).click();
+  const todaySheet = page.getByRole('dialog', { name: 'Report issue' });
 
   await expect(todaySheet).toBeVisible();
-  await expect(todaySheet.locator('[data-action-kind="note"]')).toBeVisible();
+  await expect(todaySheet.locator('[data-action-kind="issue"]')).toBeVisible();
   await expect(todaySheet).toHaveCSS('transform', 'none');
   await todaySheet.getByRole('button', { name: /Close/ }).click();
   await expect(todaySheet).toHaveCount(0);
@@ -247,8 +322,18 @@ test('sample garden tools stay in Settings and do not surface removed scope', as
     demoControls.getByRole('button', { name: 'Reset sample garden' }),
   ).toBeVisible();
   await expect(
-    demoControls.getByRole('button', { name: 'Return to saved garden' }),
+    demoControls.getByRole('button', { name: 'Back to my garden' }),
   ).toBeVisible();
+  const shellRestore = page.getByTestId('sample-garden-shell-restore');
+  await expect(shellRestore).toBeVisible();
+  await page.getByRole('link', { exact: true, name: 'Today' }).click();
+  await expect(
+    page.getByRole('heading', { exact: true, name: 'Today' }),
+  ).toBeVisible();
+  await expect(shellRestore).toBeVisible();
+  await shellRestore.click();
+  await expect(page).toHaveURL(/\/app\/today$/);
+  await expect(shellRestore).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText(
     /Fit confidence|carrier messaging|notification provider/,
   );

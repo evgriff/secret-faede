@@ -8,13 +8,22 @@ import {
 import { isBrowserOffline } from '../../shared/network/networkStatus';
 import { useAuth } from '../auth/auth-context';
 import { synchronizeGardenTasks, tasksAreEqual } from '../tasks/taskEngine';
+import {
+  rebuildGardenWateringFromLatestSnapshot,
+  refreshGardenWateringFromWeather,
+} from '../garden/wateringScheduleRefresh';
 import type { TodaySaveStatus } from './components/TodaySaveState';
 import { toErrorMessage } from './todayFormatters';
 
 export type TodayLoadStatus = 'error' | 'loading' | 'ready';
 
 export function useTodayGarden(today: Date, isOffline: boolean) {
-  const { gardenRepository, mediaStorageService } = useServices();
+  const {
+    gardenRepository,
+    mediaStorageService,
+    userProfileRepository,
+    weatherProvider,
+  } = useServices();
   const { state } = useAuth();
   const [garden, setGarden] = useState<Garden | null>(null);
   const [loadStatus, setLoadStatus] = useState<TodayLoadStatus>('loading');
@@ -71,12 +80,29 @@ export function useTodayGarden(today: Date, isOffline: boolean) {
   async function applyGardenUpdate(
     updateGarden: (current: Garden) => Garden,
     fallback = 'Unable to save today.',
+    options: { refreshWateringFromSnapshot?: boolean } = {},
   ) {
     if (!garden) {
       return false;
     }
 
-    const updatedGarden = updateGarden(garden);
+    let updatedGarden = updateGarden(garden);
+
+    if (options.refreshWateringFromSnapshot) {
+      const authUser = state.user;
+      const profile =
+        authUser?.email && authUser.uid === garden.userId
+          ? await userProfileRepository
+              .getUserProfile(authUser.uid, authUser.email)
+              .catch(() => null)
+          : null;
+
+      updatedGarden = rebuildGardenWateringFromLatestSnapshot(updatedGarden, {
+        now: today,
+        profile,
+      });
+    }
+
     setGarden(updatedGarden);
     setSaveStatus('saving');
     setError(null);
@@ -131,11 +157,55 @@ export function useTodayGarden(today: Date, isOffline: boolean) {
     }
   }
 
+  async function refreshWeatherAndWatering() {
+    if (!garden) {
+      return false;
+    }
+
+    setSaveStatus('saving');
+    setError(null);
+
+    try {
+      const now = new Date();
+      const wasOffline = isBrowserOffline();
+      const authUser = state.user;
+      const profile =
+        authUser?.email && authUser.uid === garden.userId
+          ? await userProfileRepository
+              .getUserProfile(authUser.uid, authUser.email)
+              .catch(() => null)
+          : null;
+      const updatedGarden = await refreshGardenWateringFromWeather(
+        garden,
+        weatherProvider,
+        {
+          now,
+          profile,
+        },
+      );
+
+      await gardenRepository.saveGarden(updatedGarden);
+      setGarden(updatedGarden);
+      setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
+      return true;
+    } catch (refreshError) {
+      setError(
+        toErrorMessage(
+          refreshError,
+          'Unable to refresh weather and watering schedule.',
+        ),
+      );
+      setSaveStatus('error');
+      return false;
+    }
+  }
+
   return {
     applyGardenUpdate,
     error,
     garden,
     loadStatus,
+    refreshWeatherAndWatering,
     saveStatus,
     uploadQuickPhotos,
   };

@@ -94,15 +94,9 @@ test('second production user signs in on mobile with a persisted session', async
 
   await page.getByRole('link', { name: 'Settings' }).click();
   await expect(
-    page.getByRole('region', { name: 'Account' }).getByRole('heading', {
-      name: 'Partner Gardener',
-    }),
+    page.getByRole('heading', { exact: true, name: 'Settings' }),
   ).toBeVisible();
-  await expect(
-    page
-      .getByRole('region', { name: 'Account' })
-      .getByText('partner.gardener@example.com', { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator('[title="partner.gardener@example.com"]')).toHaveText('Partner Gardener');
 });
 
 test('garden plot has exact board sizing and scrolls large plots', async ({
@@ -234,7 +228,7 @@ test('non-allowlisted email has no sign-in path', async ({ page }) => {
   ).toBeVisible();
 });
 
-test('Plan supports choose plants, checked variants, publish, and revert', async ({
+test('Plan supports choose plants, one layout suggestion, publish, and revert', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1365, height: 768 });
@@ -292,17 +286,60 @@ test('sample garden loads populated Plan, Today, Feed, and Settings', async ({
     page.getByRole('heading', { exact: true, name: 'Plan' }),
   ).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('20 ft by 16 ft')).toBeVisible();
-  await openPlanTool(page, 'Generated layouts');
+  await openPlanTool(page, 'Generate layout');
   await expect(
     page.getByRole('heading', { name: 'What needs attention' }),
   ).toBeVisible();
   await expect(
     page.getByRole('listitem').filter({ hasText: 'Path too narrow' }).first(),
   ).toBeVisible();
+  const preview = page.getByRole('region', {
+    name: 'Before and after preview',
+  });
+
+  if (!(await preview.isVisible().catch(() => false))) {
+    await page
+      .getByRole('button', { name: /Generate layout|Check again/ })
+      .first()
+      .click();
+  }
+
+  const layoutSuggestion = page.getByRole('region', {
+    name: 'Layout suggestion',
+  });
+
+  await expect(
+    layoutSuggestion.getByRole('heading', {
+      exact: true,
+      name: 'Try a different arrangement',
+    }),
+  ).toBeVisible();
+  await expect(
+    layoutSuggestion.getByRole('button', { name: 'Apply this layout' }),
+  ).toBeVisible();
+  await expect(
+    layoutSuggestion.getByRole('button', { name: 'Keep current layout' }),
+  ).toBeVisible();
 
   await page.getByRole('link', { name: 'Today' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Water roots and salad bed 0.35 in' }),
+    page.getByRole('heading', { name: 'Watering work' }),
+  ).toBeVisible();
+  const wateringPanel = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Watering work' }) })
+    .first();
+  await expect(
+    wateringPanel.getByText('roots and salad bed', { exact: false }).first(),
+  ).toBeVisible();
+  await expect(
+    wateringPanel.getByRole('button', { name: 'Water done' }).first(),
+  ).toBeVisible();
+  await expect(
+    wateringPanel.getByRole('button', { name: 'Partial watering' }).first(),
+  ).toBeVisible();
+  await expect(
+    wateringPanel.getByRole('button', { name: 'Adjust amount' }).first(),
   ).toBeVisible();
   await expect(
     page.getByRole('heading', {
@@ -311,7 +348,13 @@ test('sample garden loads populated Plan, Today, Feed, and Settings', async ({
     }),
   ).toBeVisible();
 
-  await page.getByRole('link', { name: 'Feed' }).click();
+  await page.getByRole('link', { exact: true, name: 'Feed' }).click();
+  await expect(
+    page.getByRole('heading', {
+      exact: true,
+      name: 'Watered Roots and salad bed',
+    }),
+  ).toBeVisible();
   await expect(
     page.getByRole('heading', {
       exact: true,

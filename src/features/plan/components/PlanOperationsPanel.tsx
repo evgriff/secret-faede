@@ -16,33 +16,27 @@ import { PlanOptimizeCandidates } from './PlanOptimizeCandidates';
 import styles from './PlanOperationsPanel.module.css';
 
 export function PlanOperationsPanel({
-  autoLayoutCandidates,
+  autoLayoutSuggestion,
   currentWarnings,
   garden,
-  ignoredAutoLayoutCandidateIds,
-  layoutVariants,
   onApplyAutoLayoutCandidate,
-  onGenerateAutoLayoutCandidates,
-  onIgnoreAutoLayoutCandidate,
-  onSelectAutoLayoutCandidate,
+  onDismissAutoLayoutSuggestion,
+  onGenerateAutoLayoutSuggestion,
   optimizerMessage,
   optimizerStatus,
-  selectedAutoLayoutCandidateId,
+  suggestion,
   sunLayer,
   sunSeason,
 }: {
-  autoLayoutCandidates: AutoLayoutCandidate[];
+  autoLayoutSuggestion: AutoLayoutCandidate | null;
   currentWarnings: PlanWarning[];
   garden: Garden;
-  ignoredAutoLayoutCandidateIds: string[];
-  layoutVariants: LayoutVariant[];
   onApplyAutoLayoutCandidate(): void;
-  onGenerateAutoLayoutCandidates(): void;
-  onIgnoreAutoLayoutCandidate(candidateId: string): void;
-  onSelectAutoLayoutCandidate(candidateId: string): void;
+  onDismissAutoLayoutSuggestion(): void;
+  onGenerateAutoLayoutSuggestion(): void;
   optimizerMessage: string | null;
   optimizerStatus: AutoLayoutRunStatus;
-  selectedAutoLayoutCandidateId: string | null;
+  suggestion: LayoutVariant | null;
   sunLayer: SunShadeLayer | null;
   sunSeason: SunSeason;
 }) {
@@ -51,45 +45,45 @@ export function PlanOperationsPanel({
     (total, request) => total + request.quantity,
     0,
   );
-  const hasGeneratedLayouts = autoLayoutCandidates.length > 0;
+  const hasSuggestion = Boolean(autoLayoutSuggestion && suggestion);
   const isOptimizing = optimizerStatus === 'running';
   const layoutSectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (autoLayoutCandidates.length === 0) {
+    if (!hasSuggestion) {
       return;
     }
 
     layoutSectionRef.current?.scrollIntoView?.({ block: 'start' });
-  }, [autoLayoutCandidates]);
+  }, [autoLayoutSuggestion?.id, hasSuggestion]);
 
   return (
-    <section className={styles.panel} aria-label="Generated layout workflow">
+    <section className={styles.panel} aria-label="Layout suggestion workflow">
       <section
         className={styles.materials}
-        aria-label="Generated layouts"
+        aria-label="Layout suggestion"
         ref={layoutSectionRef}
       >
         <div className={styles.sectionHeader}>
           <div>
-            <span className={styles.kicker}>Layout ideas</span>
+            <span className={styles.kicker}>Layout suggestion</span>
             <h3>Try a different arrangement</h3>
             <p className={styles.helpText}>
-              Use this when you want help fitting the crops already saved to the
-              plan.
+              Use this when you want one checked whole-plot suggestion for the
+              crops already saved to the plan.
             </p>
           </div>
           <button
             className={styles.secondaryButton}
             disabled={layoutRequests.length === 0 || isOptimizing}
-            onClick={onGenerateAutoLayoutCandidates}
+            onClick={onGenerateAutoLayoutSuggestion}
             type="button"
           >
             {isOptimizing
               ? 'Checking...'
-              : hasGeneratedLayouts
-                ? 'Refresh layouts'
-                : 'Generate layouts'}
+              : hasSuggestion
+                ? 'Check again'
+                : 'Generate layout'}
           </button>
         </div>
         {optimizerMessage ? (
@@ -105,26 +99,24 @@ export function PlanOperationsPanel({
         {layoutRequests.length > 0 ? (
           <>
             <p className={styles.helpText}>
-              {hasGeneratedLayouts
-                ? 'Compare one idea at a time, then apply it or ignore it.'
+              {hasSuggestion
+                ? 'Review this suggestion, then apply it or keep the current layout.'
                 : `${layoutRequests.length} saved crop request${layoutRequests.length === 1 ? '' : 's'} still need room in the plan, covering ${requestedPlantCount} plant${requestedPlantCount === 1 ? '' : 's'} total.`}
             </p>
-            {autoLayoutCandidates.length === 0 ? (
+            {!hasSuggestion ? (
               <p className={styles.helpText}>
-                Generate layout ideas when you want a simpler full-plot option.
+                Generate one layout suggestion when you want a simpler full-plot
+                option.
               </p>
             ) : null}
-            {autoLayoutCandidates.length > 0 ? (
+            {autoLayoutSuggestion && suggestion ? (
               <PlanOptimizeCandidates
-                autoLayoutCandidates={autoLayoutCandidates}
+                autoLayoutSuggestion={autoLayoutSuggestion}
                 currentWarnings={currentWarnings}
                 garden={garden}
-                ignoredAutoLayoutCandidateIds={ignoredAutoLayoutCandidateIds}
-                layoutVariants={layoutVariants}
                 onApplyAutoLayoutCandidate={onApplyAutoLayoutCandidate}
-                onIgnoreAutoLayoutCandidate={onIgnoreAutoLayoutCandidate}
-                onSelectAutoLayoutCandidate={onSelectAutoLayoutCandidate}
-                selectedAutoLayoutCandidateId={selectedAutoLayoutCandidateId}
+                onDismissAutoLayoutSuggestion={onDismissAutoLayoutSuggestion}
+                suggestion={suggestion}
                 sunLayer={sunLayer}
                 sunSeason={sunSeason}
               />
@@ -132,7 +124,7 @@ export function PlanOperationsPanel({
           </>
         ) : (
           <p className={styles.helpText}>
-            Add plants before generating layouts.
+            Add plants before generating a layout suggestion.
           </p>
         )}
       </section>

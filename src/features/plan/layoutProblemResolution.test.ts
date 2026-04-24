@@ -50,7 +50,7 @@ describe('layoutProblemResolution', () => {
     });
 
     const model = buildLayoutProblemResolutionModel({
-      candidates: [],
+      candidate: null,
       garden,
       reviewSuggestions: [suggestion],
       suggestionDecisions: [],
@@ -110,7 +110,7 @@ describe('layoutProblemResolution', () => {
     };
 
     const model = buildLayoutProblemResolutionModel({
-      candidates: [],
+      candidate: null,
       garden,
       reviewSuggestions: [suggestion],
       suggestionDecisions: [decision],
@@ -132,7 +132,7 @@ describe('layoutProblemResolution', () => {
     });
   });
 
-  it('groups optimizer variants with their complete solution option', () => {
+  it('builds one optimizer suggestion with its complete solution option', () => {
     const garden = makeGarden();
     const candidate: AutoLayoutCandidate = {
       explanations: ['Keeps similar watering needs closer together.'],
@@ -174,21 +174,21 @@ describe('layoutProblemResolution', () => {
     });
 
     const model = buildLayoutProblemResolutionModel({
-      candidates: [candidate],
+      candidate,
       garden,
       reviewSuggestions: [suggestion],
       suggestionDecisions: [],
       warnings: [],
     });
 
-    expect(model.variants[0]).toMatchObject({
+    expect(model.suggestion).toMatchObject({
       id: candidate.id,
       problemIds: expect.arrayContaining([
         'layout:problem:sun-first:constraint-1',
       ]),
       resolutionOptionIds: [model.resolutionOptions[0]?.id],
     });
-    expect(model.variants[0]?.downstreamValidation).toMatchObject({
+    expect(model.suggestion?.downstreamValidation).toMatchObject({
       remainingProblemIds: ['layout:problem:sun-first:constraint-1'],
       status: 'failed',
     });

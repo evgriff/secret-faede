@@ -5,7 +5,11 @@ import {
   annArborClimateProfile,
   createDefaultGarden,
 } from '../domain/gardens/GardenRepository';
-import { sampleGardenName } from '../domain/gardens/sampleGarden';
+import {
+  createSampleGarden,
+  sampleGardenName,
+} from '../domain/gardens/sampleGarden';
+import { writeDemoModeSession } from '../features/demo/demoModeStorage';
 import type { AppServices } from '../infrastructure/runtime/services';
 import { rememberAppRoute } from '../features/auth/sessionResume';
 import { routePaths } from '../shared/lib/routes';
@@ -50,7 +54,11 @@ describe('app routing', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: 'Feed' }),
     ).toBeVisible();
-    expect(await screen.findByText(/entries shown/i)).toBeVisible();
+    expect(
+      await screen.findByText(
+        /watering, harvests, issues, notes, and photos stay here/i,
+      ),
+    ).toBeVisible();
   });
 
   it('redirects the app shell index to Plan', async () => {
@@ -94,7 +102,11 @@ describe('app routing', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: 'Feed' }),
     ).toBeVisible();
-    expect(await screen.findByText(/entries shown/i)).toBeVisible();
+    expect(
+      await screen.findByText(
+        /watering, harvests, issues, notes, and photos stay here/i,
+      ),
+    ).toBeVisible();
   });
 
   it('redirects the legacy garden route to Plan', async () => {
@@ -206,7 +218,7 @@ describe('app routing', () => {
 
     await user.click(
       within(sampleGarden).getByRole('button', {
-        name: 'Return to saved garden',
+        name: 'Back to my garden',
       }),
     );
 
@@ -229,6 +241,41 @@ describe('app routing', () => {
         name: 'This email address is not authorized.',
       }),
     ).toBeVisible();
+  });
+
+  it('disables restore when sample mode has no saved-garden backup', async () => {
+    const services = await createTestServices({
+      signedInEmail: 'primary.gardener@example.com',
+    });
+    const currentUser = services.authService.getCurrentUser();
+
+    if (!currentUser) {
+      throw new Error('Expected signed-in test user.');
+    }
+
+    await services.gardenRepository.saveGarden(
+      createSampleGarden(currentUser.uid),
+    );
+    writeDemoModeSession(currentUser.uid);
+
+    renderRoute('/app/settings', services);
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Settings' }),
+    ).toBeVisible();
+    const restoreButtons = await screen.findAllByRole('button', {
+      name: 'Back to my garden',
+    });
+
+    expect(restoreButtons).toHaveLength(2);
+    restoreButtons.forEach((button) => {
+      expect(button).toBeDisabled();
+    });
+    expect(
+      screen.getAllByText(
+        /No saved garden backup is available on this device, so Back to my garden is unavailable\./i,
+      ),
+    ).toHaveLength(2);
   });
 });
 

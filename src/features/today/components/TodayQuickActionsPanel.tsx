@@ -1,3 +1,6 @@
+import { Link } from 'react-router-dom';
+
+import { routePaths } from '../../../shared/lib/routes';
 import {
   TodayManualTaskForm,
   type TodayManualTaskInput,
@@ -20,10 +23,19 @@ export function TodayQuickActionsPanel({
   return (
     <section className={styles.quickActionsPanel}>
       <div className={styles.groupHeader}>
-        <h2>Log what happened</h2>
-        <span>Field log</span>
+        <h2>Field follow-up</h2>
+        <span>Today only</span>
       </div>
+      <p className={styles.helperText}>
+        Report issues and log harvests here while the work is in front of you.
+        Use Feed for notes and photo memories.
+      </p>
       <TodayQuickActionRail onOpenAction={onOpenAction} />
+      <div className={styles.handoffRow}>
+        <Link className={styles.feedLink} to={routePaths.feed}>
+          Open Feed for notes and photos
+        </Link>
+      </div>
       <details className={styles.addTaskDisclosure}>
         <summary>Add a reminder</summary>
         <TodayManualTaskForm

@@ -8,6 +8,7 @@ import {
 } from '../../domain/gardens/GardenRepository';
 import { LoadingState } from '../../shared/ui/LoadingState';
 import { useAuth } from '../auth/auth-context';
+import { rebuildGardenWateringFromLatestSnapshot } from '../garden/wateringScheduleRefresh';
 import { NotificationCenter } from './components/NotificationCenter';
 import { SettingsDemoPanel } from './components/SettingsDemoPanel';
 import {
@@ -24,7 +25,7 @@ import { useSettingsDemoMode } from './useSettingsDemoMode';
 import styles from './SettingsPage.module.css';
 
 export function SettingsPage() {
-  const { signOut, state } = useAuth();
+  const { state } = useAuth();
   const {
     gardenRepository,
     mobileDeviceService,
@@ -114,10 +115,37 @@ export function SettingsPage() {
     setError(null);
 
     try {
-      await userProfileRepository.saveUserProfile({
+      const updatedProfile = {
         ...profile,
         updatedAtIso: new Date().toISOString(),
-      });
+      };
+
+      await userProfileRepository.saveUserProfile(updatedProfile);
+      setProfile(updatedProfile);
+
+      if (garden) {
+        try {
+          const updatedGarden = rebuildGardenWateringFromLatestSnapshot(
+            garden,
+            {
+              now: new Date(),
+              preserveDueWindowStart: false,
+              profile: updatedProfile,
+            },
+          );
+
+          await gardenRepository.saveGarden(updatedGarden);
+          setGarden(updatedGarden);
+        } catch (gardenSaveError) {
+          setError(
+            toErrorMessage(
+              gardenSaveError,
+              'Settings saved, but watering schedule could not be refreshed.',
+            ),
+          );
+        }
+      }
+
       setSaveStatus('saved');
     } catch (saveError) {
       setError(toErrorMessage(saveError, 'Unable to save settings.'));
@@ -265,8 +293,9 @@ export function SettingsPage() {
   return (
     <section className={styles.page}>
       <header className={styles.header}>
+        <p className={styles.kicker}>Defaults</p>
         <h1>Settings</h1>
-        <p>Alert defaults for weather and watering decisions.</p>
+        <p>Set time, location, alerts, and sample-garden controls.</p>
       </header>
 
       <form
@@ -276,21 +305,6 @@ export function SettingsPage() {
           void saveSettings();
         }}
       >
-        <section aria-label="Account" className={styles.accountPanel}>
-          <div>
-            <p className={styles.kicker}>Account</p>
-            <h2>{authUser?.displayName ?? 'Gardener'}</h2>
-            <p>{authUser?.email}</p>
-          </div>
-          <button
-            className={styles.secondaryButton}
-            onClick={() => void signOut()}
-            type="button"
-          >
-            Sign out
-          </button>
-        </section>
-
         <AlertDefaultsFields onProfileChange={setProfile} profile={profile} />
 
         <NotificationDeliveryFields
@@ -316,28 +330,35 @@ export function SettingsPage() {
           onEnableNativePush={() => void enableNativePush()}
         />
 
-        <NotificationCenter
-          logs={garden?.notificationLogs ?? []}
-          onAcknowledge={(logId) =>
-            void updateNotificationLog(logId, {
-              acknowledgedAtIso: new Date().toISOString(),
-              snoozedUntilIso: null,
-            })
-          }
-          onDismiss={(logId) =>
-            void updateNotificationLog(logId, {
-              dismissedAtIso: new Date().toISOString(),
-              snoozedUntilIso: null,
-            })
-          }
-          onSnooze={(logId) =>
-            void updateNotificationLog(logId, {
-              snoozedUntilIso: new Date(
-                Date.now() + 24 * 60 * 60 * 1000,
-              ).toISOString(),
-            })
-          }
-        />
+        <details className={styles.disclosure}>
+          <summary>Recent alerts</summary>
+          <p className={styles.metaText}>
+            Delivery history stays available here when you need it, but this
+            route is for defaults first.
+          </p>
+          <NotificationCenter
+            logs={garden?.notificationLogs ?? []}
+            onAcknowledge={(logId) =>
+              void updateNotificationLog(logId, {
+                acknowledgedAtIso: new Date().toISOString(),
+                snoozedUntilIso: null,
+              })
+            }
+            onDismiss={(logId) =>
+              void updateNotificationLog(logId, {
+                dismissedAtIso: new Date().toISOString(),
+                snoozedUntilIso: null,
+              })
+            }
+            onSnooze={(logId) =>
+              void updateNotificationLog(logId, {
+                snoozedUntilIso: new Date(
+                  Date.now() + 24 * 60 * 60 * 1000,
+                ).toISOString(),
+              })
+            }
+          />
+        </details>
 
         <details
           className={styles.demoDisclosure}

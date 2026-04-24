@@ -24,14 +24,14 @@ Included:
 - plant and planting-instance positions stored as `xFt` and `yFt`
 - quantity-first Add Plant and Choose Plants flows that create individual plant
   nodes inside arrangement-aware groups
-- problem inbox and checked layout variants with before/after plot diff
-  overlays, explicit resolution actions, ignore decisions, and no decorative
+- problem inbox and one checked whole-plot layout suggestion with before/after
+  diff overlays, explicit apply or keep-current actions, and no decorative
   scoring surface
 - authenticated app shell for Plan, Today, Feed, and Settings
 - editable settings for alert location, timezone, check time, thresholds, push
   delivery, quiet hours, and local/native notification support
-- weather provider layer with NWS default, optional Tomorrow.io, and watering
-  recommendations
+- weather provider layer with NWS default, optional Tomorrow.io, and a saved
+  watering schedule
 - in-app notification logs, FCM web/native push registration, and local native
   alerts
 - generated task timeline for planting, trellising, thinning, pruning,
@@ -42,8 +42,8 @@ Included:
   workflows
 - Feed memory cards with a single New entry launcher and image-led photo
   updates
-- sample garden controls in Settings for opening, resetting, and leaving a
-  stable Detroit example garden on the current device
+- sample garden controls in Settings plus a shell-level **Back to my garden**
+  restore path while the sample is active on the current device
 - Firebase Cloud Functions source for daily watering checks and weather-driven
   frost, heat, and severe-weather alerts
 - Firebase Storage for authenticated journal photos
@@ -73,10 +73,11 @@ Optional local config:
 
 Plan now centers on grouped plant footprints. Add Plants asks for crop and
 quantity first, then derives row, block, or cluster geometry from spacing data.
-On the plot, clicking a plant group shows its label; the wrench opens the plant
-editor; Detailed View keeps that editor available while moving between relevant
-items. Review Problems opens the problem inbox, Optimize generates checked
-variants, and Sun shows modeled direct sun plus maturity-based shade sources.
+On the plot, clicking a plant group opens crop focus, and the wrench or
+**Open details** opens the plant editor. Detailed View keeps that editor
+available while moving between relevant items. Review Problems opens the
+problem inbox, Generate layout walks through one checked layout suggestion, and
+Sun shows modeled direct sun plus maturity-based shade sources.
 
 ## Runtime modes
 
@@ -130,7 +131,8 @@ If Firebase mode is requested without complete web config, the app falls back to
 - `npm run quality:bundle`
 - `npm run build`
 - `npm run ci`
-- `npm run seed:dev`: seed an existing Firebase Auth user with Detroit demo data
+- `npm run seed:dev`: seed an existing Firebase Auth user with the Detroit
+  sample garden data
 
 ## Firebase and deployment
 

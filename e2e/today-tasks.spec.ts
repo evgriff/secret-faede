@@ -11,10 +11,13 @@ test('Today surfaces due tasks with reasons and target jumps', async ({
   await enterDemoFromShell(page);
 
   await page.goto('/app/today');
-  await expect(page.getByRole('heading', { name: 'Task list' })).toBeVisible();
   await expect(
-    page.getByText('Water roots and salad bed 0.35 in').first(),
+    page.getByRole('heading', { name: 'Checks and other work' }),
   ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Watering work' }),
+  ).toBeVisible();
+  await expect(page.getByText('roots and salad bed').first()).toBeVisible();
   await expect(
     page
       .getByText('Spring greens bed is below its weekly water target.')
@@ -107,6 +110,38 @@ test('Today surfaces due tasks with reasons and target jumps', async ({
   ).toContainText('lettuce');
 });
 
+test('Today keeps the remaining watering deficit visible after a partial watering', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.clock.setFixedTime(new Date('2026-06-21T14:00:00.000Z'));
+  await signInWithMockPassword(page);
+  await enterDemoFromShell(page);
+
+  await page.goto('/app/today');
+
+  const wateringCard = page
+    .locator('article')
+    .filter({ hasText: 'roots and salad bed' })
+    .filter({ has: page.getByRole('button', { name: 'Partial watering' }) })
+    .first();
+
+  await wateringCard.getByRole('button', { name: 'Partial watering' }).click();
+  await expect(
+    page.getByRole('dialog', { name: 'Partial watering' }),
+  ).toBeVisible();
+  await page
+    .getByRole('spinbutton', { name: 'Amount applied (inches)' })
+    .fill('0.15');
+  await page.getByRole('button', { name: 'Save partial watering' }).click();
+
+  await expect(
+    page.getByText('Partial watering logged in Feed.'),
+  ).toBeVisible();
+  await expect(wateringCard).toContainText('0.20 in still due');
+  await expect(page.getByRole('dialog', { name: 'Add photo' })).toHaveCount(0);
+});
+
 test('Today logs a harvest from the field card with one tap', async ({
   page,
 }) => {
@@ -125,7 +160,9 @@ test('Today logs a harvest from the field card with one tap', async ({
   await radishHarvest.getByRole('button', { name: 'Log harvest' }).click();
 
   await expect(
-    page.getByText('Harvest saved. Add a photo if it helps the memory.'),
+    page.getByText(
+      'Harvest saved to Feed. Add a photo if it helps the memory.',
+    ),
   ).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Add photo' })).toBeVisible();
   await expect(radishHarvest).toContainText('French breakfast radish');

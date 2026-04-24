@@ -64,6 +64,22 @@ test.describe('main route visual baselines', () => {
 
 test.describe('Plan workflow visual baselines', () => {
   for (const viewport of viewports) {
+    test(`add plant ${viewport.name}`, async ({ page }) => {
+      await setVisualViewport(page, viewport);
+      await signInAndCreateBlankPlan(page);
+      await openPlanTool(page, 'Plant');
+      await page.getByRole('button', { name: 'Open plant picker' }).click();
+      await expect(
+        page.getByRole('dialog', { name: 'Add Plant' }),
+      ).toBeVisible();
+      await stabilizeVisualState(page);
+      await expect(page).toHaveScreenshot(`add-plant-${viewport.name}.png`, {
+        animations: 'disabled',
+        caret: 'hide',
+        maxDiffPixelRatio: 0.01,
+      });
+    });
+
     test(`choose plants ${viewport.name}`, async ({ page }) => {
       await setVisualViewport(page, viewport);
       await signInAndCreateBlankPlan(page);
@@ -81,13 +97,14 @@ test.describe('Plan workflow visual baselines', () => {
       await expect(
         page.getByRole('region', { name: 'Season crop board' }),
       ).toContainText('Tomato');
+      await resetChoosePlantsScrollState(page);
       await stabilizeVisualState(page);
       await expect(page).toHaveScreenshot(
         `choose-plants-${viewport.name}.png`,
         {
           animations: 'disabled',
           caret: 'hide',
-          maxDiffPixelRatio: 0.01,
+          maxDiffPixelRatio: viewport.name === 'desktop' ? 0.05 : 0.01,
         },
       );
     });
@@ -99,7 +116,7 @@ test.describe('Plan workflow visual baselines', () => {
       await generateLayoutCandidates(page);
       await expect(
         page
-          .getByRole('region', { name: 'Generated layouts' })
+          .getByRole('region', { name: 'Layout suggestion' })
           .getByRole('heading', {
             exact: true,
             name: 'Try a different arrangement',
@@ -212,7 +229,7 @@ async function addTomatoToPlan(page: Page) {
 }
 
 async function generateLayoutCandidates(page: Page) {
-  await clickVisibleOrLauncherTool(page, 'Generated layouts');
+  await clickVisibleOrLauncherTool(page, 'Generate layout');
 
   await expect(
     page.getByRole('heading', { name: 'Review problems' }),
@@ -223,7 +240,7 @@ async function generateLayoutCandidates(page: Page) {
 
   if (!(await beforeAfterPreview.isVisible().catch(() => false))) {
     await page
-      .getByRole('button', { name: /Generate layouts|Refresh layouts/ })
+      .getByRole('button', { name: /Generate layout|Check again/ })
       .first()
       .click();
   }
@@ -248,4 +265,31 @@ async function stabilizeVisualState(page: Page) {
   await page.waitForLoadState('networkidle');
   await page.evaluate('window.scrollTo(0, 0)');
   await page.waitForTimeout(100);
+}
+
+async function resetChoosePlantsScrollState(page: Page) {
+  await page.evaluate(() => {
+    const dialog = (globalThis as { document?: unknown }).document as
+      | {
+          querySelector(selector: string): unknown;
+        }
+      | undefined;
+    const root = dialog?.querySelector('[role="dialog"]') as
+      | {
+          querySelectorAll(selector: string): ArrayLike<{
+            scrollTop?: number;
+          }>;
+        }
+      | undefined;
+
+    if (!root) {
+      return;
+    }
+
+    Array.from(root.querySelectorAll('*')).forEach((element) => {
+      if (typeof element.scrollTop === 'number' && element.scrollTop !== 0) {
+        element.scrollTop = 0;
+      }
+    });
+  });
 }

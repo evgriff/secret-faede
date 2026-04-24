@@ -132,15 +132,15 @@ Route map:
 11. User edits mark the garden dirty; Save writes plot dimensions and plant
     positions. Offline saves are accepted locally and surfaced as queued/saved
     locally in the shell.
-12. Update Weather fetches provider data, builds a weather snapshot, generates
-    watering recommendations, and persists the updated garden.
+12. Update Weather fetches provider data, builds a weather snapshot, refreshes
+    the saved watering schedule, and persists the updated garden.
 13. Active watering and weather alerts create in-app notification logs that are
     visible in the garden operations panel.
 14. Settings lets the user manage alert types, push delivery, quiet hours,
     daily check time, location/timezone, web/native push registration, local
     notification support, and founder demo enter/reset/exit controls.
 15. `/app/today` syncs generated work from the saved garden plan, watering
-    recommendations, editable frost dates, and crop catalog defaults.
+    schedule entries, editable frost dates, and crop catalog defaults.
 16. `/app/feed` records notes, structured issues, photo attachments, harvests,
     and compact season summaries from the same garden aggregate.
 17. The authenticated shell shows online/offline state and uses mobile bottom
@@ -187,7 +187,7 @@ Canonical garden document:
 {
   id: string,
   userId: string,
-  schemaVersion: 5,
+  schemaVersion: 6,
   name: string,
   climateProfile: ClimateProfile,
   plot: {
@@ -235,11 +235,12 @@ plantings; they do not create a second persistence model.
 
 The sample garden builder lives in
 `src/domain/gardens/sampleGarden.ts`. It creates a normal Detroit garden
-aggregate and user profile for release demos; it does not add a parallel demo
-schema or payment/entitlement model. The shell demo controls save a
-browser-local backup, run the command through Settings, and return to the
-originating workspace; **Exit demo** restores the real garden draft without
-turning demo mode into a public funnel.
+aggregate and user profile for the resettable sample garden; it does not add a
+parallel demo schema or payment/entitlement model. The shell and Settings
+sample-garden controls save a browser-local backup, run the command through the
+existing return-to plumbing, and return to the originating workspace whenever
+possible; **Back to my garden** restores the real garden draft without turning
+sample mode into a public funnel.
 
 Sun/shade layers are stored on the garden document as generated or manually
 overridden 1-foot cells. The model uses SunCalc with the garden latitude,
@@ -256,7 +257,7 @@ trellis, and saved-history rotation warnings by severity and can jump to the
 affected item. Informational cautions can be acknowledged in-session; critical
 geometry warnings are not persisted as dismissed state.
 
-Weather snapshots and water recommendations are currently embedded on
+Weather snapshots and the watering schedule are currently embedded on
 `gardens/{uid}`. The watering engine combines crop weekly water targets, bed or
 container multipliers, mulch flags, recent rain, near-term forecast rain, heat
 stress, optional evapotranspiration, and journal water logs when present.
@@ -273,10 +274,10 @@ ids so completed/skipped work does not reappear. Task records include due date,
 type, source, source id, bed label, priority, snooze/defer state, and completion
 time. The task engine generates work from crop defaults, planting date or
 editable frost dates, sow method, trellis needs, thinning, pruning,
-fertilizing, mulching, water recommendations, and harvest windows. Completing a
-sow/plant/transplant task updates the planting to growing and refreshes
-downstream generated tasks from the completion date; completing a water task
-marks its recommendation completed.
+fertilizing, mulching, watering schedule entries, and harvest windows.
+Completing a sow/plant/transplant task updates the planting to growing and
+refreshes downstream generated tasks from the completion date; completing a
+water task marks its schedule entry completed.
 
 Journal entries are stored at `gardens/{uid}/journal/{entryId}`. Entries can
 target the whole garden, a structure/bed, or an individual planting. Issue
@@ -378,8 +379,8 @@ native config files are present. Firebase Functions owns scheduled and
 event-driven dispatch:
 
 - `dailyWateringCheck` runs hourly in UTC, then checks each user's saved
-  timezone and watering check time before sending active watering
-  recommendations.
+  timezone and watering check time before sending active watering schedule
+  alerts.
 - `onGardenWeatherSnapshotUpdated` reacts when a new garden weather snapshot is
   saved and dispatches frost, heat-stress, or severe-weather alerts.
 

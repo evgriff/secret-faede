@@ -3,7 +3,7 @@ import {
   createDefaultPlanting,
   createDefaultStructure,
   type Garden,
-  type WaterRecommendation,
+  type WateringScheduleEntry,
   type WeatherSnapshot,
 } from '../../domain/gardens/GardenRepository';
 import {
@@ -42,7 +42,7 @@ describe('taskEngine', () => {
           type: 'harvest',
         }),
         expect.objectContaining({
-          source: 'waterRecommendation',
+          source: 'wateringSchedule',
           title: 'Water Tomato 0.60 in',
           type: 'water',
         }),
@@ -68,7 +68,7 @@ describe('taskEngine', () => {
             status: 'planned',
           },
         ],
-        waterRecommendations: [],
+        wateringSchedule: [],
         weatherSnapshots: [createWeatherSnapshot()],
       },
       { now: new Date('2026-04-20T12:00:00.000Z') },
@@ -106,7 +106,7 @@ describe('taskEngine', () => {
     const garden = synchronizeGardenTasks(createTaskGarden(), {
       now: new Date('2026-04-20T12:00:00.000Z'),
     });
-    const recommendation = garden.waterRecommendations[0];
+    const recommendation = garden.wateringSchedule[0];
 
     if (!recommendation) {
       throw new Error('Expected a water recommendation.');
@@ -115,7 +115,7 @@ describe('taskEngine', () => {
     const withoutWaterNeed = synchronizeGardenTasks(
       {
         ...garden,
-        waterRecommendations: [
+        wateringSchedule: [
           {
             ...recommendation,
             status: 'completed',
@@ -149,7 +149,7 @@ describe('taskEngine', () => {
             plantingId: 'tomato-1',
             priority: 'medium',
             snoozedUntilDate: null,
-            source: 'waterRecommendation',
+            source: 'wateringSchedule',
             sourceId: 'water-1',
             status: 'open',
             structureId: null,
@@ -191,13 +191,46 @@ describe('taskEngine', () => {
       plantedOn: '2026-05-17',
       status: 'growing',
     });
-    expect(wateredGarden.waterRecommendations[0]).toMatchObject({
+    expect(wateredGarden.wateringSchedule[0]).toMatchObject({
+      lastWateredAtIso: '2026-05-18T12:00:00.000Z',
       status: 'completed',
     });
     expect(
       wateredGarden.tasks.find((task) => task.id === 'planting-tomato-1-plant'),
     ).toMatchObject({
       status: 'done',
+    });
+  });
+
+  it('accumulates previously applied water when a partial schedule entry is completed', () => {
+    const garden = synchronizeGardenTasks(
+      {
+        ...createTaskGarden(),
+        wateringSchedule: [
+          createWateringScheduleEntry({
+            appliedAmountInches: 0.25,
+            lastWateredAtIso: '2026-04-20T09:00:00.000Z',
+            status: 'partial',
+            targetAmountInches: 0.35,
+            deficitInches: 0.35,
+          }),
+        ],
+      },
+      {
+        now: new Date('2026-04-20T12:00:00.000Z'),
+        refreshOpenGenerated: true,
+      },
+    );
+    const wateredGarden = completeTask(
+      garden,
+      'water-water-1',
+      new Date('2026-04-20T15:00:00.000Z'),
+    );
+
+    expect(wateredGarden.wateringSchedule[0]).toMatchObject({
+      appliedAmountInches: 0.6,
+      lastWateredAtIso: '2026-04-20T15:00:00.000Z',
+      status: 'completed',
     });
   });
 
@@ -219,7 +252,7 @@ describe('taskEngine', () => {
             sunRequirement: 'fullSun',
           },
         ],
-        waterRecommendations: [],
+        wateringSchedule: [],
       },
       { now: new Date('2026-04-20T12:00:00.000Z') },
     );
@@ -281,7 +314,7 @@ describe('taskEngine', () => {
             sunRequirement: 'fullSun',
           },
         ],
-        waterRecommendations: [],
+        wateringSchedule: [],
       },
       { now: new Date('2026-04-20T12:00:00.000Z') },
     );
@@ -348,29 +381,36 @@ function createTaskGarden(): Garden {
         label: 'Main bed',
       },
     ],
-    waterRecommendations: [createWaterRecommendation()],
+    wateringSchedule: [createWateringScheduleEntry()],
   };
 }
 
-function createWaterRecommendation(): WaterRecommendation {
+function createWateringScheduleEntry(
+  overrides: Partial<WateringScheduleEntry> = {},
+): WateringScheduleEntry {
   return {
+    appliedAmountInches: null,
+    createdAtIso: '2026-04-20T12:00:00.000Z',
     deficitInches: 0.6,
-    generatedAtIso: '2026-04-20T12:00:00.000Z',
+    dueDate: '2026-04-20',
+    dueWindowEndIso: null,
+    dueWindowStartIso: '2026-04-20T12:00:00.000Z',
     gardenId: 'user-a',
     id: 'water-1',
-    inchesNeeded: 0.6,
-    plantingId: 'tomato-1',
-    rationale: ['Rain is unlikely today.'],
-    reason: 'Dry soil',
-    recommendationDate: '2026-04-20',
-    recommendedWaterInches: 0.6,
-    status: 'active',
-    suppressUntilIso: null,
+    lastWateredAtIso: null,
+    nextRecalculationAtIso: null,
+    reasonDetails: ['Rain is unlikely today.'],
+    reasonSummary: 'Dry soil',
+    status: 'due',
     targetId: 'tomato-1',
+    targetAmountInches: 0.6,
+    targetKind: 'planting',
     targetLabel: 'Tomato',
-    targetType: 'planting',
+    updatedAtIso: '2026-04-20T12:00:00.000Z',
     urgency: 'high',
+    wateringZoneId: null,
     weatherSnapshotId: 'weather-1',
+    ...overrides,
   };
 }
 

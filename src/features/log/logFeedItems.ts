@@ -140,7 +140,7 @@ function isFeedWorthyTask(task: Task) {
   return (
     task.status === 'done' &&
     Boolean(task.completedAtIso) &&
-    task.source !== 'waterRecommendation' &&
+    task.source !== 'wateringSchedule' &&
     (task.source === 'manual' ||
       task.source === 'succession' ||
       task.priority === 'high' ||

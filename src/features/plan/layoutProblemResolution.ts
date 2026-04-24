@@ -23,7 +23,7 @@ import {
   validateProblem,
   validateResolutionOption,
 } from './layoutProblemResolutionValidation';
-import { buildLayoutVariants } from './layoutProblemVariants';
+import { buildLayoutSuggestion } from './layoutProblemVariants';
 import {
   buildLayoutResolutionOption,
   buildLayoutResolutionRecord,
@@ -33,17 +33,17 @@ export interface LayoutProblemResolutionModel {
   problems: LayoutProblem[];
   resolutionOptions: LayoutResolutionOption[];
   resolutions: LayoutResolution[];
-  variants: LayoutVariant[];
+  suggestion: LayoutVariant | null;
 }
 
 export function buildLayoutProblemResolutionModel({
-  candidates,
+  candidate,
   garden,
   reviewSuggestions,
   suggestionDecisions,
   warnings,
 }: {
-  candidates: AutoLayoutCandidate[];
+  candidate: AutoLayoutCandidate | null;
   garden: Garden;
   reviewSuggestions: ReviewSuggestion[];
   suggestionDecisions: GardenSuggestionDecision[];
@@ -132,8 +132,8 @@ export function buildLayoutProblemResolutionModel({
     problems: validatedProblems,
     resolutionOptions: validatedOptions,
     resolutions,
-    variants: buildLayoutVariants({
-      candidates,
+    suggestion: buildLayoutSuggestion({
+      candidate,
       garden,
       problems: validatedProblems,
       resolutionOptions: validatedOptions,

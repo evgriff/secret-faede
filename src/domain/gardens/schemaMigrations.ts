@@ -1,6 +1,6 @@
 import { isPageStructureType } from './structureTypes';
 
-export const CURRENT_GARDEN_SCHEMA_VERSION = 5;
+export const CURRENT_GARDEN_SCHEMA_VERSION = 6;
 export const LEGACY_GARDEN_SCHEMA_VERSION = 0;
 
 export interface GardenMigrationResult {
@@ -33,6 +33,10 @@ export function migrateGardenRecord(value: unknown): GardenMigrationResult {
 
   if (fromVersion < 5) {
     migratePageLevelStructures(record, applied);
+  }
+
+  if (fromVersion < 6) {
+    migrateWateringSchedule(record, applied);
   }
 
   record.schemaVersion = CURRENT_GARDEN_SCHEMA_VERSION;
@@ -81,7 +85,7 @@ function migratePlannerWorkspaceDefaults(
     'structures',
     'sunShadeLayers',
     'tasks',
-    'waterRecommendations',
+    'wateringSchedule',
     'weatherSnapshots',
   ]) {
     if (!Array.isArray(record[key])) {
@@ -90,6 +94,29 @@ function migratePlannerWorkspaceDefaults(
   }
 
   applied.push('planner workspace defaults normalized');
+}
+
+function migrateWateringSchedule(
+  record: Record<string, unknown>,
+  applied: string[],
+) {
+  const nextSchedule = Array.isArray(record.wateringSchedule)
+    ? record.wateringSchedule
+    : Array.isArray(record.waterRecommendations)
+      ? record.waterRecommendations
+      : [];
+  const hadLegacyRecommendations = Array.isArray(record.waterRecommendations);
+  const needsScheduleArray = !Array.isArray(record.wateringSchedule);
+
+  record.wateringSchedule = nextSchedule;
+
+  if ('waterRecommendations' in record) {
+    delete record.waterRecommendations;
+  }
+
+  if (hadLegacyRecommendations || needsScheduleArray) {
+    applied.push('watering schedule normalized');
+  }
 }
 
 function migratePlotDefaults(value: unknown) {

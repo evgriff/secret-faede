@@ -8,9 +8,10 @@ import type {
   JournalTargetType,
   PhotoAttachment,
   Task,
+  WateringScheduleEntry,
 } from '../../domain/gardens/GardenRepository';
 import { sortTasks, synchronizeGardenTasks } from '../tasks/taskEngine';
-import { toLocalDate } from './todayFormatters';
+import { addDays, toLocalDate } from './todayFormatters';
 
 export interface TodayTarget {
   id: string;
@@ -46,14 +47,112 @@ export interface TodayHarvestInput {
   unit: HarvestEvent['unit'];
 }
 
+export interface TodayWateringInput {
+  amountInches: number;
+  occurredOn?: string;
+}
+
+export type TodayWateringSnoozeOption = 'tonight' | 'tomorrow';
+
 export function markWaterDone(
   garden: Garden,
   recommendationId: string,
   now = new Date(),
 ): Garden {
-  const recommendation = garden.waterRecommendations.find(
-    (candidate) => candidate.id === recommendationId,
+  const recommendation = getWateringRecommendation(garden, recommendationId);
+
+  if (!recommendation || recommendation.status === 'completed') {
+    return garden;
+  }
+
+  return applyWateringAmount(
+    garden,
+    recommendation,
+    {
+      amountInches: recommendation.targetAmountInches,
+      occurredOn: toLocalDate(now),
+    },
+    now,
   );
+}
+
+export function logPartialWatering(
+  garden: Garden,
+  recommendationId: string,
+  input: TodayWateringInput,
+  now = new Date(),
+): Garden {
+  const recommendation = getWateringRecommendation(garden, recommendationId);
+
+  if (!recommendation || recommendation.status === 'completed') {
+    return garden;
+  }
+
+  return applyWateringAmount(garden, recommendation, input, now);
+}
+
+export function adjustWateringAmount(
+  garden: Garden,
+  recommendationId: string,
+  amountInches: number,
+  now = new Date(),
+): Garden {
+  const recommendation = getWateringRecommendation(garden, recommendationId);
+  const nextAmountInches = roundTo(Math.max(amountInches, 0), 2);
+
+  if (
+    !recommendation ||
+    recommendation.status === 'completed' ||
+    recommendation.status === 'skipped' ||
+    nextAmountInches <= 0
+  ) {
+    return garden;
+  }
+
+  const nowIso = now.toISOString();
+  const summary = `Remaining watering was adjusted to ${nextAmountInches} inches.`;
+  const nextStatus: WateringScheduleEntry['status'] =
+    recommendation.status === 'partial'
+      ? 'partial'
+      : recommendation.status === 'snoozed'
+        ? 'snoozed'
+        : recommendation.status === 'scheduled'
+          ? 'scheduled'
+          : 'due';
+  const updatedGarden = {
+    ...garden,
+    updatedAtIso: nowIso,
+    wateringSchedule: garden.wateringSchedule.map((candidate) =>
+      candidate.id === recommendation.id
+        ? {
+            ...candidate,
+            deficitInches: nextAmountInches,
+            reasonDetails: buildUpdatedReasonDetails(
+              candidate,
+              summary,
+              `Previous remaining amount was ${candidate.targetAmountInches} inches.`,
+            ),
+            reasonSummary: summary,
+            status: nextStatus,
+            targetAmountInches: nextAmountInches,
+            updatedAtIso: nowIso,
+          }
+        : candidate,
+    ),
+  };
+
+  return synchronizeGardenTasks(updatedGarden, {
+    now,
+    refreshOpenGenerated: true,
+  });
+}
+
+export function skipWateringBecauseRainArrived(
+  garden: Garden,
+  recommendationId: string,
+  now = new Date(),
+): Garden {
+  const recommendation = getWateringRecommendation(garden, recommendationId);
 
   if (!recommendation || recommendation.status === 'completed') {
     return garden;
@@ -61,29 +160,77 @@ export function markWaterDone(
 
   const nowIso = now.toISOString();
   const occurredOn = toLocalDate(now);
-  const journalEntry = createWaterJournalEntry(
+  const summary = 'Watering was skipped because rain arrived before watering.';
+  const journalEntry = createWaterSkipJournalEntry(
     garden,
     recommendation,
     nowIso,
     occurredOn,
-  );
-  const updatedTasks = garden.tasks.map((task) =>
-    task.type === 'water' && task.sourceId === recommendation.id
-      ? {
-          ...task,
-          completedAtIso: nowIso,
-          status: 'done' as const,
-        }
-      : task,
+    summary,
   );
   const updatedGarden = {
     ...garden,
     journalEntries: [journalEntry, ...garden.journalEntries],
-    tasks: updatedTasks,
     updatedAtIso: nowIso,
-    waterRecommendations: garden.waterRecommendations.map((candidate) =>
+    wateringSchedule: garden.wateringSchedule.map((candidate) =>
       candidate.id === recommendation.id
-        ? { ...candidate, status: 'completed' as const }
+        ? {
+            ...candidate,
+            deficitInches: 0,
+            reasonDetails: buildUpdatedReasonDetails(candidate, summary),
+            reasonSummary: summary,
+            status: 'skipped' as const,
+            targetAmountInches: 0,
+            updatedAtIso: nowIso,
+          }
+        : candidate,
+    ),
+  };
+
+  return synchronizeGardenTasks(updatedGarden, {
+    now,
+    refreshOpenGenerated: true,
+  });
+}
+
+export function snoozeWatering(
+  garden: Garden,
+  recommendationId: string,
+  option: TodayWateringSnoozeOption,
+  now = new Date(),
+): Garden {
+  const recommendation = getWateringRecommendation(garden, recommendationId);
+
+  if (
+    !recommendation ||
+    recommendation.status === 'completed' ||
+    recommendation.status === 'skipped'
+  ) {
+    return garden;
+  }
+
+  const nextDueDate =
+    option === 'tomorrow' ? addDays(toLocalDate(now), 1) : toLocalDate(now);
+  const dueWindowStartIso =
+    option === 'tomorrow' ? getTomorrowMorningIso(now) : getTonightIso(now);
+  const summary =
+    option === 'tomorrow'
+      ? 'Watering was moved to tomorrow.'
+      : 'Watering was moved to tonight.';
+  const updatedGarden = {
+    ...garden,
+    updatedAtIso: now.toISOString(),
+    wateringSchedule: garden.wateringSchedule.map((candidate) =>
+      candidate.id === recommendation.id
+        ? {
+            ...candidate,
+            dueDate: nextDueDate,
+            dueWindowStartIso,
+            reasonDetails: buildUpdatedReasonDetails(candidate, summary),
+            reasonSummary: summary,
+            status: 'snoozed' as const,
+            updatedAtIso: now.toISOString(),
+          }
         : candidate,
     ),
   };
@@ -279,23 +426,112 @@ function createIssueFollowUpTask(
   };
 }
 
+function getWateringRecommendation(garden: Garden, recommendationId: string) {
+  return garden.wateringSchedule.find(
+    (candidate) => candidate.id === recommendationId,
+  );
+}
+
+function applyWateringAmount(
+  garden: Garden,
+  recommendation: WateringScheduleEntry,
+  input: TodayWateringInput,
+  now: Date,
+) {
+  const amountInches = roundTo(Math.max(input.amountInches, 0), 2);
+
+  if (amountInches <= 0) {
+    return garden;
+  }
+
+  const nowIso = now.toISOString();
+  const occurredOn = input.occurredOn ?? toLocalDate(now);
+  const appliedAmountInches = roundTo(
+    Math.min(amountInches, recommendation.targetAmountInches),
+    2,
+  );
+  const remainingInches = roundTo(
+    Math.max(recommendation.targetAmountInches - appliedAmountInches, 0),
+    2,
+  );
+  const summary =
+    remainingInches > 0
+      ? `${remainingInches} inches are still due after watering ${appliedAmountInches} inches.`
+      : `Watering is complete for now after ${appliedAmountInches} inches were applied.`;
+  const journalEntry = createWaterJournalEntry(
+    garden,
+    recommendation,
+    appliedAmountInches,
+    remainingInches,
+    nowIso,
+    occurredOn,
+    summary,
+  );
+  const updatedTasks = garden.tasks.map((task) =>
+    task.type === 'water' &&
+    task.sourceId === recommendation.id &&
+    remainingInches <= 0
+      ? {
+          ...task,
+          completedAtIso: nowIso,
+          status: 'done' as const,
+        }
+      : task,
+  );
+  const updatedGarden = {
+    ...garden,
+    journalEntries: [journalEntry, ...garden.journalEntries],
+    tasks: updatedTasks,
+    updatedAtIso: nowIso,
+    wateringSchedule: garden.wateringSchedule.map((candidate) =>
+      candidate.id === recommendation.id
+        ? {
+            ...candidate,
+            appliedAmountInches: roundTo(
+              (candidate.appliedAmountInches ?? 0) + appliedAmountInches,
+              2,
+            ),
+            deficitInches: remainingInches,
+            dueDate: occurredOn,
+            dueWindowStartIso: nowIso,
+            lastWateredAtIso: nowIso,
+            reasonDetails: buildUpdatedReasonDetails(candidate, summary),
+            reasonSummary: summary,
+            status:
+              remainingInches > 0
+                ? ('partial' as const)
+                : ('completed' as const),
+            targetAmountInches: remainingInches,
+            updatedAtIso: nowIso,
+          }
+        : candidate,
+    ),
+  };
+
+  return synchronizeGardenTasks(updatedGarden, {
+    now,
+    refreshOpenGenerated: true,
+  });
+}
+
 function createWaterJournalEntry(
   garden: Garden,
-  recommendation: Garden['waterRecommendations'][number],
+  recommendation: Garden['wateringSchedule'][number],
+  amountInches: number,
+  remainingInches: number,
   nowIso: string,
   occurredOn: string,
+  summary: string,
 ): JournalEntry {
   const plantingId =
-    recommendation.targetType === 'planting'
-      ? (recommendation.plantingId ?? recommendation.targetId)
-      : null;
+    recommendation.targetKind === 'planting' ? recommendation.targetId : null;
   const structureId =
-    recommendation.targetType === 'bed' ? recommendation.targetId : null;
+    recommendation.targetKind === 'bed' ? recommendation.targetId : null;
   const targetType =
-    recommendation.targetType === 'planting' ? 'planting' : 'structure';
+    recommendation.targetKind === 'planting' ? 'planting' : 'structure';
 
   return {
-    body: `Watered ${recommendation.targetLabel} with ${recommendation.recommendedWaterInches} inches. ${recommendation.reason}`,
+    body: `Applied ${amountInches} in to ${recommendation.targetLabel}. ${summary}`,
     createdAtIso: nowIso,
     gardenId: garden.id,
     id: createTodayId('water-log'),
@@ -308,8 +544,82 @@ function createWaterJournalEntry(
     structureId,
     targetLabel: recommendation.targetLabel,
     targetType,
-    title: `Watered ${recommendation.targetLabel}`,
+    title:
+      remainingInches > 0
+        ? `Partially watered ${recommendation.targetLabel}`
+        : `Watered ${recommendation.targetLabel}`,
     type: 'note',
     weatherSnapshotId: recommendation.weatherSnapshotId,
   };
+}
+
+function createWaterSkipJournalEntry(
+  garden: Garden,
+  recommendation: Garden['wateringSchedule'][number],
+  nowIso: string,
+  occurredOn: string,
+  summary: string,
+): JournalEntry {
+  const plantingId =
+    recommendation.targetKind === 'planting' ? recommendation.targetId : null;
+  const structureId =
+    recommendation.targetKind === 'bed' ? recommendation.targetId : null;
+  const targetType =
+    recommendation.targetKind === 'planting' ? 'planting' : 'structure';
+
+  return {
+    body: `Skipped watering ${recommendation.targetLabel}. ${summary}`,
+    createdAtIso: nowIso,
+    gardenId: garden.id,
+    id: createTodayId('water-skip'),
+    issueCategory: null,
+    issueSeverity: null,
+    issueStatus: null,
+    occurredOn,
+    photos: [],
+    plantingId,
+    structureId,
+    targetLabel: recommendation.targetLabel,
+    targetType,
+    title: `Skipped watering ${recommendation.targetLabel}`,
+    type: 'note',
+    weatherSnapshotId: recommendation.weatherSnapshotId,
+  };
+}
+
+function buildUpdatedReasonDetails(
+  recommendation: WateringScheduleEntry,
+  summary: string,
+  extraDetail?: string,
+) {
+  return [
+    summary,
+    extraDetail,
+    ...recommendation.reasonDetails.filter(
+      (detail) => detail !== recommendation.reasonSummary,
+    ),
+  ].filter((detail): detail is string => Boolean(detail));
+}
+
+function getTonightIso(now: Date) {
+  const tonight = new Date(now);
+  tonight.setHours(18, 0, 0, 0);
+
+  if (tonight.getTime() <= now.getTime()) {
+    tonight.setHours(now.getHours() + 2);
+  }
+
+  return tonight.toISOString();
+}
+
+function getTomorrowMorningIso(now: Date) {
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(7, 0, 0, 0);
+  return tomorrow.toISOString();
+}
+
+function roundTo(value: number, decimals: number) {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
 }

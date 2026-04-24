@@ -139,7 +139,7 @@ describe('TodayPage', () => {
 
     expect(
       await screen.findByText(
-        'Harvest saved. Add a photo if it helps the memory.',
+        'Harvest saved to Feed. Add a photo if it helps the memory.',
       ),
     ).toBeVisible();
     expect(

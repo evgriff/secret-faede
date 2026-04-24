@@ -15,7 +15,7 @@ test('Plan context panels overlay the stable plot viewport', async ({
     (viewport): number => viewport.clientWidth,
   );
 
-  await clickLauncherTool(page, 'Generated layouts');
+  await clickLauncherTool(page, 'Generate layout');
   await expect(contextPanel).toBeVisible();
   await expect(plotViewport).toHaveJSProperty('clientWidth', viewportWidth);
 
@@ -23,7 +23,7 @@ test('Plan context panels overlay the stable plot viewport', async ({
   await expect(contextPanel).toHaveCount(0);
   await expect(plotViewport).toHaveJSProperty('clientWidth', viewportWidth);
 
-  await clickLauncherTool(page, 'Generated layouts');
+  await clickLauncherTool(page, 'Generate layout');
   await expect(contextPanel).toBeVisible();
   await expect(plotViewport).toHaveJSProperty('clientWidth', viewportWidth);
 });

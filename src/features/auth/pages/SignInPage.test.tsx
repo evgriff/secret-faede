@@ -68,7 +68,11 @@ describe('SignInPage', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: 'Feed' }),
     ).toBeVisible();
-    expect(await screen.findByText(/entries shown/i)).toBeVisible();
+    expect(
+      await screen.findByText(
+        /watering, harvests, issues, notes, and photos stay here/i,
+      ),
+    ).toBeVisible();
   });
 
   it('sends a password reset only for an allowed email', async () => {

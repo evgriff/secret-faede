@@ -45,7 +45,11 @@ export const PlanStructureBox = memo(function PlanStructureBox({
   ): void;
   onResizePointerEnd(event: PointerEvent<HTMLSpanElement>): void;
   onResizePointerMove(event: PointerEvent<HTMLSpanElement>): void;
-  onSelectItem(item: SelectedGardenItem, additive: boolean): void;
+  onSelectItem(
+    item: SelectedGardenItem,
+    additive: boolean,
+    options?: { openSurface?: boolean },
+  ): void;
   onStructurePointerDown(
     event: PointerEvent<HTMLDivElement>,
     structureId: string,
@@ -101,7 +105,13 @@ export const PlanStructureBox = memo(function PlanStructureBox({
       data-plan-item="true"
       onClick={(event) => {
         if (event.detail === 0) {
-          onSelectItem({ id: structure.id, type: 'structure' }, event.shiftKey);
+          onSelectItem(
+            { id: structure.id, type: 'structure' },
+            event.shiftKey,
+            {
+              openSurface: !event.shiftKey,
+            },
+          );
         }
       }}
       onPointerCancel={(event) => onStructurePointerEnd(event, structure.id)}

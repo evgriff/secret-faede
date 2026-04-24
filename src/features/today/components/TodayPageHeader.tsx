@@ -4,12 +4,12 @@ import styles from '../TodayPage.module.css';
 export function TodayPageHeader({
   error,
   isOffline,
-  onSyncSchedule,
+  onRefreshWeatherAndWatering,
   saveStatus,
 }: {
   error: string | null;
   isOffline: boolean;
-  onSyncSchedule(): void;
+  onRefreshWeatherAndWatering(): void;
   saveStatus: TodaySaveStatus;
 }) {
   return (
@@ -18,16 +18,17 @@ export function TodayPageHeader({
         <p className={styles.kicker}>Today's work</p>
         <h1>Today</h1>
         <p className={styles.summary}>
-          Watering, checks, harvests, and field notes for the selected day.
+          Do the watering, harvests, checks, and issue follow-up for the
+          selected day. Notes and photos belong in Feed.
         </p>
       </div>
       <div className={styles.actions}>
         <button
           className={styles.secondaryButton}
-          onClick={onSyncSchedule}
+          onClick={onRefreshWeatherAndWatering}
           type="button"
         >
-          Sync schedule
+          Refresh weather &amp; watering schedule
         </button>
         <TodaySaveState
           error={error}

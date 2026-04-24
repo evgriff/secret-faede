@@ -152,6 +152,41 @@
     transform var(--motion-micro) var(--ease-standard);
 }
 
+.waterCard {
+  grid-template-columns: minmax(0, 1.1fr) minmax(16rem, 0.9fr);
+  align-items: stretch;
+}
+
+.waterCardCopy {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.waterCardHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.waterMeta {
+  color: var(--color-text-strong) !important;
+  font-size: 0.94rem;
+  font-weight: 720;
+}
+
+.waterCardActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  justify-items: stretch;
+}
+
+.waterCardActions > [data-ui='action']:first-child {
+  grid-column: 1 / -1;
+}
+
 .activityItem {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -308,6 +343,10 @@
 
 @media (max-width: 58rem) {
   .fieldStack {
+    grid-template-columns: 1fr;
+  }
+
+  .waterCard {
     grid-template-columns: 1fr;
   }
 }

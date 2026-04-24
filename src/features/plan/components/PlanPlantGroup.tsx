@@ -59,7 +59,6 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
   onPlantPointerEnd,
   onPlantPointerMove,
   previewOffset,
-  onShowLabel,
   onSelectItem,
   plant,
   structures,
@@ -91,8 +90,11 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
     instanceId?: string,
   ): void;
   previewOffset: PlanPreviewOffset | null;
-  onShowLabel(plantId: string): void;
-  onSelectItem(item: SelectedGardenItem, additive: boolean): void;
+  onSelectItem(
+    item: SelectedGardenItem,
+    additive: boolean,
+    options?: { openSurface?: boolean },
+  ): void;
   plant: Planting;
   structures: Garden['structures'];
   warnings: PlanWarning[];
@@ -223,19 +225,16 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
         className={itemStyles.plantGroupSurface}
         onClick={(event) => {
           if (event.detail === 0) {
-            onShowLabel(plant.id);
-            onSelectItem({ id: plant.id, type: 'planting' }, event.shiftKey);
+            onSelectItem({ id: plant.id, type: 'planting' }, event.shiftKey, {
+              openSurface: !event.shiftKey,
+            });
           }
         }}
-        onFocus={() => onShowLabel(plant.id)}
         onKeyDown={(event) =>
           handleSurfaceKeyDown(event, plant.id, onHideLabel)
         }
         onPointerCancel={(event) => onPlantPointerEnd(event, plant.id)}
-        onPointerDown={(event) => {
-          onShowLabel(plant.id);
-          onPlantPointerDown(event, plant.id);
-        }}
+        onPointerDown={(event) => onPlantPointerDown(event, plant.id)}
         onPointerMove={(event) => onPlantPointerMove(event, plant.id)}
         onPointerUp={(event) => onPlantPointerEnd(event, plant.id)}
         type="button"
@@ -337,11 +336,11 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          onShowLabel(plant.id);
-          onSelectItem({ id: plant.id, type: 'planting' }, event.shiftKey);
+          onSelectItem({ id: plant.id, type: 'planting' }, event.shiftKey, {
+            openSurface: true,
+          });
           onOpenEditor(plant.id);
         }}
-        onFocus={() => onShowLabel(plant.id)}
         onKeyDown={(event) =>
           handleSurfaceKeyDown(event, plant.id, onHideLabel)
         }

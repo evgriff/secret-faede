@@ -2,7 +2,7 @@ import type {
   IssueStatus,
   JournalEntry,
   PlantingLifecycleStatus,
-  WaterRecommendation,
+  WateringScheduleEntry,
   WeatherSnapshot,
 } from '../../../domain/gardens/GardenRepository';
 import {
@@ -20,11 +20,11 @@ export function WeatherPanel({
   activeWatering = [],
   latestWeather,
 }: {
-  activeWatering?: WaterRecommendation[];
+  activeWatering?: WateringScheduleEntry[];
   latestWeather: WeatherSnapshot | null;
 }) {
   const waterTotalIn = activeWatering.reduce(
-    (total, recommendation) => total + recommendation.recommendedWaterInches,
+    (total, recommendation) => total + recommendation.targetAmountInches,
     0,
   );
 
@@ -87,39 +87,74 @@ export function WeatherPanel({
 }
 
 export function WaterCard({
+  onAdjustAmount,
   onDone,
-  onNote,
+  onPartial,
+  onSkipForRain,
+  onSnoozeToTonight,
+  onSnoozeToTomorrow,
   recommendation,
 }: {
+  onAdjustAmount(): void;
   onDone(): void;
-  onNote(): void;
-  recommendation: WaterRecommendation;
+  onPartial(): void;
+  onSkipForRain(): void;
+  onSnoozeToTonight(): void;
+  onSnoozeToTomorrow(): void;
+  recommendation: WateringScheduleEntry;
 }) {
+  const detailLines = recommendation.reasonDetails
+    .filter((detail) => detail !== recommendation.reasonSummary)
+    .slice(0, 2);
+  const remainingAmount = formatWaterAmount(recommendation.targetAmountInches);
+  const urgencyTone =
+    recommendation.urgency === 'high'
+      ? 'warning'
+      : recommendation.status === 'partial'
+        ? 'success'
+        : 'neutral';
+
   return (
-    <article className={styles.miniCard}>
-      <div>
-        <h3>{recommendation.targetLabel}</h3>
-        <p>
-          {recommendation.recommendedWaterInches} in, {recommendation.urgency}{' '}
-          urgency
+    <article className={`${styles.miniCard} ${styles.waterCard}`}>
+      <div className={styles.waterCardCopy}>
+        <div className={styles.waterCardHeader}>
+          <h3>{recommendation.targetLabel}</h3>
+          <StatusBadge tone={urgencyTone}>
+            {recommendation.status === 'partial'
+              ? 'Remaining'
+              : recommendation.urgency}
+          </StatusBadge>
+        </div>
+        <p className={styles.waterMeta}>
+          {remainingAmount} in{' '}
+          {recommendation.status === 'partial' ? 'still due' : 'due now'}
         </p>
-        <small>{recommendation.reason}</small>
+        <small>{recommendation.reasonSummary}</small>
+        {detailLines.map((detail) => (
+          <small key={detail}>{detail}</small>
+        ))}
         <small>
-          Refreshed{' '}
-          {formatRefreshTime(
-            recommendation.refreshedAtIso ?? recommendation.generatedAtIso,
-          )}
+          Refreshed {formatRefreshTime(recommendation.updatedAtIso)}
         </small>
-        {recommendation.rationale.length > 1 ? (
-          <small>{recommendation.rationale.slice(1, 3).join(' ')}</small>
-        ) : null}
       </div>
-      <div className={styles.cardActions}>
+      <div className={`${styles.cardActions} ${styles.waterCardActions}`}>
         <ActionButton intent="success" onClick={onDone} priority="primary">
           Water done
         </ActionButton>
-        <ActionButton onClick={onNote} priority="secondary">
-          Override note
+        <ActionButton onClick={onPartial} priority="secondary">
+          Partial watering
+        </ActionButton>
+        <ActionButton onClick={onAdjustAmount} priority="secondary">
+          Adjust amount
+        </ActionButton>
+        <ActionButton intent="warning" onClick={onSkipForRain} priority="ghost">
+          Skip for rain
+        </ActionButton>
+        <ActionButton onClick={onSnoozeToTonight} priority="ghost">
+          Snooze to tonight
+        </ActionButton>
+        <ActionButton onClick={onSnoozeToTomorrow} priority="ghost">
+          Snooze to tomorrow
         </ActionButton>
       </div>
     </article>
@@ -272,6 +307,10 @@ function formatRefreshTime(value: string) {
     minute: '2-digit',
     month: 'short',
   });
+}
+
+function formatWaterAmount(value: number) {
+  return Number.isInteger(value) ? `${value}` : value.toFixed(2);
 }
 
 function getLifecycleActionLabel(status: PlantingLifecycleStatus) {

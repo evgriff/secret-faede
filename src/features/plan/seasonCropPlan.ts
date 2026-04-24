@@ -117,6 +117,7 @@ export function getSeasonCropFitSignal({
   const suitability = scoreCropSuitability({
     climateProfile: garden.climateProfile,
     crop,
+    location: garden.plot.location,
     mode: selection.plantingForm,
     plantCount: selection.quantity,
     plotType: inferPlotType(garden),

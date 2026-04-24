@@ -56,7 +56,6 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   onPaintSunShadeCell,
   onPlantHoverChange,
   onPlantLabelHide,
-  onPlantLabelShow,
   onPlantEditorOpen,
   onPlantPointerDown,
   onPlantPointerEnd,
@@ -110,7 +109,6 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   ): void;
   onPlantHoverChange(plantId: string | null): void;
   onPlantLabelHide(plantId: string): void;
-  onPlantLabelShow(plantId: string): void;
   onPlantEditorOpen(plantId: string): void;
   onPlantPointerDown(
     event: PointerEvent<HTMLButtonElement>,
@@ -134,7 +132,11 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   ): void;
   onResizePointerEnd(event: PointerEvent<HTMLSpanElement>): void;
   onResizePointerMove(event: PointerEvent<HTMLSpanElement>): void;
-  onSelectItem(item: SelectedGardenItem, additive: boolean): void;
+  onSelectItem(
+    item: SelectedGardenItem,
+    additive: boolean,
+    options?: { openSurface?: boolean },
+  ): void;
   onStructurePointerDown(
     event: PointerEvent<HTMLDivElement>,
     structureId: string,
@@ -228,7 +230,8 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
                   <li>Add plants or save a crop list</li>
                   <li>Review problems if something feels tight</li>
                   <li>
-                    Try layout ideas only when you want another arrangement
+                    Generate a layout suggestion only when you want another
+                    arrangement
                   </li>
                 </ol>
               </div>
@@ -376,7 +379,6 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
                   onPlantPointerEnd={onPlantPointerEnd}
                   onPlantPointerMove={onPlantPointerMove}
                   onPlantHoverChange={onPlantHoverChange}
-                  onShowLabel={onPlantLabelShow}
                   onSelectItem={onSelectItem}
                   plant={plant}
                   previewOffset={plantPreviewOffset}

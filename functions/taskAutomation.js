@@ -48,10 +48,10 @@ function mergeTasks(existing, generated) {
 }
 
 function buildWaterTasks(garden, now) {
-  return (garden.waterRecommendations || []).flatMap((recommendation) => {
+  return (garden.wateringSchedule || []).flatMap((recommendation) => {
     if (
-      !['active', 'new', 'accepted'].includes(recommendation.status) ||
-      recommendation.recommendedWaterInches <= 0
+      !['due', 'partial', 'scheduled'].includes(recommendation.status) ||
+      recommendation.targetAmountInches <= 0
     ) {
       return [];
     }
@@ -60,15 +60,22 @@ function buildWaterTasks(garden, now) {
       createTask(
         {
           bedLabel: recommendation.targetLabel,
-          dueDate: recommendation.recommendationDate,
+          dueDate: recommendation.dueDate,
           gardenId: garden.id,
           id: `water-${recommendation.id}`,
-          notes: (recommendation.rationale || []).join(' '),
-          plantingId: recommendation.plantingId || null,
+          notes: (recommendation.reasonDetails || []).join(' '),
+          plantingId:
+            recommendation.targetKind === 'planting'
+              ? recommendation.targetId
+              : null,
           priority: recommendation.urgency === 'high' ? 'high' : 'medium',
-          source: 'waterRecommendation',
+          source: 'wateringSchedule',
           sourceId: recommendation.id,
           title: `Water ${recommendation.targetLabel}`,
+          structureId:
+            recommendation.targetKind === 'bed'
+              ? recommendation.targetId
+              : null,
           type: 'water',
         },
         now,

@@ -136,7 +136,7 @@ function buildPriorityActions({
     .map((recommendation) => ({
       id: `water-${recommendation.id}`,
       label: recommendation.targetLabel,
-      meta: `${recommendation.recommendedWaterInches} in water. ${recommendation.reason}`,
+      meta: `${formatWaterAmount(recommendation.targetAmountInches)} in still due. ${recommendation.reasonSummary}`,
       onSelect: () => onWaterDone(recommendation.id),
       intent: 'success' as const,
       verb: 'Water done',
@@ -188,4 +188,8 @@ function buildPriorityActions({
     ...cropStageActions,
     ...taskActions,
   ].slice(0, 4);
+}
+
+function formatWaterAmount(value: number) {
+  return Number.isInteger(value) ? `${value}` : value.toFixed(2);
 }

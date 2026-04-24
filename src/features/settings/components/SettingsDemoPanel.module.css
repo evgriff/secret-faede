@@ -62,6 +62,12 @@
   animation: demoStatusIn var(--motion-short) var(--ease-out);
 }
 
+.restoreWarning {
+  grid-column: 1 / -1;
+  color: var(--color-warning-text);
+  animation: demoStatusIn var(--motion-short) var(--ease-out);
+}
+
 @keyframes demoPanelIn {
   from {
     opacity: 0;
@@ -93,7 +99,8 @@
 @media (prefers-reduced-motion: reduce) {
   .panel,
   .statusLine,
-  .restoreNote {
+  .restoreNote,
+  .restoreWarning {
     animation: none;
     transition-duration: 1ms;
     transform: none;

@@ -125,6 +125,7 @@ describe('garden domain validation', () => {
       applied: [
         'season plan inputs simplified',
         'plant planning defaults normalized',
+        'watering schedule normalized',
       ],
       fromVersion: 2,
       toVersion: CURRENT_GARDEN_SCHEMA_VERSION,
@@ -166,7 +167,10 @@ describe('garden domain validation', () => {
     });
 
     expect(migration).toMatchObject({
-      applied: ['plant planning defaults normalized'],
+      applied: [
+        'plant planning defaults normalized',
+        'watering schedule normalized',
+      ],
       fromVersion: 3,
       toVersion: CURRENT_GARDEN_SCHEMA_VERSION,
     });
@@ -197,11 +201,54 @@ describe('garden domain validation', () => {
       ],
     });
 
-    expect(migration.applied).toEqual(['legacy utility structures removed']);
+    expect(migration.applied).toEqual([
+      'legacy utility structures removed',
+      'watering schedule normalized',
+    ]);
     expect(migration.record.structures).toEqual([
       { id: 'bed-1', type: 'raisedBed' },
       { id: 'path-1', type: 'pathway' },
       { id: 'trellis-1', type: 'trellis' },
+    ]);
+  });
+
+  it('migrates legacy water recommendations into the canonical watering schedule', () => {
+    const garden = parseGarden('user-a', {
+      schemaVersion: 5,
+      waterRecommendations: [
+        {
+          deficitInches: 0.5,
+          generatedAtIso: '2026-06-21T11:00:00.000Z',
+          gardenId: 'user-a',
+          id: 'water-1',
+          inchesNeeded: 0.5,
+          plantingId: 'tomato-1',
+          rationale: ['Dry soil.'],
+          reason: 'Dry soil',
+          recommendationDate: '2026-06-21',
+          recommendedWaterInches: 0.5,
+          status: 'active',
+          suppressUntilIso: null,
+          targetId: 'tomato-1',
+          targetLabel: 'Tomato',
+          targetType: 'planting',
+          urgency: 'medium',
+          weatherSnapshotId: 'weather-1',
+        },
+      ],
+    });
+
+    expect(garden.wateringSchedule).toEqual([
+      expect.objectContaining({
+        dueDate: '2026-06-21',
+        id: 'water-1',
+        reasonDetails: ['Dry soil.'],
+        reasonSummary: 'Dry soil',
+        status: 'due',
+        targetAmountInches: 0.5,
+        targetId: 'tomato-1',
+        targetKind: 'planting',
+      }),
     ]);
   });
 

@@ -11,7 +11,7 @@ import type {
   Task,
   TaskPriority,
   TaskType,
-  WaterRecommendation,
+  WateringScheduleEntry,
   WeatherSnapshot,
 } from '../../domain/gardens/GardenRepository';
 
@@ -121,8 +121,8 @@ export function buildGeneratedTasks(garden: Garden, now = new Date()): Task[] {
   const tasks = garden.plantings.flatMap((planting) =>
     buildPlantingTasks(garden, planting, now),
   );
-  const waterTasks = garden.waterRecommendations.flatMap((recommendation) =>
-    buildWaterTask(garden, recommendation, now),
+  const waterTasks = garden.wateringSchedule.flatMap((entry) =>
+    buildWaterTask(garden, entry, now),
   );
   const weatherTasks = buildWeatherTasks(garden, now);
 
@@ -167,14 +167,21 @@ export function completeTask(
   const plantings = garden.plantings.map((planting) =>
     updatePlantingFromCompletedTask(planting, task, completedDate),
   );
-  const waterRecommendations =
+  const wateringSchedule =
     task.type === 'water' && task.sourceId
-      ? garden.waterRecommendations.map((recommendation) =>
-          recommendation.id === task.sourceId
-            ? { ...recommendation, status: 'completed' as const }
-            : recommendation,
+      ? garden.wateringSchedule.map((entry) =>
+          entry.id === task.sourceId
+            ? {
+                ...entry,
+                appliedAmountInches:
+                  (entry.appliedAmountInches ?? 0) + entry.targetAmountInches,
+                lastWateredAtIso: completedAtIso,
+                status: 'completed' as const,
+                updatedAtIso: completedAtIso,
+              }
+            : entry,
         )
-      : garden.waterRecommendations;
+      : garden.wateringSchedule;
 
   return synchronizeGardenTasks(
     {
@@ -182,7 +189,7 @@ export function completeTask(
       plantings,
       tasks: updatedTasks,
       updatedAtIso: completedAtIso,
-      waterRecommendations,
+      wateringSchedule,
     },
     {
       now: completedAt,
@@ -630,13 +637,14 @@ function buildPlantingTasks(
 
 function buildWaterTask(
   garden: Garden,
-  recommendation: WaterRecommendation,
+  recommendation: WateringScheduleEntry,
   now: Date,
 ): Task[] {
   if (
     recommendation.status === 'suppressed' ||
     recommendation.status === 'completed' ||
-    recommendation.recommendedWaterInches <= 0
+    recommendation.status === 'skipped' ||
+    recommendation.targetAmountInches <= 0
   ) {
     return [];
   }
@@ -645,16 +653,19 @@ function buildWaterTask(
     createTask(
       {
         bedLabel: getBedLabelForRecommendation(garden, recommendation),
-        dueDate: recommendation.recommendationDate,
+        dueDate: recommendation.dueDate,
         id: `water-${recommendation.id}`,
         notes: buildWaterTaskNotes(recommendation),
-        plantingId: recommendation.plantingId,
+        plantingId:
+          recommendation.targetKind === 'planting'
+            ? recommendation.targetId
+            : null,
         priority: recommendation.urgency === 'high' ? 'high' : 'medium',
-        source: 'waterRecommendation',
+        source: 'wateringSchedule',
         sourceId: recommendation.id,
         structureId:
-          recommendation.targetType === 'bed' ? recommendation.targetId : null,
-        title: `Water ${formatWaterTaskTarget(recommendation)} ${formatInches(recommendation.recommendedWaterInches)} in`,
+          recommendation.targetKind === 'bed' ? recommendation.targetId : null,
+        title: `Water ${formatWaterTaskTarget(recommendation)} ${formatInches(recommendation.targetAmountInches)} in`,
         type: 'water',
       },
       now,
@@ -773,7 +784,7 @@ function shouldRefreshTask(task: Task, options: SynchronizeOptions) {
   return (
     Boolean(options.refreshOpenGenerated) &&
     task.status === 'open' &&
-    (task.source === 'generated' || task.source === 'waterRecommendation') &&
+    (task.source === 'generated' || task.source === 'wateringSchedule') &&
     !task.snoozedUntilDate &&
     !task.deferredUntilDate
   );
@@ -786,12 +797,12 @@ function shouldRetireStaleGeneratedTask(
   return (
     !generated &&
     task.status === 'open' &&
-    (task.source === 'generated' || task.source === 'waterRecommendation')
+    (task.source === 'generated' || task.source === 'wateringSchedule')
   );
 }
 
 function getGeneratedTaskKey(task: Task) {
-  if (task.source !== 'generated' && task.source !== 'waterRecommendation') {
+  if (task.source !== 'generated' && task.source !== 'wateringSchedule') {
     return null;
   }
 
@@ -1025,19 +1036,15 @@ function getHarvestDate(
   return addDays(anchorDate, crop.daysToMaturity ?? 60);
 }
 
-function buildWaterTaskNotes(recommendation: WaterRecommendation) {
-  const rationale = recommendation.rationale.join(' ');
-
-  return [
-    `${recommendation.targetLabel} needs ${formatInches(recommendation.recommendedWaterInches)} in because ${recommendation.reason}`,
-    rationale,
-  ]
-    .filter(Boolean)
-    .join(' ');
+function buildWaterTaskNotes(recommendation: WateringScheduleEntry) {
+  return (
+    recommendation.reasonDetails.join(' ') ||
+    `${recommendation.targetLabel} has ${formatInches(recommendation.targetAmountInches)} still due.`
+  );
 }
 
-function formatWaterTaskTarget(recommendation: WaterRecommendation) {
-  if (recommendation.targetType !== 'bed') {
+function formatWaterTaskTarget(recommendation: WateringScheduleEntry) {
+  if (recommendation.targetKind !== 'bed') {
     return recommendation.targetLabel;
   }
 
@@ -1099,14 +1106,14 @@ function isHarvestTaskDone(garden: Garden, plantingId: string) {
 
 function getBedLabelForRecommendation(
   garden: Garden,
-  recommendation: WaterRecommendation,
+  recommendation: WateringScheduleEntry,
 ) {
-  if (recommendation.targetType === 'bed') {
+  if (recommendation.targetKind === 'bed') {
     return recommendation.targetLabel;
   }
 
   const planting = garden.plantings.find(
-    (candidate) => candidate.id === recommendation.plantingId,
+    (candidate) => candidate.id === recommendation.targetId,
   );
 
   return planting ? getBedLabelForPlanting(garden, planting) : 'Open plot';

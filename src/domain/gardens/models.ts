@@ -36,7 +36,7 @@ export type TaskSource =
   | 'generated'
   | 'manual'
   | 'succession'
-  | 'waterRecommendation';
+  | 'wateringSchedule';
 export type TaskType =
   | 'amend'
   | 'fertilize'
@@ -133,19 +133,17 @@ export type PlantingLifecycleStatus =
 export type SoilType = 'clay' | 'loam' | 'sandy' | 'unknown';
 export type DrainageProfile = 'fast' | 'normal' | 'slow' | 'unknown';
 export type GardenDataQuality = 'complete' | 'limited' | 'partial';
-export type WaterRecommendationGeneratedBy =
-  | 'backend'
-  | 'client'
-  | 'manualRefresh';
-export type WaterRecommendationStatus =
-  | 'accepted'
-  | 'active'
+export type WateringScheduleSource = 'backend' | 'client' | 'manualRefresh';
+export type WateringScheduleStatus =
   | 'completed'
-  | 'dismissed'
-  | 'new'
+  | 'due'
+  | 'partial'
+  | 'scheduled'
+  | 'skipped'
+  | 'snoozed'
   | 'suppressed';
-export type WaterRecommendationTargetType = 'bed' | 'planting';
-export type WaterRecommendationUrgency = 'high' | 'low' | 'medium' | 'none';
+export type WateringScheduleTargetKind = 'bed' | 'planting';
+export type WateringScheduleUrgency = 'high' | 'low' | 'medium' | 'none';
 export type JournalEntryType = 'issue' | 'note';
 export type JournalIssueCategory =
   | 'disease'
@@ -419,26 +417,29 @@ export interface WeatherSnapshot {
   windMph: number | null;
 }
 
-export interface WaterRecommendation {
+export interface WateringScheduleEntry {
+  appliedAmountInches: number | null;
+  createdAtIso: IsoDateString;
   dataQuality?: GardenDataQuality;
   deficitInches: number;
-  generatedAtIso: IsoDateString;
-  generatedBy?: WaterRecommendationGeneratedBy;
+  dueDate: LocalDateString;
+  dueWindowEndIso: IsoDateString | null;
+  dueWindowStartIso: IsoDateString | null;
   gardenId: string;
   id: string;
-  inchesNeeded: number;
-  plantingId: string | null;
-  rationale: string[];
-  reason: string;
-  recommendationDate: LocalDateString;
-  recommendedWaterInches: number;
-  refreshedAtIso?: IsoDateString;
-  status: WaterRecommendationStatus;
-  suppressUntilIso: IsoDateString | null;
+  lastWateredAtIso: IsoDateString | null;
+  nextRecalculationAtIso: IsoDateString | null;
+  reasonDetails: string[];
+  reasonSummary: string;
+  source?: WateringScheduleSource;
+  status: WateringScheduleStatus;
   targetId: string;
+  targetAmountInches: number;
+  targetKind: WateringScheduleTargetKind;
   targetLabel: string;
-  targetType: WaterRecommendationTargetType;
-  urgency: WaterRecommendationUrgency;
+  updatedAtIso: IsoDateString;
+  urgency: WateringScheduleUrgency;
+  wateringZoneId: string | null;
   weatherSnapshotId: string | null;
 }
 
@@ -549,7 +550,7 @@ export interface Garden {
   tasks: Task[];
   updatedAtIso: IsoDateString | null;
   userId: string;
-  waterRecommendations: WaterRecommendation[];
+  wateringSchedule: WateringScheduleEntry[];
   weatherSnapshots: WeatherSnapshot[];
 }
 
@@ -635,7 +636,7 @@ export function createDefaultGarden(userId: string): Garden {
     tasks: [],
     updatedAtIso: null,
     userId,
-    waterRecommendations: [],
+    wateringSchedule: [],
     weatherSnapshots: [],
   };
 }

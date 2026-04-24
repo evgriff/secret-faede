@@ -6,12 +6,13 @@ import {
 } from '../../domain/gardens/GardenRepository';
 import type { WeatherWateringContext } from './wateringEngine';
 import {
-  buildWaterRecommendations,
+  buildWateringSchedule,
   createWeatherSnapshot,
+  mergeWateringSchedule,
 } from './wateringEngine';
 
 describe('wateringEngine', () => {
-  it('creates planting recommendations from crop water needs and dry weather', () => {
+  it('rolls plantings in the same bed into one watering target', () => {
     const garden = createWateringGarden();
     const context = createWeatherContext({
       dailyHighF: 91,
@@ -20,7 +21,7 @@ describe('wateringEngine', () => {
     });
     const now = new Date('2026-06-21T11:00:00.000Z');
     const snapshot = createWeatherSnapshot(garden, context, now);
-    const recommendations = buildWaterRecommendations(
+    const recommendations = buildWateringSchedule(
       garden,
       context,
       snapshot,
@@ -28,17 +29,14 @@ describe('wateringEngine', () => {
     );
 
     expect(snapshot.heatRisk).toBe('watch');
-    expect(recommendations).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          recommendedWaterInches: expect.any(Number),
-          status: 'active',
-          targetId: 'tomato-1',
-          targetType: 'planting',
-          urgency: expect.stringMatching(/low|medium|high/),
-        }),
-      ]),
-    );
+    expect(recommendations).toHaveLength(1);
+    expect(recommendations[0]).toMatchObject({
+      status: 'due',
+      targetId: 'bed-1',
+      targetKind: 'bed',
+      targetLabel: 'Main bed',
+      urgency: expect.stringMatching(/low|medium|high/),
+    });
   });
 
   it('suppresses watering when forecast rain covers the deficit', () => {
@@ -51,7 +49,7 @@ describe('wateringEngine', () => {
     });
     const now = new Date('2026-06-21T11:00:00.000Z');
     const snapshot = createWeatherSnapshot(garden, context, now);
-    const recommendations = buildWaterRecommendations(
+    const recommendations = buildWateringSchedule(
       garden,
       context,
       snapshot,
@@ -59,14 +57,123 @@ describe('wateringEngine', () => {
     );
 
     expect(recommendations[0]).toMatchObject({
-      recommendedWaterInches: 0,
+      nextRecalculationAtIso: '2026-06-21T18:00:00.000Z',
       status: 'suppressed',
-      suppressUntilIso: '2026-06-21T18:00:00.000Z',
+      targetAmountInches: 0,
+    });
+  });
+
+  it('tracks partial watering from recent manual logs and leaves only the remainder due', () => {
+    const garden = createWateringGarden({
+      journalEntries: [
+        {
+          body: 'Watered Main bed 0.25 inches',
+          createdAtIso: '2026-06-21T09:00:00.000Z',
+          gardenId: 'user-a',
+          id: 'note-1',
+          issueCategory: null,
+          issueSeverity: null,
+          issueStatus: null,
+          occurredOn: '2026-06-21',
+          photos: [],
+          plantingId: null,
+          structureId: 'bed-1',
+          targetLabel: 'Main bed',
+          targetType: 'structure',
+          title: 'Watered Main bed',
+          type: 'note',
+          weatherSnapshotId: null,
+        },
+      ],
+    });
+    const context = createWeatherContext({
+      dailyHighF: 88,
+      next24hPrecipIn: 0,
+      recentRainIn: 0,
+    });
+    const now = new Date('2026-06-21T11:00:00.000Z');
+    const snapshot = createWeatherSnapshot(garden, context, now);
+    const recommendations = buildWateringSchedule(
+      garden,
+      context,
+      snapshot,
+      now,
+    );
+
+    expect(recommendations[0]).toMatchObject({
+      appliedAmountInches: 0.25,
+      lastWateredAtIso: '2026-06-21T09:00:00.000Z',
+      status: 'partial',
+      targetId: 'bed-1',
+      targetKind: 'bed',
+    });
+    expect(recommendations[0]?.targetAmountInches ?? 0).toBeGreaterThan(0);
+  });
+
+  it('reactivates a suppressed target when the rain forecast drops out', () => {
+    const garden = createWateringGarden();
+    const now = new Date('2026-06-21T11:00:00.000Z');
+    const suppressedContext = createWeatherContext({
+      dailyHighF: 82,
+      next24hPrecipIn: 1,
+      nextRainIso: '2026-06-21T18:00:00.000Z',
+      recentRainIn: 0,
+    });
+    const dueContext = createWeatherContext({
+      dailyHighF: 82,
+      next24hPrecipIn: 0,
+      recentRainIn: 0,
+    });
+    const suppressed = buildWateringSchedule(
+      garden,
+      suppressedContext,
+      createWeatherSnapshot(garden, suppressedContext, now),
+      now,
+    );
+    const refreshed = buildWateringSchedule(
+      garden,
+      dueContext,
+      createWeatherSnapshot(garden, dueContext, now),
+      new Date('2026-06-21T12:30:00.000Z'),
+    );
+    const merged = mergeWateringSchedule(suppressed, refreshed);
+
+    expect(merged[0]).toMatchObject({
+      dueWindowStartIso: '2026-06-21T11:00:00.000Z',
+      status: 'due',
+      targetAmountInches: expect.any(Number),
+    });
+  });
+
+  it('holds watering until the saved watering check time', () => {
+    const garden = createWateringGarden();
+    const context = createWeatherContext({
+      dailyHighF: 88,
+      next24hPrecipIn: 0,
+      recentRainIn: 0,
+    });
+    const now = new Date('2026-06-21T10:30:00.000Z');
+    const snapshot = createWeatherSnapshot(garden, context, now);
+    const recommendations = buildWateringSchedule(
+      garden,
+      context,
+      snapshot,
+      now,
+      {
+        defaultWateringCheckTime: '08:00',
+        timezone: 'America/Detroit',
+      },
+    );
+
+    expect(recommendations[0]).toMatchObject({
+      dueWindowStartIso: '2026-06-21T12:00:00.000Z',
+      status: 'scheduled',
+      targetAmountInches: expect.any(Number),
     });
   });
 });
 
-function createWateringGarden(): Garden {
+function createWateringGarden(overrides: Partial<Garden> = {}): Garden {
   return {
     ...createDefaultGarden('user-a'),
     plantings: [
@@ -78,7 +185,19 @@ function createWateringGarden(): Garden {
           yFt: 3,
         }),
         cropId: 'tomato',
+        status: 'growing',
         weeklyWaterNeedInches: 1.3,
+      },
+      {
+        ...createDefaultPlanting({
+          id: 'basil-1',
+          label: 'Basil',
+          xFt: 5,
+          yFt: 3,
+        }),
+        cropId: 'basil',
+        status: 'growing',
+        weeklyWaterNeedInches: 0.8,
       },
     ],
     structures: [
@@ -89,9 +208,11 @@ function createWateringGarden(): Garden {
           xFt: 1,
           yFt: 1,
         }),
+        label: 'Main bed',
         mulched: true,
       },
     ],
+    ...overrides,
   };
 }
 

@@ -134,7 +134,7 @@
   padding-top: 0.75rem;
 }
 
-.materials[aria-label='Generated layouts'] {
+.materials[aria-label='Layout suggestion'] {
   order: -1;
   border-top: 0;
   padding-top: 0;

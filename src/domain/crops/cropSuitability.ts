@@ -2,12 +2,15 @@ import type {
   ClimateProfile,
   CropProfile,
   Garden,
+  GardenLocation,
   PlantingMode,
   SunExposure,
   StructureType,
 } from '../gardens/GardenRepository';
 import {
   createPlantLocationContext,
+  explainPlantLocationMatch,
+  getPlantTimingGuidance,
   scorePlantLocationMatch,
 } from './plantLocationMatch';
 import type { PlantLocationMatch } from './plantCatalogTypes';
@@ -17,6 +20,7 @@ export type CropSuitabilityLevel = 'fit' | 'risk' | 'watch';
 export interface CropSuitabilityInput {
   climateProfile: ClimateProfile;
   crop: CropProfile;
+  location?: GardenLocation | null;
   mode: PlantingMode;
   plantCount: number | null;
   plotType: StructureType | 'containers' | 'mixed' | 'open';
@@ -27,15 +31,23 @@ export interface CropSuitabilityInput {
 
 export interface CropSuitabilityScore {
   level: CropSuitabilityLevel;
+  locationContext: {
+    regionName: string;
+    source: 'annArborDefault' | 'gardenProfile';
+  };
+  locationHeadline: string;
   locationMatch: PlantLocationMatch;
   reasons: string[];
   score: number;
+  sunCompatible: boolean | null;
+  timing: ReturnType<typeof getPlantTimingGuidance>;
   warnings: string[];
 }
 
 export function scoreCropSuitability({
   climateProfile,
   crop,
+  location,
   mode,
   plantCount,
   plotType,
@@ -43,15 +55,34 @@ export function scoreCropSuitability({
   sunExposureAtPlacement,
   today = new Date(),
 }: CropSuitabilityInput): CropSuitabilityScore {
+  const context = createPlantLocationContext({
+    climateProfile,
+    ...(location !== undefined ? { location } : {}),
+  });
   const locationMatch = scorePlantLocationMatch({
-    context: createPlantLocationContext({ climateProfile }),
+    context,
     crop,
     sunExposureAtPlacement,
+    today,
+  });
+  const locationRationale = explainPlantLocationMatch({
+    context,
+    crop,
+    match: locationMatch,
+    today,
+  });
+  const timing = getPlantTimingGuidance({
+    context,
+    crop,
     today,
   });
   let score = locationMatch.score;
   const reasons: string[] = [...locationMatch.reasons];
   const warnings: string[] = [...locationMatch.warnings];
+  const sunCompatible = sunExposureAtPlacement
+    ? sunExposureAtPlacement === crop.sunRequirement ||
+      locationMatch.reasons.some((reason) => reason.startsWith('Sun matches'))
+    : null;
 
   if (plotType === 'container' || plotType === 'containers') {
     if (crop.growthForm === 'vining' || (crop.matureSpreadInches ?? 0) > 48) {
@@ -93,9 +124,16 @@ export function scoreCropSuitability({
 
   return {
     level: boundedScore >= 76 ? 'fit' : boundedScore >= 52 ? 'watch' : 'risk',
+    locationContext: {
+      regionName: context.regionName,
+      source: context.source,
+    },
+    locationHeadline: locationRationale.headline,
     locationMatch,
     reasons: reasons.slice(0, 4),
     score: boundedScore,
+    sunCompatible,
+    timing,
     warnings: warnings.slice(0, 4),
   };
 }

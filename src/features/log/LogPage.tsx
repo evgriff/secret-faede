@@ -62,11 +62,11 @@ export function LogPage() {
     <section className={styles.page}>
       <header className={styles.header}>
         <div>
-          <p className={styles.kicker}>Garden log</p>
+          <p className={styles.kicker}>Remember what happened</p>
           <h1>Feed</h1>
           <p className={styles.summary}>
-            {log.filteredFeedItems.length} of {log.feedItems.length} entries
-            shown
+            Watering, harvests, issues, notes, and photos stay here after the
+            work is done.
           </p>
         </div>
         <div className={styles.headerActions}>

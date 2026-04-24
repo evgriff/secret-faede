@@ -1,7 +1,7 @@
 import {
   createDefaultGarden,
   type Garden,
-  type WaterRecommendation,
+  type WateringScheduleEntry,
   type WeatherSnapshot,
 } from '../../domain/gardens/GardenRepository';
 import { buildInAppNotificationLogs } from './notificationDecisions';
@@ -140,24 +140,28 @@ function createWeatherSnapshot(): WeatherSnapshot {
   };
 }
 
-function createWaterRecommendation(): WaterRecommendation {
+function createWaterRecommendation(): WateringScheduleEntry {
   return {
+    appliedAmountInches: null,
+    createdAtIso: '2026-06-21T11:00:00.000Z',
     deficitInches: 0.62,
-    generatedAtIso: '2026-06-21T11:00:00.000Z',
+    dueDate: '2026-06-21',
+    dueWindowEndIso: null,
+    dueWindowStartIso: '2026-06-21T11:00:00.000Z',
     gardenId: 'user-a',
     id: 'water-1',
-    inchesNeeded: 0.62,
-    plantingId: 'tomato-1',
-    rationale: ['Dry forecast.'],
-    reason: 'Watering recommended',
-    recommendationDate: '2026-06-21',
-    recommendedWaterInches: 0.62,
-    status: 'active',
-    suppressUntilIso: null,
+    lastWateredAtIso: null,
+    nextRecalculationAtIso: null,
+    reasonDetails: ['Dry forecast.'],
+    reasonSummary: 'Watering recommended',
+    status: 'due',
     targetId: 'tomato-1',
+    targetAmountInches: 0.62,
+    targetKind: 'planting',
     targetLabel: 'Tomatoes in Bed A',
-    targetType: 'planting',
+    updatedAtIso: '2026-06-21T11:00:00.000Z',
     urgency: 'medium',
+    wateringZoneId: null,
     weatherSnapshotId: 'weather-1',
   };
 }

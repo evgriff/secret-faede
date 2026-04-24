@@ -82,10 +82,10 @@ export function PlanActionRail({
       onClick: () => handleBuildMode(entry.mode),
     })),
     {
-      description: 'Compare full-plot layout ideas for saved crops.',
+      description: 'Check one whole-plot layout suggestion for saved crops.',
       disabled: false,
       isActive: activeMode === 'optimize',
-      label: 'Generated layouts',
+      label: 'Generate layout',
       onClick: () => handleAction(onOpenOptimize),
     },
     {

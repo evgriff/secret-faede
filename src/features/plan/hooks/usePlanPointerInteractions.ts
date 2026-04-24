@@ -59,6 +59,7 @@ type DragState = {
 type ResizeState = {
   checkpointed: boolean;
   handle: ResizeHandle;
+  moved: boolean;
   originalRect: ItemRect;
   plotRect: PlotClientRect;
   scrollLock: ScrollLock | null;
@@ -69,9 +70,20 @@ type ResizeState = {
 
 type MarqueeState = {
   additive: boolean;
+  moved: boolean;
   plotRect: PlotClientRect;
   scrollLock: ScrollLock | null;
   start: PlotPoint;
+  startClientX: number;
+  startClientY: number;
+};
+
+type ItemPressState = {
+  additive: boolean;
+  item: PlanItemRef;
+  moved: boolean;
+  startClientX: number;
+  startClientY: number;
 };
 
 type ScrollLock = {
@@ -85,7 +97,11 @@ type PlanPointerInteractionContext = {
   mode: PlanMode;
   onCheckpoint(): void;
   onMarqueeSelect(items: PlanItemRef[], additive: boolean): void;
-  onSelectItem(item: SelectedGardenItem, additive: boolean): void;
+  onSelectItem(
+    item: SelectedGardenItem,
+    additive: boolean,
+    options?: { openSurface?: boolean },
+  ): void;
   resizeStructureRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
   selectedItems: PlanItemRef[];
   updateItemPositions(
@@ -163,6 +179,13 @@ const emptyInteractionPreviewState: InteractionPreviewState = {
   snapGuides: [],
 };
 
+export type PlanPointerInteractionState =
+  | 'drag'
+  | 'idle'
+  | 'marquee'
+  | 'press'
+  | 'resize';
+
 export function usePlanPointerInteractions({
   garden,
   mode,
@@ -177,7 +200,11 @@ export function usePlanPointerInteractions({
   mode: PlanMode;
   onCheckpoint(): void;
   onMarqueeSelect(items: PlanItemRef[], additive: boolean): void;
-  onSelectItem(item: SelectedGardenItem, additive: boolean): void;
+  onSelectItem(
+    item: SelectedGardenItem,
+    additive: boolean,
+    options?: { openSurface?: boolean },
+  ): void;
   resizeStructureRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
   selectedItems: PlanItemRef[];
   updateItemPositions(
@@ -195,10 +222,13 @@ export function usePlanPointerInteractions({
   const [resizingStructureId, setResizingStructureId] = useState<string | null>(
     null,
   );
+  const [interactionState, setInteractionState] =
+    useState<PlanPointerInteractionState>('idle');
   const [interactionPreviewState, setInteractionPreviewState] =
     useState<InteractionPreviewState>(emptyInteractionPreviewState);
   const dragStateRef = useRef<DragState | null>(null);
   const dragPreviewRef = useRef<DragPreview | null>(null);
+  const itemPressRef = useRef<ItemPressState | null>(null);
   const marqueeStateRef = useRef<MarqueeState | null>(null);
   const pendingPreviewStateRef = useRef<InteractionPreviewState>(
     emptyInteractionPreviewState,
@@ -272,6 +302,7 @@ export function usePlanPointerInteractions({
 
   function clearInteractionPreview() {
     dragPreviewRef.current = null;
+    itemPressRef.current = null;
     resizePreviewRef.current = null;
     pendingPreviewStateRef.current = emptyInteractionPreviewState;
 
@@ -436,11 +467,18 @@ export function usePlanPointerInteractions({
   }
 
   function beginItemDrag(event: PointerEvent<HTMLElement>, item: PlanItemRef) {
-    const { garden, onSelectItem, selectedItems } = contextRef.current;
+    const { garden, selectedItems } = contextRef.current;
 
     event.preventDefault();
     event.stopPropagation();
-    onSelectItem(item, event.shiftKey);
+    itemPressRef.current = {
+      additive: event.shiftKey,
+      item,
+      moved: false,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+    };
+    setInteractionState('press');
 
     if (!garden || event.shiftKey || isItemLocked(garden, item)) {
       return;
@@ -501,12 +539,6 @@ export function usePlanPointerInteractions({
       startClientX: event.clientX,
       startClientY: event.clientY,
     };
-
-    if (item.type === 'planting') {
-      setDraggingPlantId(item.instanceId ?? item.id);
-    } else {
-      setDraggingStructureId(item.id);
-    }
   }
 
   function continueItemDrag(
@@ -529,8 +561,25 @@ export function usePlanPointerInteractions({
     event.stopPropagation();
     restoreScrollLock(dragState.scrollLock);
 
+    const wasMoved = dragState.moved;
+
     if (!markMoved(event, dragState)) {
+      const pressState = itemPressRef.current;
+
+      if (pressState && areSamePlanItem(pressState.item, item)) {
+        markMoved(event, pressState);
+      }
+
       return;
+    }
+
+    if (!wasMoved) {
+      setInteractionState('drag');
+      if (item.type === 'planting') {
+        setDraggingPlantId(item.instanceId ?? item.id);
+      } else {
+        setDraggingStructureId(item.id);
+      }
     }
 
     const preview = buildDragPreview(event, dragState, garden);
@@ -545,17 +594,24 @@ export function usePlanPointerInteractions({
   }
 
   function endItemDrag(event: PointerEvent<HTMLElement>, item: PlanItemRef) {
-    const { garden, onCheckpoint, updateItemPositions } = contextRef.current;
+    const { garden, onCheckpoint, onSelectItem, updateItemPositions } =
+      contextRef.current;
     const dragState = dragStateRef.current;
+    const pressState = itemPressRef.current;
 
-    if (!garden || !dragState || !areSamePlanItem(dragState.item, item)) {
+    if (
+      !garden ||
+      ((!dragState || !areSamePlanItem(dragState.item, item)) &&
+        (!pressState || !areSamePlanItem(pressState.item, item)))
+    ) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
+    const canceled = event.type === 'pointercancel';
 
-    if (dragState.moved) {
+    if (!canceled && dragState?.moved) {
       const preview = buildDragPreview(event, dragState, garden);
 
       dragPreviewRef.current = preview;
@@ -564,13 +620,20 @@ export function usePlanPointerInteractions({
         checkpointDrag(dragState, onCheckpoint);
         updateItemPositions(preview.updates, false);
       }
+
+      if (dragState.selection.length === 1) {
+        onSelectItem(item, false, { openSurface: false });
+      }
+    } else if (!canceled && pressState && !pressState.moved) {
+      onSelectItem(item, pressState.additive, { openSurface: true });
     }
 
-    restoreScrollLock(dragState.scrollLock);
+    restoreScrollLock(dragState?.scrollLock ?? null);
     releasePointerCapture(event);
     dragStateRef.current = null;
     setDraggingPlantId(null);
     setDraggingStructureId(null);
+    setInteractionState('idle');
     clearInteractionPreview();
   }
 
@@ -579,11 +642,11 @@ export function usePlanPointerInteractions({
     structureId: string,
     handle: ResizeHandle,
   ) {
-    const { garden, onSelectItem } = contextRef.current;
+    const { garden } = contextRef.current;
 
     event.preventDefault();
     event.stopPropagation();
-    onSelectItem({ id: structureId, type: 'structure' }, event.shiftKey);
+    setInteractionState('press');
 
     if (
       !garden ||
@@ -607,6 +670,7 @@ export function usePlanPointerInteractions({
     resizeStateRef.current = {
       checkpointed: false,
       handle,
+      moved: false,
       originalRect,
       plotRect,
       scrollLock,
@@ -614,7 +678,6 @@ export function usePlanPointerInteractions({
       startClientY: event.clientY,
       structureId,
     };
-    setResizingStructureId(structureId);
   }
 
   function continueResize(event: PointerEvent<HTMLSpanElement>) {
@@ -628,8 +691,15 @@ export function usePlanPointerInteractions({
     event.stopPropagation();
     restoreScrollLock(resizeStateRef.current.scrollLock);
 
+    const wasMoved = resizeStateRef.current.moved;
+
     if (!markMoved(event, resizeStateRef.current)) {
       return;
+    }
+
+    if (!wasMoved) {
+      setInteractionState('resize');
+      setResizingStructureId(resizeStateRef.current.structureId);
     }
 
     const preview = buildResizePreview(event, resizeStateRef.current, garden);
@@ -645,7 +715,8 @@ export function usePlanPointerInteractions({
   }
 
   function endResize(event: PointerEvent<HTMLSpanElement>) {
-    const { garden, onCheckpoint, resizeStructureRect } = contextRef.current;
+    const { garden, onCheckpoint, onSelectItem, resizeStructureRect } =
+      contextRef.current;
 
     if (!garden || !resizeStateRef.current) {
       return;
@@ -653,12 +724,13 @@ export function usePlanPointerInteractions({
 
     event.preventDefault();
     event.stopPropagation();
+    const canceled = event.type === 'pointercancel';
 
     const preview = buildResizePreview(event, resizeStateRef.current, garden);
 
     resizePreviewRef.current = preview;
 
-    if (preview.hasChanged) {
+    if (!canceled && preview.hasChanged) {
       if (!resizeStateRef.current.checkpointed) {
         onCheckpoint();
         resizeStateRef.current.checkpointed = true;
@@ -667,10 +739,19 @@ export function usePlanPointerInteractions({
       resizeStructureRect(preview.update, false);
     }
 
+    if (!canceled) {
+      onSelectItem(
+        { id: resizeStateRef.current.structureId, type: 'structure' },
+        false,
+        { openSurface: false },
+      );
+    }
+
     restoreScrollLock(resizeStateRef.current.scrollLock);
     releasePointerCapture(event);
     resizeStateRef.current = null;
     setResizingStructureId(null);
+    setInteractionState('idle');
     clearInteractionPreview();
   }
 
@@ -704,11 +785,14 @@ export function usePlanPointerInteractions({
     const start = clientPointToPlotFeet(event, rect, garden.plot);
     marqueeStateRef.current = {
       additive: event.shiftKey,
+      moved: false,
       plotRect: rect,
       scrollLock,
       start,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
     };
-    setMarqueeRect(rectFromPoints(start, start));
+    setInteractionState('press');
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
@@ -722,6 +806,12 @@ export function usePlanPointerInteractions({
     event.preventDefault();
     event.stopPropagation();
     restoreScrollLock(marqueeStateRef.current.scrollLock);
+
+    if (!markMoved(event, marqueeStateRef.current)) {
+      return;
+    }
+
+    setInteractionState('marquee');
     setMarqueeRect(
       rectFromPoints(
         marqueeStateRef.current.start,
@@ -743,18 +833,25 @@ export function usePlanPointerInteractions({
 
     event.preventDefault();
     event.stopPropagation();
+    const canceled = event.type === 'pointercancel';
     const state = marqueeStateRef.current;
 
     restoreScrollLock(state.scrollLock);
-    const selectionRect = rectFromPoints(
-      state.start,
-      clientPointToPlotFeet(event, state.plotRect, garden.plot),
-    );
-    onMarqueeSelect(getItemsInRect(garden, selectionRect), state.additive);
+
+    if (!canceled && state.moved) {
+      const selectionRect = rectFromPoints(
+        state.start,
+        clientPointToPlotFeet(event, state.plotRect, garden.plot),
+      );
+      onMarqueeSelect(getItemsInRect(garden, selectionRect), state.additive);
+    } else if (!canceled) {
+      onMarqueeSelect([], false);
+    }
 
     releasePointerCapture(event);
     marqueeStateRef.current = null;
     setMarqueeRect(null);
+    setInteractionState('idle');
   }
 
   // The wrappers stay stable for memoized canvas items; the helpers read latest state from contextRef.
@@ -806,6 +903,7 @@ export function usePlanPointerInteractions({
     draggingPlantId,
     draggingStructureId,
     ...stableHandlers,
+    interactionState,
     marqueeRect,
     plotRef,
     resizePreview: interactionPreviewState.resizePreview,

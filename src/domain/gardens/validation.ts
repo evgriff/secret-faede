@@ -26,7 +26,7 @@ import {
   type SunShadeLayer,
   type Task,
   type UserProfile,
-  type WaterRecommendation,
+  type WateringScheduleEntry,
   type WeatherSnapshot,
   isPageStructureType,
 } from './models';
@@ -807,6 +807,8 @@ export function parseTask(value: unknown): Task | null {
 
   const delayReason = readNullableString(value.delayReason);
   const delaySetAtIso = readNullableString(value.delaySetAtIso);
+  const taskSource =
+    value.source === 'waterRecommendation' ? 'wateringSchedule' : value.source;
 
   return {
     bedLabel: readNullableString(value.bedLabel),
@@ -827,8 +829,8 @@ export function parseTask(value: unknown): Task | null {
     ),
     snoozedUntilDate: readNullableString(value.snoozedUntilDate),
     source: readStringUnion(
-      value.source,
-      ['generated', 'manual', 'succession', 'waterRecommendation'] as const,
+      taskSource,
+      ['generated', 'manual', 'succession', 'wateringSchedule'] as const,
       'manual',
     ),
     sourceId: readNullableString(value.sourceId),
@@ -1398,81 +1400,163 @@ export function parseWeatherSnapshot(value: unknown): WeatherSnapshot | null {
   };
 }
 
-export function parseWaterRecommendation(
+function readWateringScheduleStatus(
   value: unknown,
-): WaterRecommendation | null {
+  targetAmountInches: number,
+): WateringScheduleEntry['status'] {
+  if (
+    value === 'completed' ||
+    value === 'due' ||
+    value === 'partial' ||
+    value === 'scheduled' ||
+    value === 'skipped' ||
+    value === 'snoozed' ||
+    value === 'suppressed'
+  ) {
+    return value;
+  }
+
+  if (value === 'dismissed') {
+    return 'skipped';
+  }
+
+  if (value === 'accepted' || value === 'active' || value === 'new') {
+    return targetAmountInches > 0 ? 'due' : 'scheduled';
+  }
+
+  return targetAmountInches > 0 ? 'due' : 'scheduled';
+}
+
+export function parseWateringScheduleEntry(
+  value: unknown,
+): WateringScheduleEntry | null {
   if (!isRecord(value) || typeof value.id !== 'string') {
     return null;
   }
 
+  const targetAmountInches = Math.max(
+    readNumber(
+      value.targetAmountInches,
+      readNumber(
+        value.recommendedWaterInches,
+        readNumber(value.inchesNeeded, 0),
+      ),
+    ),
+    0,
+  );
+  const targetKind = readStringUnion(
+    value.targetKind ?? value.targetType,
+    ['bed', 'planting'] as const,
+    readNullableString(value.plantingId) ? 'planting' : 'bed',
+  );
+  const reasonSummary = readString(
+    value.reasonSummary,
+    readString(value.reason, 'Watering check scheduled.'),
+  );
+  const createdAtIso = readString(
+    value.createdAtIso,
+    readString(value.generatedAtIso),
+  );
+  const updatedAtIso = readString(
+    value.updatedAtIso,
+    readString(value.refreshedAtIso, createdAtIso),
+  );
+  const legacyReasonDetails = Array.isArray(value.rationale)
+    ? value.rationale.flatMap((reason): string[] =>
+        typeof reason === 'string' ? [reason] : [],
+      )
+    : [];
+  const reasonDetails = Array.isArray(value.reasonDetails)
+    ? value.reasonDetails.flatMap((reason): string[] =>
+        typeof reason === 'string' ? [reason] : [],
+      )
+    : legacyReasonDetails.length > 0
+      ? legacyReasonDetails
+      : [reasonSummary].filter(Boolean);
+  const appliedAmountInches = readNullableNumber(value.appliedAmountInches);
+  const dueWindowEndIso =
+    readNullableString(value.dueWindowEndIso) ??
+    readNullableString(value.suppressUntilIso);
+  const dueWindowStartIso =
+    readNullableString(value.dueWindowStartIso) ?? createdAtIso;
+  const nextRecalculationAtIso =
+    readNullableString(value.nextRecalculationAtIso) ??
+    readNullableString(value.suppressUntilIso);
+  const wateringZoneId =
+    readNullableString(value.wateringZoneId) ??
+    readNullableString(value.wateringGroupId);
+
   return {
+    appliedAmountInches:
+      appliedAmountInches === null
+        ? value.status === 'completed'
+          ? targetAmountInches
+          : null
+        : Math.max(appliedAmountInches, 0),
+    createdAtIso,
     dataQuality: readStringUnion(
       value.dataQuality,
       ['complete', 'limited', 'partial'] as const,
       'limited',
     ),
     deficitInches: Math.max(
-      readNumber(value.deficitInches, readNumber(value.inchesNeeded, 0)),
+      readNumber(value.deficitInches, targetAmountInches),
       0,
     ),
-    generatedAtIso: readString(value.generatedAtIso),
-    generatedBy: readStringUnion(
-      value.generatedBy,
+    dueDate: readString(value.dueDate, readString(value.recommendationDate)),
+    dueWindowEndIso,
+    dueWindowStartIso,
+    gardenId: readString(value.gardenId),
+    id: value.id,
+    lastWateredAtIso: readNullableString(value.lastWateredAtIso),
+    nextRecalculationAtIso,
+    reasonDetails,
+    reasonSummary,
+    source: readStringUnion(
+      value.source ?? value.generatedBy,
       ['backend', 'client', 'manualRefresh'] as const,
       'client',
     ),
-    gardenId: readString(value.gardenId),
-    id: value.id,
-    inchesNeeded: Math.max(readNumber(value.inchesNeeded, 0), 0),
-    plantingId: readNullableString(value.plantingId),
-    rationale: Array.isArray(value.rationale)
-      ? value.rationale.flatMap((reason): string[] =>
-          typeof reason === 'string' ? [reason] : [],
-        )
-      : [readString(value.reason)].filter(Boolean),
-    reason: readString(value.reason),
-    recommendationDate: readString(value.recommendationDate),
-    recommendedWaterInches: Math.max(
-      readNumber(
-        value.recommendedWaterInches,
-        readNumber(value.inchesNeeded, 0),
-      ),
-      0,
-    ),
-    refreshedAtIso: readString(
-      value.refreshedAtIso,
-      readString(value.generatedAtIso),
-    ),
-    status: readStringUnion(
-      value.status,
-      [
-        'accepted',
-        'active',
-        'completed',
-        'dismissed',
-        'new',
-        'suppressed',
-      ] as const,
-      'new',
-    ),
-    suppressUntilIso: readNullableString(value.suppressUntilIso),
+    status: readWateringScheduleStatus(value.status, targetAmountInches),
     targetId: readString(
       value.targetId,
       readNullableString(value.plantingId) ?? value.id,
     ),
+    targetAmountInches,
+    targetKind,
     targetLabel: readString(value.targetLabel, 'Garden target'),
-    targetType: readStringUnion(
-      value.targetType,
-      ['bed', 'planting'] as const,
-      readNullableString(value.plantingId) ? 'planting' : 'bed',
-    ),
+    updatedAtIso,
     urgency: readStringUnion(
       value.urgency,
       ['high', 'low', 'medium', 'none'] as const,
       'none',
     ),
+    wateringZoneId,
     weatherSnapshotId: readNullableString(value.weatherSnapshotId),
   };
+}
+
+export function parseWateringSchedule(value: unknown): WateringScheduleEntry[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry): WateringScheduleEntry[] => {
+    const parsed = parseWateringScheduleEntry(entry);
+    return parsed ? [parsed] : [];
+  });
+}
+
+export function parseWaterRecommendation(
+  value: unknown,
+): WateringScheduleEntry | null {
+  return parseWateringScheduleEntry(value);
+}
+
+export function parseWaterRecommendations(
+  value: unknown,
+): WateringScheduleEntry[] {
+  return parseWateringSchedule(value);
 }
 
 export function parseTasks(value: unknown): Task[] {
@@ -1541,19 +1625,6 @@ export function parseWeatherSnapshots(value: unknown): WeatherSnapshot[] {
   });
 }
 
-export function parseWaterRecommendations(
-  value: unknown,
-): WaterRecommendation[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((recommendation): WaterRecommendation[] => {
-    const parsed = parseWaterRecommendation(recommendation);
-    return parsed ? [parsed] : [];
-  });
-}
-
 export function parseGarden(
   userId: string,
   value: unknown,
@@ -1596,8 +1667,8 @@ export function parseGarden(
     tasks: collections.tasks ?? parseTasks(record.tasks),
     updatedAtIso: readNullableString(record.updatedAtIso),
     userId,
-    waterRecommendations: parseWaterRecommendations(
-      record.waterRecommendations,
+    wateringSchedule: parseWateringSchedule(
+      record.wateringSchedule ?? record.waterRecommendations,
     ),
     weatherSnapshots: parseWeatherSnapshots(record.weatherSnapshots),
   };
@@ -1641,10 +1712,20 @@ export function isWeatherSnapshot(value: unknown): value is WeatherSnapshot {
   return isRecord(value) && typeof value.id === 'string';
 }
 
+export function isWateringScheduleEntry(
+  value: unknown,
+): value is WateringScheduleEntry {
+  return (
+    isRecord(value) &&
+    typeof value.targetAmountInches === 'number' &&
+    typeof value.dueDate === 'string'
+  );
+}
+
 export function isWaterRecommendation(
   value: unknown,
-): value is WaterRecommendation {
-  return isRecord(value) && typeof value.inchesNeeded === 'number';
+): value is WateringScheduleEntry {
+  return isWateringScheduleEntry(value);
 }
 
 export function isTask(value: unknown): value is Task {

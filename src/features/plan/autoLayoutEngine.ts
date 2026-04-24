@@ -77,6 +77,19 @@ export function generateAutoLayoutCandidates(
     .sort(compareAutoLayoutCandidates);
 }
 
+export function generateAutoLayoutSuggestion(
+  garden: Garden,
+  options: {
+    ignoredWarningIds?: string[];
+    maxSearchDepth?: number;
+    maxSearchStates?: number;
+    sunLayer?: SunShadeLayer | null;
+    sunSeason?: SunSeason;
+  } = {},
+) {
+  return generateAutoLayoutCandidates(garden, options)[0] ?? null;
+}
+
 function buildCandidate({
   garden,
   ignoredWarningIds,

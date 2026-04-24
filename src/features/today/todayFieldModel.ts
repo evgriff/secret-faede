@@ -4,7 +4,7 @@ import type {
   JournalEntry,
   Planting,
   Task,
-  WaterRecommendation,
+  WateringScheduleEntry,
   WeatherSnapshot,
 } from '../../domain/gardens/GardenRepository';
 import {
@@ -13,10 +13,11 @@ import {
   type TodayCropStageAction,
   type TodayRecentActivity,
 } from './todayFieldActivity';
+import { toLocalDate } from './todayFormatters';
 import { getBedLabelForPlanting } from './todayGardenLabels';
 
 export interface TodayFieldModel {
-  activeWatering: WaterRecommendation[];
+  activeWatering: WateringScheduleEntry[];
   bedAttention: Array<{ count: number; label: string; summary: string }>;
   cropStageActions: TodayCropStageAction[];
   harvestReady: TodayHarvestReadyItem[];
@@ -43,8 +44,9 @@ export function buildTodayFieldModel(
   garden: Garden,
   openTasks: Task[],
   todayDate: string,
+  now = new Date(),
 ): TodayFieldModel {
-  const activeWatering = getActiveWatering(garden, todayDate);
+  const activeWatering = getActiveWatering(garden, todayDate, now);
   const unresolvedIssues = getUnresolvedIssues(garden);
 
   return {
@@ -70,20 +72,40 @@ export function buildTodayFieldModel(
   };
 }
 
-function getActiveWatering(garden: Garden, todayDate: string) {
-  return garden.waterRecommendations
+function getActiveWatering(garden: Garden, todayDate: string, now: Date) {
+  const currentDate = toLocalDate(now);
+
+  return garden.wateringSchedule
     .filter(
-      (recommendation) =>
-        ['accepted', 'active', 'new'].includes(recommendation.status) &&
-        recommendation.recommendedWaterInches > 0 &&
-        recommendation.recommendationDate <= todayDate,
+      (entry) =>
+        ['due', 'partial', 'scheduled', 'snoozed'].includes(entry.status) &&
+        entry.targetAmountInches > 0 &&
+        entry.dueDate <= todayDate &&
+        !isDeferredUntilLaterToday(entry, todayDate, currentDate, now),
     )
     .sort(
       (left, right) =>
         urgencyRank(right.urgency) - urgencyRank(left.urgency) ||
-        right.recommendedWaterInches - left.recommendedWaterInches,
+        right.targetAmountInches - left.targetAmountInches,
     )
     .slice(0, 8);
+}
+
+function isDeferredUntilLaterToday(
+  entry: Garden['wateringSchedule'][number],
+  selectedDate: string,
+  currentDate: string,
+  now: Date,
+) {
+  if (
+    selectedDate !== currentDate ||
+    (entry.status !== 'scheduled' && entry.status !== 'snoozed')
+  ) {
+    return false;
+  }
+
+  const dueWindowStartMs = Date.parse(entry.dueWindowStartIso ?? '');
+  return Number.isFinite(dueWindowStartMs) && dueWindowStartMs > now.getTime();
 }
 
 function getUnresolvedIssues(garden: Garden) {
@@ -142,7 +164,7 @@ function getLatestWeather(garden: Garden) {
 function getUrgentAlerts(
   garden: Garden,
   openTasks: Task[],
-  activeWatering: WaterRecommendation[],
+  activeWatering: WateringScheduleEntry[],
   unresolvedIssues: JournalEntry[],
   todayDate: string,
 ) {
@@ -190,7 +212,7 @@ function getUrgentAlerts(
 function getBedAttention(
   garden: Garden,
   openTasks: Task[],
-  activeWatering: WaterRecommendation[],
+  activeWatering: WateringScheduleEntry[],
   unresolvedIssues: JournalEntry[],
 ) {
   const counts = new Map<string, { count: number; reasons: Set<string> }>();
@@ -224,14 +246,14 @@ function getBedAttention(
 
 function getWaterRecommendationLabel(
   garden: Garden,
-  recommendation: WaterRecommendation,
+  recommendation: WateringScheduleEntry,
 ) {
-  if (recommendation.targetType === 'bed') {
+  if (recommendation.targetKind === 'bed') {
     return recommendation.targetLabel;
   }
 
   const planting = garden.plantings.find(
-    (candidate) => candidate.id === recommendation.plantingId,
+    (candidate) => candidate.id === recommendation.targetId,
   );
 
   return planting
@@ -271,8 +293,8 @@ function addAttention(
   counts.set(label, current);
 }
 
-function urgencyRank(urgency: WaterRecommendation['urgency']) {
-  const ranks: Record<WaterRecommendation['urgency'], number> = {
+function urgencyRank(urgency: WateringScheduleEntry['urgency']) {
+  const ranks: Record<WateringScheduleEntry['urgency'], number> = {
     high: 3,
     low: 1,
     medium: 2,

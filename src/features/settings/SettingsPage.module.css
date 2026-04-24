@@ -144,7 +144,8 @@
 
 .notificationCenter,
 .accountPanel,
-.consentPanel {
+.consentPanel,
+.disclosure {
   display: grid;
   gap: 0.65rem;
   border: 1px solid rgba(76, 85, 70, 0.14);
@@ -169,6 +170,14 @@
   list-style: none;
 }
 
+.disclosure summary {
+  cursor: pointer;
+  color: var(--color-text-strong);
+  font-weight: 780;
+  list-style: none;
+}
+
+.disclosure summary::-webkit-details-marker,
 .demoDisclosure summary::-webkit-details-marker {
   display: none;
 }

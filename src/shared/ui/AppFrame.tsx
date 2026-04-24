@@ -1,7 +1,11 @@
-import type { ReactNode } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 
 import type { AuthUser } from '../../domain/auth/types';
+import {
+  buildSettingsDemoCommandPath,
+  readSettingsDemoState,
+} from '../../features/settings/settingsDemoSession';
 import type { AppEnvironment } from '../config/env';
 import { routePaths } from '../lib/routes';
 import { useNetworkStatus } from '../network/networkStatus';
@@ -33,9 +37,14 @@ export function AppFrame({
   onSignOut,
   user,
 }: AppFrameProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const networkStatus = useNetworkStatus();
   const isOffline = networkStatus === 'offline';
   const syncState = usePendingGardenSyncState(user.uid);
+  const [demoState, setDemoState] = useState(() =>
+    readSettingsDemoState(user.uid),
+  );
   const hasQueuedChanges = syncState.status !== 'synced';
   const hasSyncConflict = syncState.status === 'conflict';
   const syncCopy = getSyncCopy({
@@ -51,6 +60,33 @@ export function AppFrame({
       ? 'warning'
       : 'success';
   const userLabel = getUserLabel(user);
+  const demoReturnTo = useMemo(
+    () => `${location.pathname}${location.search}`,
+    [location.pathname, location.search],
+  );
+  const demoRestorePath = useMemo(
+    () => buildSettingsDemoCommandPath('exit', demoReturnTo),
+    [demoReturnTo],
+  );
+  const demoRestoreHelp = demoState.canExit
+    ? 'Back to my garden restores the garden saved before the sample was opened on this device.'
+    : 'No saved garden backup is available on this device, so Back to my garden is unavailable.';
+
+  useEffect(() => {
+    const syncDemoState = () => {
+      setDemoState(readSettingsDemoState(user.uid));
+    };
+
+    syncDemoState();
+    window.addEventListener('secret-faede:demo-mode-changed', syncDemoState);
+
+    return () => {
+      window.removeEventListener(
+        'secret-faede:demo-mode-changed',
+        syncDemoState,
+      );
+    };
+  }, [user.uid]);
 
   return (
     <div className={styles.shell}>
@@ -74,12 +110,6 @@ export function AppFrame({
             </NavLink>
           ))}
         </nav>
-        <div className={styles.syncCard}>
-          <StatusBadge key={syncCopy.badge} tone={syncTone}>
-            {syncCopy.badge}
-          </StatusBadge>
-          <p>{syncCopy.message}</p>
-        </div>
       </aside>
 
       <div className={styles.contentColumn}>
@@ -113,6 +143,35 @@ export function AppFrame({
             </ActionButton>
           </div>
         </header>
+        {demoState.isActive ? (
+          <div className={styles.bannerWrap}>
+            <Banner tone="warning">
+              <div className={styles.demoBanner}>
+                <div className={styles.demoBannerCopy}>
+                  <strong>Sample garden active.</strong>
+                  <span>{demoRestoreHelp}</span>
+                </div>
+                <div className={styles.demoBannerActions}>
+                  <ActionButton
+                    className={styles.demoButton}
+                    data-testid="sample-garden-shell-restore"
+                    disabled={!demoState.canExit}
+                    onClick={() => void navigate(demoRestorePath)}
+                    priority="secondary"
+                    title={
+                      demoState.canExit
+                        ? 'Back to the garden saved before opening the sample.'
+                        : 'No saved garden backup is available on this device.'
+                    }
+                    type="button"
+                  >
+                    Back to my garden
+                  </ActionButton>
+                </div>
+              </div>
+            </Banner>
+          </div>
+        ) : null}
         {hasSyncConflict ? (
           <div className={styles.bannerWrap}>
             <Banner tone="warning">

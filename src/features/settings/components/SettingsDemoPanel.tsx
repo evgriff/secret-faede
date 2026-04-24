@@ -23,6 +23,12 @@ export function SettingsDemoPanel({
   onResetDemo(): void;
   status: DemoModeStatus;
 }) {
+  const restoreHelpText = isActive
+    ? canExit
+      ? 'Reset returns the sample to its seeded baseline. Back to my garden restores what was backed up on this device.'
+      : 'No saved garden backup is available on this device, so Back to my garden is unavailable.'
+    : 'Open the sample only when you want a clean example to explore without touching your garden.';
+
   return (
     <section
       aria-label="Sample garden"
@@ -31,7 +37,7 @@ export function SettingsDemoPanel({
     >
       <div>
         <p className={pageStyles.kicker}>Sample garden</p>
-        <h2>Open a resettable garden example</h2>
+        <h2>Open a resettable sample garden</h2>
         <p>
           Your saved garden stays primary. Open the Detroit sample only when
           you need a clean example on this device; the current garden is backed
@@ -40,13 +46,9 @@ export function SettingsDemoPanel({
       </div>
       <div className={styles.statusLine}>
         <strong>
-          {isActive ? 'Sample garden active.' : 'Saved garden active.'}
+          {isActive ? 'Sample garden active.' : 'Your garden is active.'}
         </strong>
-        <span>
-          {isActive
-            ? 'Reset returns the example to its seeded baseline. Return to saved garden restores what was backed up on this device.'
-            : 'Open the sample only when you want a clean example to explore without touching the saved garden.'}
-        </span>
+        <span>{restoreHelpText}</span>
       </div>
       <div className={styles.actions}>
         <button
@@ -73,20 +75,25 @@ export function SettingsDemoPanel({
           onClick={onExitDemo}
           title={
             canExit
-              ? 'Restore the garden saved before opening the sample.'
-              : 'No saved garden backup is available in this browser.'
+              ? 'Back to the garden saved before opening the sample.'
+              : 'No saved garden backup is available on this device.'
           }
           type="button"
         >
-          Return to saved garden
+          Back to my garden
         </button>
       </div>
       {message ? <p className={pageStyles.saved}>{message}</p> : null}
       {error ? <p className={pageStyles.error}>{error}</p> : null}
+      {isActive && !canExit ? (
+        <p className={styles.restoreWarning}>
+          Back to my garden stays disabled until this device has a saved garden
+          backup to restore.
+        </p>
+      ) : null}
       {status === 'exited' ? (
         <p className={styles.restoreNote}>
-          The sample garden has been replaced by the saved garden from this
-          browser.
+          The sample garden has been replaced by your garden from this device.
         </p>
       ) : null}
     </section>

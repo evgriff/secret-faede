@@ -4,7 +4,6 @@ import type {
   IssueStatus,
   PlantingLifecycleStatus,
   Task,
-  WaterRecommendation,
 } from '../../../domain/gardens/GardenRepository';
 import { StatusBadge } from '../../shared/design/DesignPrimitives';
 import { formatTaskType } from '../todayFormatters';
@@ -20,12 +19,16 @@ import { TodayHarvestCard } from './TodayHarvestCard';
 import styles from './TodayFieldPanels.module.css';
 
 export function TodayFieldPanels({
+  onAdjustWateringAmount,
   model,
   onCompleteTask,
   onDeferTask,
   onDelayHarvest,
   onLogHarvest,
   onOpenAction,
+  onPartialWatering,
+  onSkipWateringForRain,
+  onSnoozeWatering,
   onSnoozeTask,
   onUpdatePlantingStatus,
   onUpdateIssue,
@@ -33,6 +36,7 @@ export function TodayFieldPanels({
   selectedTasks,
   todayDate,
 }: {
+  onAdjustWateringAmount(recommendationId: string): void;
   model: TodayFieldModel;
   onCompleteTask(taskId: string): void;
   onDeferTask(taskId: string): void;
@@ -43,6 +47,12 @@ export function TodayFieldPanels({
   ): void;
   onLogHarvest(item: TodayHarvestReadyItem): void;
   onOpenAction(action: TodayQuickActionState): void;
+  onPartialWatering(recommendationId: string): void;
+  onSkipWateringForRain(recommendationId: string): void;
+  onSnoozeWatering(
+    recommendationId: string,
+    option: 'tonight' | 'tomorrow',
+  ): void;
   onSnoozeTask(taskId: string): void;
   onUpdatePlantingStatus(
     plantingId: string,
@@ -74,7 +84,7 @@ export function TodayFieldPanels({
           <div className={styles.panelHeader}>
             <div>
               <p className={styles.kicker}>Water</p>
-              <h2>Watering today</h2>
+              <h2>Watering work</h2>
             </div>
             <StatusBadge tone="warning">
               {model.activeWatering.length}
@@ -84,12 +94,15 @@ export function TodayFieldPanels({
             {model.activeWatering.map((recommendation) => (
               <WaterCard
                 key={recommendation.id}
+                onAdjustAmount={() => onAdjustWateringAmount(recommendation.id)}
                 onDone={() => onWaterDone(recommendation.id)}
-                onNote={() =>
-                  onOpenAction({
-                    kind: 'note',
-                    targetId: getRecommendationTargetId(recommendation),
-                  })
+                onPartial={() => onPartialWatering(recommendation.id)}
+                onSkipForRain={() => onSkipWateringForRain(recommendation.id)}
+                onSnoozeToTonight={() =>
+                  onSnoozeWatering(recommendation.id, 'tonight')
+                }
+                onSnoozeToTomorrow={() =>
+                  onSnoozeWatering(recommendation.id, 'tomorrow')
                 }
                 recommendation={recommendation}
               />
@@ -171,12 +184,6 @@ export function TodayFieldPanels({
       ) : null}
     </div>
   );
-}
-
-function getRecommendationTargetId(recommendation: WaterRecommendation) {
-  return recommendation.targetType === 'planting'
-    ? `planting:${recommendation.plantingId ?? recommendation.targetId}`
-    : `structure:${recommendation.targetId}`;
 }
 
 function TaskCheckCard({

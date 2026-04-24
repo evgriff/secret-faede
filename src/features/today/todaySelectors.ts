@@ -113,3 +113,7 @@ export function getCriticalCheckTasks(tasks: Task[]) {
     (task) => task.priority === 'high' || criticalTypes.has(task.type),
   );
 }
+
+export function isScheduledWateringTask(task: Task) {
+  return task.type === 'water' && task.source === 'wateringSchedule';
+}

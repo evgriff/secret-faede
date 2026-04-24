@@ -29,10 +29,7 @@ interface StoredGardenPlanningStateV2 {
   detailedView: DetailedViewState;
   editor: PlantEditorModalState;
   labelVisibility: PlantLabelVisibilityState;
-  layout: Pick<
-    PlantLayoutReviewState,
-    'resolutions' | 'selectedProblemId' | 'selectedVariantId'
-  >;
+  layout: Pick<PlantLayoutReviewState, 'resolutions' | 'selectedProblemId'>;
   locationMatch: PlantLocationMatchState;
   schemaVersion: typeof GARDEN_PLANNING_STATE_VERSION;
   selectedPlantGroupId: string | null;
@@ -139,7 +136,6 @@ function parseStoredV2State(
     layout: {
       resolutions: parseLayoutResolutions(layout.resolutions),
       selectedProblemId: readNullableString(layout.selectedProblemId),
-      selectedVariantId: readNullableString(layout.selectedVariantId),
     },
     locationMatch: parseLocationMatchState(value.locationMatch, garden),
     schemaVersion: GARDEN_PLANNING_STATE_VERSION,
@@ -181,7 +177,6 @@ function parseLegacyState(
     layout: {
       resolutions: [],
       selectedProblemId: readNullableString(value.selectedProblemId),
-      selectedVariantId: readNullableString(value.selectedVariantId),
     },
     locationMatch: parseLocationMatchState(value.locationMatch, garden),
     schemaVersion: GARDEN_PLANNING_STATE_VERSION,
@@ -199,7 +194,6 @@ function toStoredState(
     layout: {
       resolutions: state.layout.resolutions,
       selectedProblemId: state.layout.selectedProblemId,
-      selectedVariantId: state.layout.selectedVariantId,
     },
     locationMatch: state.locationMatch,
     schemaVersion: GARDEN_PLANNING_STATE_VERSION,

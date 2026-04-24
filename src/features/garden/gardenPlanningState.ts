@@ -7,7 +7,6 @@ import type {
   LayoutProblem,
   LayoutResolution,
   LayoutResolutionOption,
-  LayoutVariant,
   PlantEditorModalState,
   PlantGroup,
   SunExposure,
@@ -39,8 +38,6 @@ export interface PlantLayoutReviewState {
   resolutionOptions: LayoutResolutionOption[];
   resolutions: LayoutResolution[];
   selectedProblemId: string | null;
-  selectedVariantId: string | null;
-  variants: LayoutVariant[];
 }
 
 export interface GardenPlanningState {
@@ -100,8 +97,6 @@ export function createDefaultGardenPlanningState(
       resolutionOptions: [],
       resolutions: [],
       selectedProblemId: null,
-      selectedVariantId: null,
-      variants: [],
     },
     locationMatch: {
       climateProfile: garden.climateProfile,

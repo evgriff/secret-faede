@@ -54,6 +54,10 @@ export function PlanTopBar({
           <span>
             {garden.plot.widthFt} ft by {garden.plot.depthFt} ft
           </span>
+          <p className={styles.purpose}>
+            Place plants and review the layout. Draft changes refresh Today as
+            you work.
+          </p>
         </div>
         <div
           aria-label="Plan status"

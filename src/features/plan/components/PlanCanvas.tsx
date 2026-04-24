@@ -1,12 +1,14 @@
 import {
   memo,
   type CSSProperties,
+  type PointerEvent,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
+import { flushSync } from 'react-dom';
 
 import type {
   Garden,
@@ -22,7 +24,10 @@ import {
 import type { SunSeason } from '../../garden/sunShadeEngine';
 import type { SelectedGardenItem } from '../../garden/useGarden';
 import { usePlanCanvasView } from '../hooks/usePlanCanvasView';
-import { usePlanPointerInteractions } from '../hooks/usePlanPointerInteractions';
+import {
+  usePlanPointerInteractions,
+  type PlanPointerInteractionState,
+} from '../hooks/usePlanPointerInteractions';
 import type { PlanInfluenceOverlayModel } from '../planInfluenceOverlay';
 import type {
   PlanItemPositionUpdate,
@@ -53,8 +58,8 @@ export const PlanCanvas = memo(function PlanCanvas({
   onPaintSunShadeCell,
   onPlantHoverChange,
   onPlantLabelHide,
-  onPlantLabelShow,
   onPlantEditorOpen,
+  onInteractionStateChange,
   onSelectItem,
   onShowSunOverlayChange,
   plantingPreview,
@@ -87,9 +92,13 @@ export const PlanCanvas = memo(function PlanCanvas({
   ): void;
   onPlantHoverChange(plantId: string | null): void;
   onPlantLabelHide(plantId: string): void;
-  onPlantLabelShow(plantId: string): void;
   onPlantEditorOpen(plantId: string): void;
-  onSelectItem(item: SelectedGardenItem, additive: boolean): void;
+  onInteractionStateChange(state: PlanPointerInteractionState | 'pan'): void;
+  onSelectItem(
+    item: SelectedGardenItem,
+    additive: boolean,
+    options?: { openSurface?: boolean },
+  ): void;
   onShowSunOverlayChange(value: boolean): void;
   plantingPreview: Planting | null;
   planWarnings: PlanWarning[];
@@ -143,10 +152,7 @@ export const PlanCanvas = memo(function PlanCanvas({
     [planWarnings],
   );
   const isPointerInteractionActive = Boolean(
-    pointerInteractions.draggingPlantId ||
-    pointerInteractions.draggingStructureId ||
-    pointerInteractions.marqueeRect ||
-    pointerInteractions.resizingStructureId,
+    pointerInteractions.interactionState !== 'idle' || isPanning,
   );
   const fitContentSize = useMemo(
     () => ({
@@ -252,6 +258,109 @@ export const PlanCanvas = memo(function PlanCanvas({
     },
     [onShowSunOverlayChange, showSunOverlay],
   );
+  const syncInteractionState = useCallback(
+    (state: PlanPointerInteractionState | 'pan') => {
+      flushSync(() => {
+        onInteractionStateChange(state);
+      });
+    },
+    [onInteractionStateChange],
+  );
+  const {
+    handleMarqueePointerDown: handleMarqueePointerDownInternal,
+    handleMarqueePointerEnd: handleMarqueePointerEndInternal,
+    handlePlantPointerDown: handlePlantPointerDownInternal,
+    handlePlantPointerEnd: handlePlantPointerEndInternal,
+    handleResizePointerDown: handleResizePointerDownInternal,
+    handleResizePointerEnd: handleResizePointerEndInternal,
+    handleStructurePointerDown: handleStructurePointerDownInternal,
+    handleStructurePointerEnd: handleStructurePointerEndInternal,
+  } = pointerInteractions;
+  const handlePanPointerDownCapture = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (isPanMode) {
+        syncInteractionState('pan');
+      }
+
+      handlePanPointerDown(event);
+    },
+    [handlePanPointerDown, isPanMode, syncInteractionState],
+  );
+  const handlePanPointerEndCapture = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      handlePanPointerEnd(event);
+      syncInteractionState('idle');
+    },
+    [handlePanPointerEnd, syncInteractionState],
+  );
+  const handleMarqueePointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      syncInteractionState('press');
+      handleMarqueePointerDownInternal(event);
+    },
+    [handleMarqueePointerDownInternal, syncInteractionState],
+  );
+  const handleMarqueePointerEnd = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      handleMarqueePointerEndInternal(event);
+      syncInteractionState('idle');
+    },
+    [handleMarqueePointerEndInternal, syncInteractionState],
+  );
+  const handlePlantPointerDown = useCallback(
+    (
+      event: PointerEvent<HTMLButtonElement>,
+      plantId: string,
+      instanceId?: string,
+    ) => {
+      syncInteractionState('press');
+      handlePlantPointerDownInternal(event, plantId, instanceId);
+    },
+    [handlePlantPointerDownInternal, syncInteractionState],
+  );
+  const handlePlantPointerEnd = useCallback(
+    (
+      event: PointerEvent<HTMLButtonElement>,
+      plantId: string,
+      instanceId?: string,
+    ) => {
+      handlePlantPointerEndInternal(event, plantId, instanceId);
+      syncInteractionState('idle');
+    },
+    [handlePlantPointerEndInternal, syncInteractionState],
+  );
+  const handleResizePointerDown = useCallback(
+    (
+      event: PointerEvent<HTMLSpanElement>,
+      structureId: string,
+      handle: Parameters<typeof handleResizePointerDownInternal>[2],
+    ) => {
+      syncInteractionState('press');
+      handleResizePointerDownInternal(event, structureId, handle);
+    },
+    [handleResizePointerDownInternal, syncInteractionState],
+  );
+  const handleResizePointerEnd = useCallback(
+    (event: PointerEvent<HTMLSpanElement>) => {
+      handleResizePointerEndInternal(event);
+      syncInteractionState('idle');
+    },
+    [handleResizePointerEndInternal, syncInteractionState],
+  );
+  const handleStructurePointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>, structureId: string) => {
+      syncInteractionState('press');
+      handleStructurePointerDownInternal(event, structureId);
+    },
+    [handleStructurePointerDownInternal, syncInteractionState],
+  );
+  const handleStructurePointerEnd = useCallback(
+    (event: PointerEvent<HTMLDivElement>, structureId: string) => {
+      handleStructurePointerEndInternal(event, structureId);
+      syncInteractionState('idle');
+    },
+    [handleStructurePointerEndInternal, syncInteractionState],
+  );
 
   return (
     <div className={viewportClassName}>
@@ -273,10 +382,10 @@ export const PlanCanvas = memo(function PlanCanvas({
         data-pan-mode={isPanMode ? 'true' : 'false'}
         data-plan-scrollport="true"
         data-testid="plot-viewport"
-        onPointerCancel={handlePanPointerEnd}
-        onPointerDownCapture={handlePanPointerDown}
+        onPointerCancel={handlePanPointerEndCapture}
+        onPointerDownCapture={handlePanPointerDownCapture}
         onPointerMove={handlePanPointerMove}
-        onPointerUp={handlePanPointerEnd}
+        onPointerUp={handlePanPointerEndCapture}
         onWheel={(event) => {
           if (isPointerInteractionActive) {
             event.preventDefault();
@@ -299,25 +408,22 @@ export const PlanCanvas = memo(function PlanCanvas({
           manualSunEdit={manualSunEdit}
           manualSunExposure={manualSunExposure}
           marqueeRect={pointerInteractions.marqueeRect}
-          onMarqueePointerDown={pointerInteractions.handleMarqueePointerDown}
-          onMarqueePointerEnd={pointerInteractions.handleMarqueePointerEnd}
+          onMarqueePointerDown={handleMarqueePointerDown}
+          onMarqueePointerEnd={handleMarqueePointerEnd}
           onMarqueePointerMove={pointerInteractions.handleMarqueePointerMove}
           onPaintSunShadeCell={onPaintSunShadeCell}
           onPlantEditorOpen={onPlantEditorOpen}
           onPlantHoverChange={onPlantHoverChange}
           onPlantLabelHide={onPlantLabelHide}
-          onPlantLabelShow={onPlantLabelShow}
-          onPlantPointerDown={pointerInteractions.handlePlantPointerDown}
-          onPlantPointerEnd={pointerInteractions.handlePlantPointerEnd}
+          onPlantPointerDown={handlePlantPointerDown}
+          onPlantPointerEnd={handlePlantPointerEnd}
           onPlantPointerMove={pointerInteractions.handlePlantPointerMove}
-          onResizePointerDown={pointerInteractions.handleResizePointerDown}
-          onResizePointerEnd={pointerInteractions.handleResizePointerEnd}
+          onResizePointerDown={handleResizePointerDown}
+          onResizePointerEnd={handleResizePointerEnd}
           onResizePointerMove={pointerInteractions.handleResizePointerMove}
           onSelectItem={onSelectItem}
-          onStructurePointerDown={
-            pointerInteractions.handleStructurePointerDown
-          }
-          onStructurePointerEnd={pointerInteractions.handleStructurePointerEnd}
+          onStructurePointerDown={handleStructurePointerDown}
+          onStructurePointerEnd={handleStructurePointerEnd}
           onStructurePointerMove={
             pointerInteractions.handleStructurePointerMove
           }

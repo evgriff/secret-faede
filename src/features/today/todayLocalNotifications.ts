@@ -5,6 +5,7 @@ import { delayHarvestReminder } from './todayHarvestActions';
 type ApplyGardenUpdate = (
   updateGarden: (current: Garden) => Garden,
   fallback?: string,
+  options?: { refreshWateringFromSnapshot?: boolean },
 ) => Promise<boolean>;
 
 export async function delayHarvestReminderWithLocalNotification({

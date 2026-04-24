@@ -4,12 +4,16 @@ import {
   createDefaultStructure,
   type Garden,
   type Task,
-  type WaterRecommendation,
+  type WateringScheduleEntry,
 } from '../../domain/gardens/GardenRepository';
 import {
+  adjustWateringAmount,
   logFieldHarvest,
+  logPartialWatering,
   markWaterDone,
   reportFieldIssue,
+  skipWateringBecauseRainArrived,
+  snoozeWatering,
   updateIssueStatus,
   type TodayTarget,
 } from './todayActions';
@@ -34,7 +38,7 @@ describe('todayActions', () => {
             plantingId: 'tomato-1',
             priority: 'high',
             snoozedUntilDate: null,
-            source: 'waterRecommendation',
+            source: 'wateringSchedule',
             sourceId: 'water-1',
             status: 'open',
             structureId: null,
@@ -47,7 +51,8 @@ describe('todayActions', () => {
       new Date('2026-06-21T12:00:00.000Z'),
     );
 
-    expect(updated.waterRecommendations[0]).toMatchObject({
+    expect(updated.wateringSchedule[0]).toMatchObject({
+      lastWateredAtIso: '2026-06-21T12:00:00.000Z',
       status: 'completed',
     });
     expect(
@@ -57,10 +62,206 @@ describe('todayActions', () => {
       status: 'done',
     });
     expect(updated.journalEntries[0]).toMatchObject({
-      body: expect.stringContaining('0.6 inches'),
+      body: expect.stringContaining('Applied 0.6 in to Tomato'),
       title: 'Watered Tomato',
       type: 'note',
     });
+    expect(updated.journalEntries[0]?.body).toContain(
+      'Watering is complete for now',
+    );
+    expect(updated.journalEntries[0]?.body).not.toContain('Dry soil');
+  });
+
+  it('adds the remaining amount onto a partial watering entry when marking it done', () => {
+    const updated = markWaterDone(
+      {
+        ...createFieldGarden({
+          wateringSchedule: [
+            createWateringScheduleEntry({
+              appliedAmountInches: 0.25,
+              lastWateredAtIso: '2026-06-21T09:00:00.000Z',
+              status: 'partial',
+              targetAmountInches: 0.35,
+              deficitInches: 0.35,
+            }),
+          ],
+        }),
+        tasks: [
+          {
+            bedLabel: 'Main bed',
+            completedAtIso: null,
+            createdAtIso: '2026-06-21T11:00:00.000Z',
+            deferredUntilDate: null,
+            dueDate: '2026-06-21',
+            gardenId: 'user-a',
+            id: 'water-water-1',
+            notes: 'Dry soil.',
+            plantingId: 'tomato-1',
+            priority: 'high',
+            snoozedUntilDate: null,
+            source: 'wateringSchedule',
+            sourceId: 'water-1',
+            status: 'open',
+            structureId: null,
+            title: 'Water Tomato',
+            type: 'water',
+          },
+        ],
+      },
+      'water-1',
+      new Date('2026-06-21T12:00:00.000Z'),
+    );
+
+    expect(updated.wateringSchedule[0]).toMatchObject({
+      appliedAmountInches: 0.6,
+      lastWateredAtIso: '2026-06-21T12:00:00.000Z',
+      status: 'completed',
+    });
+  });
+
+  it('logs partial watering and keeps the remaining deficit due', () => {
+    const updated = logPartialWatering(
+      {
+        ...createFieldGarden(),
+        tasks: [
+          {
+            bedLabel: 'Main bed',
+            completedAtIso: null,
+            createdAtIso: '2026-06-21T11:00:00.000Z',
+            deferredUntilDate: null,
+            dueDate: '2026-06-21',
+            gardenId: 'user-a',
+            id: 'water-water-1',
+            notes: 'Dry soil.',
+            plantingId: 'tomato-1',
+            priority: 'high',
+            snoozedUntilDate: null,
+            source: 'wateringSchedule',
+            sourceId: 'water-1',
+            status: 'open',
+            structureId: null,
+            title: 'Water Tomato',
+            type: 'water',
+          },
+        ],
+      },
+      'water-1',
+      { amountInches: 0.2, occurredOn: '2026-06-21' },
+      new Date('2026-06-21T12:00:00.000Z'),
+    );
+
+    expect(updated.wateringSchedule[0]).toMatchObject({
+      appliedAmountInches: 0.2,
+      deficitInches: 0.4,
+      lastWateredAtIso: '2026-06-21T12:00:00.000Z',
+      status: 'partial',
+      targetAmountInches: 0.4,
+    });
+    expect(
+      updated.tasks.find((task) => task.id === 'water-water-1'),
+    ).toMatchObject({
+      sourceId: 'water-1',
+      status: 'open',
+      title: 'Water Tomato 0.40 in',
+    });
+    expect(updated.journalEntries[0]).toMatchObject({
+      body: expect.stringContaining('Applied 0.2 in to Tomato'),
+      title: 'Partially watered Tomato',
+      type: 'note',
+    });
+    expect(updated.journalEntries[0]?.body).toContain(
+      '0.4 inches are still due',
+    );
+    expect(updated.journalEntries[0]?.body).not.toContain('Dry soil');
+  });
+
+  it('adjusts the remaining watering amount without closing the work item', () => {
+    const updated = adjustWateringAmount(
+      createFieldGarden(),
+      'water-1',
+      0.35,
+      new Date('2026-06-21T12:00:00.000Z'),
+    );
+
+    expect(updated.wateringSchedule[0]).toMatchObject({
+      deficitInches: 0.35,
+      reasonSummary: 'Remaining watering was adjusted to 0.35 inches.',
+      status: 'due',
+      targetAmountInches: 0.35,
+    });
+    expect(
+      updated.tasks.find((task) => task.sourceId === 'water-1'),
+    ).toMatchObject({
+      notes: expect.stringContaining('0.35'),
+      status: 'open',
+      title: 'Water Tomato 0.35 in',
+    });
+  });
+
+  it('skips watering when rain arrives and retires the related task', () => {
+    const updated = skipWateringBecauseRainArrived(
+      {
+        ...createFieldGarden(),
+        tasks: [
+          {
+            bedLabel: 'Main bed',
+            completedAtIso: null,
+            createdAtIso: '2026-06-21T11:00:00.000Z',
+            deferredUntilDate: null,
+            dueDate: '2026-06-21',
+            gardenId: 'user-a',
+            id: 'water-water-1',
+            notes: 'Dry soil.',
+            plantingId: 'tomato-1',
+            priority: 'high',
+            snoozedUntilDate: null,
+            source: 'wateringSchedule',
+            sourceId: 'water-1',
+            status: 'open',
+            structureId: null,
+            title: 'Water Tomato',
+            type: 'water',
+          },
+        ],
+      },
+      'water-1',
+      new Date('2026-06-21T12:00:00.000Z'),
+    );
+
+    expect(updated.wateringSchedule[0]).toMatchObject({
+      deficitInches: 0,
+      status: 'skipped',
+      targetAmountInches: 0,
+    });
+    expect(
+      updated.tasks.find((task) => task.id === 'water-water-1'),
+    ).toMatchObject({
+      status: 'skipped',
+    });
+    expect(updated.journalEntries[0]).toMatchObject({
+      body: 'Skipped watering Tomato. Watering was skipped because rain arrived before watering.',
+      title: 'Skipped watering Tomato',
+      type: 'note',
+    });
+  });
+
+  it('snoozes watering to tomorrow without losing the remaining amount', () => {
+    const now = new Date('2026-06-21T12:00:00.000Z');
+    const updated = snoozeWatering(
+      createFieldGarden(),
+      'water-1',
+      'tomorrow',
+      now,
+    );
+
+    expect(updated.wateringSchedule[0]).toMatchObject({
+      dueDate: '2026-06-22',
+      status: 'snoozed',
+      targetAmountInches: 0.6,
+    });
+    expect(
+      Date.parse(updated.wateringSchedule[0]?.dueWindowStartIso ?? ''),
+    ).toBeGreaterThan(now.getTime());
   });
 
   it('reports an issue and creates a linked follow-up task', () => {
@@ -273,7 +474,7 @@ const plantingTarget: TodayTarget = {
   type: 'planting',
 };
 
-function createFieldGarden(): Garden {
+function createFieldGarden(overrides: Partial<Garden> = {}): Garden {
   return {
     ...createDefaultGarden('user-a'),
     plantings: [
@@ -299,29 +500,37 @@ function createFieldGarden(): Garden {
         label: 'Main bed',
       },
     ],
-    waterRecommendations: [createWaterRecommendation()],
+    wateringSchedule: [createWateringScheduleEntry()],
+    ...overrides,
   };
 }
 
-function createWaterRecommendation(): WaterRecommendation {
+function createWateringScheduleEntry(
+  overrides: Partial<WateringScheduleEntry> = {},
+): WateringScheduleEntry {
   return {
+    appliedAmountInches: null,
+    createdAtIso: '2026-06-21T11:00:00.000Z',
     deficitInches: 0.6,
-    generatedAtIso: '2026-06-21T11:00:00.000Z',
+    dueDate: '2026-06-21',
+    dueWindowEndIso: null,
+    dueWindowStartIso: '2026-06-21T11:00:00.000Z',
     gardenId: 'user-a',
     id: 'water-1',
-    inchesNeeded: 0.6,
-    plantingId: 'tomato-1',
-    rationale: ['Dry soil.'],
-    reason: 'Dry soil',
-    recommendationDate: '2026-06-21',
-    recommendedWaterInches: 0.6,
-    status: 'active',
-    suppressUntilIso: null,
+    lastWateredAtIso: null,
+    nextRecalculationAtIso: null,
+    reasonDetails: ['Dry soil.'],
+    reasonSummary: 'Dry soil',
+    status: 'due',
     targetId: 'tomato-1',
+    targetAmountInches: 0.6,
+    targetKind: 'planting',
     targetLabel: 'Tomato',
-    targetType: 'planting',
+    updatedAtIso: '2026-06-21T11:00:00.000Z',
     urgency: 'high',
+    wateringZoneId: null,
     weatherSnapshotId: 'weather-1',
+    ...overrides,
   };
 }
 

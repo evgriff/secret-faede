@@ -2,13 +2,16 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { openPlanTool, signInWithMockPassword } from './appSmokeHelpers';
 
-test('dragging a plant preserves grab offset and viewport position', async ({
+test('dragging a plant preserves grab offset and keeps plant surfaces closed until a real click', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1365, height: 768 });
   await signInWithMockPassword(page);
   await addTomatoToPlan(page);
+  const focus = page.getByRole('complementary', { name: 'Crop focus' });
+  await expect(focus).toBeVisible();
   await page.getByRole('button', { name: 'Close crop focus' }).click();
+  await expect(focus).toHaveCount(0);
   await enlargePlot(page);
   await page.getByRole('button', { name: '100%' }).click();
   await expect(page.locator('[aria-label="Current zoom"]')).toHaveText('100%');
@@ -42,6 +45,10 @@ test('dragging a plant preserves grab offset and viewport position', async ({
     plantBox.y + plantBox.height / 2 + 32,
     { steps: 4 },
   );
+  await expect(focus).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toHaveCount(
+    0,
+  );
   await expect
     .poll(async () => {
       const previewBox = await getBox(
@@ -70,7 +77,16 @@ test('dragging a plant preserves grab offset and viewport position', async ({
   await expect(
     page.getByRole('button', { name: 'Tomato at X: 8.0 ft, Y: 5.0 ft' }),
   ).toBeVisible();
+  await expect(focus).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toHaveCount(
+    0,
+  );
   expect(await readViewportScroll(page)).toEqual(lockedScroll);
+
+  await page
+    .getByRole('button', { name: 'Tomato at X: 8.0 ft, Y: 5.0 ft' })
+    .click();
+  await expect(focus).toBeVisible();
 });
 
 test('workspace panning requires the explicit pan control', async ({

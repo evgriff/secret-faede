@@ -9,7 +9,6 @@ import {
   deferTask,
   snoozeTask,
   sortTasks,
-  synchronizeGardenTasks,
 } from '../tasks/taskEngine';
 import { TodayCalendarStrip } from './components/TodayCalendarStrip';
 import { TodayFieldPanels } from './components/TodayFieldPanels';
@@ -26,11 +25,19 @@ import {
 import { TodayPageHeader } from './components/TodayPageHeader';
 import { TodayTaskGroup } from './components/TodayTaskGroup';
 import {
+  TodayWateringSheet,
+  type TodayWateringSheetState,
+} from './components/TodayWateringSheet';
+import {
   addFieldNote,
+  adjustWateringAmount,
   createTodayId,
   logFieldHarvest,
+  logPartialWatering,
   markWaterDone,
   reportFieldIssue,
+  skipWateringBecauseRainArrived,
+  snoozeWatering,
   updateIssueStatus,
 } from './todayActions';
 import { toLocalDate } from './todayFormatters';
@@ -42,6 +49,7 @@ import {
   buildTodayTargetOptions,
   getTasksForSelectedDate,
   getTodayTarget,
+  isScheduledWateringTask,
 } from './todaySelectors';
 import { useTodayGarden } from './useTodayGarden';
 import styles from './TodayPage.module.css';
@@ -51,6 +59,8 @@ export function TodayPage() {
   const networkStatus = useNetworkStatus();
   const [activeQuickAction, setActiveQuickAction] =
     useState<TodayQuickActionState | null>(null);
+  const [activeWateringAction, setActiveWateringAction] =
+    useState<TodayWateringSheetState | null>(null);
   const [actionNotice, setActionNotice] = useState<{
     id: number;
     message: string;
@@ -66,6 +76,7 @@ export function TodayPage() {
     error,
     garden,
     loadStatus,
+    refreshWeatherAndWatering,
     saveStatus,
     uploadQuickPhotos,
   } = useTodayGarden(today, isOffline);
@@ -79,6 +90,10 @@ export function TodayPage() {
     () => getTasksForSelectedDate(openTasks, selectedDate, todayDate),
     [openTasks, selectedDate, todayDate],
   );
+  const selectedDayFieldTasks = useMemo(
+    () => selectedDayTasks.filter((task) => !isScheduledWateringTask(task)),
+    [selectedDayTasks],
+  );
   const calendarDays = useMemo(
     () => buildCalendarDays(openTasks, todayDate),
     [openTasks, todayDate],
@@ -89,9 +104,21 @@ export function TodayPage() {
   );
   const fieldModel = useMemo(
     () =>
-      garden ? buildTodayFieldModel(garden, openTasks, selectedDate) : null,
-    [garden, openTasks, selectedDate],
+      garden
+        ? buildTodayFieldModel(garden, openTasks, selectedDate, today)
+        : null,
+    [garden, openTasks, selectedDate, today],
   );
+
+  function openQuickAction(action: TodayQuickActionState) {
+    setActiveWateringAction(null);
+    setActiveQuickAction(action);
+  }
+
+  function openWateringAction(action: TodayWateringSheetState) {
+    setActiveQuickAction(null);
+    setActiveWateringAction(action);
+  }
 
   function showActionNotice(
     message: string,
@@ -136,6 +163,7 @@ export function TodayPage() {
           title: input.title.trim() || 'Field note',
         }),
       'Unable to save field note.',
+      { refreshWateringFromSnapshot: true },
     );
 
     if (saved) {
@@ -180,7 +208,10 @@ export function TodayPage() {
         severity: input.severity,
         source: 'today',
       });
-      showActionNotice('Issue saved and follow-up task created.', 'warning');
+      showActionNotice(
+        'Issue saved in Feed and follow-up task created.',
+        'warning',
+      );
     }
 
     return saved;
@@ -189,10 +220,13 @@ export function TodayPage() {
     const saved = await applyGardenUpdate(
       (current) => logFieldHarvest(current, input),
       'Unable to log.',
+      { refreshWateringFromSnapshot: true },
     );
 
     if (saved) {
-      showActionNotice('Harvest saved. Add a photo if it helps the memory.');
+      showActionNotice(
+        'Harvest saved to Feed. Add a photo if it helps the memory.',
+      );
       setActiveQuickAction({
         kind: 'photo',
         targetId: input.plantingId ? `planting:${input.plantingId}` : 'garden',
@@ -222,8 +256,25 @@ export function TodayPage() {
   }
 
   function handleCompleteTask(taskId: string) {
+    const wateringTask = garden?.tasks.find(
+      (task) =>
+        task.id === taskId &&
+        task.type === 'water' &&
+        task.source === 'wateringSchedule' &&
+        Boolean(task.sourceId),
+    );
+
     void applyGardenUpdate((current) => {
       const task = current.tasks.find((candidate) => candidate.id === taskId);
+
+      if (
+        task?.type === 'water' &&
+        task.source === 'wateringSchedule' &&
+        task.sourceId
+      ) {
+        return markWaterDone(current, task.sourceId);
+      }
+
       const updated = completeTask(current, taskId);
 
       if (task) {
@@ -236,7 +287,9 @@ export function TodayPage() {
       return updated;
     }).then((saved) => {
       if (saved) {
-        showActionNotice('Task completed.');
+        showActionNotice(
+          wateringTask ? 'Watering logged in Feed.' : 'Task completed.',
+        );
       }
     });
   }
@@ -282,6 +335,7 @@ export function TodayPage() {
     void applyGardenUpdate(
       (current) => markPlantingLifecycle(current, plantingId, status),
       'Unable to update crop status.',
+      { refreshWateringFromSnapshot: true },
     ).then((saved) => {
       if (saved) {
         showActionNotice('Crop status updated.');
@@ -295,13 +349,81 @@ export function TodayPage() {
       'Unable to save watering.',
     ).then((saved) => {
       if (saved) {
+        setActiveWateringAction(null);
         telemetryService.trackEvent('task_completed', {
           source: 'watering_recommendation',
           task_type: 'water',
         });
-        showActionNotice('Watering logged.');
+        showActionNotice('Watering logged in Feed.');
       }
     });
+  }
+
+  async function handlePartialWatering(
+    recommendationId: string,
+    amountInches: number,
+  ) {
+    const saved = await applyGardenUpdate(
+      (current) =>
+        logPartialWatering(current, recommendationId, { amountInches }),
+      'Unable to save partial watering.',
+    );
+
+    if (saved) {
+      setActiveWateringAction(null);
+      showActionNotice('Partial watering logged in Feed.');
+    }
+
+    return saved;
+  }
+
+  function handleSkipWateringForRain(recommendationId: string) {
+    void applyGardenUpdate(
+      (current) => skipWateringBecauseRainArrived(current, recommendationId),
+      'Unable to skip watering.',
+    ).then((saved) => {
+      if (saved) {
+        setActiveWateringAction(null);
+        showActionNotice('Skipped watering saved in Feed.');
+      }
+    });
+  }
+
+  function handleSnoozeWatering(
+    recommendationId: string,
+    option: 'tonight' | 'tomorrow',
+  ) {
+    void applyGardenUpdate(
+      (current) => snoozeWatering(current, recommendationId, option),
+      'Unable to move watering.',
+    ).then((saved) => {
+      if (saved) {
+        setActiveWateringAction(null);
+        showActionNotice(
+          option === 'tomorrow'
+            ? 'Watering moved to tomorrow.'
+            : 'Watering moved to tonight.',
+        );
+      }
+    });
+  }
+
+  async function handleAdjustWateringAmount(
+    recommendationId: string,
+    amountInches: number,
+  ) {
+    const saved = await applyGardenUpdate(
+      (current) =>
+        adjustWateringAmount(current, recommendationId, amountInches),
+      'Unable to update the watering amount.',
+    );
+
+    if (saved) {
+      setActiveWateringAction(null);
+      showActionNotice('Remaining watering amount updated.');
+    }
+
+    return saved;
   }
 
   function handleDelayHarvest(
@@ -323,15 +445,10 @@ export function TodayPage() {
     });
   }
 
-  const handleSyncSchedule = () =>
-    void applyGardenUpdate((current) =>
-      synchronizeGardenTasks(current, {
-        now: new Date(),
-        refreshOpenGenerated: true,
-      }),
-    ).then((saved) => {
+  const handleRefreshWeatherAndWatering = () =>
+    void refreshWeatherAndWatering().then((saved) => {
       if (saved) {
-        showActionNotice('Today schedule refreshed.');
+        showActionNotice('Weather and watering schedule refreshed.');
       }
     });
 
@@ -353,7 +470,7 @@ export function TodayPage() {
       <TodayPageHeader
         error={error}
         isOffline={isOffline}
-        onSyncSchedule={handleSyncSchedule}
+        onRefreshWeatherAndWatering={handleRefreshWeatherAndWatering}
         saveStatus={saveStatus}
       />
 
@@ -369,6 +486,20 @@ export function TodayPage() {
         onSubmitNote={handleQuickNoteSubmit}
         targets={targetOptions}
         todayDate={selectedDate}
+      />
+      <TodayWateringSheet
+        action={activeWateringAction}
+        onAdjustAmount={handleAdjustWateringAmount}
+        onClose={() => setActiveWateringAction(null)}
+        onSubmitPartial={handlePartialWatering}
+        recommendation={
+          activeWateringAction
+            ? (garden.wateringSchedule.find(
+                (candidate) =>
+                  candidate.id === activeWateringAction.recommendationId,
+              ) ?? null)
+            : null
+        }
       />
 
       {actionNotice ? (
@@ -399,7 +530,7 @@ export function TodayPage() {
         onUpdatePlantingStatus={handleUpdatePlantingStatus}
         onWaterDone={handleWaterDone}
         selectedDate={selectedDate}
-        selectedTasks={selectedDayTasks}
+        selectedTasks={selectedDayFieldTasks}
       />
 
       <TodayFieldPanels
@@ -408,28 +539,36 @@ export function TodayPage() {
         onDeferTask={handleDeferTask}
         onDelayHarvest={handleDelayHarvest}
         onLogHarvest={handleLogHarvestDone}
-        onOpenAction={setActiveQuickAction}
+        onAdjustWateringAmount={(recommendationId) =>
+          openWateringAction({ mode: 'adjust', recommendationId })
+        }
+        onOpenAction={openQuickAction}
+        onPartialWatering={(recommendationId) =>
+          openWateringAction({ mode: 'partial', recommendationId })
+        }
+        onSkipWateringForRain={handleSkipWateringForRain}
+        onSnoozeWatering={handleSnoozeWatering}
         onSnoozeTask={handleSnoozeTask}
         onUpdatePlantingStatus={handleUpdatePlantingStatus}
         onUpdateIssue={handleUpdateIssue}
         onWaterDone={handleWaterDone}
-        selectedTasks={selectedDayTasks}
+        selectedTasks={selectedDayFieldTasks}
         todayDate={selectedDate}
       />
 
       <div className={styles.layout}>
         <main className={styles.timeline}>
-          {selectedDayTasks.length > 0 ? (
+          {selectedDayFieldTasks.length > 0 ? (
             <TodayTaskGroup
               onComplete={handleCompleteTask}
               onDefer={handleDeferTask}
               onSnooze={handleSnoozeTask}
-              tasks={selectedDayTasks}
-              title="Task list"
+              tasks={selectedDayFieldTasks}
+              title="Checks and other work"
             />
           ) : (
             <section className={styles.clearDay}>
-              <p className={styles.kicker}>Task list</p>
+              <p className={styles.kicker}>Checks and other work</p>
               <h2>No dated tasks for this day</h2>
               <p>
                 Watering, harvests, and issue checks still appear above when
@@ -440,7 +579,7 @@ export function TodayPage() {
 
           <TodayQuickActionsPanel
             onAddManualTask={handleAddManualTask}
-            onOpenAction={setActiveQuickAction}
+            onOpenAction={openQuickAction}
             selectedDate={selectedDate}
           />
         </main>

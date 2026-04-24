@@ -51,7 +51,11 @@ export const PlanPlantButton = memo(function PlanPlantButton({
     instanceId?: string,
   ): void;
   onPlantHoverChange(plantId: string | null): void;
-  onSelectItem(item: SelectedGardenItem, additive: boolean): void;
+  onSelectItem(
+    item: SelectedGardenItem,
+    additive: boolean,
+    options?: { openSurface?: boolean },
+  ): void;
   plant: Planting;
   warnings: PlanWarning[];
 }) {
@@ -86,6 +90,7 @@ export const PlanPlantButton = memo(function PlanPlantButton({
           onSelectItem(
             { id: plant.id, instanceId: instance.id, type: 'planting' },
             event.shiftKey,
+            { openSurface: !event.shiftKey },
           );
         }
       }}

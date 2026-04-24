@@ -29,6 +29,10 @@ export function VirtualCropResultList({
   const viewportRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(itemHeightPx * 6);
+  const cropIdsKey = useMemo(
+    () => crops.map((crop) => crop.id).join('|'),
+    [crops],
+  );
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
@@ -58,7 +62,7 @@ export function VirtualCropResultList({
     if (viewportRef.current) {
       viewportRef.current.scrollTop = 0;
     }
-  }, [crops]);
+  }, [cropIdsKey]);
 
   const totalHeight = crops.length * itemHeightPx;
   const startIndex = Math.max(
