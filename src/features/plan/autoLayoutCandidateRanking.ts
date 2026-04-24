@@ -1,9 +1,10 @@
+import { isPathStructure } from '../garden/gardenStructureRules';
 import type { AutoLayoutCandidate } from './autoLayoutTypes';
 
 const strategyRank: Record<AutoLayoutCandidate['strategy'], number> = {
-  sunFirst: 0,
+  accessFirst: 0,
   supportFirst: 1,
-  accessFirst: 2,
+  sunFirst: 2,
 };
 
 export function compareAutoLayoutCandidates(
@@ -31,21 +32,51 @@ export function getAutoLayoutCandidateRankingScore(
   const unresolvedIssueCount =
     overrides.unresolvedIssueCount ?? candidate.search.unresolvedIssues.length;
   const moveDistanceFt = overrides.moveDistanceFt ?? 0;
-  const averageScore =
-    (candidate.scoreBreakdown.seasonalSuitability +
-      candidate.scoreBreakdown.shadeManagement +
-      candidate.scoreBreakdown.spacingQuality +
-      candidate.scoreBreakdown.waterGrouping) /
-    4;
+  const qualityScore = getAutoLayoutCandidateQualityScore(candidate);
+  const complexityPenalty = getAutoLayoutCandidateComplexityPenalty(candidate);
 
   return Number(
     (
       hardConstraintCount * 1000 +
-      activeWarningCount * 100 +
-      candidate.unplaced.length * 35 +
-      unresolvedIssueCount * 10 +
-      moveDistanceFt * 0.1 -
-      averageScore
+      activeWarningCount * 120 +
+      candidate.unplaced.length * 40 +
+      unresolvedIssueCount * 12 +
+      moveDistanceFt * 1.5 +
+      complexityPenalty -
+      qualityScore
     ).toFixed(3),
+  );
+}
+
+export function getAutoLayoutCandidateQualityScore(
+  candidate: AutoLayoutCandidate,
+) {
+  return Number(
+    (
+      candidate.scoreBreakdown.accessQuality * 55 +
+      candidate.scoreBreakdown.spacingQuality * 20 +
+      candidate.scoreBreakdown.structureCompatibility * 15 +
+      candidate.scoreBreakdown.waterGrouping * 10
+    ).toFixed(3),
+  );
+}
+
+export function getAutoLayoutCandidateComplexityPenalty(
+  candidate: AutoLayoutCandidate,
+) {
+  const pathCount = candidate.structures.filter(isPathStructure).length;
+  const trellisCount = candidate.structures.filter(
+    (structure) => structure.type === 'trellis',
+  ).length;
+  const plantSupportCount = candidate.plantings.filter(
+    (planting) =>
+      planting.support.type !== 'none' && planting.support.quantity > 0,
+  ).length;
+
+  return (
+    pathCount * 3 +
+    Math.max(0, pathCount - 1) * 10 +
+    trellisCount * 8 +
+    plantSupportCount * 3
   );
 }

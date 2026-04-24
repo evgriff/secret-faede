@@ -52,10 +52,6 @@
   animation: pIn var(--motion-medium) var(--ease-out);
 }
 
-.sidePanel > [aria-label='Garden operations'] {
-  order: -1;
-}
-
 .inspectorDock {
   display: grid;
   gap: var(--space-2);

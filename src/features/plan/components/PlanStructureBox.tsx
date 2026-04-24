@@ -1,4 +1,4 @@
-import { memo, type PointerEvent } from 'react';
+import { memo, type CSSProperties, type PointerEvent } from 'react';
 
 import type { Structure } from '../../../domain/gardens/GardenRepository';
 import { formatFeet } from '../../garden/gardenMath';
@@ -9,15 +9,20 @@ import {
 import {
   getStructureFootprint,
   hasWarningForItem,
+  type FootRect,
   type PlanWarning,
 } from '../../garden/gardenPlanning';
 import type { SelectedGardenItem } from '../../garden/useGarden';
-import type { ResizeHandle } from '../planInteractionGeometry';
+import type {
+  PlanPreviewOffset,
+  ResizeHandle,
+} from '../planInteractionGeometry';
 import { footprintStyle } from './planCanvasGeometry';
 import styles from './PlanCanvasItems.module.css';
 
 export const PlanStructureBox = memo(function PlanStructureBox({
-  draggingStructureId,
+  isDragging,
+  isResizing,
   onResizePointerDown,
   onResizePointerEnd,
   onResizePointerMove,
@@ -26,11 +31,13 @@ export const PlanStructureBox = memo(function PlanStructureBox({
   onStructurePointerEnd,
   onStructurePointerMove,
   planWarnings,
-  resizingStructureId,
+  previewOffset,
+  previewRect,
   selectedStructureIds,
   structure,
 }: {
-  draggingStructureId: string | null;
+  isDragging: boolean;
+  isResizing: boolean;
   onResizePointerDown(
     event: PointerEvent<HTMLSpanElement>,
     structureId: string,
@@ -52,18 +59,23 @@ export const PlanStructureBox = memo(function PlanStructureBox({
     structureId: string,
   ): void;
   planWarnings: PlanWarning[];
-  resizingStructureId: string | null;
+  previewOffset: PlanPreviewOffset | null;
+  previewRect: FootRect | null;
   selectedStructureIds: string[];
   structure: Structure;
 }) {
-  const footprint = getStructureFootprint(structure);
+  const footprint = previewRect ?? getStructureFootprint(structure);
   const isSelected = selectedStructureIds.includes(structure.id);
-  const isDragging = structure.id === draggingStructureId;
   const hasWarning = hasWarningForItem(planWarnings, structure.id);
   const isPath = isPathStructure(structure);
   const isTrellis = structure.type === 'trellis';
   const showLabel = shouldShowStructureLabel(structure);
   const walkablePathWidthFt = isPath ? getWalkablePathWidthFt(structure) : null;
+  const style = {
+    ...footprintStyle(footprint),
+    '--preview-offset-x': `${previewOffset?.xPx ?? 0}px`,
+    '--preview-offset-y': `${previewOffset?.yPx ?? 0}px`,
+  } as CSSProperties;
 
   return (
     <div
@@ -72,7 +84,7 @@ export const PlanStructureBox = memo(function PlanStructureBox({
       className={`${styles.structure} ${styles[structure.type] ?? ''} ${
         isSelected ? styles.selectedStructure : ''
       } ${isDragging ? styles.draggingStructure : ''} ${
-        resizingStructureId === structure.id ? styles.resizingStructure : ''
+        isResizing ? styles.resizingStructure : ''
       } ${structure.locked ? styles.lockedItem : ''} ${
         hasWarning ? styles.warningItem : ''
       } ${isPath ? styles.accessPath : ''} ${
@@ -97,7 +109,7 @@ export const PlanStructureBox = memo(function PlanStructureBox({
       onPointerMove={(event) => onStructurePointerMove(event, structure.id)}
       onPointerUp={(event) => onStructurePointerEnd(event, structure.id)}
       role="button"
-      style={footprintStyle(footprint)}
+      style={style}
       tabIndex={0}
     >
       {isPath ? (

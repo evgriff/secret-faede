@@ -810,7 +810,7 @@ function getDefaultStructureFootprint(
         heightFt: null,
         label: 'Pathway',
         material: 'woodChips' as const,
-        widthFt: accessibleMode ? 4 : 3,
+        widthFt: accessibleMode ? 4 : 1.5,
         workingClearanceFt: null,
       };
     case 'trellis':

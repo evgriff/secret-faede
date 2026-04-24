@@ -30,10 +30,6 @@ import {
   findPlanWarnings,
   isInspectorPlanWarning,
 } from '../garden/gardenPlanning';
-import {
-  buildPlanHealthReport,
-  type PlanHealthIssue,
-} from '../garden/planHealthRules';
 import { PlotSettingsModal } from '../garden/PlotSettingsModal';
 import {
   buildReviewSuggestions,
@@ -50,7 +46,6 @@ import {
   type AddPlantingRequest,
   type SelectedGardenItem,
 } from '../garden/useGarden';
-import { buildSuccessionRecommendations } from '../tasks/taskEngine';
 import {
   buildAutoLayoutReviewSuggestions,
   getAutoLayoutReviewSuggestionId,
@@ -65,7 +60,6 @@ import { PlanCropFocusCard } from './components/PlanCropFocusCard';
 import { PlanSelectionToolbar } from './components/PlanSelectionToolbar';
 import { PlanTopBar } from './components/PlanTopBar';
 import { usePlanKeyboardShortcuts } from './hooks/usePlanKeyboardShortcuts';
-import { usePlanPointerInteractions } from './hooks/usePlanPointerInteractions';
 import { buildCropFocusSummary } from './planCropFocus';
 import { buildPlanInfluenceOverlay } from './planInfluenceOverlay';
 import { buildLayoutProblemResolutionModel } from './layoutProblemResolution';
@@ -149,7 +143,6 @@ export function PlanPage() {
     addStructure,
     applyAutoLayoutProposal,
     applyPlotSettings,
-    approveSuccessionPlanting,
     checkpointGarden,
     closeDetailedView,
     closePlantGroupEditor,
@@ -174,7 +167,6 @@ export function PlanPage() {
     publishDraft,
     recalculateSunShade,
     recordSuggestionDecision,
-    refreshWeatherAndWatering,
     redoGardenChange,
     revertToRevision,
     resizeStructure,
@@ -240,9 +232,6 @@ export function PlanPage() {
     string[]
   >([]);
   const [operationsError, setOperationsError] = useState<string | null>(null);
-  const [operationsStatus, setOperationsStatus] = useState<'idle' | 'loading'>(
-    'idle',
-  );
   const [dismissedCropFocusKey, setDismissedCropFocusKey] = useState<
     string | null
   >(null);
@@ -366,18 +355,6 @@ export function PlanPage() {
     snoozedAutoLayoutCandidateIds,
     sunSeason,
   ]);
-  const planHealthReport = useMemo(
-    () =>
-      garden
-        ? buildPlanHealthReport({
-            dismissedWarningIds: acknowledgedWarningIds,
-            garden,
-            suggestionDecisions,
-            warnings: planWarnings,
-          })
-        : null,
-    [acknowledgedWarningIds, garden, planWarnings, suggestionDecisions],
-  );
 
   useEffect(() => {
     setLayoutReviewState({
@@ -397,13 +374,6 @@ export function PlanPage() {
     selectedLayoutProblemId,
     setLayoutReviewState,
   ]);
-  const reviewProblemCount = countCurrentOpenLayoutProblems(
-    layoutProblemResolutionModel,
-  );
-  const successionRecommendations = useMemo(
-    () => (garden ? buildSuccessionRecommendations(garden) : []),
-    [garden],
-  );
   const draftSummary = useMemo(
     () =>
       garden && workspace
@@ -938,17 +908,6 @@ export function PlanPage() {
     );
   }, [garden, selectedItems, updateItemPositions]);
 
-  const pointerInteractions = usePlanPointerInteractions({
-    garden,
-    mode: activeMode,
-    onCheckpoint: checkpointGarden,
-    onMarqueeSelect: handleMarqueeSelect,
-    onSelectItem: handleSelectItem,
-    resizeStructureRect,
-    selectedItems,
-    updateItemPositions,
-  });
-
   usePlanKeyboardShortcuts({
     deleteSelectedItem: handleDeleteSelection,
     nudgeSelection: handleNudgeSelection,
@@ -970,7 +929,7 @@ export function PlanPage() {
     );
   }
 
-  if (status === 'loading' || !garden || !activeSunLayer || !planHealthReport) {
+  if (status === 'loading' || !garden || !activeSunLayer) {
     return (
       <LoadingState message="Loading your saved plot." title="Loading plan" />
     );
@@ -1012,31 +971,6 @@ export function PlanPage() {
     );
   }
 
-  async function handleRefreshOperations() {
-    if (isOffline) {
-      setOperationsError('Weather updates need a connection.');
-      return;
-    }
-
-    setOperationsStatus('loading');
-    setOperationsError(null);
-
-    try {
-      await refreshWeatherAndWatering();
-      telemetryService.trackEvent('watering_recommendation_generated', {
-        source: 'manual_refresh',
-      });
-    } catch (refreshError) {
-      setOperationsError(
-        refreshError instanceof Error
-          ? refreshError.message
-          : 'Unable to update garden operations.',
-      );
-    } finally {
-      setOperationsStatus('idle');
-    }
-  }
-
   function handleOpenOptimizeMode() {
     setActiveMode('optimize');
     setIsContextPanelOpen(true);
@@ -1075,7 +1009,7 @@ export function PlanPage() {
     }
 
     setOptimizerStatus('running');
-    setOptimizerMessage('Checking layout variants...');
+    setOptimizerMessage('Checking layout ideas...');
     setSnoozedAutoLayoutCandidateIds([]);
     setActiveReviewSuggestionId(null);
 
@@ -1100,15 +1034,15 @@ export function PlanPage() {
         setOptimizerStatus('empty');
         setOptimizerMessage(
           hasLayoutRequests
-            ? 'No legal layouts found. Check quantities, supports, and anchored crops.'
-            : 'Add plants before optimizing layouts.',
+            ? 'No workable layouts found. Check quantities, supports, and fixed crops.'
+            : 'Add plants before generating layouts.',
         );
         return;
       }
 
       setOptimizerStatus('ready');
       setOptimizerMessage(
-        `${candidates.length} checked variant${candidates.length === 1 ? '' : 's'} ready. Compare before applying.`,
+        `${candidates.length} layout idea${candidates.length === 1 ? '' : 's'} ready. Compare before applying.`,
       );
     } catch (generationError) {
       setAutoLayoutCandidates([]);
@@ -1133,7 +1067,7 @@ export function PlanPage() {
 
     if (!selectedCandidate) {
       setOptimizerStatus('error');
-      setOptimizerMessage('Select a checked variant first.');
+      setOptimizerMessage('Select a generated layout first.');
       return;
     }
 
@@ -1183,7 +1117,7 @@ export function PlanPage() {
 
     if (!ignoredCandidate) {
       setOptimizerStatus('error');
-      setOptimizerMessage('That checked variant is no longer available.');
+      setOptimizerMessage('That generated layout is no longer available.');
       return;
     }
 
@@ -1213,7 +1147,7 @@ export function PlanPage() {
 
     setOptimizerStatus('ready');
     setOptimizerMessage(
-      `${ignoredCandidate.label} ignored for this draft. Select another checked variant or generate again.`,
+      `${ignoredCandidate.label} ignored for this draft. Select another generated layout or generate again.`,
     );
   }
 
@@ -1315,31 +1249,6 @@ export function PlanPage() {
       setSelectedItems([selection]);
       setSelectedItem(selection);
     }
-  }
-
-  function handleJumpToHealthIssue(issue: PlanHealthIssue) {
-    if (!garden) {
-      return;
-    }
-
-    const selection = getSelectionForItemIds(garden, issue.itemIds);
-
-    if (selection) {
-      setSelectedItems([selection]);
-      setSelectedItem(selection);
-    }
-  }
-
-  function handleDismissHealthIssue(issue: PlanHealthIssue) {
-    const warningId = issue.sourceWarningId;
-
-    if (!warningId) {
-      return;
-    }
-
-    setAcknowledgedWarningIds((ids) =>
-      ids.includes(warningId) ? ids : [...ids, warningId],
-    );
   }
 
   function markSuggestionWarningAcknowledged(suggestion: ReviewSuggestion) {
@@ -1471,20 +1380,12 @@ export function PlanPage() {
     <section className={styles.screen} data-route-shell="true">
       <div className={styles.routeChrome}>
         <PlanTopBar
-          activeMode={activeMode}
           canPublish={canPublish || dirty}
           dirty={dirty}
           garden={garden}
-          hasSelection={Boolean(selectedItem)}
-          isDetailedViewOpen={detailedViewState.isOpen}
           isOffline={isOffline}
           onAddPlants={() => setIsChoosePlantsOpen(true)}
-          onOpenDetails={handleOpenInspector}
-          onOpenHistory={() => setIsHistoryOpen(true)}
           onOpenPlot={() => setIsPlotSettingsOpen(true)}
-          onOptimize={handleOpenOptimizeMode}
-          onReviewProblems={handleOpenReviewProblems}
-          onSun={handleOpenSunMode}
           onPublish={() => {
             setPublishConflict(
               workspace?.draftIsStale
@@ -1499,8 +1400,8 @@ export function PlanPage() {
             setPublishError(null);
             setIsPublishOpen(true);
           }}
+          onReviewProblems={handleOpenReviewProblems}
           onSave={() => void saveGarden()}
-          problemCount={reviewProblemCount}
           saveStatus={saveStatus}
           workspaceState={workspaceState}
         />
@@ -1540,6 +1441,13 @@ export function PlanPage() {
             </p>
           </div>
         ) : null}
+        {operationsError ? (
+          <div className={styles.errorPanel}>
+            <p className={styles.error} role="alert">
+              {operationsError}
+            </p>
+          </div>
+        ) : null}
       </div>
 
       <div
@@ -1549,57 +1457,44 @@ export function PlanPage() {
         <PlanActionRail
           activeMode={activeMode}
           avoidFocusCard={Boolean(visibleCropFocusSummary)}
+          hasSelection={Boolean(selectedItem)}
+          isDetailedViewOpen={detailedViewState.isOpen}
+          onOpenDetails={handleOpenInspector}
+          onOpenHistory={() => setIsHistoryOpen(true)}
+          onOpenOptimize={handleOpenOptimizeMode}
+          onOpenSun={handleOpenSunMode}
           setActiveMode={handleSetActiveMode}
         />
 
         <div className={styles.canvasColumn}>
           <PlanCanvas
             activeSunLayer={activeSunLayer}
-            draggingPlantId={pointerInteractions.draggingPlantId}
-            draggingStructureId={pointerInteractions.draggingStructureId}
             garden={garden}
             focusedCropKey={focusedCropKey}
             hoveredPlantGroupId={hoveredPlantGroupId}
             influenceOverlay={visibleInfluenceOverlay}
             manualSunEdit={manualSunEdit}
             manualSunExposure={manualSunExposure}
-            marqueeRect={pointerInteractions.marqueeRect}
             mode={activeMode}
-            onMarqueePointerDown={pointerInteractions.handleMarqueePointerDown}
-            onMarqueePointerEnd={pointerInteractions.handleMarqueePointerEnd}
-            onMarqueePointerMove={pointerInteractions.handleMarqueePointerMove}
+            onCheckpoint={checkpointGarden}
+            onMarqueeSelect={handleMarqueeSelect}
             onPaintSunShadeCell={paintSunShadeCell}
             onPlantEditorOpen={handleOpenPlantGroupEditor}
             onPlantHoverChange={setHoveredPlantGroupId}
             onPlantLabelHide={hidePlantGroupLabel}
             onPlantLabelShow={showPlantGroupLabel}
-            onPlantPointerDown={pointerInteractions.handlePlantPointerDown}
-            onPlantPointerEnd={pointerInteractions.handlePlantPointerEnd}
-            onPlantPointerMove={pointerInteractions.handlePlantPointerMove}
-            onResizePointerDown={pointerInteractions.handleResizePointerDown}
-            onResizePointerEnd={pointerInteractions.handleResizePointerEnd}
-            onResizePointerMove={pointerInteractions.handleResizePointerMove}
             onSelectItem={handleSelectItem}
             onShowSunOverlayChange={setShowSunOverlay}
-            onStructurePointerDown={
-              pointerInteractions.handleStructurePointerDown
-            }
-            onStructurePointerEnd={
-              pointerInteractions.handleStructurePointerEnd
-            }
-            onStructurePointerMove={
-              pointerInteractions.handleStructurePointerMove
-            }
             plantingPreview={addPlantPreview}
             planWarnings={activePlanWarnings}
             proposalDiffOverlay={proposalDiffOverlay}
-            plotRef={pointerInteractions.plotRef}
-            resizingStructureId={pointerInteractions.resizingStructureId}
+            resizeStructureRect={resizeStructureRect}
+            selectedItems={selectedItems}
             selectedPlantIds={selectedPlantIds}
             selectedStructureIds={selectedStructureIds}
             showSunOverlay={showSunOverlay}
-            snapGuides={pointerInteractions.snapGuides}
             sunSeason={sunSeason}
+            updateItemPositions={updateItemPositions}
             visiblePlantLabelIds={visiblePlantLabelIds}
           />
           {visibleCropFocusSummary ? (
@@ -1659,22 +1554,11 @@ export function PlanPage() {
                     activeProblemId={selectedLayoutProblemId}
                     layoutProblemResolutionModel={layoutProblemResolutionModel}
                     onApplyResolutionOption={handleApplyResolutionOption}
-                    onDismissHealthIssue={handleDismissHealthIssue}
-                    onGenerateAutoLayoutCandidates={() =>
-                      void handleGenerateAutoLayouts()
-                    }
                     onIgnoreProblem={handleIgnoreProblem}
-                    onJumpToHealthIssue={handleJumpToHealthIssue}
                     onJumpToProblem={handleJumpToProblem}
                     onPreviewResolutionOption={handlePreviewResolutionOption}
                     onRecalculateSun={recalculateSunShade}
-                    onRestoreWarning={(warningId) =>
-                      setAcknowledgedWarningIds((ids) =>
-                        ids.filter((id) => id !== warningId),
-                      )
-                    }
                     onSelectProblem={handleSelectLayoutProblem}
-                    planHealthReport={planHealthReport}
                     setManualSunEdit={setManualSunEdit}
                     setManualSunExposure={setManualSunExposure}
                     setAccessiblePathDefaults={setAccessiblePathDefaults}
@@ -1691,12 +1575,9 @@ export function PlanPage() {
                       autoLayoutCandidates={autoLayoutCandidates}
                       currentWarnings={planWarnings}
                       garden={garden}
-                      isLoading={operationsStatus === 'loading'}
-                      isOffline={isOffline}
                       onApplyAutoLayoutCandidate={
                         handleApplyAutoLayoutCandidate
                       }
-                      onApproveSuccession={approveSuccessionPlanting}
                       onGenerateAutoLayoutCandidates={() =>
                         void handleGenerateAutoLayouts()
                       }
@@ -1707,17 +1588,14 @@ export function PlanPage() {
                       onIgnoreAutoLayoutCandidate={
                         handleIgnoreAutoLayoutCandidate
                       }
-                      onRefresh={() => void handleRefreshOperations()}
                       onSelectAutoLayoutCandidate={
                         handleSelectAutoLayoutCandidate
                       }
                       optimizerMessage={optimizerMessage}
                       optimizerStatus={optimizerStatus}
-                      refreshError={operationsError}
                       selectedAutoLayoutCandidateId={
                         selectedAutoLayoutCandidateId
                       }
-                      successionRecommendations={successionRecommendations}
                       sunLayer={activeSunLayer}
                       sunSeason={sunSeason}
                     />
@@ -1888,27 +1766,6 @@ function getSelectionForItemIds(
   }
 
   return null;
-}
-
-function countCurrentOpenLayoutProblems({
-  problems,
-  resolutionOptions,
-}: {
-  problems: LayoutProblem[];
-  resolutionOptions: LayoutResolutionOption[];
-}) {
-  const variantProblemIds = new Set(
-    resolutionOptions
-      .filter((option) =>
-        option.actions.some((action) => action.type === 'useLayoutVariant'),
-      )
-      .map((option) => option.problemId),
-  );
-
-  return problems.filter(
-    (problem) =>
-      problem.status === 'open' && !variantProblemIds.has(problem.id),
-  ).length;
 }
 
 function getWarningIdFromLayoutProblem(problem: LayoutProblem) {

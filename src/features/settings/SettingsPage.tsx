@@ -235,22 +235,6 @@ export function SettingsPage() {
     }
   }
 
-  async function sendLocalTestNotification() {
-    try {
-      const result = await mobileDeviceService.scheduleLocalNotification({
-        body: 'Local garden alerts are ready on this device.',
-        id: Date.now() % 2_147_483_647,
-        title: 'Secret Faede',
-      });
-
-      setLocalNotificationMessage(result.message);
-    } catch (notificationError) {
-      setLocalNotificationMessage(
-        toErrorMessage(notificationError, 'Unable to send a local test alert.'),
-      );
-    }
-  }
-
   async function updateNotificationLog(
     logId: string,
     values: Partial<NonNullable<Garden['notificationLogs'][number]>>,
@@ -292,18 +276,6 @@ export function SettingsPage() {
           void saveSettings();
         }}
       >
-        <SettingsDemoPanel
-          canExit={demoMode.state.canExit}
-          error={demoMode.state.error}
-          isActive={demoMode.state.isActive}
-          isBusy={demoMode.state.isBusy}
-          message={demoMode.state.message}
-          onExitDemo={() => void demoMode.exitDemoGarden()}
-          onLoadDemo={() => void demoMode.loadDemoGarden('loaded')}
-          onResetDemo={() => void demoMode.loadDemoGarden('reset')}
-          status={demoMode.state.status}
-        />
-
         <section aria-label="Account" className={styles.accountPanel}>
           <div>
             <p className={styles.kicker}>Account</p>
@@ -342,7 +314,6 @@ export function SettingsPage() {
           nativePushMessage={nativePushMessage}
           onEnableLocalNotifications={() => void enableLocalNotifications()}
           onEnableNativePush={() => void enableNativePush()}
-          onSendLocalTest={() => void sendLocalTestNotification()}
         />
 
         <NotificationCenter
@@ -367,6 +338,25 @@ export function SettingsPage() {
             })
           }
         />
+
+        <details
+          className={styles.demoDisclosure}
+          data-testid="sample-garden-disclosure"
+          open={demoMode.state.isActive}
+        >
+          <summary>Sample garden</summary>
+          <SettingsDemoPanel
+            canExit={demoMode.state.canExit}
+            error={demoMode.state.error}
+            isActive={demoMode.state.isActive}
+            isBusy={demoMode.state.isBusy}
+            message={demoMode.state.message}
+            onExitDemo={() => void demoMode.exitDemoGarden()}
+            onLoadDemo={() => void demoMode.loadDemoGarden('loaded')}
+            onResetDemo={() => void demoMode.loadDemoGarden('reset')}
+            status={demoMode.state.status}
+          />
+        </details>
 
         <SettingsActions error={error} saveStatus={saveStatus} />
       </form>

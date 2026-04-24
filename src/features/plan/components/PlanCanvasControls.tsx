@@ -6,7 +6,6 @@ export interface PlanCanvasLayers {
   labels: boolean;
   miniMap: boolean;
   sun: boolean;
-  warnings: boolean;
 }
 
 export function PlanCanvasControls({
@@ -86,13 +85,6 @@ export function PlanCanvasControls({
           active={layers.sun}
           label="Sun"
           onClick={() => onLayersChange({ ...layers, sun: !layers.sun })}
-        />
-        <LayerButton
-          active={layers.warnings}
-          label="Checks"
-          onClick={() =>
-            onLayersChange({ ...layers, warnings: !layers.warnings })
-          }
         />
         <LayerButton
           active={layers.miniMap}

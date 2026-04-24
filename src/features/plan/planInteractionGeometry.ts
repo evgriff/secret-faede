@@ -40,6 +40,11 @@ export interface PlanItemPositionUpdate extends PlanItemRef {
   yFt: number;
 }
 
+export interface PlanPreviewOffset {
+  xPx: number;
+  yPx: number;
+}
+
 export interface PlanItemRectUpdate extends PlanItemPositionUpdate {
   depthFt: number;
   widthFt: number;
@@ -122,6 +127,12 @@ export function getItemPointFromRect(
     xFt: rect.xFt,
     yFt: rect.yFt,
   };
+}
+
+export function getPlanItemKey(item: PlanItemRef) {
+  return item.type === 'planting'
+    ? `planting:${item.id}:${item.instanceId ?? 'group'}`
+    : `structure:${item.id}`;
 }
 
 export function rectFromItemPoint(

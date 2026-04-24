@@ -1,10 +1,11 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import {
   annArborClimateProfile,
   createDefaultGarden,
   createDefaultPlanting,
+  createDefaultStructure,
 } from '../../domain/gardens/GardenRepository';
 import { withPlantingInstances } from '../../domain/gardens/plantingInstances';
 import { renderRoute } from '../../test/render';
@@ -77,7 +78,7 @@ describe('PlanPage', () => {
     await user.click(within(focusCard).getByRole('tab', { name: 'Crop' }));
     expect(within(focusCard).getByText('1 plant')).toBeVisible();
     await user.click(within(focusCard).getByRole('tab', { name: 'Needs' }));
-    expect(within(focusCard).getByText(/Cage required/)).toBeVisible();
+    expect(within(focusCard).getByText(/Cage recommended/)).toBeVisible();
     expect(screen.getByRole('button', { name: 'Save' })).toBeVisible();
   });
 
@@ -256,7 +257,7 @@ describe('PlanPage', () => {
     );
     expect(await screen.findByText('2 selected')).toBeVisible();
 
-    await user.click(screen.getByRole('button', { name: 'Duplicate group' }));
+    await user.click(screen.getByRole('button', { name: 'Duplicate' }));
 
     expect(
       await screen.findByRole('button', {
@@ -264,7 +265,7 @@ describe('PlanPage', () => {
       }),
     ).toBeVisible();
 
-    await user.click(screen.getByRole('button', { name: 'Delete group' }));
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
 
     expect(
       screen.queryByRole('button', {
@@ -276,6 +277,98 @@ describe('PlanPage', () => {
         name: 'Saved tomato at X: 2.1 ft, Y: 3.0 ft',
       }),
     ).toBeVisible();
+  });
+
+  it('shows structure resize preview before committing the new footprint', async () => {
+    const user = userEvent.setup();
+    const services = await createTestServices({
+      signedInEmail: 'primary.gardener@example.com',
+    });
+    const currentUser = services.authService.getCurrentUser();
+
+    if (!currentUser) {
+      throw new Error('Expected signed-in test user.');
+    }
+
+    await services.gardenRepository.saveGarden({
+      ...createDefaultGarden(currentUser.uid),
+      climateProfile: {
+        ...annArborClimateProfile,
+        source: 'user',
+      },
+      structures: [
+        {
+          ...createDefaultStructure({
+            id: 'structure-trellis',
+            type: 'trellis',
+            xFt: 1,
+            yFt: 1,
+          }),
+          depthFt: 0.5,
+          label: 'Saved trellis',
+          widthFt: 8,
+        },
+      ],
+    });
+
+    renderRoute('/app/plan', services);
+
+    const continueDraftButton = screen.queryByRole('button', {
+      name: 'Continue draft',
+    });
+
+    if (continueDraftButton) {
+      await user.click(continueDraftButton);
+    }
+
+    const plot = await screen.findByTestId('garden-plot');
+    const trellis = await screen.findByRole('button', {
+      name: 'Saved trellis at X: 1.0 ft, Y: 1.0 ft',
+    });
+
+    mockElementRect(plot, { height: 256, width: 384 });
+    await user.click(trellis);
+
+    const eastHandle = await screen.findByRole('button', {
+      name: 'Resize Saved trellis east handle',
+    });
+    const initialWidth = Number.parseFloat(trellis.style.width);
+
+    fireEvent.pointerDown(eastHandle, {
+      button: 0,
+      buttons: 1,
+      clientX: 288,
+      clientY: 48,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerMove(eastHandle, {
+      buttons: 1,
+      clientX: 320,
+      clientY: 48,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
+
+    await waitFor(() => {
+      expect(Number.parseFloat(trellis.style.width)).toBeGreaterThan(
+        initialWidth,
+      );
+    });
+
+    fireEvent.pointerUp(eastHandle, {
+      button: 0,
+      clientX: 320,
+      clientY: 48,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
+
+    await waitFor(() => {
+      expect(Number.parseFloat(trellis.style.width)).toBeGreaterThan(
+        initialWidth,
+      );
+    });
   });
 
   it('filters the add-plant picker by crop metadata', async () => {
@@ -307,22 +400,14 @@ describe('PlanPage', () => {
 
     renderRoute('/app/plan', services);
 
-    const [choosePlantsButton] = await screen.findAllByRole('button', {
-      name: 'Add Plants',
-    });
-
-    if (!choosePlantsButton) {
-      throw new Error('Expected Add Plants action.');
-    }
-
-    await user.click(choosePlantsButton);
+    await openChoosePlantsFromTopBar(user);
     expect(
       await screen.findByRole('dialog', { name: 'Choose Plants' }),
     ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'More filters' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'More filters' }));
     expect(screen.getByRole('combobox', { name: 'Lifecycle' })).toBeVisible();
-    expect(
-      screen.getByRole('combobox', { name: 'Location Match' }),
-    ).toBeVisible();
+    expect(screen.getByRole('combobox', { name: 'Plot fit' })).toBeVisible();
 
     await user.clear(screen.getByRole('searchbox', { name: 'Search plants' }));
     await user.type(
@@ -331,10 +416,8 @@ describe('PlanPage', () => {
     );
 
     const library = screen.getByRole('region', { name: 'Plant library' });
-    expect(within(library).getAllByText(/Location Match:/)[0]).toBeVisible();
-    expect(
-      within(library).getAllByText(/Annual - Continuous harvest/)[0],
-    ).toBeVisible();
+    expect(within(library).getAllByText(/Plot fit:/)[0]).toBeVisible();
+    expect(within(library).getAllByText('4 sq ft')[0]).toBeVisible();
     expect(within(library).queryByText('Spacing')).not.toBeInTheDocument();
     await user.click(
       await within(library).findByRole('button', {
@@ -356,10 +439,8 @@ describe('PlanPage', () => {
 
     expect(within(board).getByText('Tomato')).toBeVisible();
     expect(within(board).getByLabelText('Tomato quantity')).toHaveValue(1);
-    expect(within(board).getByText('Single form')).toBeVisible();
     expect(within(board).getByText('2 x 2 ft · 4 sq ft')).toBeVisible();
     expect(within(board).getByText('Full')).toBeVisible();
-    expect(within(board).getByText('High')).toBeVisible();
     expect(within(board).getByText('Cage')).toBeVisible();
     expect(
       within(board).getByRole('button', { name: 'Tomato review reason' }),
@@ -410,12 +491,24 @@ describe('PlanPage', () => {
     fireEvent.change(within(board).getByLabelText('Tomato quantity'), {
       target: { value: '3' },
     });
-    await user.click(screen.getByRole('button', { name: 'Save + Optimize' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Save and improve plan' }),
+    );
 
     expect(screen.getByRole('button', { name: 'Save' })).toBeVisible();
 
-    expect(await screen.findByText(/1 crop request/)).toBeVisible();
-    expect(await screen.findByText(/Tomato 3 target/)).toBeVisible();
+    const layoutWalkthrough = await screen.findByRole('region', {
+      name: 'Generated layouts',
+    });
+
+    expect(
+      within(layoutWalkthrough).getByText(/layout idea(?:s)? ready/i),
+    ).toBeVisible();
+    expect(
+      within(layoutWalkthrough).getByText(
+        /Compare one idea at a time, then apply it or ignore it\./i,
+      ),
+    ).toBeVisible();
     expect(screen.queryByText(/\d+\/100/)).not.toBeInTheDocument();
   }, 15_000);
 
@@ -531,15 +624,7 @@ describe('PlanPage', () => {
 
     renderRoute('/app/plan', services);
 
-    const [choosePlantsButton] = await screen.findAllByRole('button', {
-      name: 'Add Plants',
-    });
-
-    if (!choosePlantsButton) {
-      throw new Error('Expected Add Plants action.');
-    }
-
-    await user.click(choosePlantsButton);
+    await openChoosePlantsFromTopBar(user);
     await user.type(
       screen.getByRole('searchbox', { name: 'Search plants' }),
       'tomato',
@@ -577,9 +662,11 @@ describe('PlanPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Clear list' }));
 
-    expect(within(board).getByText('No plants selected.')).toBeVisible();
     expect(
-      screen.getByRole('button', { name: 'Save + Optimize' }),
+      within(board).getByText('Search and add crops to start.'),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Save and improve plan' }),
     ).toBeDisabled();
   });
 
@@ -589,15 +676,7 @@ describe('PlanPage', () => {
 
     renderRoute('/app/plan', services);
 
-    const [choosePlantsButton] = await screen.findAllByRole('button', {
-      name: 'Add Plants',
-    });
-
-    if (!choosePlantsButton) {
-      throw new Error('Expected Add Plants action.');
-    }
-
-    await user.click(choosePlantsButton);
+    await openChoosePlantsFromTopBar(user);
     await screen.findByRole('dialog', { name: 'Choose Plants' });
     const searchBox = await screen.findByRole('searchbox', {
       name: 'Search plants',
@@ -621,20 +700,17 @@ describe('PlanPage', () => {
 
     expect(within(comparePanel).getByText('Tomato')).toBeVisible();
     expect(within(comparePanel).getByText('Basil')).toBeVisible();
-    expect(within(comparePanel).getByText('Quick facts')).toBeVisible();
     expect(
-      within(comparePanel).getByLabelText(/Space: 3 plants - .* sq ft/),
+      within(comparePanel).getByText('Check a few crops side by side'),
     ).toBeVisible();
-    expect(within(comparePanel).getAllByLabelText(/^Difficulty:/)).toHaveLength(
-      2,
-    );
     expect(
-      within(comparePanel).getAllByLabelText(/^Location Match:/),
-    ).toHaveLength(2);
-    expect(within(comparePanel).getAllByLabelText(/^Support:/)).toHaveLength(2);
-    expect(within(comparePanel).getAllByLabelText(/^Lifecycle:/)).toHaveLength(
+      within(comparePanel).getByLabelText(/Space: 3 plants .* sq ft/),
+    ).toBeVisible();
+    expect(within(comparePanel).getAllByLabelText(/^Sun:/)).toHaveLength(2);
+    expect(within(comparePanel).getAllByLabelText(/^Plot fit:/)).toHaveLength(
       2,
     );
+    expect(within(comparePanel).getAllByLabelText(/^Support:/)).toHaveLength(2);
     expect(within(comparePanel).getAllByLabelText(/^Harvest:/)).toHaveLength(2);
     expect(
       within(comparePanel).queryByText(/Best planning match|Harder than/),
@@ -645,10 +721,8 @@ describe('PlanPage', () => {
     );
 
     expect(
-      within(comparePanel).getByText(
-        /compare difficulty, space, match, support, and harvest timing/,
-      ),
-    ).toBeVisible();
+      screen.queryByRole('region', { name: 'Crop planning compare' }),
+    ).not.toBeInTheDocument();
   });
 
   it('searches specific generated crops from the full plant library', async () => {
@@ -657,15 +731,8 @@ describe('PlanPage', () => {
 
     renderRoute('/app/plan', services);
 
-    const [choosePlantsButton] = await screen.findAllByRole('button', {
-      name: 'Add Plants',
-    });
-
-    if (!choosePlantsButton) {
-      throw new Error('Expected Add Plants action.');
-    }
-
-    await user.click(choosePlantsButton);
+    await openChoosePlantsFromTopBar(user);
+    await user.click(screen.getByRole('button', { name: 'More filters' }));
     await user.selectOptions(
       await screen.findByRole('combobox', { name: 'Lifecycle' }),
       'perennial',
@@ -690,7 +757,7 @@ describe('PlanPage', () => {
       'perennial',
     );
     await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Location Match' }),
+      screen.getByRole('combobox', { name: 'Plot fit' }),
       'poor',
     );
     await user.type(
@@ -708,7 +775,7 @@ describe('PlanPage', () => {
       'any',
     );
     await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Location Match' }),
+      screen.getByRole('combobox', { name: 'Plot fit' }),
       'any',
     );
     await user.type(
@@ -738,7 +805,7 @@ describe('PlanPage', () => {
       screen.queryByRole('option', { name: 'Fence/wall' }),
     ).not.toBeInTheDocument();
     await user.selectOptions(supportTypeSelect, 'trellis');
-    await user.click(screen.getByRole('button', { name: 'Place structure' }));
+    await user.click(screen.getByRole('button', { name: 'Place on plan' }));
 
     expect(
       await screen.findByRole('button', {
@@ -764,8 +831,8 @@ describe('PlanPage', () => {
       await screen.findByRole('combobox', { name: 'Plot structure type' }),
       'pathway',
     );
-    await user.click(screen.getByLabelText('Accessible path defaults'));
-    await user.click(screen.getByRole('button', { name: 'Place structure' }));
+    await user.click(screen.getByLabelText('Use accessible-width path'));
+    await user.click(screen.getByRole('button', { name: 'Place on plan' }));
 
     expect(
       await screen.findByRole('button', {
@@ -785,22 +852,14 @@ describe('PlanPage', () => {
     await addTomato(user);
     await addTomato(user);
 
-    await clickPrimaryPlanAction(user, 'Optimize');
+    await clickPrimaryPlanAction(user, 'Review problems');
 
-    expect(await screen.findByText('Problem inbox')).toBeVisible();
-    const planHealth = await screen.findByRole('region', {
-      name: 'Plan health',
-    });
-    expect(planHealth).toBeVisible();
-    expect(within(planHealth).getByText('Spacing')).toBeVisible();
-    expect(within(planHealth).getByText('Support')).toBeVisible();
-    await user.click(within(planHealth).getByText('Spacing'));
-    expect(within(planHealth).getByText('Spacing collision')).toBeVisible();
-    await user.click(within(planHealth).getByText('Support'));
+    expect(await screen.findByText('What needs attention')).toBeVisible();
     expect(
-      await within(planHealth).findAllByText('Tomato support missing'),
-    ).not.toHaveLength(0);
-  });
+      screen.queryByRole('region', { name: 'Planting checks' }),
+    ).not.toBeInTheDocument();
+    expect(await screen.findByText('Spacing collision')).toBeVisible();
+  }, 15_000);
 
   it('applies and ignores problem resolutions from the Plan inbox', async () => {
     const user = userEvent.setup();
@@ -847,28 +906,30 @@ describe('PlanPage', () => {
 
     renderRoute('/app/plan', services);
 
-    await clickPrimaryPlanAction(user, 'Optimize');
+    await clickPrimaryPlanAction(user, 'Review problems');
 
-    expect(await screen.findByText('Problem inbox')).toBeVisible();
+    expect(await screen.findByText('What needs attention')).toBeVisible();
 
     const applyButtons = await screen.findAllByRole('button', {
-      name: 'Apply complete resolution',
+      name: 'Apply fix',
     });
     const applyButton = applyButtons[0];
 
     if (!applyButton) {
-      throw new Error('Expected an apply button in the Problem inbox.');
+      throw new Error('Expected an apply button in the planting review panel.');
     }
 
     await user.click(applyButton);
 
     const ignoreButtons = await screen.findAllByRole('button', {
-      name: 'Ignore problem',
+      name: 'Ignore for now',
     });
     const ignoreButton = ignoreButtons[0];
 
     if (!ignoreButton) {
-      throw new Error('Expected an ignore button in the Problem inbox.');
+      throw new Error(
+        'Expected an ignore button in the planting review panel.',
+      );
     }
 
     await user.click(ignoreButton);
@@ -920,19 +981,26 @@ describe('PlanPage', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeVisible();
   });
 
-  it('generates weather-based watering recommendations', async () => {
+  it('keeps Plan focused on layout review instead of weather diagnostics', async () => {
     const user = userEvent.setup();
     const services = await createConfiguredPlanServices();
 
     renderRoute('/app/plan', services);
 
-    await addTomato(user);
-    await clickPrimaryPlanAction(user, 'Optimize');
-    await user.click(screen.getByRole('button', { name: 'Update weather' }));
+    await clickPrimaryPlanAction(user, 'Review problems');
 
-    expect(await screen.findByText(/Sunny/)).toBeVisible();
-    expect(await screen.findAllByText(/Tomato:/)).not.toHaveLength(0);
-    expect(await screen.findAllByText(/Heat stress/)).not.toHaveLength(0);
+    expect(
+      await screen.findByRole('region', { name: 'Generated layouts' }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole('region', { name: 'Succession windows' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('region', { name: 'Planting checks' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Update weather' }),
+    ).not.toBeInTheDocument();
   });
 
   it('resizes the plot, clamps plants, and keeps changes unsaved', async () => {
@@ -1041,12 +1109,14 @@ describe('PlanPage', () => {
     expect(document.querySelectorAll('[data-plant-dot="true"]')).toHaveLength(
       3,
     );
+    expect(within(carrotGroup).getByText('Carrot')).toBeVisible();
+    expect(within(carrotGroup).getByText('3 plants')).toBeVisible();
 
     await user.click(carrotGroup);
 
     expect(
-      screen.getByRole('tooltip', { name: 'Carrot, 3 plants' }),
-    ).toBeVisible();
+      screen.queryByRole('tooltip', { name: 'Carrot, 3 plants' }),
+    ).not.toBeInTheDocument();
     expect(await screen.findByText('X 4.0 ft, Y 3.0 ft')).toBeVisible();
     expect(
       screen.queryByRole('complementary', {
@@ -1137,7 +1207,7 @@ describe('PlanPage', () => {
     });
 
     await user.click(tomatoGroup);
-    await clickPrimaryPlanAction(user, /Detailed View/);
+    await clickPrimaryPlanAction(user, /Details/);
 
     expect(
       await screen.findByRole('dialog', { name: /Edit Tomato/ }),
@@ -1181,15 +1251,21 @@ async function addTomato(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Add plant' }));
 }
 
+async function openChoosePlantsFromTopBar(
+  user: ReturnType<typeof userEvent.setup>,
+) {
+  await user.click(await screen.findByRole('button', { name: /add plants/i }));
+}
+
 async function clickMode(
   user: ReturnType<typeof userEvent.setup>,
-  name: string,
+  name: RegExp | string,
 ) {
   const rail = await screen.findByRole('complementary', {
-    name: 'Build tools',
+    name: 'More plan tools',
   });
   await user.click(
-    await within(rail).findByRole('button', { name: 'Open build tools' }),
+    await within(rail).findByRole('button', { name: 'Open more tools' }),
   );
   const button = await within(rail).findByRole('button', { name });
 
@@ -1204,10 +1280,23 @@ async function clickPrimaryPlanAction(
   user: ReturnType<typeof userEvent.setup>,
   name: RegExp | string,
 ) {
-  const primaryActions = await screen.findByRole('navigation', {
-    name: 'Primary plan actions',
-  });
-  await user.click(await within(primaryActions).findByRole('button', { name }));
+  const primaryActions =
+    (await screen
+      .findByRole('navigation', {
+        name: 'Primary plan actions',
+      })
+      .catch(() => null)) ?? null;
+
+  if (primaryActions) {
+    const button = within(primaryActions).queryByRole('button', { name });
+
+    if (button) {
+      await user.click(button);
+      return;
+    }
+  }
+
+  await clickMode(user, name);
 }
 
 async function openFocusedPlantEditor(
@@ -1244,4 +1333,34 @@ async function createConfiguredPlanServices() {
   });
 
   return services;
+}
+
+function mockElementRect(
+  element: HTMLElement,
+  {
+    height,
+    left = 0,
+    top = 0,
+    width,
+  }: {
+    height: number;
+    left?: number;
+    top?: number;
+    width: number;
+  },
+) {
+  Object.defineProperty(element, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => ({
+      bottom: top + height,
+      height,
+      left,
+      right: left + width,
+      toJSON: () => ({}),
+      top,
+      width,
+      x: left,
+      y: top,
+    }),
+  });
 }

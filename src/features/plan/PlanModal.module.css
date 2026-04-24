@@ -33,10 +33,14 @@
 
 .cropModal {
   width: min(100%, 58rem);
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 0;
   height: min(46rem, calc(100dvh - 2rem));
   max-height: calc(100dvh - 2rem);
+  overflow: hidden;
+  padding: 0;
+}
+
+.cropModalBody {
+  min-height: 0;
   overflow: hidden;
   padding: 0;
 }
@@ -44,7 +48,6 @@
 .plotModal {
   width: min(100%, 38rem);
   max-height: min(92dvh, 44rem);
-  overflow: auto;
 }
 
 .modalHeader {

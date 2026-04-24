@@ -30,6 +30,13 @@
   min-width: 7rem;
 }
 
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
 .titleBlock h1,
 .titleBlock span {
   margin: 0;
@@ -48,6 +55,19 @@
   font-weight: 720;
 }
 
+.plotButton {
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: 800;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 0.12rem;
+}
+
 .statusGroup {
   display: flex;
   flex-wrap: wrap;
@@ -56,11 +76,26 @@
   min-width: min(100%, 16rem);
 }
 
-.syncHint {
-  display: none;
-  flex-basis: 100%;
-  color: var(--color-text-muted);
+.statusCopy {
+  display: grid;
+  gap: 0.08rem;
+  min-width: min(100%, 16rem);
+}
+
+.statusCopy strong,
+.statusCopy span {
+  margin: 0;
+}
+
+.statusCopy strong {
+  color: var(--color-text-strong);
   font-size: var(--font-size-caption);
+  font-weight: 820;
+}
+
+.statusCopy span {
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
   line-height: 1.25;
 }
 
@@ -92,6 +127,10 @@
   color: var(--color-text-strong);
 }
 
+.publishButton {
+  border-color: rgba(54, 48, 40, 0.42);
+}
+
 .primaryButton:disabled,
 .secondaryButton:disabled {
   cursor: not-allowed;
@@ -121,7 +160,7 @@
 
   .primaryButton,
   .secondaryButton {
-    flex: 1;
+    flex: 1 1 8rem;
     min-width: 5.25rem;
   }
 }

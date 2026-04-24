@@ -18,6 +18,10 @@
   box-shadow: var(--shadow-panel);
 }
 
+.menuGroup {
+  position: relative;
+}
+
 .toolbar strong {
   color: var(--color-text-strong);
   font-size: var(--font-size-caption);
@@ -37,6 +41,25 @@
   padding: 0 0.65rem;
 }
 
+.menuPanel {
+  position: absolute;
+  bottom: calc(100% + 0.45rem);
+  left: 0;
+  z-index: 1;
+  display: grid;
+  gap: 0.35rem;
+  min-width: 10.5rem;
+  border: 1px solid rgba(54, 48, 40, 0.14);
+  border-radius: var(--radius-card);
+  background: #fffdf7;
+  padding: 0.45rem;
+  box-shadow: var(--shadow-panel);
+}
+
+.menuPanel button {
+  justify-content: flex-start;
+}
+
 .dangerButton {
   border-color: rgba(163, 52, 40, 0.34) !important;
   color: #8f2d23 !important;
@@ -54,5 +77,10 @@
   .toolbar button,
   .toolbar strong {
     flex: 0 0 auto;
+  }
+
+  .menuPanel {
+    right: 0;
+    left: auto;
   }
 }

@@ -64,10 +64,6 @@ describe('planHealthRules', () => {
     expect(report.recommendedImprovements).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: 'Tomato support missing',
-          type: 'tomatoSupportMissing',
-        }),
-        expect.objectContaining({
           title: 'Mulch reminder',
           type: 'mulchReminder',
         }),
@@ -97,7 +93,7 @@ describe('planHealthRules', () => {
         expect.objectContaining({
           category: 'support',
           label: 'Support',
-          recommendedCount: 1,
+          cautionCount: 1,
         }),
         expect.objectContaining({
           category: 'care',

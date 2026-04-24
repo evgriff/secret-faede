@@ -124,10 +124,9 @@ test('Today logs a harvest from the field card with one tap', async ({
 
   await radishHarvest.getByRole('button', { name: 'Log harvest' }).click();
 
-  await expect(page.getByText('Harvest logged: Picked')).toBeVisible();
   await expect(
-    page.getByText('Task done: Harvest largest radishes'),
+    page.getByText('Harvest saved. Add a photo if it helps the memory.'),
   ).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Add photo' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Add photo' })).toBeVisible();
   await expect(radishHarvest).toContainText('French breakfast radish');
 });

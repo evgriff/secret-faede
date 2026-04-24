@@ -6,10 +6,15 @@ import type {
   SunShadeArea,
   SunShadeLayer,
 } from '../../domain/gardens/GardenRepository';
-import { getPlantingFootprint, type FootRect } from '../garden/gardenPlanning';
+import {
+  getPlantingFootprint,
+  getStructureFootprint,
+  rectsOverlap,
+  type FootRect,
+} from '../garden/gardenPlanning';
 import { rectDistanceFt } from '../garden/gardenPlanningGeometry';
+import { minimumWorkingAisleWidthFt } from '../garden/gardenStructureRules';
 import { getSunAreaAtPoint } from '../garden/sunShadeEngine';
-import { scoreShadeManagement } from './autoLayoutShadeScoring';
 import type { SeasonCropFitLevel } from './seasonCropPlan';
 import type { AutoLayoutScoreBreakdown } from './autoLayoutTypes';
 
@@ -18,6 +23,14 @@ export interface ScoredPlacement {
   fitLevel: SeasonCropFitLevel;
   planting: Planting;
 }
+
+interface AccessRoute {
+  clear: boolean;
+  distanceFt: number;
+  source: 'edge' | 'path';
+}
+
+const comfortableWorkingReachFt = 2.5;
 
 export function scoreSunFit(crop: CropProfile, actual: SunExposure | null) {
   if (!actual) {
@@ -70,38 +83,54 @@ export function scoreSunFootprintFit(
   );
 }
 
-export function scoreAccess(garden: Garden, planting: Planting) {
+export function scoreAccess(
+  garden: Garden,
+  planting: Planting,
+  blockedPlantings: Planting[] = [],
+) {
   const footprint = getPlantingFootprint(planting);
-  const pathFootprints = garden.structures
-    .filter(
-      (structure) => structure.type === 'path' || structure.type === 'pathway',
-    )
-    .map((structure) => ({
-      depthFt: structure.depthFt,
-      id: structure.id,
-      itemType: 'structure' as const,
-      label: structure.label,
-      widthFt: structure.widthFt,
-      xFt: structure.xFt,
-      yFt: structure.yFt,
-    }));
-  const edgeDistance = Math.min(
-    footprint.xFt,
-    footprint.yFt,
-    garden.plot.widthFt - (footprint.xFt + footprint.widthFt),
-    garden.plot.depthFt - (footprint.yFt + footprint.depthFt),
-  );
-  const pathDistance =
-    pathFootprints.length > 0
-      ? Math.min(
-          ...pathFootprints.map((pathFootprint) =>
-            rectDistanceFt(footprint, pathFootprint),
-          ),
-        )
-      : edgeDistance;
-  const distance = Math.max(Math.min(pathDistance, edgeDistance), 0);
+  const blockedRects = blockedPlantings
+    .filter((candidate) => candidate.id !== planting.id)
+    .map(getPlantingFootprint);
+  const routes = buildAccessRoutes(garden, footprint, blockedRects);
 
-  return Math.max(0, 1 - distance / 6);
+  if (routes.length === 0) {
+    return 0.35;
+  }
+
+  const orderedRoutes = [...routes].sort(
+    (left, right) =>
+      Number(right.clear) - Number(left.clear) ||
+      left.distanceFt - right.distanceFt,
+  );
+  const clearRoutes = routes
+    .filter((route) => route.clear)
+    .sort((left, right) => left.distanceFt - right.distanceFt);
+  const bestRoute = clearRoutes[0] ?? orderedRoutes[0];
+
+  if (!bestRoute) {
+    return 0.35;
+  }
+
+  const distanceScore = clamp01(
+    1 - bestRoute.distanceFt / comfortableWorkingReachFt,
+  );
+  let score = bestRoute.clear
+    ? 0.38 + distanceScore * 0.55
+    : 0.18 + distanceScore * 0.22;
+
+  if (bestRoute.source === 'path' && bestRoute.distanceFt <= 0.5) {
+    score += 0.08;
+  }
+
+  if (
+    (clearRoutes[1] ?? null) &&
+    clearRoutes[1]!.distanceFt <= comfortableWorkingReachFt
+  ) {
+    score += 0.07;
+  }
+
+  return clamp01(score);
 }
 
 export function scoreSupportPlacement(
@@ -220,16 +249,10 @@ export function scoreCompatibleGrouping(
     );
     const close = distance <= 4;
     const compatible =
-      placement.crop.waterNeeds === existingPlacement.crop.waterNeeds &&
-      compatibleSunNeeds(
-        placement.crop.sunRequirement,
-        existingPlacement.crop.sunRequirement,
-      );
-    const bothTall =
-      isTallCrop(placement.crop) && isTallCrop(existingPlacement.crop);
+      placement.crop.waterNeeds === existingPlacement.crop.waterNeeds;
 
     comparisons += 1;
-    score += compatible === close || (bothTall && close) ? 1 : 0.62;
+    score += compatible === close ? 1 : 0.64;
   }
 
   return comparisons ? score / comparisons : 1;
@@ -276,19 +299,243 @@ export function buildScoreBreakdown({
   garden: Garden;
   placements: ScoredPlacement[];
 }): AutoLayoutScoreBreakdown {
-  const seasonalSuitability = average(
-    placements.map((placement) => scoreSeasonalSuitability(placement.fitLevel)),
+  const accessQuality = average(
+    placements.map((placement) =>
+      scoreAccess(
+        garden,
+        placement.planting,
+        placements
+          .filter(
+            (candidate) => candidate.planting.id !== placement.planting.id,
+          )
+          .map((candidate) => candidate.planting),
+      ),
+    ),
   );
-  const shadeManagement = scoreShadeManagement(garden, placements);
   const spacingQuality = scoreSpacingQuality(placements);
+  const structureCompatibility = average(
+    placements.map((placement) => scoreSupportPlacement(garden, placement)),
+  );
   const waterGrouping = scoreWaterGrouping(placements);
 
   return {
-    seasonalSuitability,
-    shadeManagement,
+    accessQuality,
     spacingQuality,
+    structureCompatibility,
     waterGrouping,
   };
+}
+
+function buildAccessRoutes(
+  garden: Garden,
+  footprint: FootRect,
+  blockedRects: FootRect[],
+) {
+  return [
+    ...buildEdgeAccessRoutes(garden, footprint, blockedRects),
+    ...buildPathAccessRoutes(garden, footprint, blockedRects),
+  ];
+}
+
+function buildEdgeAccessRoutes(
+  garden: Garden,
+  footprint: FootRect,
+  blockedRects: FootRect[],
+): AccessRoute[] {
+  return [
+    buildHorizontalAccessRoute({
+      blockedRects,
+      boundaryX: 0,
+      footprint,
+      plotDepthFt: garden.plot.depthFt,
+      source: 'edge',
+    }),
+    buildHorizontalAccessRoute({
+      blockedRects,
+      boundaryX: garden.plot.widthFt,
+      footprint,
+      plotDepthFt: garden.plot.depthFt,
+      source: 'edge',
+    }),
+    buildVerticalAccessRoute({
+      blockedRects,
+      boundaryY: 0,
+      footprint,
+      plotWidthFt: garden.plot.widthFt,
+      source: 'edge',
+    }),
+    buildVerticalAccessRoute({
+      blockedRects,
+      boundaryY: garden.plot.depthFt,
+      footprint,
+      plotWidthFt: garden.plot.widthFt,
+      source: 'edge',
+    }),
+  ];
+}
+
+function buildPathAccessRoutes(
+  garden: Garden,
+  footprint: FootRect,
+  blockedRects: FootRect[],
+): AccessRoute[] {
+  return garden.structures
+    .filter(
+      (structure) => structure.type === 'path' || structure.type === 'pathway',
+    )
+    .flatMap((structure) => {
+      const path = getStructureFootprint(structure);
+
+      if (path.widthFt <= path.depthFt) {
+        if (
+          !rangesOverlap(
+            path.yFt,
+            path.yFt + path.depthFt,
+            footprint.yFt,
+            footprint.yFt + footprint.depthFt,
+          )
+        ) {
+          return [];
+        }
+
+        const boundaryX =
+          path.xFt + path.widthFt / 2 <= footprint.xFt + footprint.widthFt / 2
+            ? path.xFt + path.widthFt
+            : path.xFt;
+
+        return [
+          buildHorizontalAccessRoute({
+            blockedRects,
+            boundaryX,
+            footprint,
+            plotDepthFt: garden.plot.depthFt,
+            source: 'path',
+          }),
+        ];
+      }
+
+      if (
+        !rangesOverlap(
+          path.xFt,
+          path.xFt + path.widthFt,
+          footprint.xFt,
+          footprint.xFt + footprint.widthFt,
+        )
+      ) {
+        return [];
+      }
+
+      const boundaryY =
+        path.yFt + path.depthFt / 2 <= footprint.yFt + footprint.depthFt / 2
+          ? path.yFt + path.depthFt
+          : path.yFt;
+
+      return [
+        buildVerticalAccessRoute({
+          blockedRects,
+          boundaryY,
+          footprint,
+          plotWidthFt: garden.plot.widthFt,
+          source: 'path',
+        }),
+      ];
+    });
+}
+
+function buildHorizontalAccessRoute({
+  blockedRects,
+  boundaryX,
+  footprint,
+  plotDepthFt,
+  source,
+}: {
+  blockedRects: FootRect[];
+  boundaryX: number;
+  footprint: FootRect;
+  plotDepthFt: number;
+  source: AccessRoute['source'];
+}): AccessRoute {
+  const corridorDepthFt = Math.max(
+    footprint.depthFt,
+    minimumWorkingAisleWidthFt,
+  );
+  const corridorYFt = clamp(
+    footprint.yFt + footprint.depthFt / 2 - corridorDepthFt / 2,
+    0,
+    Math.max(plotDepthFt - corridorDepthFt, 0),
+  );
+  const leftXFt = Math.min(boundaryX, footprint.xFt);
+  const rightXFt = Math.max(boundaryX, footprint.xFt + footprint.widthFt);
+  const corridor = {
+    depthFt: corridorDepthFt,
+    id: 'access-corridor-horizontal',
+    itemType: 'structure' as const,
+    label: 'Access corridor',
+    widthFt: Math.max(rightXFt - leftXFt, 0.01),
+    xFt: leftXFt,
+    yFt: corridorYFt,
+  };
+  const distanceFt =
+    boundaryX <= footprint.xFt
+      ? Math.max(footprint.xFt - boundaryX, 0)
+      : Math.max(boundaryX - (footprint.xFt + footprint.widthFt), 0);
+
+  return {
+    clear: isClearCorridor(corridor, blockedRects),
+    distanceFt,
+    source,
+  };
+}
+
+function buildVerticalAccessRoute({
+  blockedRects,
+  boundaryY,
+  footprint,
+  plotWidthFt,
+  source,
+}: {
+  blockedRects: FootRect[];
+  boundaryY: number;
+  footprint: FootRect;
+  plotWidthFt: number;
+  source: AccessRoute['source'];
+}): AccessRoute {
+  const corridorWidthFt = Math.max(
+    footprint.widthFt,
+    minimumWorkingAisleWidthFt,
+  );
+  const corridorXFt = clamp(
+    footprint.xFt + footprint.widthFt / 2 - corridorWidthFt / 2,
+    0,
+    Math.max(plotWidthFt - corridorWidthFt, 0),
+  );
+  const topYFt = Math.min(boundaryY, footprint.yFt);
+  const bottomYFt = Math.max(boundaryY, footprint.yFt + footprint.depthFt);
+  const corridor = {
+    depthFt: Math.max(bottomYFt - topYFt, 0.01),
+    id: 'access-corridor-vertical',
+    itemType: 'structure' as const,
+    label: 'Access corridor',
+    widthFt: corridorWidthFt,
+    xFt: corridorXFt,
+    yFt: topYFt,
+  };
+  const distanceFt =
+    boundaryY <= footprint.yFt
+      ? Math.max(footprint.yFt - boundaryY, 0)
+      : Math.max(boundaryY - (footprint.yFt + footprint.depthFt), 0);
+
+  return {
+    clear: isClearCorridor(corridor, blockedRects),
+    distanceFt,
+    source,
+  };
+}
+
+function isClearCorridor(corridor: FootRect, blockedRects: FootRect[]) {
+  return !blockedRects.some((blockedRect) =>
+    rectsOverlap(corridor, blockedRect),
+  );
 }
 
 function average(values: number[]) {
@@ -303,6 +550,10 @@ function clamp01(value: number) {
   return Math.max(0, Math.min(1, value));
 }
 
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.max(minimum, Math.min(value, maximum));
+}
+
 function rectsTouch(
   left: FootRect,
   right: Pick<FootRect, 'depthFt' | 'widthFt' | 'xFt' | 'yFt'>,
@@ -315,16 +566,11 @@ function rectsTouch(
   );
 }
 
-function compatibleSunNeeds(left: SunExposure, right: SunExposure) {
-  if (left === right) {
-    return true;
-  }
-
-  return [left, right].every((exposure) =>
-    ['partShade', 'partSun'].includes(exposure),
-  );
-}
-
-function isTallCrop(crop: CropProfile) {
-  return (crop.matureHeightInches ?? 0) >= 42 || crop.trellisRecommended;
+function rangesOverlap(
+  leftStart: number,
+  leftEnd: number,
+  rightStart: number,
+  rightEnd: number,
+) {
+  return leftStart < rightEnd && rightStart < leftEnd;
 }

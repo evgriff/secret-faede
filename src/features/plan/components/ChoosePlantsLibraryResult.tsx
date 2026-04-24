@@ -71,6 +71,8 @@ export function CropLibraryResult({
     sunExposureAtPlacement,
   });
   const locationReasonLines = getLocationReasonLines(facts);
+  const supportLabel =
+    facts.supportShortLabel === 'No support' ? null : facts.supportShortLabel;
 
   return (
     <article className={compactStyles.libraryCard}>
@@ -123,12 +125,12 @@ export function CropLibraryResult({
           data-match-band={facts.locationMatchBand}
         >
           <ReasonTooltip
-            ariaLabel={`${crop.commonName} Location Match reason`}
+            ariaLabel={`${crop.commonName} plot fit reason`}
             content={<ReasonTooltipList lines={locationReasonLines} />}
             triggerClassName={locationMatchStyles.matchButton}
           >
             <span>
-              <strong>Location Match:</strong> {facts.locationMatchSummary}
+              <strong>Plot fit:</strong> {facts.locationMatchSummary}
             </span>
           </ReasonTooltip>
         </div>
@@ -150,26 +152,13 @@ export function CropLibraryResult({
           >
             <FactPill icon="sun" label={facts.sunShortLabel} />
             <FactPill icon="water" label={facts.waterShortLabel} />
+            <FactPill icon="space" label={footprintPreview.areaLabel} />
+            {supportLabel ? (
+              <FactPill icon="support" label={supportLabel} />
+            ) : null}
             <FactPill label={facts.modeLabel}>
               <PlacementGlyph mode={mode} />
             </FactPill>
-            <FactPill icon="space" label={footprintPreview.metricLabel} />
-            <FactPill icon="support" label={facts.supportShortLabel} />
-            <FactPill
-              difficulty={facts.difficultyLabel.toLowerCase()}
-              icon="care"
-              label={facts.difficultyShortLabel}
-            />
-            <FactPill
-              icon="match"
-              label={`Location Match: ${facts.locationMatchShortLabel}`}
-              matchBand={facts.locationMatchBand}
-              reasonLines={locationReasonLines}
-            />
-            <FactPill
-              icon="cycle"
-              label={`${facts.lifecycleLabel} - ${facts.harvestLabel}`}
-            />
           </div>
         )}
       </div>
@@ -185,13 +174,13 @@ export function CropLibraryResult({
           onClick={onToggleCompare}
           type="button"
         >
-          {isComparing ? 'Comparing' : 'Compare'}
+          {isComparing ? 'In compare' : 'Compare'}
         </button>
         <button
           aria-label={
             isSelected ? `${crop.commonName} added` : `Add ${crop.commonName}`
           }
-          className={`${sharedStyles.secondaryButton} ${compactStyles.cardButton}`}
+          className={`${sharedStyles.primaryButton} ${compactStyles.cardButton}`}
           disabled={isSelected}
           onClick={onAdd}
           type="button"
@@ -205,25 +194,15 @@ export function CropLibraryResult({
 
 function FactPill({
   children,
-  difficulty,
   icon,
   label,
-  matchBand,
-  reasonLines,
 }: {
   children?: ReactNode;
-  difficulty?: string;
   icon?: string;
   label: string;
-  matchBand?: string;
-  reasonLines?: string[];
 }) {
-  const contents = (
-    <span
-      className={compactStyles.factPill}
-      data-difficulty={difficulty}
-      data-match-band={matchBand}
-    >
+  return (
+    <span className={compactStyles.factPill}>
       <span
         className={compactStyles.factIcon}
         data-icon={children ? undefined : icon}
@@ -233,17 +212,6 @@ function FactPill({
       </span>
       {label}
     </span>
-  );
-
-  return reasonLines?.length ? (
-    <ReasonTooltip
-      ariaLabel={`${label} reason`}
-      content={<ReasonTooltipList lines={reasonLines} />}
-    >
-      {contents}
-    </ReasonTooltip>
-  ) : (
-    contents
   );
 }
 

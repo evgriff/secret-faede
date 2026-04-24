@@ -1,31 +1,15 @@
 .quickSheet {
+  width: min(100%, 68rem);
+}
+
+.sheetBody {
   display: grid;
   gap: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  background: #fffdf7;
-  box-shadow: var(--shadow-panel);
-  padding: var(--space-4);
-  animation: quickSheetIn var(--motion-medium) var(--ease-out);
 }
 
-.sheetHeader {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
+.quickActionContent {
+  display: grid;
   gap: var(--space-3);
-}
-
-.sheetHeader h2,
-.sheetHeader p {
-  margin: 0;
-}
-
-.kicker {
-  color: var(--color-text-muted);
-  font-size: 0.82rem;
-  font-weight: 760;
-  text-transform: uppercase;
 }
 
 .sheetForm {
@@ -116,7 +100,7 @@
   min-height: auto;
 }
 
-.quickSheet button {
+.sheetBody button {
   min-height: 2.75rem;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-control);
@@ -134,19 +118,19 @@
     transform var(--motion-instant) var(--ease-standard);
 }
 
-.quickSheet button:disabled {
+.sheetBody button:disabled {
   cursor: not-allowed;
   opacity: 0.58;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .quickSheet button:hover {
+  .sheetBody button:hover {
     border-color: var(--color-accent-strong);
     background: var(--color-surface-alt);
   }
 }
 
-.quickSheet button:active:not(:disabled) {
+.sheetBody button:active:not(:disabled) {
   transform: translateY(1px) scale(0.99);
 }
 
@@ -166,18 +150,14 @@
 
 @media (max-width: 48rem) {
   .quickSheet {
-    position: sticky;
-    bottom: calc(5.2rem + env(safe-area-inset-bottom));
-    z-index: 8;
-    border-radius: var(--radius-card) var(--radius-card) 0 0;
-    animation-name: quickMobileSheetIn;
+    width: 100%;
   }
 
   .sheetForm {
     grid-template-columns: 1fr;
   }
 
-  .quickSheet button {
+  .sheetBody button {
     min-height: 3.25rem;
     width: 100%;
   }
@@ -197,9 +177,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .quickSheet,
   .sheetForm,
-  .quickSheet button {
+  .sheetBody button {
     animation: none;
     transition-duration: 1ms;
     transform: none;

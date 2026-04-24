@@ -8,6 +8,7 @@ import type {
 } from '../../../domain/gardens/GardenRepository';
 import type { TodayTarget } from '../todayActions';
 import { getTodayTarget } from '../todaySelectors';
+import { Sheet } from '../../shared/design/DesignPrimitives';
 import type { TodayQuickActionState } from './TodayQuickActionRail';
 import { TodayQuickPhotoFields } from './TodayQuickPhotoFields';
 import {
@@ -106,6 +107,7 @@ export function TodayQuickActionSheet({
   const heading = getQuickActionHeading(action.kind);
   const canAttachPhoto = action.kind === 'photo' || action.kind === 'issue';
   const hasOfflinePhotos = isOffline && photoFiles.length > 0;
+
   async function handleJournalSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -156,210 +158,209 @@ export function TodayQuickActionSheet({
     if (!saved) {
       return;
     }
+
+    onClose();
   }
 
   return (
-    <section
-      aria-label={heading}
+    <Sheet
+      bodyClassName={styles.sheetBody}
       className={styles.quickSheet}
-      data-action-kind={action.kind}
+      closeLabel="Close quick action"
+      kicker="Quick action"
+      onClose={onClose}
+      title={heading}
     >
-      <div className={styles.sheetHeader}>
-        <div>
-          <p className={styles.kicker}>Quick action</p>
-          <h2>{heading}</h2>
-        </div>
-        <button onClick={onClose} type="button">
-          Close
-        </button>
+      <div className={styles.quickActionContent} data-action-kind={action.kind}>
+        {action.kind === 'harvest' ? (
+          <form
+            className={styles.sheetForm}
+            onSubmit={(event) => void handleHarvestSubmit(event)}
+          >
+            <label>
+              <span>Crop</span>
+              <select
+                onChange={(event) => setPlantingId(event.currentTarget.value)}
+                value={plantingId}
+              >
+                <option value="">Whole garden</option>
+                {garden.plantings.map((planting) => (
+                  <option key={planting.id} value={planting.id}>
+                    {planting.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Date</span>
+              <input
+                onChange={(event) => setDate(event.currentTarget.value)}
+                type="date"
+                value={date}
+              />
+            </label>
+            <label>
+              <span>Unit</span>
+              <select
+                onChange={(event) =>
+                  setUnit(event.currentTarget.value as HarvestEvent['unit'])
+                }
+                value={unit}
+              >
+                {harvestUnits.map((harvestUnit) => (
+                  <option key={harvestUnit} value={harvestUnit}>
+                    {formatHarvestUnit(harvestUnit)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {unit === 'freeform' ? null : (
+              <label>
+                <span>Amount</span>
+                <input
+                  min="0"
+                  onChange={(event) => setQuantity(event.currentTarget.value)}
+                  step="0.1"
+                  type="number"
+                  value={quantity}
+                />
+              </label>
+            )}
+            <label className={styles.fullField}>
+              <span>Notes</span>
+              <textarea
+                onChange={(event) => setBody(event.currentTarget.value)}
+                placeholder="Ripeness, yield quality, what to pick next"
+                rows={3}
+                value={body}
+              />
+            </label>
+            <fieldset className={styles.harvestMode}>
+              <legend>Harvest type</legend>
+              <label>
+                <input
+                  checked={!cropFinished}
+                  name="harvest-type"
+                  onChange={() => setCropFinished(false)}
+                  type="radio"
+                />
+                <span>Partial harvest</span>
+              </label>
+              <label>
+                <input
+                  checked={cropFinished}
+                  name="harvest-type"
+                  onChange={() => setCropFinished(true)}
+                  type="radio"
+                />
+                <span>Final harvest</span>
+              </label>
+            </fieldset>
+            <button type="submit">Save harvest</button>
+          </form>
+        ) : (
+          <form
+            className={styles.sheetForm}
+            onSubmit={(event) => void handleJournalSubmit(event)}
+          >
+            <label>
+              <span>Target</span>
+              <select
+                onChange={(event) => setTargetId(event.currentTarget.value)}
+                value={targetId}
+              >
+                {targets.map((target) => (
+                  <option key={target.id} value={target.id}>
+                    {target.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Date</span>
+              <input
+                onChange={(event) => setDate(event.currentTarget.value)}
+                type="date"
+                value={date}
+              />
+            </label>
+            <label>
+              <span>Title</span>
+              <input
+                onChange={(event) => setTitle(event.currentTarget.value)}
+                value={title}
+              />
+            </label>
+            {action.kind === 'issue' ? (
+              <>
+                <label>
+                  <span>Type</span>
+                  <select
+                    onChange={(event) =>
+                      setCategory(
+                        event.currentTarget.value as JournalIssueCategory,
+                      )
+                    }
+                    value={category}
+                  >
+                    {issueCategories.map((issueCategory) => (
+                      <option key={issueCategory} value={issueCategory}>
+                        {formatIssueCategory(issueCategory)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Severity</span>
+                  <select
+                    onChange={(event) =>
+                      setIssueSeverity(
+                        event.currentTarget.value as IssueSeverity,
+                      )
+                    }
+                    value={issueSeverity}
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </label>
+              </>
+            ) : null}
+            <label className={styles.fullField}>
+              <span>{action.kind === 'issue' ? 'Notes' : 'Note'}</span>
+              <textarea
+                onChange={(event) => setBody(event.currentTarget.value)}
+                placeholder={
+                  action.kind === 'issue'
+                    ? 'What changed, where it is, what you already tried'
+                    : 'Short field observation'
+                }
+                rows={3}
+                value={body}
+              />
+            </label>
+            {canAttachPhoto ? (
+              <TodayQuickPhotoFields
+                canUseNativeCamera={canUseNativeCamera}
+                isOffline={isOffline}
+                onCapturePhoto={onCapturePhoto}
+                onPhotoFilesChange={setPhotoFiles}
+                onPhotoMessageChange={setPhotoMessage}
+                photoFiles={photoFiles}
+                photoMessage={photoMessage}
+              />
+            ) : null}
+            <button disabled={!body.trim() || hasOfflinePhotos} type="submit">
+              {hasOfflinePhotos
+                ? 'Reconnect to upload photos'
+                : action.kind === 'issue'
+                  ? 'Create issue task'
+                  : 'Save entry'}
+            </button>
+          </form>
+        )}
       </div>
-
-      {action.kind === 'harvest' ? (
-        <form
-          className={styles.sheetForm}
-          onSubmit={(event) => void handleHarvestSubmit(event)}
-        >
-          <label>
-            <span>Crop</span>
-            <select
-              onChange={(event) => setPlantingId(event.currentTarget.value)}
-              value={plantingId}
-            >
-              <option value="">Whole garden</option>
-              {garden.plantings.map((planting) => (
-                <option key={planting.id} value={planting.id}>
-                  {planting.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Date</span>
-            <input
-              onChange={(event) => setDate(event.currentTarget.value)}
-              type="date"
-              value={date}
-            />
-          </label>
-          <label>
-            <span>Unit</span>
-            <select
-              onChange={(event) =>
-                setUnit(event.currentTarget.value as HarvestEvent['unit'])
-              }
-              value={unit}
-            >
-              {harvestUnits.map((harvestUnit) => (
-                <option key={harvestUnit} value={harvestUnit}>
-                  {formatHarvestUnit(harvestUnit)}
-                </option>
-              ))}
-            </select>
-          </label>
-          {unit === 'freeform' ? null : (
-            <label>
-              <span>Amount</span>
-              <input
-                min="0"
-                onChange={(event) => setQuantity(event.currentTarget.value)}
-                step="0.1"
-                type="number"
-                value={quantity}
-              />
-            </label>
-          )}
-          <label className={styles.fullField}>
-            <span>Notes</span>
-            <textarea
-              onChange={(event) => setBody(event.currentTarget.value)}
-              placeholder="Ripeness, yield quality, what to pick next"
-              rows={3}
-              value={body}
-            />
-          </label>
-          <fieldset className={styles.harvestMode}>
-            <legend>Harvest type</legend>
-            <label>
-              <input
-                checked={!cropFinished}
-                name="harvest-type"
-                onChange={() => setCropFinished(false)}
-                type="radio"
-              />
-              <span>Partial harvest</span>
-            </label>
-            <label>
-              <input
-                checked={cropFinished}
-                name="harvest-type"
-                onChange={() => setCropFinished(true)}
-                type="radio"
-              />
-              <span>Final harvest</span>
-            </label>
-          </fieldset>
-          <button type="submit">Save harvest</button>
-        </form>
-      ) : (
-        <form
-          className={styles.sheetForm}
-          onSubmit={(event) => void handleJournalSubmit(event)}
-        >
-          <label>
-            <span>Target</span>
-            <select
-              onChange={(event) => setTargetId(event.currentTarget.value)}
-              value={targetId}
-            >
-              {targets.map((target) => (
-                <option key={target.id} value={target.id}>
-                  {target.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Date</span>
-            <input
-              onChange={(event) => setDate(event.currentTarget.value)}
-              type="date"
-              value={date}
-            />
-          </label>
-          <label>
-            <span>Title</span>
-            <input
-              onChange={(event) => setTitle(event.currentTarget.value)}
-              value={title}
-            />
-          </label>
-          {action.kind === 'issue' ? (
-            <>
-              <label>
-                <span>Type</span>
-                <select
-                  onChange={(event) =>
-                    setCategory(
-                      event.currentTarget.value as JournalIssueCategory,
-                    )
-                  }
-                  value={category}
-                >
-                  {issueCategories.map((issueCategory) => (
-                    <option key={issueCategory} value={issueCategory}>
-                      {formatIssueCategory(issueCategory)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Severity</span>
-                <select
-                  onChange={(event) =>
-                    setIssueSeverity(event.currentTarget.value as IssueSeverity)
-                  }
-                  value={issueSeverity}
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                </select>
-              </label>
-            </>
-          ) : null}
-          <label className={styles.fullField}>
-            <span>{action.kind === 'issue' ? 'Notes' : 'Note'}</span>
-            <textarea
-              onChange={(event) => setBody(event.currentTarget.value)}
-              placeholder={
-                action.kind === 'issue'
-                  ? 'What changed, where it is, what you already tried'
-                  : 'Short field observation'
-              }
-              rows={3}
-              value={body}
-            />
-          </label>
-          {canAttachPhoto ? (
-            <TodayQuickPhotoFields
-              canUseNativeCamera={canUseNativeCamera}
-              isOffline={isOffline}
-              onCapturePhoto={onCapturePhoto}
-              onPhotoFilesChange={setPhotoFiles}
-              onPhotoMessageChange={setPhotoMessage}
-              photoFiles={photoFiles}
-              photoMessage={photoMessage}
-            />
-          ) : null}
-          <button disabled={!body.trim() || hasOfflinePhotos} type="submit">
-            {hasOfflinePhotos
-              ? 'Reconnect to upload photos'
-              : action.kind === 'issue'
-                ? 'Create issue task'
-                : 'Save entry'}
-          </button>
-        </form>
-      )}
-    </section>
+    </Sheet>
   );
 }

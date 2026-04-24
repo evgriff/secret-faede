@@ -186,22 +186,28 @@ export function sortUnits(units: LayoutUnit[], strategy: AutoLayoutStrategy) {
     const sizeDelta =
       right.size.widthFt * right.size.depthFt -
       left.size.widthFt * left.size.depthFt;
-    const sunDelta = sunRank(right.crop) - sunRank(left.crop);
+    const waterDelta = waterRank(right.crop) - waterRank(left.crop);
 
     if (strategy === 'supportFirst') {
       return (
-        supportDelta || sizeDelta || sunDelta || left.id.localeCompare(right.id)
+        supportDelta ||
+        sizeDelta ||
+        waterDelta ||
+        left.id.localeCompare(right.id)
       );
     }
 
     if (strategy === 'accessFirst') {
       return (
-        sizeDelta || supportDelta || sunDelta || left.id.localeCompare(right.id)
+        sizeDelta ||
+        waterDelta ||
+        supportDelta ||
+        left.id.localeCompare(right.id)
       );
     }
 
     return (
-      sunDelta || sizeDelta || supportDelta || left.id.localeCompare(right.id)
+      waterDelta || sizeDelta || supportDelta || left.id.localeCompare(right.id)
     );
   });
 }
@@ -217,10 +223,10 @@ export function rectInsideRect(rect: FootRect, outer: FootRect) {
 
 export function getStrategyLabel(strategy: AutoLayoutStrategy) {
   if (strategy === 'accessFirst') {
-    return 'Keep paths clear';
+    return 'Keep reach easy';
   }
 
-  return strategy === 'supportFirst' ? 'Support-ready' : 'Best sun exposure';
+  return strategy === 'supportFirst' ? 'Easy support spots' : 'Group watering';
 }
 
 export function snap(value: number, unit: number) {
@@ -333,8 +339,8 @@ function supportRank(crop: CropProfile) {
         : 0;
 }
 
-function sunRank(crop: CropProfile) {
-  const ranks = { fullShade: 1, partShade: 2, partSun: 3, fullSun: 4 };
+function waterRank(crop: CropProfile) {
+  const ranks = { high: 3, low: 1, medium: 2 };
 
-  return ranks[crop.sunRequirement];
+  return ranks[crop.waterNeeds];
 }

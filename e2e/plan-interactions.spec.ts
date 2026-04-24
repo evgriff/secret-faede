@@ -42,6 +42,29 @@ test('dragging a plant preserves grab offset and viewport position', async ({
     plantBox.y + plantBox.height / 2 + 32,
     { steps: 4 },
   );
+  await expect
+    .poll(async () => {
+      const previewBox = await getBox(
+        plant,
+        'Expected tomato preview to stay visible while dragging.',
+      );
+
+      return previewBox.x;
+    })
+    .toBeGreaterThan(plantBox.x + 40);
+  await expect
+    .poll(async () => {
+      const previewBox = await getBox(
+        plant,
+        'Expected tomato preview to stay visible while dragging.',
+      );
+
+      return previewBox.y;
+    })
+    .toBeGreaterThan(plantBox.y + 20);
+  await expect(
+    page.getByRole('button', { name: 'Tomato at X: 8.0 ft, Y: 5.0 ft' }),
+  ).toHaveCount(0);
   await page.mouse.up();
 
   await expect(
@@ -135,7 +158,7 @@ test('plant selection shows a preview before the inspector', async ({
   await expect(focus.getByText('1 plant')).toBeVisible();
 
   await focus.getByRole('tab', { name: 'Needs' }).click();
-  await expect(focus.getByText(/Cage required/)).toBeVisible();
+  await expect(focus.getByText(/Cage recommended/)).toBeVisible();
 
   await focus.getByRole('button', { name: /Open details/ }).click();
   await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toBeVisible();

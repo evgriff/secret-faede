@@ -91,7 +91,8 @@ export async function loadSettingsDemoGarden({
 
   return {
     garden: demoGarden,
-    message: status === 'reset' ? 'Seeded demo reset.' : 'Seeded demo ready.',
+    message:
+      status === 'reset' ? 'Sample garden reset.' : 'Sample garden ready.',
     profile: demoProfile,
   };
 }
@@ -111,7 +112,7 @@ export async function exitSettingsDemoGarden({
 
   if (!backup) {
     throw new Error(
-      'No saved real garden is available in this browser. Load the demo from the real garden first.',
+      'No saved garden is available in this browser. Open the sample from a saved garden first.',
     );
   }
 
@@ -137,7 +138,7 @@ export async function exitSettingsDemoGarden({
 
   return {
     garden,
-    message: 'Real garden restored.',
+    message: 'Saved garden restored.',
     profile,
   };
 }

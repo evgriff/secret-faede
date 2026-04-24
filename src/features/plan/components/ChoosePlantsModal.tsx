@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useState } from 'react';
 
 import { getCropById } from '../../../domain/crops/cropCatalog';
 import type {
@@ -8,16 +8,8 @@ import type {
   SeasonCropSelection,
   SunExposure,
 } from '../../../domain/gardens/GardenRepository';
-import {
-  closeOnBackdropMouseDown,
-  trapDialogFocus,
-  useDialogScrollLock,
-  useEscapeToClose,
-  useInitialDialogFocus,
-} from '../../shared/design/dialogDismiss';
+import { Button, Modal } from '../../shared/design/DesignPrimitives';
 import { buildSeasonCropLayoutRequests } from '../seasonCropPlan';
-import { needsSeasonCropReview } from '../seasonCropFitDisplay';
-import sharedStyles from '../PlanModal.module.css';
 import { SeasonCropBoard } from './ChoosePlantsBoard';
 import { CropComparePanel } from './ChoosePlantsCompare';
 import { ChoosePlantsLibrary } from './ChoosePlantsLibrary';
@@ -27,7 +19,7 @@ import {
   normalizeSeasonCropSelections,
 } from './choosePlantsSelection';
 
-type MobileTab = 'board' | 'compare' | 'library';
+type MobileTab = 'board' | 'library';
 const maxCompareCrops = 3;
 
 interface CompareCropSelection {
@@ -48,8 +40,6 @@ export function ChoosePlantsModal({
   onSave(wantedCrops: SeasonCropSelection[]): void;
   sunExposureAtPlacement: SunExposure | null;
 }) {
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useRef<HTMLElement>(null);
   const [activeTab, setActiveTab] = useState<MobileTab>('library');
   const [selections, setSelections] = useState<SeasonCropSelection[]>(
     () => garden.seasonPlan.wantedCrops,
@@ -83,24 +73,6 @@ export function ChoosePlantsModal({
     sunExposureAtPlacement,
   );
   const hasSelections = selections.length > 0;
-  const plantCount = selections.reduce(
-    (total, selection) => total + coerceTargetQuantity(selection.quantity),
-    0,
-  );
-  const reviewCount = layoutRequests.filter((request) =>
-    needsSeasonCropReview(request.fit),
-  ).length;
-
-  useEscapeToClose(onClose);
-  useDialogScrollLock();
-  useInitialDialogFocus({
-    dialogRef,
-    initialFocusRef: closeButtonRef,
-  });
-
-  function handleDialogKeyDown(event: KeyboardEvent<HTMLElement>) {
-    trapDialogFocus(event, dialogRef.current);
-  }
 
   function addCrop(
     crop: CropProfile,
@@ -199,102 +171,93 @@ export function ChoosePlantsModal({
   }
 
   return (
-    <div
-      className={`${sharedStyles.modalBackdrop} ${styles.backdrop}`}
-      onMouseDown={(event) => closeOnBackdropMouseDown(event, onClose)}
+    <Modal
+      bodyClassName={styles.modalBody}
+      className={styles.modal}
+      closeLabel="Close choose plants"
+      description="Search the crop library, set quantities, then save the season list."
+      footer={
+        <>
+          <div className={styles.footerActions}>
+            {hasSelections ? (
+              <Button
+                onClick={() => setSelections([])}
+                tone="secondary"
+                type="button"
+              >
+                Clear list
+              </Button>
+            ) : null}
+            <Button onClick={handleSave} tone="secondary" type="button">
+              Save list
+            </Button>
+            <Button
+              disabled={!hasSelections}
+              onClick={handleOptimize}
+              tone="primary"
+              type="button"
+            >
+              Save and improve plan
+            </Button>
+          </div>
+        </>
+      }
+      footerClassName={styles.footer}
+      headerClassName={styles.header}
+      mobilePresentation="fullScreen"
+      onClose={onClose}
+      title="Choose Plants"
     >
-      <section
-        aria-labelledby="choose-plants-title"
-        aria-modal="true"
-        className={`${sharedStyles.modal} ${styles.modal}`}
-        onKeyDown={handleDialogKeyDown}
-        ref={dialogRef}
-        role="dialog"
+      <div
+        className={styles.mobileTabs}
+        aria-label="Choose plants sections"
+        role="tablist"
       >
-        <div className={`${sharedStyles.modalHeader} ${styles.header}`}>
-          <div>
-            <h2 id="choose-plants-title">Choose Plants</h2>
-            <p className={styles.headerMeta}>
-              {selections.length} selected - {plantCount} plants
-            </p>
-          </div>
-          <div
-            className={styles.headerSummary}
-            aria-label="Season planning summary"
-          >
-            <span>{layoutRequests.length} crops</span>
-            <span>{plantCount} plants</span>
-            <span>{reviewCount} review</span>
-          </div>
-          <button
-            aria-label="Close choose plants"
-            className={sharedStyles.iconButton}
-            onClick={onClose}
-            ref={closeButtonRef}
-            type="button"
-          >
-            x
-          </button>
+        <TabButton
+          activeTab={activeTab}
+          controlsId="choose-plants-library-panel"
+          id="choose-plants-library-tab"
+          tab="library"
+          onSelect={setActiveTab}
+        >
+          Pick plants
+        </TabButton>
+        <TabButton
+          activeTab={activeTab}
+          controlsId="choose-plants-board-panel"
+          id="choose-plants-board-tab"
+          tab="board"
+          onSelect={setActiveTab}
+        >
+          Picked
+        </TabButton>
+      </div>
+
+      <div className={styles.layout} data-active-tab={activeTab}>
+        <div
+          aria-labelledby="choose-plants-library-tab"
+          className={`${styles.panelSlot} ${styles.librarySlot}`}
+          id="choose-plants-library-panel"
+          role="tabpanel"
+        >
+          <ChoosePlantsLibrary
+            compareCropIds={compareCropIds}
+            garden={garden}
+            onAddCrop={addCrop}
+            onCompareQuantityChange={updateCompareQuantity}
+            onToggleCompare={toggleCompareCrop}
+            selectedCropIds={selectedCropIds}
+            sunExposureAtPlacement={sunExposureAtPlacement}
+          />
         </div>
 
         <div
-          className={styles.mobileTabs}
-          role="tablist"
-          aria-label="Choose plants sections"
+          aria-labelledby="choose-plants-board-tab"
+          className={`${styles.panelSlot} ${styles.boardSlot}`}
+          id="choose-plants-board-panel"
+          role="tabpanel"
         >
-          <TabButton
-            activeTab={activeTab}
-            controlsId="choose-plants-library-panel"
-            id="choose-plants-library-tab"
-            tab="library"
-            onSelect={setActiveTab}
-          >
-            Library
-          </TabButton>
-          <TabButton
-            activeTab={activeTab}
-            controlsId="choose-plants-board-panel"
-            id="choose-plants-board-tab"
-            tab="board"
-            onSelect={setActiveTab}
-          >
-            Season Board
-          </TabButton>
-          <TabButton
-            activeTab={activeTab}
-            controlsId="choose-plants-compare-panel"
-            id="choose-plants-compare-tab"
-            tab="compare"
-            onSelect={setActiveTab}
-          >
-            Compare
-          </TabButton>
-        </div>
-
-        <div className={styles.layout} data-active-tab={activeTab}>
-          <div
-            aria-labelledby="choose-plants-library-tab"
-            className={`${styles.panelSlot} ${styles.librarySlot}`}
-            id="choose-plants-library-panel"
-            role="tabpanel"
-          >
-            <ChoosePlantsLibrary
-              compareCropIds={compareCropIds}
-              garden={garden}
-              onAddCrop={addCrop}
-              onCompareQuantityChange={updateCompareQuantity}
-              onToggleCompare={toggleCompareCrop}
-              selectedCropIds={selectedCropIds}
-              sunExposureAtPlacement={sunExposureAtPlacement}
-            />
-          </div>
-
-          <div
-            aria-labelledby="choose-plants-board-tab"
-            className={`${styles.panelSlot} ${styles.boardSlot}`}
-            id="choose-plants-board-panel"
-            role="tabpanel"
-          >
+          <div className={styles.boardStack}>
             <SeasonCropBoard
               garden={garden}
               layoutRequests={layoutRequests}
@@ -312,58 +275,20 @@ export function ChoosePlantsModal({
               selections={selections}
               sunExposureAtPlacement={sunExposureAtPlacement}
             />
+            {compareCropIds.length > 0 ? (
+              <CropComparePanel
+                explicitCompareCount={compareCropIds.length}
+                garden={garden}
+                id="choose-plants-compare-panel"
+                layoutRequests={compareRequests}
+                onClearCompare={() => setCompareSelections([])}
+                sunExposureAtPlacement={sunExposureAtPlacement}
+              />
+            ) : null}
           </div>
-
-          <CropComparePanel
-            explicitCompareCount={compareCropIds.length}
-            garden={garden}
-            id="choose-plants-compare-panel"
-            layoutRequests={compareRequests}
-            onClearCompare={() => setCompareSelections([])}
-            sunExposureAtPlacement={sunExposureAtPlacement}
-          />
         </div>
-
-        <footer className={styles.footer}>
-          <p className={styles.footerSummary}>
-            {layoutRequests.length} crops - {plantCount} plants - {reviewCount}{' '}
-            review
-          </p>
-          <div className={styles.footerActions}>
-            <button
-              className={sharedStyles.secondaryButton}
-              onClick={onClose}
-              type="button"
-            >
-              Cancel
-            </button>
-            <button
-              className={sharedStyles.secondaryButton}
-              disabled={!hasSelections}
-              onClick={() => setSelections([])}
-              type="button"
-            >
-              Clear list
-            </button>
-            <button
-              className={sharedStyles.secondaryButton}
-              onClick={handleSave}
-              type="button"
-            >
-              Save list
-            </button>
-            <button
-              className={sharedStyles.primaryButton}
-              disabled={!hasSelections}
-              onClick={handleOptimize}
-              type="button"
-            >
-              Save + Optimize
-            </button>
-          </div>
-        </footer>
-      </section>
-    </div>
+      </div>
+    </Modal>
   );
 }
 

@@ -135,17 +135,17 @@ describe('layoutProblemResolution', () => {
   it('groups optimizer variants with their complete solution option', () => {
     const garden = makeGarden();
     const candidate: AutoLayoutCandidate = {
-      explanations: ['Moves sun-hungry crops into the sunniest open bed.'],
+      explanations: ['Keeps similar watering needs closer together.'],
       hardConstraintViolations: ['Carrot group still overlaps the boundary.'],
       id: 'sun-first',
-      label: 'Sun-first',
+      label: 'Group watering',
       materials: [],
       plantings: garden.plantings,
       scoreBreakdown: {
-        seasonalSuitability: 80,
-        shadeManagement: 70,
-        spacingQuality: 90,
-        waterGrouping: 60,
+        accessQuality: 0.8,
+        spacingQuality: 0.9,
+        structureCompatibility: 0.7,
+        waterGrouping: 0.6,
       },
       search: createPendingSearchReport(),
       strategy: 'sunFirst',
@@ -169,7 +169,7 @@ describe('layoutProblemResolution', () => {
       id: 'review:optimizer:sun-first',
       itemIds: ['tomato-1', 'path-1'],
       source: 'optimizer',
-      title: 'Use Sun-first layout',
+      title: 'Use grouped-watering layout',
       type: 'optimizerProposal',
     });
 

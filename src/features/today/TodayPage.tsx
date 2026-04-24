@@ -5,14 +5,11 @@ import { useNetworkStatus } from '../../shared/network/networkStatus';
 import { LoadingState } from '../../shared/ui/LoadingState';
 import {
   addManualTask,
-  addSuccessionTask,
-  buildSuccessionRecommendations,
   completeTask,
   deferTask,
   snoozeTask,
   sortTasks,
   synchronizeGardenTasks,
-  type SuccessionRecommendation,
 } from '../tasks/taskEngine';
 import { TodayCalendarStrip } from './components/TodayCalendarStrip';
 import { TodayFieldPanels } from './components/TodayFieldPanels';
@@ -27,7 +24,6 @@ import {
   type QuickJournalSubmit,
 } from './components/TodayQuickActionSheet';
 import { TodayPageHeader } from './components/TodayPageHeader';
-import { TodaySidebar } from './components/TodaySidebar';
 import { TodayTaskGroup } from './components/TodayTaskGroup';
 import {
   addFieldNote,
@@ -44,7 +40,6 @@ import { delayHarvestReminderWithLocalNotification } from './todayLocalNotificat
 import {
   buildCalendarDays,
   buildTodayTargetOptions,
-  countTasksByBed,
   getTasksForSelectedDate,
   getTodayTarget,
 } from './todaySelectors';
@@ -84,17 +79,9 @@ export function TodayPage() {
     () => getTasksForSelectedDate(openTasks, selectedDate, todayDate),
     [openTasks, selectedDate, todayDate],
   );
-  const bedCounts = useMemo(
-    () => countTasksByBed(selectedDayTasks),
-    [selectedDayTasks],
-  );
   const calendarDays = useMemo(
     () => buildCalendarDays(openTasks, todayDate),
     [openTasks, todayDate],
-  );
-  const successionRecommendations = useMemo(
-    () => (garden ? buildSuccessionRecommendations(garden, today) : []),
-    [garden, today],
   );
   const targetOptions = useMemo(
     () => (garden ? buildTodayTargetOptions(garden) : []),
@@ -234,16 +221,6 @@ export function TodayPage() {
     }
   }
 
-  function addSuccession(recommendation: SuccessionRecommendation) {
-    void applyGardenUpdate((current) =>
-      addSuccessionTask(current, recommendation),
-    ).then((saved) => {
-      if (saved) {
-        showActionNotice('Succession reminder added.');
-      }
-    });
-  }
-
   function handleCompleteTask(taskId: string) {
     void applyGardenUpdate((current) => {
       const task = current.tasks.find((candidate) => candidate.id === taskId);
@@ -377,10 +354,7 @@ export function TodayPage() {
         error={error}
         isOffline={isOffline}
         onSyncSchedule={handleSyncSchedule}
-        openIssueCount={fieldModel.unresolvedIssues.length}
         saveStatus={saveStatus}
-        selectedTaskCount={selectedDayTasks.length}
-        wateringCount={fieldModel.activeWatering.length}
       />
 
       <TodayQuickActionSheet
@@ -470,12 +444,6 @@ export function TodayPage() {
             selectedDate={selectedDate}
           />
         </main>
-
-        <TodaySidebar
-          bedCounts={bedCounts}
-          onAddSuccession={addSuccession}
-          successionRecommendations={successionRecommendations}
-        />
       </div>
     </section>
   );

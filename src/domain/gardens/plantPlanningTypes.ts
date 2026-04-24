@@ -322,7 +322,7 @@ export interface LayoutVariant {
   resolutionOptionIds: string[];
   resolutionOptions: LayoutResolutionOption[];
   score: {
-    components: Record<'access' | 'spacing' | 'sun' | 'support', number>;
+    components: Record<'access' | 'spacing' | 'structures' | 'water', number>;
     total: number;
   };
   structures: Structure[];

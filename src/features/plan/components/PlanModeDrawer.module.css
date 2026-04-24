@@ -91,7 +91,7 @@
   border-radius: var(--radius-control);
   background: #ffffff;
   color: var(--color-text-strong);
-  padding: 0;
+  padding: 0 0.7rem;
 }
 
 .sunControls,
@@ -395,8 +395,46 @@
   text-transform: uppercase;
 }
 
+.reviewState {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.8rem;
+  border-radius: 999px;
+  background: rgba(54, 48, 40, 0.08);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 820;
+  padding: 0.18rem 0.55rem;
+  text-align: center;
+}
+
+.reviewState[data-tone='success'] {
+  background: #eef7ea;
+  color: #24472e;
+}
+
+.reviewState[data-tone='warning'] {
+  background: #fff3df;
+  color: #704211;
+}
+
+.reviewState[data-tone='danger'] {
+  background: #f9edf0;
+  color: #6d2037;
+}
+
 .reviewCard p {
   color: var(--color-text-muted);
+}
+
+.reviewReasonList {
+  display: grid;
+  gap: 0.28rem;
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
 }
 
 .reviewDecisionLine {

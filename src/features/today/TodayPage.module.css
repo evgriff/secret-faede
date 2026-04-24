@@ -235,7 +235,7 @@
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   align-items: start;
 }

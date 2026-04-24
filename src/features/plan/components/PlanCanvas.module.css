@@ -162,32 +162,18 @@
   width: var(--plot-width);
   height: var(--plot-height);
   overflow: hidden;
-  background-color: #efe6d5;
+  background-color: #f5efdf;
   background-image:
     linear-gradient(rgba(63, 54, 44, 0.11) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(63, 54, 44, 0.11) 1px, transparent 1px),
-    repeating-conic-gradient(
-      from 0deg,
-      #ecdfc8 0deg 90deg,
-      #fbf6eb 90deg 180deg,
-      #ecdfc8 180deg 270deg,
-      #fbf6eb 270deg 360deg
-    );
+    linear-gradient(90deg, rgba(63, 54, 44, 0.11) 1px, transparent 1px);
   background-size:
     var(--cell-size) var(--cell-size),
-    var(--cell-size) var(--cell-size),
-    calc(var(--cell-size) * 2) calc(var(--cell-size) * 2);
+    var(--cell-size) var(--cell-size);
 }
 
 .gridHidden .plot {
-  background-image: repeating-conic-gradient(
-    from 0deg,
-    #eadfca 0deg 90deg,
-    #fbf6eb 90deg 180deg,
-    #eadfca 180deg 270deg,
-    #fbf6eb 270deg 360deg
-  );
-  background-size: calc(var(--cell-size) * 2) calc(var(--cell-size) * 2);
+  background-color: #f7f2e7;
+  background-image: none;
 }
 
 .labelsHidden [data-plan-label='true'],

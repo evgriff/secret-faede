@@ -1,10 +1,13 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import {
   ActionButton,
+  Drawer,
   InfoChip,
+  Modal,
   SegmentedControl,
+  Sheet,
   StatusBadge,
 } from './DesignPrimitives';
 
@@ -48,5 +51,57 @@ describe('DesignPrimitives', () => {
 
     expect(onAction).toHaveBeenCalledTimes(1);
     expect(onFilter).toHaveBeenCalledWith('issue');
+  });
+
+  it('closes shared overlays from the backdrop, close button, and escape key', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    const { rerender } = render(
+      <Modal
+        backdropTestId="overlay-backdrop"
+        closeLabel="Close overlay"
+        onClose={onClose}
+        title="Overlay title"
+      >
+        Overlay body
+      </Modal>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Close overlay' })).toBeVisible();
+    fireEvent.pointerDown(screen.getByTestId('overlay-backdrop'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Close overlay' }));
+    expect(onClose).toHaveBeenCalledTimes(2);
+
+    rerender(
+      <Sheet
+        backdropTestId="sheet-backdrop"
+        closeLabel="Close sheet"
+        onClose={onClose}
+        title="Sheet title"
+      >
+        Sheet body
+      </Sheet>,
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(3);
+
+    rerender(
+      <Drawer
+        backdropTestId="drawer-backdrop"
+        closeLabel="Close drawer"
+        onClose={onClose}
+        title="Drawer title"
+      >
+        Drawer body
+      </Drawer>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Close drawer' })).toBeVisible();
+    fireEvent.pointerDown(screen.getByTestId('drawer-backdrop'));
+    expect(onClose).toHaveBeenCalledTimes(4);
   });
 });

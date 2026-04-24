@@ -14,9 +14,9 @@ export type AutoLayoutRunStatus =
 export type AutoLayoutSearchStatus = 'blocked' | 'partial' | 'resolved';
 
 export interface AutoLayoutScoreBreakdown {
-  seasonalSuitability: number;
-  shadeManagement: number;
+  accessQuality: number;
   spacingQuality: number;
+  structureCompatibility: number;
   waterGrouping: number;
 }
 

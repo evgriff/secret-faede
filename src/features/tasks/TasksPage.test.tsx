@@ -91,7 +91,7 @@ describe('TodayPage', () => {
     expect(
       await screen.findByRole('button', { name: 'Mark growing' }),
     ).toBeVisible();
-    expect(await screen.findByText('Marked Tomato planted')).toBeVisible();
+    expect(await screen.findByText('Crop status updated.')).toBeVisible();
   });
 
   it('logs a harvest from Today with one tap', async () => {
@@ -137,10 +137,13 @@ describe('TodayPage', () => {
       within(harvestCard).getByRole('button', { name: 'Log harvest' }),
     );
 
-    expect(await screen.findByText('Harvest logged: Picked')).toBeVisible();
-    expect(await screen.findByText('Task done: Harvest Tomato')).toBeVisible();
     expect(
-      await screen.findByRole('region', { name: 'Add photo' }),
+      await screen.findByText(
+        'Harvest saved. Add a photo if it helps the memory.',
+      ),
+    ).toBeVisible();
+    expect(
+      await screen.findByRole('dialog', { name: 'Add photo' }),
     ).toBeVisible();
   });
 });

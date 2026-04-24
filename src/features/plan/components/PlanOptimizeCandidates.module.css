@@ -81,7 +81,7 @@
   display: grid;
   gap: 0.16rem;
   flex: 0 0 min(11rem, 78vw);
-  min-height: 4rem;
+  min-height: 5.5rem;
   cursor: pointer;
   color: var(--color-text-strong);
   font: inherit;
@@ -111,6 +111,13 @@
 
 .strategyCard em {
   text-transform: none;
+}
+
+.strategySummary {
+  margin: 0.1rem 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  line-height: 1.35;
 }
 
 .variantReason {

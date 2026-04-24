@@ -9,14 +9,13 @@ test('Plan context panels overlay the stable plot viewport', async ({
   await signInWithMockPassword(page);
 
   const plotViewport = page.getByTestId('plot-viewport');
-  const optimizeButton = page.getByRole('button', { name: 'Optimize' }).first();
   const contextPanel = page.getByLabel('Plan context panel');
 
   const viewportWidth = await plotViewport.evaluate(
     (viewport): number => viewport.clientWidth,
   );
 
-  await optimizeButton.click();
+  await clickLauncherTool(page, 'Generated layouts');
   await expect(contextPanel).toBeVisible();
   await expect(plotViewport).toHaveJSProperty('clientWidth', viewportWidth);
 
@@ -24,7 +23,7 @@ test('Plan context panels overlay the stable plot viewport', async ({
   await expect(contextPanel).toHaveCount(0);
   await expect(plotViewport).toHaveJSProperty('clientWidth', viewportWidth);
 
-  await optimizeButton.click();
+  await clickLauncherTool(page, 'Generated layouts');
   await expect(contextPanel).toBeVisible();
   await expect(plotViewport).toHaveJSProperty('clientWidth', viewportWidth);
 });
@@ -36,22 +35,16 @@ test('Build tools launcher reopens mode panels on desktop and mobile', async ({
   await signInWithMockPassword(page);
 
   await openPlanLauncher(page);
-  const launcher = page.getByLabel('Build tool launcher');
+  const launcher = page.locator('[aria-label="More tools menu"]');
 
   await expect(launcher.getByRole('button', { name: 'Select' })).toHaveCount(0);
   await expect(launcher.getByRole('button', { name: 'Measure' })).toHaveCount(
     0,
   );
-  await expect(
-    launcher.getByRole('button', { name: /Detailed View/ }),
-  ).toHaveCount(0);
-  await page
-    .getByLabel('Build tool launcher')
-    .getByRole('button', { name: 'Structure' })
-    .click();
+  await launcher.getByRole('button', { name: 'Structure' }).click();
   await expect(page.getByLabel('Plan context panel')).toBeVisible();
   await expect(
-    page.getByRole('button', { name: 'Place structure' }),
+    page.getByRole('button', { name: 'Place on plan' }),
   ).toBeVisible();
 
   await page.getByRole('button', { name: 'Close mode controls' }).click();
@@ -59,7 +52,7 @@ test('Build tools launcher reopens mode panels on desktop and mobile', async ({
 
   await openPlanLauncher(page);
   await page
-    .getByLabel('Build tool launcher')
+    .locator('[aria-label="More tools menu"]')
     .getByRole('button', { name: 'Structure' })
     .click();
   await expect(page.getByLabel('Plan context panel')).toBeVisible();
@@ -82,16 +75,13 @@ test('Build tools launcher reopens mode panels on desktop and mobile', async ({
 
   await openPlanLauncher(page);
   const launcherButtonBox = await getVisibleBox(
-    page.getByRole('button', { name: 'Open build tools' }),
+    page.getByRole('button', { name: 'Open more tools' }),
     'Expected mobile Plan launcher to stay thumb-sized.',
   );
 
   expect(launcherButtonBox.height).toBeGreaterThanOrEqual(44);
 
-  await page
-    .getByRole('navigation', { name: 'Primary plan actions' })
-    .getByRole('button', { name: 'Sun' })
-    .click();
+  await clickLauncherTool(page, 'Sun');
   await expect(
     page.getByRole('button', { name: 'Recalculate sun' }),
   ).toBeVisible();
@@ -114,8 +104,21 @@ test('Build tools launcher reopens mode panels on desktop and mobile', async ({
 });
 
 async function openPlanLauncher(page: Page) {
-  await page.getByRole('button', { name: 'Open build tools' }).click();
-  await expect(page.getByLabel('Build tool launcher')).toBeVisible();
+  const launcher = page.locator('[aria-label="More tools menu"]');
+
+  if (!(await launcher.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: 'Open more tools' }).click();
+  }
+
+  await expect(launcher).toBeVisible();
+}
+
+async function clickLauncherTool(page: Page, name: string) {
+  await openPlanLauncher(page);
+  await page
+    .locator('[aria-label="More tools menu"]')
+    .getByRole('button', { name })
+    .click();
 }
 
 async function getVisibleBox(locator: Locator, errorMessage: string) {

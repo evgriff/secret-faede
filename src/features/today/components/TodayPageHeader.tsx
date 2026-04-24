@@ -5,27 +5,20 @@ export function TodayPageHeader({
   error,
   isOffline,
   onSyncSchedule,
-  openIssueCount,
   saveStatus,
-  selectedTaskCount,
-  wateringCount,
 }: {
   error: string | null;
   isOffline: boolean;
   onSyncSchedule(): void;
-  openIssueCount: number;
   saveStatus: TodaySaveStatus;
-  selectedTaskCount: number;
-  wateringCount: number;
 }) {
   return (
     <header className={styles.header}>
       <div>
-        <p className={styles.kicker}>Garden operations</p>
+        <p className={styles.kicker}>Today's work</p>
         <h1>Today</h1>
         <p className={styles.summary}>
-          {selectedTaskCount} tasks, {wateringCount} watering, {openIssueCount}{' '}
-          open issues
+          Watering, checks, harvests, and field notes for the selected day.
         </p>
       </div>
       <div className={styles.actions}>

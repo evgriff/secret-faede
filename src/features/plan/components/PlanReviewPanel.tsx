@@ -5,18 +5,14 @@ import type {
   LayoutProblemCategory,
   LayoutResolutionAction,
   LayoutResolutionOption,
-  LayoutVariant,
 } from '../../../domain/gardens/GardenRepository';
-import { StatusBadge } from '../../shared/design/DesignPrimitives';
 import type { LayoutProblemResolutionModel } from '../layoutProblemResolution';
 import styles from './PlanModeDrawer.module.css';
-import { ReasonTooltip, ReasonTooltipList } from './ReasonTooltip';
 
 export function PlanReviewPanel({
   activeProblemId,
   layoutModel,
   onApplyResolutionOption,
-  onGenerateVariants,
   onIgnoreProblem,
   onJumpToProblem,
   onPreviewResolutionOption,
@@ -25,7 +21,6 @@ export function PlanReviewPanel({
   activeProblemId: string | null;
   layoutModel: LayoutProblemResolutionModel;
   onApplyResolutionOption(option: LayoutResolutionOption): void;
-  onGenerateVariants(): void;
   onIgnoreProblem(problem: LayoutProblem): void;
   onJumpToProblem(problem: LayoutProblem): void;
   onPreviewResolutionOption(option: LayoutResolutionOption): void;
@@ -42,40 +37,29 @@ export function PlanReviewPanel({
     <div className={styles.reviewPanel} ref={panelRef}>
       <section className={styles.reviewHero}>
         <div>
-          <span className={styles.kicker}>Problem inbox</span>
-          <h3>
-            {inbox.openProblems.length} open problem
-            {inbox.openProblems.length === 1 ? '' : 's'}
-          </h3>
-          <p>{getProblemInboxSummary(inbox)}</p>
-          <p className={styles.reviewDecisionSummary}>
-            {inbox.mustFixCount} must fix / {inbox.recommendedCount} recommended
-            / {inbox.ignoredCount} ignored
+          <span className={styles.kicker}>Review problems</span>
+          <h3>What needs attention</h3>
+          <p>
+            {inbox.openProblems.length > 0
+              ? getProblemInboxSummary(inbox)
+              : 'Nothing is currently blocking the saved planting plan.'}
           </p>
         </div>
-        <div className={styles.reviewNextAction}>
-          <span>Next safe action</span>
-          <strong>{getNextProblemAction(inbox)}</strong>
-        </div>
-        <div className={styles.reviewHeroActions}>
-          <button
-            className={styles.secondaryButton}
-            onClick={onGenerateVariants}
-            type="button"
-          >
-            Generate checked variants
-          </button>
-        </div>
+        {inbox.openProblems.length > 0 ? (
+          <div className={styles.reviewNextAction}>
+            <span>Next step</span>
+            <strong>
+              Fix one issue at a time, or try a simpler layout idea below.
+            </strong>
+          </div>
+        ) : null}
       </section>
 
       {inbox.openProblems.length > 0 ? (
         <section className={styles.reviewGroup}>
           <div className={styles.reviewGroupHeader}>
-            <h3>Current problems</h3>
-            <p>
-              Pick a problem, inspect the reason, then apply a complete
-              resolution or intentionally ignore it.
-            </p>
+            <h3>Needs attention</h3>
+            <p>Open one issue, preview the fix, then apply it or ignore it.</p>
           </div>
           <ProblemCards
             activeProblemId={activeProblemId}
@@ -92,7 +76,7 @@ export function PlanReviewPanel({
         <div className={styles.reviewEmpty}>
           <p className={styles.successText}>No current layout problems.</p>
           <p className={styles.mutedText}>
-            Generate checked variants if you want a whole-plot comparison.
+            If you want another arrangement, review the layout ideas below.
           </p>
         </div>
       )}
@@ -100,8 +84,8 @@ export function PlanReviewPanel({
       {inbox.ignoredProblems.length > 0 ? (
         <section className={styles.reviewGroup}>
           <div className={styles.reviewGroupHeader}>
-            <h3>Ignored problems</h3>
-            <p>Recorded for this private draft.</p>
+            <h3>Ignored for now</h3>
+            <p>These stay out of the open list until you bring them back.</p>
           </div>
           <ProblemCards
             activeProblemId={activeProblemId}
@@ -113,28 +97,6 @@ export function PlanReviewPanel({
             optionsByProblemId={inbox.optionsByProblemId}
             problems={inbox.ignoredProblems}
           />
-        </section>
-      ) : null}
-
-      {inbox.variants.length > 0 ? (
-        <section className={styles.reviewGroup}>
-          <div className={styles.reviewGroupHeader}>
-            <h3>Variant status</h3>
-            <p>
-              Variants below have downstream checks; compare the full details in
-              Variant Comparison.
-            </p>
-          </div>
-          <ul className={styles.variantStatusList}>
-            {inbox.variants.slice(0, 3).map((variant) => (
-              <li key={variant.id}>
-                <strong>{variant.label}</strong>
-                <StatusBadge tone={getValidationTone(variant)}>
-                  {formatValidationStatus(variant)}
-                </StatusBadge>
-              </li>
-            ))}
-          </ul>
         </section>
       ) : null}
     </div>
@@ -166,6 +128,7 @@ function ProblemCards({
         const isActive = problem.id === activeProblemId;
         const options = optionsByProblemId.get(problem.id) ?? [];
         const canJump = problem.targets.length > 0;
+        const reasonLines = getProblemReasonLines(problem);
 
         return (
           <li
@@ -182,45 +145,27 @@ function ProblemCards({
                 <strong>{problem.title}</strong>
                 <p>{problem.description}</p>
               </div>
-              <div className={styles.reviewBadges}>
-                <ReasonTooltip
-                  ariaLabel={`${problem.title} severity reason`}
-                  content={
-                    <ReasonTooltipList lines={getProblemReasonLines(problem)} />
-                  }
-                >
-                  <StatusBadge tone={getProblemSeverityTone(problem)}>
-                    {formatProblemSeverity(problem)}
-                  </StatusBadge>
-                </ReasonTooltip>
-                {problem.status === 'ignored' ? (
-                  <ReasonTooltip
-                    ariaLabel={`${problem.title} ignored reason`}
-                    content="Ignored problems stay recorded on this private draft and are excluded from the open problem count."
-                  >
-                    <StatusBadge>ignored</StatusBadge>
-                  </ReasonTooltip>
-                ) : null}
-              </div>
+              <span
+                className={styles.reviewState}
+                data-tone={getProblemStateTone(problem)}
+              >
+                {problem.status === 'ignored'
+                  ? 'Ignored for now'
+                  : formatProblemSeverity(problem)}
+              </span>
             </div>
 
-            <EvidenceList problem={problem} />
-
-            {problem.downstreamValidation.status !== 'notRun' ? (
-              <div className={styles.reviewDecisionLine}>
-                <span>Downstream check</span>
-                <strong>
-                  {problem.downstreamValidation.message ??
-                    formatValidationStatus(problem)}
-                </strong>
-              </div>
+            {reasonLines.length > 0 ? (
+              <ul className={styles.reviewReasonList}>
+                {reasonLines.map((line) => (
+                  <li key={`${problem.id}:${line}`}>{line}</li>
+                ))}
+              </ul>
             ) : null}
 
             {options.length > 0 ? (
               <div className={styles.resolutionList}>
-                <span className={styles.reviewCategory}>
-                  Resolution options
-                </span>
+                <span className={styles.reviewCategory}>Ways to fix it</span>
                 {options.map((option) => (
                   <ResolutionOptionCard
                     key={option.id}
@@ -232,8 +177,8 @@ function ProblemCards({
               </div>
             ) : (
               <p className={styles.reviewRationale}>
-                No draft-safe automatic resolution is available. Adjust the plot
-                manually or ignore this problem with a note in the draft record.
+                No quick fix is available here. Adjust the plan by hand or leave
+                this issue ignored for now.
               </p>
             )}
 
@@ -246,7 +191,7 @@ function ProblemCards({
                 onClick={() => onSelectProblem(isActive ? null : problem.id)}
                 type="button"
               >
-                {isActive ? 'Problem selected' : 'Select problem'}
+                {isActive ? 'Focused' : 'Focus problem'}
               </button>
               {canJump ? (
                 <button
@@ -263,7 +208,7 @@ function ProblemCards({
                   onClick={() => onIgnoreProblem(problem)}
                   type="button"
                 >
-                  Ignore problem
+                  Ignore for now
                 </button>
               ) : null}
             </div>
@@ -271,25 +216,6 @@ function ProblemCards({
         );
       })}
     </ul>
-  );
-}
-
-function EvidenceList({ problem }: { problem: LayoutProblem }) {
-  const evidence = problem.evidence.slice(0, 3);
-
-  if (evidence.length === 0) {
-    return null;
-  }
-
-  return (
-    <dl className={styles.previewGrid}>
-      {evidence.map((entry) => (
-        <div key={`${problem.id}:${entry.label}:${entry.value}`}>
-          <dt>{entry.label}</dt>
-          <dd>{formatEvidenceValue(entry)}</dd>
-        </div>
-      ))}
-    </dl>
   );
 }
 
@@ -307,6 +233,7 @@ function ResolutionOptionCard({
   const canApply =
     option.status === 'available' &&
     option.actions.some((action) => action.type !== 'dismissProblem');
+  const actionLines = getResolutionActionLines(option);
 
   return (
     <section className={styles.resolutionCard}>
@@ -315,37 +242,28 @@ function ResolutionOptionCard({
           <strong>{option.label}</strong>
           <p>{option.description}</p>
         </div>
-        <div className={styles.reviewBadges}>
-          <ReasonTooltip
-            ariaLabel={`${option.label} status reason`}
-            content={
-              <ReasonTooltipList lines={getResolutionReasonLines(option)} />
-            }
-          >
-            <StatusBadge tone={getResolutionTone(option)}>
-              {formatResolutionStatus(option)}
-            </StatusBadge>
-          </ReasonTooltip>
-          {option.estimatedImpact.needsPhysicalMove ? (
-            <ReasonTooltip
-              ariaLabel={`${option.label} physical move reason`}
-              content="This resolution changes a saved plant-group or structure position. Preview the tradeoff before applying it."
-            >
-              <StatusBadge tone="warning">physical move</StatusBadge>
-            </ReasonTooltip>
-          ) : (
-            <ReasonTooltip
-              ariaLabel={`${option.label} planned-only reason`}
-              content="This resolution updates planning attributes or support state without moving saved plant centers."
-            >
-              <StatusBadge>planned only</StatusBadge>
-            </ReasonTooltip>
-          )}
-        </div>
+        <span
+          className={styles.reviewState}
+          data-tone={getResolutionStateTone(option)}
+        >
+          {formatResolutionState(option)}
+        </span>
       </div>
+
       <p className={styles.reviewRationale}>
-        {option.actions.map(formatResolutionAction).join('; ')}
+        {option.estimatedImpact.needsPhysicalMove
+          ? 'This changes positions on the saved plan.'
+          : 'This keeps positions in place and updates the plan details.'}
       </p>
+
+      {actionLines.length > 0 ? (
+        <ul className={styles.reviewReasonList}>
+          {actionLines.map((line) => (
+            <li key={`${option.id}:${line}`}>{line}</li>
+          ))}
+        </ul>
+      ) : null}
+
       <div className={styles.reviewActions}>
         <button
           className={styles.secondaryButton}
@@ -353,7 +271,7 @@ function ResolutionOptionCard({
           onClick={() => onPreviewResolutionOption(option)}
           type="button"
         >
-          Show tradeoff
+          Preview change
         </button>
         <button
           className={styles.primaryButton}
@@ -361,7 +279,7 @@ function ResolutionOptionCard({
           onClick={() => onApplyResolutionOption(option)}
           type="button"
         >
-          {isApplied ? 'Resolution applied' : 'Apply complete resolution'}
+          {isApplied ? 'Applied' : 'Apply fix'}
         </button>
       </div>
     </section>
@@ -375,7 +293,6 @@ interface ProblemInboxModel {
   openProblems: LayoutProblem[];
   optionsByProblemId: Map<string, LayoutResolutionOption[]>;
   recommendedCount: number;
-  variants: LayoutVariant[];
 }
 
 function buildProblemInbox(
@@ -417,7 +334,6 @@ function buildProblemInbox(
     recommendedCount: openProblems.filter(
       (problem) => problem.severity === 'recommended',
     ).length,
-    variants: layoutModel.variants,
   };
 }
 
@@ -431,94 +347,92 @@ function getProblemInboxSummary(inbox: ProblemInboxModel) {
   }
 
   if (inbox.mustFixCount > 0) {
-    return 'Resolve must-fix issues before applying a full layout variant.';
+    return `${inbox.mustFixCount} must-fix issue${inbox.mustFixCount === 1 ? '' : 's'} need attention before you trust a full layout change.`;
   }
 
-  return 'Review recommended fixes, then apply a complete resolution or ignore it intentionally.';
-}
-
-function getNextProblemAction(inbox: ProblemInboxModel) {
-  if (inbox.mustFixCount > 0) {
-    return 'Solve a must-fix problem';
+  if (inbox.recommendedCount > 0) {
+    return `${inbox.recommendedCount} recommended fix${inbox.recommendedCount === 1 ? '' : 'es'} can make the plan easier to maintain.`;
   }
 
-  if (inbox.openProblems.length > 0) {
-    return 'Choose a resolution option';
-  }
-
-  return inbox.variants.length > 0
-    ? 'Compare checked variants'
-    : 'Generate checked variants';
+  return `${inbox.openProblems.length} issue${inbox.openProblems.length === 1 ? '' : 's'} remain open on this draft.`;
 }
 
 function formatProblemCategory(category: LayoutProblemCategory) {
-  return category.replace(/([A-Z])/g, ' $1');
+  return category.replace(/([A-Z])/g, ' $1').trim();
 }
 
 function formatProblemSeverity(problem: LayoutProblem) {
   switch (problem.severity) {
     case 'mustFix':
-      return 'must fix';
+      return 'Must fix';
     case 'recommended':
-      return 'recommended';
+      return 'Worth fixing';
     case 'caution':
-      return 'caution';
+      return 'Watch';
   }
 }
 
-function getProblemSeverityTone(problem: LayoutProblem) {
+function getProblemStateTone(problem: LayoutProblem) {
+  if (problem.status === 'ignored') {
+    return 'neutral';
+  }
+
   switch (problem.severity) {
     case 'mustFix':
-      return 'danger' as const;
+      return 'danger';
     case 'recommended':
-      return 'warning' as const;
+      return 'warning';
     case 'caution':
-      return 'neutral' as const;
+      return 'neutral';
   }
 }
 
-function getResolutionTone(option: LayoutResolutionOption) {
+function getResolutionStateTone(option: LayoutResolutionOption) {
   if (option.status === 'applied') {
-    return 'success' as const;
+    return 'success';
   }
 
   if (option.status === 'ignored' || option.status === 'rejected') {
-    return 'neutral' as const;
+    return 'neutral';
   }
 
   return option.estimatedImpact.needsPhysicalMove ? 'warning' : 'success';
 }
 
-function formatResolutionStatus(option: LayoutResolutionOption) {
-  if (option.status === 'ignored' || option.status === 'rejected') {
-    return 'ignored';
+function formatResolutionState(option: LayoutResolutionOption) {
+  if (option.status === 'applied') {
+    return 'Applied';
   }
 
-  return option.status === 'available' ? 'available' : option.status;
+  if (option.status === 'ignored' || option.status === 'rejected') {
+    return 'Ignored';
+  }
+
+  return option.estimatedImpact.needsPhysicalMove
+    ? 'Moves layout'
+    : 'Quick change';
 }
 
 function formatResolutionAction(action: LayoutResolutionAction) {
   switch (action.type) {
     case 'addStructure':
-      return `Add ${action.structure.label}`;
+      return `Add ${action.structure.label}.`;
     case 'assignPlantSupport':
-      return `Assign ${action.support.quantity} ${action.support.type}`;
+      return `Plan ${action.support.quantity} ${action.support.type} support${action.support.quantity === 1 ? '' : 's'}.`;
     case 'changePlacementMode':
-      return `Change planting form to ${action.placementMode}`;
+      return `Switch to ${action.placementMode} planting form.`;
     case 'changePlantQuantity':
-      return `Set quantity to ${action.quantity}`;
+      return `Change the quantity to ${action.quantity}.`;
     case 'dismissProblem':
-      return `Ignore: ${action.reason}`;
+      return `Leave this issue ignored for now.`;
     case 'linkTrellisStructure':
-      return `Link trellis ${action.structureId}`;
+      return 'Use an existing trellis line.';
     case 'movePlantGroup':
-      return `Move plant group to ${action.xFt.toFixed(1)}, ${action.yFt.toFixed(
-        1,
-      )} ft`;
+      return `Move the plant group to X ${action.xFt.toFixed(1)} ft, Y ${action.yFt.toFixed(1)} ft.`;
     case 'updateStructure':
-      return `Update structure ${action.structureId}`;
+      return 'Adjust the related structure.';
     case 'useLayoutVariant':
-      return `Use checked variant ${action.variantId}`;
+      return 'Apply the matching layout idea.';
   }
 }
 
@@ -532,7 +446,6 @@ function formatEvidenceValue(entry: LayoutProblem['evidence'][number]) {
 
 function getProblemReasonLines(problem: LayoutProblem) {
   return [
-    problem.description,
     ...problem.evidence
       .slice(0, 3)
       .map((entry) => `${entry.label}: ${formatEvidenceValue(entry)}`),
@@ -540,36 +453,9 @@ function getProblemReasonLines(problem: LayoutProblem) {
   ].filter(Boolean);
 }
 
-function getResolutionReasonLines(option: LayoutResolutionOption) {
+function getResolutionActionLines(option: LayoutResolutionOption) {
   return [
-    option.description,
     ...option.actions.map(formatResolutionAction),
     option.downstreamValidation.message ?? '',
   ].filter(Boolean);
-}
-
-function formatValidationStatus(
-  value: Pick<LayoutProblem | LayoutVariant, 'downstreamValidation'>,
-) {
-  const validation = value.downstreamValidation;
-
-  if (validation.status === 'passed') {
-    return 'checked: no must-fix problems';
-  }
-
-  if (validation.status === 'failed') {
-    return validation.message ?? 'checked: unresolved problems remain';
-  }
-
-  if (validation.status === 'warning') {
-    return validation.message ?? 'checked with warnings';
-  }
-
-  return validation.status === 'stale' ? 'check is stale' : 'not checked';
-}
-
-function getValidationTone(variant: LayoutVariant) {
-  return variant.downstreamValidation.status === 'passed'
-    ? 'success'
-    : 'warning';
 }

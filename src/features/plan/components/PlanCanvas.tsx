@@ -1,8 +1,6 @@
 import {
   memo,
   type CSSProperties,
-  type PointerEvent,
-  type RefObject,
   useCallback,
   useEffect,
   useMemo,
@@ -24,8 +22,13 @@ import {
 import type { SunSeason } from '../../garden/sunShadeEngine';
 import type { SelectedGardenItem } from '../../garden/useGarden';
 import { usePlanCanvasView } from '../hooks/usePlanCanvasView';
+import { usePlanPointerInteractions } from '../hooks/usePlanPointerInteractions';
 import type { PlanInfluenceOverlayModel } from '../planInfluenceOverlay';
-import type { ResizeHandle, SnapGuide } from '../planInteractionGeometry';
+import type {
+  PlanItemPositionUpdate,
+  PlanItemRectUpdate,
+  PlanItemRef,
+} from '../planInteractionGeometry';
 import type { PlanMode } from '../planModes';
 import type { ProposalDiffOverlayModel } from '../proposalDiffOverlay';
 import {
@@ -38,8 +41,6 @@ import styles from './PlanCanvas.module.css';
 
 export const PlanCanvas = memo(function PlanCanvas({
   activeSunLayer,
-  draggingPlantId,
-  draggingStructureId,
   focusedCropKey,
   garden,
   hoveredPlantGroupId,
@@ -47,41 +48,28 @@ export const PlanCanvas = memo(function PlanCanvas({
   manualSunEdit,
   manualSunExposure,
   mode,
+  onCheckpoint,
+  onMarqueeSelect,
   onPaintSunShadeCell,
   onPlantHoverChange,
   onPlantLabelHide,
   onPlantLabelShow,
   onPlantEditorOpen,
-  onMarqueePointerDown,
-  onMarqueePointerEnd,
-  onMarqueePointerMove,
-  onPlantPointerDown,
-  onPlantPointerEnd,
-  onPlantPointerMove,
-  onResizePointerDown,
-  onResizePointerEnd,
-  onResizePointerMove,
   onSelectItem,
   onShowSunOverlayChange,
-  onStructurePointerDown,
-  onStructurePointerEnd,
-  onStructurePointerMove,
   plantingPreview,
   planWarnings,
   proposalDiffOverlay,
-  plotRef,
-  marqueeRect,
-  resizingStructureId,
+  resizeStructureRect,
+  selectedItems,
   selectedPlantIds,
   selectedStructureIds,
   showSunOverlay,
-  snapGuides,
   sunSeason,
+  updateItemPositions,
   visiblePlantLabelIds,
 }: {
   activeSunLayer: { areas: SunShadeArea[] };
-  draggingPlantId: string | null;
-  draggingStructureId: string | null;
   focusedCropKey: string | null;
   garden: Garden;
   hoveredPlantGroupId: string | null;
@@ -89,6 +77,8 @@ export const PlanCanvas = memo(function PlanCanvas({
   manualSunEdit: boolean;
   manualSunExposure: SunExposure;
   mode: PlanMode;
+  onCheckpoint(): void;
+  onMarqueeSelect(items: PlanItemRef[], additive: boolean): void;
   onPaintSunShadeCell(
     season: SunSeason,
     xFt: number,
@@ -99,61 +89,21 @@ export const PlanCanvas = memo(function PlanCanvas({
   onPlantLabelHide(plantId: string): void;
   onPlantLabelShow(plantId: string): void;
   onPlantEditorOpen(plantId: string): void;
-  onMarqueePointerDown(event: PointerEvent<HTMLDivElement>): void;
-  onMarqueePointerEnd(event: PointerEvent<HTMLDivElement>): void;
-  onMarqueePointerMove(event: PointerEvent<HTMLDivElement>): void;
-  onPlantPointerDown(
-    event: PointerEvent<HTMLButtonElement>,
-    plantId: string,
-    instanceId?: string,
-  ): void;
-  onPlantPointerEnd(
-    event: PointerEvent<HTMLButtonElement>,
-    plantId: string,
-    instanceId?: string,
-  ): void;
-  onPlantPointerMove(
-    event: PointerEvent<HTMLButtonElement>,
-    plantId: string,
-    instanceId?: string,
-  ): void;
-  onResizePointerDown(
-    event: PointerEvent<HTMLSpanElement>,
-    structureId: string,
-    handle: ResizeHandle,
-  ): void;
-  onResizePointerEnd(event: PointerEvent<HTMLSpanElement>): void;
-  onResizePointerMove(event: PointerEvent<HTMLSpanElement>): void;
   onSelectItem(item: SelectedGardenItem, additive: boolean): void;
   onShowSunOverlayChange(value: boolean): void;
-  onStructurePointerDown(
-    event: PointerEvent<HTMLDivElement>,
-    structureId: string,
-  ): void;
-  onStructurePointerEnd(
-    event: PointerEvent<HTMLDivElement>,
-    structureId: string,
-  ): void;
-  onStructurePointerMove(
-    event: PointerEvent<HTMLDivElement>,
-    structureId: string,
-  ): void;
   plantingPreview: Planting | null;
   planWarnings: PlanWarning[];
   proposalDiffOverlay: ProposalDiffOverlayModel | null;
-  plotRef: RefObject<HTMLDivElement | null>;
-  marqueeRect: {
-    depthFt: number;
-    widthFt: number;
-    xFt: number;
-    yFt: number;
-  } | null;
-  resizingStructureId: string | null;
+  resizeStructureRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
+  selectedItems: PlanItemRef[];
   selectedPlantIds: string[];
   selectedStructureIds: string[];
   showSunOverlay: boolean;
-  snapGuides: SnapGuide[];
   sunSeason: SunSeason;
+  updateItemPositions(
+    updates: PlanItemPositionUpdate[],
+    trackHistory?: boolean,
+  ): void;
   visiblePlantLabelIds: string[];
 }) {
   const [layers, setLayers] = useState<PlanCanvasLayers>({
@@ -161,9 +111,18 @@ export const PlanCanvas = memo(function PlanCanvas({
     labels: true,
     miniMap: false,
     sun: showSunOverlay,
-    warnings: false,
   });
   const [isPanMode, setIsPanMode] = useState(false);
+  const pointerInteractions = usePlanPointerInteractions({
+    garden,
+    mode,
+    onCheckpoint,
+    onMarqueeSelect,
+    onSelectItem,
+    resizeStructureRect,
+    selectedItems,
+    updateItemPositions,
+  });
   const {
     fitView,
     handlePanPointerDown,
@@ -183,12 +142,11 @@ export const PlanCanvas = memo(function PlanCanvas({
     () => planWarnings.filter(isCanvasPlanWarning),
     [planWarnings],
   );
-  const visibleWarnings = layers.warnings ? planWarnings : immediateWarnings;
   const isPointerInteractionActive = Boolean(
-    draggingPlantId ||
-    draggingStructureId ||
-    marqueeRect ||
-    resizingStructureId,
+    pointerInteractions.draggingPlantId ||
+    pointerInteractions.draggingStructureId ||
+    pointerInteractions.marqueeRect ||
+    pointerInteractions.resizingStructureId,
   );
   const fitContentSize = useMemo(
     () => ({
@@ -329,45 +287,53 @@ export const PlanCanvas = memo(function PlanCanvas({
       >
         <PlanCanvasScene
           activeSunLayer={activeSunLayer}
-          draggingPlantId={draggingPlantId}
-          draggingStructureId={draggingStructureId}
+          dragPreviewOffsetsByItemKey={
+            pointerInteractions.dragPreviewOffsetsByItemKey
+          }
+          draggingPlantId={pointerInteractions.draggingPlantId}
+          draggingStructureId={pointerInteractions.draggingStructureId}
           focusedCropKey={focusedCropKey}
           garden={garden}
           hoveredPlantGroupId={hoveredPlantGroupId}
           influenceOverlay={influenceOverlay}
           manualSunEdit={manualSunEdit}
           manualSunExposure={manualSunExposure}
-          marqueeRect={marqueeRect}
-          onMarqueePointerDown={onMarqueePointerDown}
-          onMarqueePointerEnd={onMarqueePointerEnd}
-          onMarqueePointerMove={onMarqueePointerMove}
+          marqueeRect={pointerInteractions.marqueeRect}
+          onMarqueePointerDown={pointerInteractions.handleMarqueePointerDown}
+          onMarqueePointerEnd={pointerInteractions.handleMarqueePointerEnd}
+          onMarqueePointerMove={pointerInteractions.handleMarqueePointerMove}
           onPaintSunShadeCell={onPaintSunShadeCell}
           onPlantEditorOpen={onPlantEditorOpen}
           onPlantHoverChange={onPlantHoverChange}
           onPlantLabelHide={onPlantLabelHide}
           onPlantLabelShow={onPlantLabelShow}
-          onPlantPointerDown={onPlantPointerDown}
-          onPlantPointerEnd={onPlantPointerEnd}
-          onPlantPointerMove={onPlantPointerMove}
-          onResizePointerDown={onResizePointerDown}
-          onResizePointerEnd={onResizePointerEnd}
-          onResizePointerMove={onResizePointerMove}
+          onPlantPointerDown={pointerInteractions.handlePlantPointerDown}
+          onPlantPointerEnd={pointerInteractions.handlePlantPointerEnd}
+          onPlantPointerMove={pointerInteractions.handlePlantPointerMove}
+          onResizePointerDown={pointerInteractions.handleResizePointerDown}
+          onResizePointerEnd={pointerInteractions.handleResizePointerEnd}
+          onResizePointerMove={pointerInteractions.handleResizePointerMove}
           onSelectItem={onSelectItem}
-          onStructurePointerDown={onStructurePointerDown}
-          onStructurePointerEnd={onStructurePointerEnd}
-          onStructurePointerMove={onStructurePointerMove}
+          onStructurePointerDown={
+            pointerInteractions.handleStructurePointerDown
+          }
+          onStructurePointerEnd={pointerInteractions.handleStructurePointerEnd}
+          onStructurePointerMove={
+            pointerInteractions.handleStructurePointerMove
+          }
           plantingPreview={plantingPreview}
-          plotRef={plotRef}
+          plotRef={pointerInteractions.plotRef}
           plotStyle={plotStyle}
           proposalDiffOverlay={proposalDiffOverlay}
-          resizingStructureId={resizingStructureId}
+          resizePreview={pointerInteractions.resizePreview}
+          resizingStructureId={pointerInteractions.resizingStructureId}
           sceneStyle={sceneStyle}
           selectedPlantIds={selectedPlantIds}
           selectedStructureIds={selectedStructureIds}
           showSunLayer={layers.sun}
-          snapGuides={snapGuides}
+          snapGuides={pointerInteractions.snapGuides}
           sunSeason={sunSeason}
-          visibleWarnings={visibleWarnings}
+          visibleWarnings={immediateWarnings}
           visiblePlantLabelIds={visiblePlantLabelIds}
         />
       </div>

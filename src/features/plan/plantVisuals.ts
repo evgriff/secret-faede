@@ -187,7 +187,8 @@ export function getPlantGroupLabelDecision({
         ? clamp(widthPx - 12, 58, 190)
         : clamp(Math.max(widthPx + 44, estimatedLabelPx), 92, 210),
     placement,
-    visible: !dragging && (pinned || (hovering && hasHoverRoom)),
+    visible:
+      !dragging && (hasInteriorRoom || pinned || (hovering && hasHoverRoom)),
   };
 }
 

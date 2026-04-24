@@ -1,6 +1,6 @@
 # Secret Faede
 
-Secret Faede is a private Garden OS for one real home food garden. It uses
+Secret Faede is a private garden planner for one real home food garden. It uses
 Firebase email/password auth for exactly two provisioned accounts, then routes
 the signed-in user into Plan, Today, Feed, and Settings around one shared
 published garden with private drafts.
@@ -42,8 +42,8 @@ Included:
   workflows
 - Feed memory cards with a single New entry launcher and image-led photo
   updates
-- sample garden mode with shell and Settings controls to enter, reset, return
-  to the current workspace, and exit a stable Detroit garden
+- sample garden controls in Settings for opening, resetting, and leaving a
+  stable Detroit example garden on the current device
 - Firebase Cloud Functions source for daily watering checks and weather-driven
   frost, heat, and severe-weather alerts
 - Firebase Storage for authenticated journal photos

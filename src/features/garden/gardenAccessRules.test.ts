@@ -7,6 +7,7 @@ import { findPlanWarnings } from './gardenPlanning';
 import {
   getPathLengthDimension,
   getPathNarrowDimension,
+  getPathRequiredWidthFt,
   getWalkablePathWidthFt,
   resizePathLength,
   resizePathWalkableWidth,
@@ -55,6 +56,19 @@ describe('garden access rules', () => {
   });
 
   it('keeps access path width tied to the narrow side of the footprint', () => {
+    const standardPath = createDefaultStructure({
+      id: 'path-standard',
+      type: 'pathway',
+      xFt: 0,
+      yFt: 0,
+    });
+    const accessiblePath = createDefaultStructure({
+      accessibleMode: true,
+      id: 'path-accessible',
+      type: 'pathway',
+      xFt: 0,
+      yFt: 0,
+    });
     const verticalPath = {
       ...createDefaultStructure({
         id: 'path-vertical',
@@ -75,6 +89,11 @@ describe('garden access rules', () => {
       depthFt: 2,
       widthFt: 8,
     };
+
+    expect(getWalkablePathWidthFt(standardPath)).toBe(1.5);
+    expect(getPathRequiredWidthFt(standardPath)).toBe(1.5);
+    expect(getWalkablePathWidthFt(accessiblePath)).toBe(4);
+    expect(getPathRequiredWidthFt(accessiblePath)).toBe(4);
 
     expect(getWalkablePathWidthFt(verticalPath)).toBe(2.5);
     expect(getPathNarrowDimension(verticalPath)).toBe('widthFt');

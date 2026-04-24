@@ -7,10 +7,7 @@ import type {
   GardenPlot,
 } from '../../domain/gardens/GardenRepository';
 import { routePaths } from '../../shared/lib/routes';
-import {
-  closeOnBackdropMouseDown,
-  useEscapeToClose,
-} from '../shared/design/dialogDismiss';
+import { Button, Modal } from '../shared/design/DesignPrimitives';
 import { clampPlotDimension, maxPlotFeet, minPlotFeet } from './gardenMath';
 import { geocodeLocation } from './geocoding';
 import styles from '../plan/PlanModal.module.css';
@@ -54,8 +51,6 @@ export function PlotSettingsModal({
     'error' | 'idle' | 'loading'
   >('idle');
 
-  useEscapeToClose(onClose);
-
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onApply(
@@ -91,170 +86,154 @@ export function PlotSettingsModal({
   }
 
   return (
-    <div
-      className={styles.modalBackdrop}
-      onMouseDown={(event) => closeOnBackdropMouseDown(event, onClose)}
+    <Modal
+      className={styles.plotModal}
+      closeLabel="Close plot settings"
+      description="Update the saved plot size, orientation, and location."
+      footer={
+        <>
+          <Button onClick={onClose} tone="secondary" type="button">
+            Cancel
+          </Button>
+          <Button form="plot-settings-form" tone="primary" type="submit">
+            Save plot
+          </Button>
+        </>
+      }
+      onClose={onClose}
+      title="Plot settings"
     >
-      <section
-        aria-labelledby="plot-settings-title"
-        aria-modal="true"
-        className={`${styles.modal} ${styles.plotModal}`}
-        role="dialog"
+      <form
+        className={styles.modalForm}
+        id="plot-settings-form"
+        onSubmit={handleSubmit}
       >
-        <div className={styles.modalHeader}>
-          <h2 id="plot-settings-title">Plot settings</h2>
-          <button
-            aria-label="Close"
-            className={styles.iconButton}
-            onClick={onClose}
-            type="button"
-          >
-            x
-          </button>
-        </div>
-        <form className={styles.modalForm} onSubmit={handleSubmit}>
-          <fieldset className={styles.settingsSection}>
-            <legend>Size</legend>
-            <div className={styles.filterGrid}>
-              <label className={styles.field}>
-                <span>Width in feet</span>
-                <input
-                  inputMode="numeric"
-                  max={maxPlotFeet}
-                  min={minPlotFeet}
-                  onChange={(event) => setWidthFt(event.currentTarget.value)}
-                  step="1"
-                  type="number"
-                  value={widthFt}
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Depth in feet</span>
-                <input
-                  inputMode="numeric"
-                  max={maxPlotFeet}
-                  min={minPlotFeet}
-                  onChange={(event) => setDepthFt(event.currentTarget.value)}
-                  step="1"
-                  type="number"
-                  value={depthFt}
-                />
-              </label>
-            </div>
-          </fieldset>
-
-          <fieldset className={styles.settingsSection}>
-            <legend>Orientation</legend>
+        <fieldset className={styles.settingsSection}>
+          <legend>Size</legend>
+          <div className={styles.filterGrid}>
             <label className={styles.field}>
-              <span>North orientation degrees</span>
+              <span>Width in feet</span>
               <input
                 inputMode="numeric"
-                max="359"
-                min="0"
-                onChange={(event) =>
-                  setOrientationDegrees(event.currentTarget.value)
-                }
+                max={maxPlotFeet}
+                min={minPlotFeet}
+                onChange={(event) => setWidthFt(event.currentTarget.value)}
                 step="1"
                 type="number"
-                value={orientationDegrees}
+                value={widthFt}
               />
             </label>
-          </fieldset>
-
-          <fieldset className={styles.settingsSection}>
-            <legend>Location</legend>
             <label className={styles.field}>
-              <span>Garden location</span>
+              <span>Depth in feet</span>
               <input
-                onChange={(event) =>
-                  setLocationQuery(event.currentTarget.value)
-                }
-                type="text"
-                value={locationQuery}
+                inputMode="numeric"
+                max={maxPlotFeet}
+                min={minPlotFeet}
+                onChange={(event) => setDepthFt(event.currentTarget.value)}
+                step="1"
+                type="number"
+                value={depthFt}
               />
             </label>
-            <div className={styles.inlineAction}>
-              <button
-                className={styles.secondaryButton}
-                disabled={!geocodingApiKey || geocodeStatus === 'loading'}
-                onClick={() => void handleGeocode()}
-                type="button"
-              >
-                {geocodeStatus === 'loading' ? 'Finding...' : 'Find coords'}
-              </button>
-              <span>{plot.location.timezone || 'Timezone not set'}</span>
-            </div>
-            {geocodeStatus === 'error' ? (
-              <p className={styles.error} role="alert">
-                Unable to geocode this location. Enter latitude and longitude
-                manually.
-              </p>
-            ) : null}
-            {!geocodingApiKey ? (
-              <p className={styles.helpText}>
-                Add VITE_GOOGLE_MAPS_API_KEY to enable geocoding, or enter
-                coordinates manually.
-              </p>
-            ) : null}
-            <label className={styles.field}>
-              <span>Location name</span>
-              <input
-                onChange={(event) => setLocationName(event.currentTarget.value)}
-                type="text"
-                value={locationName}
-              />
-            </label>
-          </fieldset>
+          </div>
+        </fieldset>
 
-          <fieldset className={styles.settingsSection}>
-            <legend>Manual coordinates</legend>
-            <div className={styles.filterGrid}>
-              <label className={styles.field}>
-                <span>Latitude</span>
-                <input
-                  inputMode="decimal"
-                  onChange={(event) => setLatitude(event.currentTarget.value)}
-                  type="number"
-                  value={latitude}
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Longitude</span>
-                <input
-                  inputMode="decimal"
-                  onChange={(event) => setLongitude(event.currentTarget.value)}
-                  type="number"
-                  value={longitude}
-                />
-              </label>
-            </div>
-          </fieldset>
+        <fieldset className={styles.settingsSection}>
+          <legend>Orientation</legend>
+          <label className={styles.field}>
+            <span>North orientation degrees</span>
+            <input
+              inputMode="numeric"
+              max="359"
+              min="0"
+              onChange={(event) =>
+                setOrientationDegrees(event.currentTarget.value)
+              }
+              step="1"
+              type="number"
+              value={orientationDegrees}
+            />
+          </label>
+        </fieldset>
 
-          <section className={styles.settingsSection}>
-            <h3>Climate defaults</h3>
-            <p className={styles.helpText}>
-              {formatClimateDefaults(climateProfile)}
-            </p>
-            <Link className={styles.inlineLink} to={routePaths.settings}>
-              Open Settings
-            </Link>
-          </section>
-
-          <div className={styles.modalActions}>
+        <fieldset className={styles.settingsSection}>
+          <legend>Location</legend>
+          <label className={styles.field}>
+            <span>Garden location</span>
+            <input
+              onChange={(event) => setLocationQuery(event.currentTarget.value)}
+              type="text"
+              value={locationQuery}
+            />
+          </label>
+          <div className={styles.inlineAction}>
             <button
               className={styles.secondaryButton}
-              onClick={onClose}
+              disabled={!geocodingApiKey || geocodeStatus === 'loading'}
+              onClick={() => void handleGeocode()}
               type="button"
             >
-              Cancel
+              {geocodeStatus === 'loading' ? 'Finding...' : 'Find coords'}
             </button>
-            <button className={styles.primaryButton} type="submit">
-              Save plot
-            </button>
+            <span>{plot.location.timezone || 'Timezone not set'}</span>
           </div>
-        </form>
-      </section>
-    </div>
+          {geocodeStatus === 'error' ? (
+            <p className={styles.error} role="alert">
+              Unable to geocode this location. Enter latitude and longitude
+              manually.
+            </p>
+          ) : null}
+          {!geocodingApiKey ? (
+            <p className={styles.helpText}>
+              Add VITE_GOOGLE_MAPS_API_KEY to enable geocoding, or enter
+              coordinates manually.
+            </p>
+          ) : null}
+          <label className={styles.field}>
+            <span>Location name</span>
+            <input
+              onChange={(event) => setLocationName(event.currentTarget.value)}
+              type="text"
+              value={locationName}
+            />
+          </label>
+        </fieldset>
+
+        <fieldset className={styles.settingsSection}>
+          <legend>Manual coordinates</legend>
+          <div className={styles.filterGrid}>
+            <label className={styles.field}>
+              <span>Latitude</span>
+              <input
+                inputMode="decimal"
+                onChange={(event) => setLatitude(event.currentTarget.value)}
+                type="number"
+                value={latitude}
+              />
+            </label>
+            <label className={styles.field}>
+              <span>Longitude</span>
+              <input
+                inputMode="decimal"
+                onChange={(event) => setLongitude(event.currentTarget.value)}
+                type="number"
+                value={longitude}
+              />
+            </label>
+          </div>
+        </fieldset>
+
+        <section className={styles.settingsSection}>
+          <h3>Climate defaults</h3>
+          <p className={styles.helpText}>
+            {formatClimateDefaults(climateProfile)}
+          </p>
+          <Link className={styles.inlineLink} to={routePaths.settings}>
+            Open Settings
+          </Link>
+        </section>
+      </form>
+    </Modal>
   );
 }
 

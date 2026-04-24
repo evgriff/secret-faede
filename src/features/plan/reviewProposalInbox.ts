@@ -58,8 +58,7 @@ export function getReviewProposalNextAction(inbox: ReviewProposalInbox): {
 } {
   if (inbox.openSuggestions.length === 0) {
     return {
-      detail:
-        'Generate checked variants or keep editing to surface problem decisions.',
+      detail: 'Generate layouts or keep editing to surface problem decisions.',
       label: 'No draft decisions waiting',
     };
   }

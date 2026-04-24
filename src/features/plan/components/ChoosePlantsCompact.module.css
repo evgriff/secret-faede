@@ -12,7 +12,7 @@
 .libraryCard {
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start;
-  min-height: 5.5rem;
+  min-height: 5rem;
 }
 
 .boardCard {
@@ -156,8 +156,7 @@
 }
 
 .libraryCard .factStrip {
-  flex-wrap: nowrap;
-  overflow-x: auto;
+  flex-wrap: wrap;
 }
 
 .factPill {
@@ -307,7 +306,7 @@
 }
 
 .cardButton {
-  min-height: 2.35rem;
+  min-height: 2.25rem;
   padding-inline: 0.72rem;
 }
 

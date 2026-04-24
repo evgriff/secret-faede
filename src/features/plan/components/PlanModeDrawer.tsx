@@ -8,14 +8,9 @@ import type {
   SunExposure,
   SunShadeLayer,
 } from '../../../domain/gardens/GardenRepository';
-import type {
-  PlanHealthIssue,
-  PlanHealthReport,
-} from '../../garden/planHealthRules';
 import type { SunSeason } from '../../garden/sunShadeEngine';
 import type { LayoutProblemResolutionModel } from '../layoutProblemResolution';
-import { getPlanModeLabel, planModes, type PlanMode } from '../planModes';
-import { PlanHealthPanel } from './PlanHealthPanel';
+import type { PlanMode } from '../planModes';
 import { PlanReviewPanel } from './PlanReviewPanel';
 import { PlanSunControls } from './PlanSunControls';
 import styles from './PlanModeDrawer.module.css';
@@ -31,17 +26,12 @@ export function PlanModeDrawer({
   onAddStructure,
   onApplyResolutionOption,
   onClose,
-  onGenerateAutoLayoutCandidates,
-  onDismissHealthIssue,
   onIgnoreProblem,
-  onJumpToHealthIssue,
   onJumpToProblem,
   onPreviewResolutionOption,
   onRecalculateSun,
-  onRestoreWarning,
   onSelectProblem,
   layoutProblemResolutionModel,
-  planHealthReport,
   setManualSunEdit,
   setManualSunExposure,
   setAccessiblePathDefaults,
@@ -63,16 +53,11 @@ export function PlanModeDrawer({
   onAddStructure(): void;
   onApplyResolutionOption(option: LayoutResolutionOption): void;
   onClose(): void;
-  onDismissHealthIssue(issue: PlanHealthIssue): void;
-  onGenerateAutoLayoutCandidates(): void;
   onIgnoreProblem(problem: LayoutProblem): void;
-  onJumpToHealthIssue(issue: PlanHealthIssue): void;
   onJumpToProblem(problem: LayoutProblem): void;
   onPreviewResolutionOption(option: LayoutResolutionOption): void;
   onRecalculateSun(): void;
-  onRestoreWarning(warningId: string): void;
   onSelectProblem(problemId: string | null): void;
-  planHealthReport: PlanHealthReport;
   setManualSunEdit(value: boolean): void;
   setManualSunExposure(value: SunExposure): void;
   setAccessiblePathDefaults(value: boolean): void;
@@ -88,7 +73,7 @@ export function PlanModeDrawer({
       <div className={styles.drawerBody}>
         <div className={styles.drawerHeader}>
           <div>
-            <span className={styles.kicker}>{getPlanModeLabel(mode)} mode</span>
+            <span className={styles.kicker}>{getDrawerKicker(mode)}</span>
             <h2>{getDrawerTitle(mode)}</h2>
             <p>{getDrawerCopy(mode)}</p>
           </div>
@@ -98,7 +83,7 @@ export function PlanModeDrawer({
             onClick={onClose}
             type="button"
           >
-            X
+            Close
           </button>
         </div>
         {mode === 'plant' ? (
@@ -134,38 +119,40 @@ export function PlanModeDrawer({
           />
         ) : null}
         {mode === 'optimize' ? (
-          <>
-            <PlanReviewPanel
-              activeProblemId={activeProblemId}
-              layoutModel={layoutProblemResolutionModel}
-              onApplyResolutionOption={onApplyResolutionOption}
-              onGenerateVariants={onGenerateAutoLayoutCandidates}
-              onIgnoreProblem={onIgnoreProblem}
-              onJumpToProblem={onJumpToProblem}
-              onPreviewResolutionOption={onPreviewResolutionOption}
-              onSelectProblem={onSelectProblem}
-            />
-            <PlanHealthPanel
-              onDismissIssue={onDismissHealthIssue}
-              onJumpToIssue={onJumpToHealthIssue}
-              onRestoreIssue={(issue) => {
-                if (issue.restoreWarningId) {
-                  onRestoreWarning(issue.restoreWarningId);
-                }
-              }}
-              report={planHealthReport}
-            />
-          </>
+          <PlanReviewPanel
+            activeProblemId={activeProblemId}
+            layoutModel={layoutProblemResolutionModel}
+            onApplyResolutionOption={onApplyResolutionOption}
+            onIgnoreProblem={onIgnoreProblem}
+            onJumpToProblem={onJumpToProblem}
+            onPreviewResolutionOption={onPreviewResolutionOption}
+            onSelectProblem={onSelectProblem}
+          />
         ) : null}
       </div>
     </section>
   );
 }
 
+function getDrawerKicker(mode: PlanMode) {
+  switch (mode) {
+    case 'optimize':
+      return 'Review';
+    case 'plant':
+      return 'Plant by hand';
+    case 'select':
+      return 'Selection';
+    case 'structure':
+      return 'Structures';
+    case 'sun':
+      return 'Sun guidance';
+  }
+}
+
 function getDrawerTitle(mode: PlanMode) {
   switch (mode) {
     case 'optimize':
-      return 'Problem inbox and variants';
+      return 'Review problems';
     case 'plant':
       return 'Place plants manually';
     case 'select':
@@ -178,7 +165,18 @@ function getDrawerTitle(mode: PlanMode) {
 }
 
 function getDrawerCopy(mode: PlanMode) {
-  return planModes.find((entry) => entry.mode === mode)?.description ?? '';
+  switch (mode) {
+    case 'optimize':
+      return 'Work through spacing, access, and support issues here. If you want a different arrangement, try the layout ideas below.';
+    case 'plant':
+      return 'Place crop-backed plantings by hand when the layout needs a direct edit.';
+    case 'select':
+      return 'Inspect the current plant or structure.';
+    case 'structure':
+      return 'Place only the bed, path, or support you actually need on the plan.';
+    case 'sun':
+      return 'Use sun and shade as guidance before you move crops or change the plot.';
+  }
 }
 
 const primaryStructureOptions: Array<{
@@ -219,7 +217,7 @@ function StructureControls({
   return (
     <div className={styles.structureControls}>
       <label>
-        <span>Plot structure</span>
+        <span>What to place</span>
         <select
           aria-label="Plot structure type"
           onChange={(event) =>
@@ -245,7 +243,7 @@ function StructureControls({
             }
             type="checkbox"
           />{' '}
-          Accessible path defaults
+          Use accessible-width path
         </label>
       ) : null}
       <button
@@ -253,7 +251,7 @@ function StructureControls({
         onClick={onAddStructure}
         type="button"
       >
-        Place structure
+        Place on plan
       </button>
     </div>
   );

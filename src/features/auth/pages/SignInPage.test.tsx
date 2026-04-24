@@ -63,11 +63,12 @@ describe('SignInPage', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     expect(
-      await screen.findByRole('region', { name: 'Feed summary' }),
+      await screen.findByRole('button', { name: 'New entry' }),
     ).toBeVisible();
     expect(
       screen.getByRole('heading', { level: 1, name: 'Feed' }),
     ).toBeVisible();
+    expect(await screen.findByText(/entries shown/i)).toBeVisible();
   });
 
   it('sends a password reset only for an allowed email', async () => {

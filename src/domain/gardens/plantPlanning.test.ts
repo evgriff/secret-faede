@@ -190,8 +190,8 @@ describe('plant planning domain model', () => {
         components: {
           access: 0.9,
           spacing: 0.8,
-          sun: 0.75,
-          support: 1,
+          structures: 1,
+          water: 0.75,
         },
         total: 0.86,
       },

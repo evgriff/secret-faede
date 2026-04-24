@@ -45,11 +45,12 @@ describe('app routing', () => {
     renderRoute('/', services);
 
     expect(
-      await screen.findByRole('region', { name: 'Feed summary' }),
+      await screen.findByRole('button', { name: 'New entry' }),
     ).toBeVisible();
     expect(
       screen.getByRole('heading', { level: 1, name: 'Feed' }),
     ).toBeVisible();
+    expect(await screen.findByText(/entries shown/i)).toBeVisible();
   });
 
   it('redirects the app shell index to Plan', async () => {
@@ -88,13 +89,12 @@ describe('app routing', () => {
     renderRoute('/app/feed', services);
 
     expect(
-      await screen.findByRole('region', { name: 'Feed summary' }),
+      await screen.findByRole('button', { name: 'New entry' }),
     ).toBeVisible();
     expect(
       screen.getByRole('heading', { level: 1, name: 'Feed' }),
     ).toBeVisible();
-    expect(screen.getByRole('button', { name: 'New entry' })).toBeVisible();
-    expect(screen.getByText(/memories shown/i)).toBeVisible();
+    expect(await screen.findByText(/entries shown/i)).toBeVisible();
   });
 
   it('redirects the legacy garden route to Plan', async () => {
@@ -128,7 +128,7 @@ describe('app routing', () => {
     renderRoute('/app/log', services);
 
     expect(
-      await screen.findByRole('region', { name: 'Feed summary' }),
+      await screen.findByRole('button', { name: 'New entry' }),
     ).toBeVisible();
     expect(
       screen.getByRole('heading', { level: 1, name: 'Feed' }),
@@ -143,7 +143,7 @@ describe('app routing', () => {
     renderRoute('/app/journal', services);
 
     expect(
-      await screen.findByRole('region', { name: 'Feed summary' }),
+      await screen.findByRole('button', { name: 'New entry' }),
     ).toBeVisible();
     expect(
       screen.getByRole('heading', { level: 1, name: 'Feed' }),
@@ -166,7 +166,7 @@ describe('app routing', () => {
     );
   });
 
-  it('enters, resets, and exits demo mode from the shell controls', async () => {
+  it('enters, resets, and exits the sample garden from Settings', async () => {
     const user = userEvent.setup();
     const services = await createConfiguredGardenServices();
     const currentUser = services.authService.getCurrentUser();
@@ -175,19 +175,29 @@ describe('app routing', () => {
       throw new Error('Expected signed-in test user.');
     }
 
-    renderRoute('/app/plan', services);
+    renderRoute('/app/settings', services);
 
-    await user.click(await screen.findByRole('button', { name: 'Enter demo' }));
+    const disclosure = await screen.findByTestId('sample-garden-disclosure');
+    const disclosureSummary = disclosure.querySelector('summary');
+
+    if (!disclosureSummary) {
+      throw new Error('Expected the sample garden disclosure summary.');
+    }
+
+    await user.click(disclosureSummary);
+    await user.click(
+      await screen.findByRole('button', { name: 'Open sample garden' }),
+    );
 
     await waitFor(async () => {
       await expectDemoGardenName(services, currentUser.uid);
     });
-    expect(screen.getByText('Demo mode')).toBeVisible();
-    const shellDemoControls = screen.getByLabelText('Demo controls');
+    const sampleGarden = screen.getByRole('region', { name: 'Sample garden' });
+    expect(sampleGarden).toHaveTextContent('Sample garden active.');
 
     await user.click(
-      within(shellDemoControls).getByRole('button', {
-        name: 'Reset seeded demo',
+      within(sampleGarden).getByRole('button', {
+        name: 'Reset sample garden',
       }),
     );
     await waitFor(async () => {
@@ -195,7 +205,9 @@ describe('app routing', () => {
     });
 
     await user.click(
-      within(shellDemoControls).getByRole('button', { name: 'Exit demo' }),
+      within(sampleGarden).getByRole('button', {
+        name: 'Return to saved garden',
+      }),
     );
 
     await waitFor(async () => {

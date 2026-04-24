@@ -36,7 +36,7 @@ export function buildLayoutVariants({
 
     return {
       assumptions: [
-        `Strategy: ${candidate.strategy}`,
+        `Approach: ${candidate.label}.`,
         `Recursive search: ${candidate.search.status}, ${candidate.search.evaluatedStates} states checked, depth ${candidate.search.reachedDepth}/${candidate.search.maxDepth}.`,
         ...candidate.tradeoffs.slice(0, 3),
         ...candidate.unplaced.map(
@@ -57,23 +57,19 @@ export function buildLayoutVariants({
       resolutionOptions: variantOptions,
       score: {
         components: {
-          access: candidate.scoreBreakdown.waterGrouping,
+          access: candidate.scoreBreakdown.accessQuality,
           spacing: candidate.scoreBreakdown.spacingQuality,
-          sun: Math.max(
-            candidate.scoreBreakdown.seasonalSuitability,
-            candidate.scoreBreakdown.shadeManagement,
-          ),
-          support:
-            candidate.strategy === 'supportFirst'
-              ? candidate.scoreBreakdown.spacingQuality
-              : candidate.scoreBreakdown.waterGrouping,
+          structures: candidate.scoreBreakdown.structureCompatibility,
+          water: candidate.scoreBreakdown.waterGrouping,
         },
-        total: Math.round(
-          (candidate.scoreBreakdown.seasonalSuitability +
-            candidate.scoreBreakdown.shadeManagement +
-            candidate.scoreBreakdown.spacingQuality +
-            candidate.scoreBreakdown.waterGrouping) /
-            4,
+        total: Number(
+          (
+            (candidate.scoreBreakdown.accessQuality +
+              candidate.scoreBreakdown.spacingQuality +
+              candidate.scoreBreakdown.structureCompatibility +
+              candidate.scoreBreakdown.waterGrouping) /
+            4
+          ).toFixed(2),
         ),
       },
       structures: candidate.structures,

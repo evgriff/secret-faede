@@ -143,6 +143,8 @@
 }
 
 .plant {
+  --preview-offset-x: 0px;
+  --preview-offset-y: 0px;
   --plant-status-color: #2f6f43;
   --plant-status-bg: rgba(248, 251, 241, 0.86);
   position: absolute;
@@ -167,6 +169,7 @@
   box-shadow:
     0 10px 18px rgba(31, 27, 24, 0.16),
     inset 0 0 0 1px rgba(255, 253, 247, 0.28);
+  transform: translate(var(--preview-offset-x), var(--preview-offset-y));
   transition:
     opacity var(--motion-micro) var(--ease-standard),
     transform var(--motion-micro) var(--ease-emphasis);
@@ -192,6 +195,8 @@
 }
 
 .plantGroup {
+  --preview-offset-x: 0px;
+  --preview-offset-y: 0px;
   --plant-accent: #2f6f43;
   --plant-accent-strong: #24472e;
   --plant-dot: #3d8b55;
@@ -203,6 +208,7 @@
   min-height: 1.4rem;
   color: var(--plant-accent-strong);
   touch-action: none;
+  transform: translate(var(--preview-offset-x), var(--preview-offset-y));
   transition:
     opacity var(--motion-micro) var(--ease-standard),
     transform var(--motion-micro) var(--ease-emphasis);
@@ -212,13 +218,13 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--plant-accent-strong), #1f1b18 8%);
+  border: 1px solid color-mix(in srgb, var(--plant-accent-strong), #1f1b18 14%);
   border-radius: 6px;
   background:
     linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--plant-soft), #fffdf7 42%),
-      color-mix(in srgb, var(--plant-soft), #ffffff 14%)
+      155deg,
+      color-mix(in srgb, var(--plant-soft), #fffdf7 34%),
+      color-mix(in srgb, var(--plant-soft), #ffffff 8%)
     ),
     var(--plant-soft);
   color: inherit;
@@ -227,8 +233,8 @@
   padding: 0;
   touch-action: none;
   box-shadow:
-    0 10px 18px rgba(31, 27, 24, 0.15),
-    inset 0 0 0 1px rgba(255, 253, 247, 0.4);
+    0 11px 20px rgba(31, 27, 24, 0.14),
+    inset 0 0 0 1px rgba(255, 253, 247, 0.44);
 }
 
 .plantGroupSurface:focus-visible,
@@ -242,30 +248,34 @@
 .plantGroupSurface::before {
   content: '';
   position: absolute;
-  inset: 0.18rem;
-  border: 1px dashed color-mix(in srgb, var(--plant-accent), transparent 56%);
+  inset: 0.16rem;
+  border: 1px solid color-mix(in srgb, var(--plant-accent), transparent 74%);
   border-radius: 5px;
-  opacity: 0.58;
+  opacity: 0.48;
   pointer-events: none;
 }
 
 .plantGroupDots {
   position: absolute;
   inset: 0.24rem;
-  opacity: 0.86;
+  opacity: 0.74;
   pointer-events: none;
+}
+
+.plantLabelInside .plantGroupDots {
+  inset: 0.24rem 0.24rem 1.7rem;
 }
 
 .plantGroupDot {
   position: absolute;
-  width: 0.31rem;
-  height: 0.31rem;
+  width: 0.29rem;
+  height: 0.29rem;
   border: 1px solid rgba(255, 253, 247, 0.82);
   border-radius: var(--radius-pill);
   background: var(--plant-dot);
   box-shadow:
-    0 1px 3px rgba(31, 27, 24, 0.22),
-    0 0 0 1px color-mix(in srgb, var(--plant-accent-strong), transparent 72%);
+    0 1px 2px rgba(31, 27, 24, 0.16),
+    0 0 0 1px color-mix(in srgb, var(--plant-accent-strong), transparent 78%);
   transform: translate(-50%, -50%);
 }
 
@@ -283,56 +293,116 @@
   right: 0.18rem;
   bottom: 0.1rem;
   border-radius: var(--radius-pill);
-  background: rgba(255, 253, 247, 0.86);
+  background: rgba(255, 253, 247, 0.82);
   color: var(--plant-accent-strong);
   font-size: 0.48rem;
-  font-weight: 940;
+  font-weight: 900;
   line-height: 1;
   padding: 0.1rem 0.18rem;
-  box-shadow: 0 1px 3px rgba(31, 27, 24, 0.14);
+  box-shadow: 0 1px 2px rgba(31, 27, 24, 0.1);
+}
+
+.plantLabelInside .plantGroupMore {
+  bottom: 1.42rem;
 }
 
 .plantGroupIconWrap {
   position: absolute;
-  top: 0.18rem;
-  left: 0.18rem;
+  top: 0.24rem;
+  left: 0.24rem;
   display: grid;
   place-items: center;
   z-index: 2;
-  width: 1.52rem;
-  height: 1.52rem;
+  width: 1.22rem;
+  height: 1.22rem;
   border: 1px solid
-    color-mix(in srgb, var(--plant-accent-strong), transparent 72%);
+    color-mix(in srgb, var(--plant-accent-strong), transparent 82%);
   border-radius: var(--radius-pill);
-  background: rgba(255, 253, 247, 0.94);
-  box-shadow:
-    0 2px 7px rgba(31, 27, 24, 0.18),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.54);
+  background: rgba(255, 253, 247, 0.8);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.44);
   pointer-events: none;
 }
 
 .plantGroupIcon {
-  width: 1.16rem;
-  height: 1.16rem;
-  color: var(--plant-accent);
-  filter: drop-shadow(0 1px 0 rgba(255, 253, 247, 0.74));
+  width: 0.88rem;
+  height: 0.88rem;
+  color: color-mix(in srgb, var(--plant-accent), #24472e 14%);
+  filter: drop-shadow(0 1px 0 rgba(255, 253, 247, 0.56));
 }
 
 .plantGroupMark {
   position: absolute;
-  right: -0.04rem;
-  bottom: -0.08rem;
+  right: -0.02rem;
+  bottom: -0.04rem;
   display: grid;
   place-items: center;
-  min-width: 0.66rem;
-  height: 0.66rem;
-  border: 1px solid rgba(255, 253, 247, 0.8);
+  min-width: 0.54rem;
+  height: 0.54rem;
+  border: 1px solid rgba(255, 253, 247, 0.72);
   border-radius: var(--radius-pill);
-  background: var(--plant-accent-strong);
+  background: color-mix(in srgb, var(--plant-accent-strong), #fffdf7 12%);
   color: #fffdf7;
-  font-size: 0.44rem;
-  font-weight: 950;
+  font-size: 0.38rem;
+  font-weight: 900;
   line-height: 1;
+}
+
+.compactPlantGroup .plantGroupIconWrap {
+  width: 1.08rem;
+  height: 1.08rem;
+}
+
+.compactPlantGroup .plantGroupIcon {
+  width: 0.78rem;
+  height: 0.78rem;
+}
+
+.compactPlantGroup .plantGroupMark {
+  min-width: 0.5rem;
+  height: 0.5rem;
+  font-size: 0.34rem;
+}
+
+.plantGroupInteriorLabel {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+  padding: 1rem 0.34rem 0.28rem;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 253, 247, 0) 0%,
+    rgba(255, 253, 247, 0.86) 58%,
+    rgba(255, 253, 247, 0.97) 100%
+  );
+  pointer-events: none;
+}
+
+.plantGroupInteriorMeta {
+  overflow: hidden;
+  color: color-mix(in srgb, var(--plant-accent-strong), transparent 34%);
+  font-size: 0.46rem;
+  font-weight: 880;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.plantGroupInteriorName {
+  overflow: hidden;
+  color: color-mix(in srgb, var(--plant-accent-strong), #1f1b18 10%);
+  font-size: 0.8rem;
+  font-weight: 940;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .plantGroupLabel {
@@ -395,18 +465,18 @@
   max-width: 100%;
   border: 1px solid rgba(31, 27, 24, 0.12);
   border-radius: var(--radius-pill);
-  background: rgba(255, 253, 247, 0.98);
-  color: rgba(31, 27, 24, 0.86);
-  font-size: 0.62rem;
-  font-weight: 940;
+  background: rgba(255, 253, 247, 0.94);
+  color: rgba(31, 27, 24, 0.78);
+  font-size: 0.58rem;
+  font-weight: 900;
   line-height: 1;
-  padding: 0.22rem 0.4rem;
+  padding: 0.2rem 0.36rem;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
   box-shadow:
-    0 5px 14px rgba(31, 27, 24, 0.18),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.54);
+    0 4px 10px rgba(31, 27, 24, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.42);
 }
 
 .plantLabelInside .plantGroupName {
@@ -419,11 +489,14 @@
 .plantGroupSignals {
   position: absolute;
   top: 0.24rem;
-  right: 1.58rem;
-  left: 1.74rem;
+  right: 0.24rem;
+  left: auto;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   min-width: 0;
-  gap: 0.12rem;
+  max-width: calc(100% - 1.82rem);
+  gap: 0.1rem;
   overflow: visible;
   pointer-events: none;
 }
@@ -565,12 +638,13 @@
   min-width: 0;
   overflow: hidden;
   border-radius: 3px;
-  background: rgba(255, 253, 247, 0.66);
-  color: rgba(31, 27, 24, 0.72);
-  font-size: 0.48rem;
-  font-weight: 920;
+  background: rgba(255, 253, 247, 0.58);
+  color: rgba(31, 27, 24, 0.64);
+  font-size: 0.42rem;
+  font-weight: 880;
+  letter-spacing: 0.03em;
   line-height: 1;
-  padding: 0.1rem 0.16rem;
+  padding: 0.08rem 0.14rem;
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
@@ -607,28 +681,28 @@
 }
 
 .anchorSignal {
-  background: rgba(36, 71, 46, 0.12);
-  color: #24472e;
+  background: rgba(36, 71, 46, 0.1);
+  color: rgba(36, 71, 46, 0.84);
 }
 
 .lockSignal {
-  background: rgba(31, 27, 24, 0.72);
-  color: #fffdf7;
+  background: rgba(31, 27, 24, 0.5);
+  color: rgba(255, 253, 247, 0.94);
 }
 
 .supportSignal {
-  background: rgba(95, 145, 174, 0.18);
-  color: #1f566f;
+  background: rgba(95, 145, 174, 0.1);
+  color: rgba(31, 86, 111, 0.82);
 }
 
 .supportMissingSignal {
-  background: rgba(179, 90, 63, 0.16);
-  color: #8a3d2b;
+  background: rgba(179, 90, 63, 0.1);
+  color: rgba(138, 61, 43, 0.84);
 }
 
 .warningSignal {
-  background: rgba(179, 90, 63, 0.14);
-  color: #8a3d2b;
+  background: rgba(179, 90, 63, 0.08);
+  color: rgba(138, 61, 43, 0.84);
 }
 
 .structure small {
@@ -730,13 +804,15 @@
 .draggingPlant {
   cursor: grabbing;
   z-index: 7;
-  transform: scale(1.02);
+  transform: translate(var(--preview-offset-x), var(--preview-offset-y))
+    scale(1.02);
   transition: none;
 }
 
 .draggingPlantGroup {
   z-index: 7;
-  transform: scale(1.02);
+  transform: translate(var(--preview-offset-x), var(--preview-offset-y))
+    scale(1.02);
   transition: none;
 }
 
@@ -841,39 +917,42 @@
 }
 
 .structure {
+  --preview-offset-x: 0px;
+  --preview-offset-y: 0px;
   position: absolute;
   z-index: 2;
   display: grid;
   place-items: center;
   min-width: 1.4rem;
   min-height: 1.4rem;
-  border: 1px solid rgba(78, 63, 45, 0.42);
+  border: 1px solid rgba(78, 63, 45, 0.24);
   border-radius: var(--radius-card);
-  background: rgba(210, 190, 150, 0.34);
-  color: rgba(45, 39, 31, 0.74);
+  background: rgba(210, 190, 150, 0.18);
+  color: rgba(45, 39, 31, 0.58);
   cursor: grab;
   font-size: var(--font-size-caption);
-  font-weight: 800;
+  font-weight: 780;
   line-height: 1.05;
   overflow: hidden;
   padding: 0.2rem;
   text-align: center;
   touch-action: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 253, 247, 0.24);
+  box-shadow: inset 0 0 0 1px rgba(255, 253, 247, 0.18);
+  transform: translate(var(--preview-offset-x), var(--preview-offset-y));
 }
 
 .structure span:first-child {
-  color: rgba(45, 39, 31, 0.72);
-  font-size: 0.68rem;
+  color: rgba(45, 39, 31, 0.62);
+  font-size: 0.62rem;
 }
 
 .raisedBed,
 .bed {
-  background: rgba(144, 112, 72, 0.3);
+  background: rgba(144, 112, 72, 0.22);
 }
 
 .inGroundBed {
-  background: rgba(120, 145, 89, 0.24);
+  background: rgba(120, 145, 89, 0.18);
 }
 
 .container,
@@ -884,54 +963,19 @@
 }
 
 .container {
-  background: rgba(184, 193, 121, 0.28);
+  background: rgba(184, 193, 121, 0.2);
 }
 
 .pathway,
 .path {
-  z-index: 6;
+  z-index: 3;
   place-items: start center;
-  border: 1px solid #565a5a;
+  border: 1px solid rgba(98, 103, 107, 0.26);
   border-radius: 4px;
-  background-color: #bfc1bd;
-  background-image: repeating-conic-gradient(
-    from 45deg,
-    #d7d8d4 0% 25%,
-    #9fa39e 0% 50%
-  );
-  background-position: 0 0;
-  background-size: 1rem 1rem;
-  color: #1f2424;
-  box-shadow:
-    inset 0 0 0 2px #777b78,
-    inset 0 0 0 4px #f1f1ed,
-    0 2px 4px rgba(31, 27, 24, 0.18);
+  background: rgba(154, 160, 165, 0.28);
+  color: rgba(53, 58, 62, 0.58);
+  box-shadow: inset 0 0 0 1px rgba(255, 253, 247, 0.24);
   padding: 0.36rem;
-}
-
-.pathway::after,
-.path::after {
-  content: '';
-  position: absolute;
-  pointer-events: none;
-}
-
-.verticalPath::after {
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 2px;
-  background: rgba(31, 36, 36, 0.42);
-  transform: translateX(-50%);
-}
-
-.horizontalPath::after {
-  top: 50%;
-  right: 0;
-  left: 0;
-  height: 2px;
-  background: rgba(31, 36, 36, 0.42);
-  transform: translateY(-50%);
 }
 
 .horizontalPath {
@@ -945,20 +989,19 @@
   max-width: min(100%, 9rem);
   gap: 0.18rem;
   justify-items: center;
-  border: 1px solid rgba(31, 36, 36, 0.22);
+  border: 0;
   border-radius: var(--radius-pill);
-  background: #fffdf7;
-  color: #202524;
-  padding: 0.24rem 0.45rem;
-  box-shadow: 0 4px 10px rgba(31, 27, 24, 0.18);
+  background: rgba(255, 253, 247, 0.48);
+  color: rgba(53, 58, 62, 0.62);
+  padding: 0.16rem 0.3rem;
 }
 
 .pathContent span,
 .structure .pathContent span:first-child {
   max-width: 100%;
-  color: #202524;
-  font-size: 0.64rem;
-  font-weight: 930;
+  color: rgba(53, 58, 62, 0.62);
+  font-size: 0.54rem;
+  font-weight: 820;
   line-height: 1;
 }
 
@@ -966,9 +1009,9 @@
 .structure .pathContent small {
   position: static;
   max-width: 100%;
-  color: #4d5350;
-  font-size: 0.5rem;
-  font-weight: 900;
+  color: rgba(77, 83, 80, 0.52);
+  font-size: 0.44rem;
+  font-weight: 780;
   line-height: 1;
   text-transform: uppercase;
 }
@@ -991,27 +1034,25 @@
 .trellis {
   z-index: 4;
   overflow: visible;
-  border: 1px solid rgba(36, 71, 46, 0.72);
+  border: 1px solid rgba(36, 71, 46, 0.42);
   border-radius: 4px;
   background:
     repeating-linear-gradient(
       90deg,
-      rgba(36, 71, 46, 0.7) 0,
-      rgba(36, 71, 46, 0.7) 2px,
+      rgba(36, 71, 46, 0.42) 0,
+      rgba(36, 71, 46, 0.42) 2px,
       transparent 2px,
       transparent 12px
     ),
     linear-gradient(
       0deg,
       transparent calc(50% - 1px),
-      rgba(36, 71, 46, 0.76) calc(50% - 1px),
-      rgba(36, 71, 46, 0.76) calc(50% + 1px),
+      rgba(36, 71, 46, 0.46) calc(50% - 1px),
+      rgba(36, 71, 46, 0.46) calc(50% + 1px),
       transparent calc(50% + 1px)
     ),
-    rgba(235, 243, 232, 0.82);
-  box-shadow:
-    0 4px 10px rgba(31, 27, 24, 0.14),
-    inset 0 0 0 1px rgba(255, 253, 247, 0.5);
+    rgba(235, 243, 232, 0.56);
+  box-shadow: inset 0 0 0 1px rgba(255, 253, 247, 0.44);
 }
 
 .trellisStructure {
@@ -1025,20 +1066,19 @@
   max-width: min(100%, 8rem);
   gap: 0.12rem;
   justify-items: center;
-  border: 1px solid rgba(36, 71, 46, 0.18);
+  border: 0;
   border-radius: var(--radius-pill);
-  background: rgba(255, 253, 247, 0.94);
-  color: #24472e;
+  background: rgba(255, 253, 247, 0.72);
+  color: rgba(36, 71, 46, 0.78);
   padding: 0.2rem 0.36rem;
-  box-shadow: 0 3px 8px rgba(31, 27, 24, 0.14);
 }
 
 .trellisContent span,
 .structure .trellisContent span:first-child {
   max-width: 100%;
-  color: #24472e;
-  font-size: 0.58rem;
-  font-weight: 930;
+  color: rgba(36, 71, 46, 0.78);
+  font-size: 0.56rem;
+  font-weight: 860;
   line-height: 1;
 }
 
@@ -1046,9 +1086,9 @@
 .structure .trellisContent small {
   position: static;
   max-width: 100%;
-  color: rgba(36, 71, 46, 0.72);
+  color: rgba(36, 71, 46, 0.58);
   font-size: 0.46rem;
-  font-weight: 900;
+  font-weight: 820;
   line-height: 1;
   text-transform: uppercase;
 }
@@ -1071,24 +1111,24 @@
 
 .waterSource {
   border-style: dotted;
-  background: rgba(95, 145, 174, 0.2);
+  background: rgba(95, 145, 174, 0.14);
 }
 
 .hoseBib {
   border-style: dashed;
-  background: rgba(75, 132, 156, 0.2);
+  background: rgba(75, 132, 156, 0.14);
 }
 
 .structureGlyph {
   display: grid;
   place-items: center;
-  width: 1.35rem;
-  height: 1.35rem;
+  width: 1.2rem;
+  height: 1.2rem;
   border-radius: var(--radius-pill);
-  background: rgba(255, 253, 247, 0.52);
-  color: rgba(45, 39, 31, 0.62);
-  font-size: 0.68rem;
-  font-weight: 950;
+  background: rgba(255, 253, 247, 0.42);
+  color: rgba(45, 39, 31, 0.52);
+  font-size: 0.6rem;
+  font-weight: 860;
   line-height: 1;
 }
 
@@ -1098,7 +1138,7 @@
 .compost,
 .waterSource,
 .hoseBib {
-  opacity: 0.62;
+  opacity: 0.5;
 }
 
 .selectedStructure {

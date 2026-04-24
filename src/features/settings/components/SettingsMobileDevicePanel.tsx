@@ -7,14 +7,12 @@ export function MobileDevicePanel({
   nativePushMessage,
   onEnableLocalNotifications,
   onEnableNativePush,
-  onSendLocalTest,
 }: {
   capabilities: MobileDeviceCapabilities;
   localMessage: string | null;
   nativePushMessage: string | null;
   onEnableLocalNotifications(): void;
   onEnableNativePush(): void;
-  onSendLocalTest(): void;
 }) {
   return (
     <section className={styles.consentPanel}>
@@ -24,7 +22,6 @@ export function MobileDevicePanel({
           {capabilities.isNative
             ? `${formatPlatform(capabilities.platform)} shell active`
             : 'Web/PWA mode active'}
-          {capabilities.quickUnlockReady ? ', quick unlock ready' : ''}
         </p>
         <p className={styles.metaText}>
           Local reminders stay on this device. Native push shares the same push
@@ -49,13 +46,6 @@ export function MobileDevicePanel({
               type="button"
             >
               Enable local alerts
-            </button>
-            <button
-              className={styles.secondaryButton}
-              onClick={onSendLocalTest}
-              type="button"
-            >
-              Send test alert
             </button>
           </>
         ) : null}

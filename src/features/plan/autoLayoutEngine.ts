@@ -38,6 +38,8 @@ import type {
   AutoLayoutStrategy,
 } from './autoLayoutTypes';
 
+const minimumImprovementToMoveScore = 0.04;
+
 export function generateAutoLayoutCandidates(
   garden: Garden,
   options: {
@@ -307,7 +309,7 @@ function improvePlacements({
           otherPlacements,
         );
 
-        if (score > bestScore + 0.01) {
+        if (score > bestScore + minimumImprovementToMoveScore) {
           best = shifted;
           bestScore = score;
         }

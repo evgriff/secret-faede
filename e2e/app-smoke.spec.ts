@@ -50,7 +50,7 @@ test('allowlisted mock sign-in reaches and saves Plan', async ({ page }) => {
   await page
     .getByRole('combobox', { name: 'Plot structure type' })
     .selectOption('trellis');
-  await page.getByRole('button', { name: 'Place structure' }).click();
+  await page.getByRole('button', { name: 'Place on plan' }).click();
   await expect(
     page.getByRole('button', { name: 'Trellis at X: 1.0 ft, Y: 1.0 ft' }),
   ).toBeVisible();
@@ -242,7 +242,7 @@ test('Plan supports choose plants, checked variants, publish, and revert', async
   await addTomatoToSeasonList(page);
   await generateAndApplyFirstLayout(page);
 
-  await expect(page.getByText('Draft differs')).toBeVisible();
+  await expect(page.getByText('Private draft', { exact: true })).toBeVisible();
   await expect(
     page
       .getByRole('button', { name: /Tomato(?: group, \d+ plants)? at X:/ })
@@ -265,9 +265,9 @@ test('Plan supports choose plants, checked variants, publish, and revert', async
   await expect(page.getByRole('dialog', { name: 'Publish draft' })).toHaveCount(
     0,
   );
-  await expect(page.getByText('Matches published')).toBeVisible();
+  await expect(page.getByText('Published', { exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'History' }).click();
+  await openPlanTool(page, 'History');
   await expect(
     page.getByRole('dialog', { name: 'Revision history' }),
   ).toBeVisible();
@@ -292,12 +292,13 @@ test('sample garden loads populated Plan, Today, Feed, and Settings', async ({
     page.getByRole('heading', { exact: true, name: 'Plan' }),
   ).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('20 ft by 16 ft')).toBeVisible();
-  await page.getByRole('button', { name: 'Optimize' }).click();
-  const planHealth = page.getByRole('region', { name: 'Plan health' });
-  await expect(planHealth).toBeVisible();
-  await expect(planHealth.getByText('Pathway')).toBeVisible();
-  await planHealth.getByText('Pathway').click();
-  await expect(planHealth.getByText('Path too narrow').first()).toBeVisible();
+  await openPlanTool(page, 'Generated layouts');
+  await expect(
+    page.getByRole('heading', { name: 'What needs attention' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('listitem').filter({ hasText: 'Path too narrow' }).first(),
+  ).toBeVisible();
 
   await page.getByRole('link', { name: 'Today' }).click();
   await expect(
@@ -337,7 +338,7 @@ test('sample garden loads populated Plan, Today, Feed, and Settings', async ({
   await page.getByRole('button', { name: 'Save settings' }).click();
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
   await resetAndExitSample(page);
-  await page.getByRole('link', { name: 'Plan' }).click();
+  await page.getByRole('link', { exact: true, name: 'Plan' }).click();
   await expect(page.getByText('12 ft by 8 ft')).toBeVisible();
 });
 

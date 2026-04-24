@@ -20,12 +20,12 @@ export function TodayQuickActionsPanel({
   return (
     <section className={styles.quickActionsPanel}>
       <div className={styles.groupHeader}>
-        <h2>Quick actions</h2>
+        <h2>Log what happened</h2>
         <span>Field log</span>
       </div>
       <TodayQuickActionRail onOpenAction={onOpenAction} />
       <details className={styles.addTaskDisclosure}>
-        <summary>Add manual task</summary>
+        <summary>Add a reminder</summary>
         <TodayManualTaskForm
           onAddTask={onAddManualTask}
           todayDate={selectedDate}

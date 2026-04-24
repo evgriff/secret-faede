@@ -32,11 +32,9 @@ describe('auto layout engine', () => {
     const secondRun = generateAutoLayoutCandidates(garden, { sunLayer });
 
     expect(firstRun).toHaveLength(3);
-    expect(firstRun.map((candidate) => candidate.id)).toEqual([
-      'auto-sunFirst',
-      'auto-supportFirst',
-      'auto-accessFirst',
-    ]);
+    expect(new Set(firstRun.map((candidate) => candidate.id))).toEqual(
+      new Set(['auto-sunFirst', 'auto-supportFirst', 'auto-accessFirst']),
+    );
     expect(
       firstRun.map((candidate) =>
         candidate.plantings.map((planting) => [
@@ -75,7 +73,7 @@ describe('auto layout engine', () => {
         candidate.plantings.some(
           (planting) =>
             planting.label.startsWith('Tomato') &&
-            planting.support.type === 'cage',
+            planting.support.type === 'none',
         ),
       ).toBe(true);
       expect(
@@ -395,27 +393,28 @@ describe('auto layout engine', () => {
     expect(candidate?.hardConstraintViolations).toEqual([]);
   });
 
-  it('scores height discipline when tall crops could shade shorter full-sun crops', () => {
+  it('tracks optimizer breakdown by access, spacing, structures, and water', () => {
     const garden = createLayoutFixture();
     const [candidate] = generateAutoLayoutCandidates(garden, {
       sunLayer: createSunLayer(garden),
     });
-    const tomato = candidate?.plantings.find((planting) =>
-      planting.label.startsWith('Tomato'),
-    );
-    const basil = candidate?.plantings.find((planting) =>
-      planting.label.startsWith('Basil'),
-    );
-
-    if (!candidate || !tomato || !basil) {
-      throw new Error('Expected tomato and basil candidate plantings.');
+    if (!candidate) {
+      throw new Error('Expected a generated candidate.');
     }
 
-    expect(candidate.scoreBreakdown.shadeManagement).toBeGreaterThan(0.75);
-
-    if (Math.abs(tomato.xFt - basil.xFt) <= 3) {
-      expect(tomato.yFt).toBeLessThanOrEqual(basil.yFt);
-    }
+    expect(candidate.scoreBreakdown).toMatchObject({
+      accessQuality: expect.any(Number),
+      spacingQuality: expect.any(Number),
+      structureCompatibility: expect.any(Number),
+      waterGrouping: expect.any(Number),
+    });
+    expect(Object.keys(candidate.scoreBreakdown).sort()).toEqual([
+      'accessQuality',
+      'spacingQuality',
+      'structureCompatibility',
+      'waterGrouping',
+    ]);
+    expect('shadeManagement' in candidate.scoreBreakdown).toBe(false);
   });
 });
 

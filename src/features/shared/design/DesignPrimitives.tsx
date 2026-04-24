@@ -1,6 +1,19 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import {
+  forwardRef,
+  useId,
+  useRef,
+  type ButtonHTMLAttributes,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 
-import { closeOnBackdropMouseDown, useEscapeToClose } from './dialogDismiss';
+import {
+  closeOnBackdropMouseDown,
+  trapDialogFocus,
+  useDialogScrollLock,
+  useEscapeToClose,
+  useInitialDialogFocus,
+} from './dialogDismiss';
 import overlayStyles from './DesignOverlays.module.css';
 import styles from './DesignPrimitives.module.css';
 
@@ -178,22 +191,24 @@ export function ActionButton({
   );
 }
 
-export function IconButton({
-  children,
-  className,
-  type = 'button',
-  ...buttonProps
-}: ButtonHTMLAttributes<HTMLButtonElement>) {
+export const IconButton = forwardRef<
+  HTMLButtonElement,
+  ButtonHTMLAttributes<HTMLButtonElement>
+>(function IconButton(
+  { children, className, type = 'button', ...buttonProps },
+  ref,
+) {
   return (
     <button
       className={`${styles.iconButton} ${className ?? ''}`}
+      ref={ref}
       type={type}
       {...buttonProps}
     >
       {children}
     </button>
   );
-}
+});
 
 export function SegmentedControl<TValue extends string>({
   label,
@@ -309,42 +324,134 @@ export function BottomSheet({ children }: { children: ReactNode }) {
   return <div className={overlayStyles.bottomSheet}>{children}</div>;
 }
 
+type OverlayLayoutProps = {
+  backdropTestId?: string | undefined;
+  bodyClassName?: string | undefined;
+  children: ReactNode;
+  className?: string | undefined;
+  closeLabel?: string | undefined;
+  description?: string | undefined;
+  footer?: ReactNode | undefined;
+  footerClassName?: string | undefined;
+  headerAside?: ReactNode | undefined;
+  headerAsideClassName?: string | undefined;
+  headerClassName?: string | undefined;
+  kicker?: string | undefined;
+  onClose(): void;
+  title: ReactNode;
+};
+
+function OverlayFrame({
+  backdropClassName,
+  backdropTestId,
+  bodyClassName,
+  children,
+  className,
+  closeLabel = 'Close',
+  containerClassName,
+  description,
+  footer,
+  footerClassName,
+  headerAside,
+  headerAsideClassName,
+  headerClassName,
+  kicker,
+  onClose,
+  title,
+}: OverlayLayoutProps & {
+  backdropClassName?: string | undefined;
+  containerClassName: string;
+}) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+
+  useEscapeToClose(onClose);
+  useDialogScrollLock();
+  useInitialDialogFocus({
+    dialogRef,
+    initialFocusRef: closeButtonRef,
+  });
+
+  function handleDialogKeyDown(event: KeyboardEvent<HTMLElement>) {
+    trapDialogFocus(event, dialogRef.current);
+  }
+
+  return (
+    <div
+      data-testid={backdropTestId}
+      className={`${overlayStyles.modalBackdrop} ${backdropClassName ?? ''}`}
+      onPointerDown={(event) => closeOnBackdropMouseDown(event, onClose)}
+    >
+      <section
+        aria-describedby={description ? descriptionId : undefined}
+        aria-labelledby={titleId}
+        aria-modal="true"
+        className={`${containerClassName} ${className ?? ''}`}
+        onKeyDown={handleDialogKeyDown}
+        ref={dialogRef}
+        role="dialog"
+      >
+        <header
+          className={`${overlayStyles.modalHeader} ${headerClassName ?? ''}`}
+        >
+          <div className={overlayStyles.modalHeaderCopy}>
+            {kicker ? (
+              <p className={overlayStyles.modalKicker}>{kicker}</p>
+            ) : null}
+            <h2 id={titleId}>{title}</h2>
+            {description ? <p id={descriptionId}>{description}</p> : null}
+          </div>
+          {headerAside ? (
+            <div
+              className={`${overlayStyles.modalHeaderAside} ${
+                headerAsideClassName ?? ''
+              }`}
+            >
+              {headerAside}
+            </div>
+          ) : null}
+          <IconButton
+            aria-label={closeLabel}
+            className={overlayStyles.modalCloseButton}
+            onClick={onClose}
+            ref={closeButtonRef}
+          >
+            X
+          </IconButton>
+        </header>
+        <div className={`${overlayStyles.modalBody} ${bodyClassName ?? ''}`}>
+          {children}
+        </div>
+        {footer ? (
+          <footer
+            className={`${overlayStyles.modalFooter} ${footerClassName ?? ''}`}
+          >
+            {footer}
+          </footer>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
 export function Drawer({
   children,
   footer,
   onClose,
   title,
-}: {
-  children: ReactNode;
-  footer?: ReactNode;
-  onClose(): void;
-  title: string;
-}) {
-  useEscapeToClose(onClose);
-
+  ...layoutProps
+}: OverlayLayoutProps) {
   return (
-    <div
-      className={overlayStyles.modalBackdrop}
-      onMouseDown={(event) => closeOnBackdropMouseDown(event, onClose)}
-    >
-      <aside
-        aria-labelledby="drawer-title"
-        aria-modal="true"
-        className={overlayStyles.drawer}
-        role="dialog"
-      >
-        <header className={overlayStyles.modalHeader}>
-          <h2 id="drawer-title">{title}</h2>
-          <IconButton aria-label="Close" onClick={onClose}>
-            X
-          </IconButton>
-        </header>
-        <div className={overlayStyles.modalBody}>{children}</div>
-        {footer ? (
-          <footer className={overlayStyles.modalFooter}>{footer}</footer>
-        ) : null}
-      </aside>
-    </div>
+    <OverlayFrame
+      {...layoutProps}
+      children={children}
+      containerClassName={overlayStyles.drawer ?? ''}
+      footer={footer}
+      onClose={onClose}
+      title={title}
+    />
   );
 }
 
@@ -352,33 +459,17 @@ export function Sheet({
   children,
   onClose,
   title,
-}: {
-  children: ReactNode;
-  onClose(): void;
-  title: string;
-}) {
-  useEscapeToClose(onClose);
-
+  ...layoutProps
+}: OverlayLayoutProps) {
   return (
-    <div
-      className={overlayStyles.sheetBackdrop}
-      onMouseDown={(event) => closeOnBackdropMouseDown(event, onClose)}
-    >
-      <section
-        aria-labelledby="sheet-title"
-        aria-modal="true"
-        className={overlayStyles.sheet}
-        role="dialog"
-      >
-        <header className={overlayStyles.modalHeader}>
-          <h2 id="sheet-title">{title}</h2>
-          <IconButton aria-label="Close" onClick={onClose}>
-            X
-          </IconButton>
-        </header>
-        <div className={overlayStyles.modalBody}>{children}</div>
-      </section>
-    </div>
+    <OverlayFrame
+      {...layoutProps}
+      backdropClassName={overlayStyles.sheetBackdrop}
+      children={children}
+      containerClassName={overlayStyles.sheet ?? ''}
+      onClose={onClose}
+      title={title}
+    />
   );
 }
 
@@ -398,63 +489,62 @@ export function Popover({
 }
 
 export function Modal({
+  backdropTestId,
   children,
+  closeLabel,
   className,
+  bodyClassName,
   description,
   footer,
+  footerClassName,
+  headerAside,
+  headerAsideClassName,
+  headerClassName,
+  kicker,
   mobilePresentation = 'dialog',
   onClose,
   title,
 }: {
+  backdropTestId?: string | undefined;
+  bodyClassName?: string | undefined;
   children: ReactNode;
-  className?: string;
-  description?: string;
-  footer?: ReactNode;
+  className?: string | undefined;
+  closeLabel?: string | undefined;
+  description?: string | undefined;
+  footer?: ReactNode | undefined;
+  footerClassName?: string | undefined;
+  headerAside?: ReactNode | undefined;
+  headerAsideClassName?: string | undefined;
+  headerClassName?: string | undefined;
+  kicker?: string | undefined;
   mobilePresentation?: 'dialog' | 'fullScreen';
   onClose(): void;
-  title: string;
+  title: ReactNode;
 }) {
-  useEscapeToClose(onClose);
-
   return (
-    <div
-      className={`${overlayStyles.modalBackdrop} ${
+    <OverlayFrame
+      backdropClassName={
         mobilePresentation === 'fullScreen'
           ? overlayStyles.fullScreenBackdrop
-          : ''
-      }`}
-      onMouseDown={(event) => closeOnBackdropMouseDown(event, onClose)}
-    >
-      <section
-        aria-describedby={description ? 'modal-description' : undefined}
-        aria-labelledby="modal-title"
-        aria-modal="true"
-        className={`${overlayStyles.modal} ${
-          mobilePresentation === 'fullScreen'
-            ? overlayStyles.fullScreenModal
-            : ''
-        } ${className ?? ''}`}
-        role="dialog"
-      >
-        <header className={overlayStyles.modalHeader}>
-          <div>
-            <h2 id="modal-title">{title}</h2>
-            {description ? <p id="modal-description">{description}</p> : null}
-          </div>
-          <button
-            aria-label="Close"
-            className={styles.iconButton}
-            onClick={onClose}
-            type="button"
-          >
-            X
-          </button>
-        </header>
-        <div className={overlayStyles.modalBody}>{children}</div>
-        {footer ? (
-          <footer className={overlayStyles.modalFooter}>{footer}</footer>
-        ) : null}
-      </section>
-    </div>
+          : undefined
+      }
+      backdropTestId={backdropTestId}
+      bodyClassName={bodyClassName}
+      children={children}
+      className={`${
+        mobilePresentation === 'fullScreen' ? overlayStyles.fullScreenModal : ''
+      } ${className ?? ''}`}
+      closeLabel={closeLabel}
+      containerClassName={overlayStyles.modal ?? ''}
+      description={description}
+      footer={footer}
+      footerClassName={footerClassName}
+      headerAside={headerAside}
+      headerAsideClassName={headerAsideClassName}
+      headerClassName={headerClassName}
+      kicker={kicker}
+      onClose={onClose}
+      title={title}
+    />
   );
 }

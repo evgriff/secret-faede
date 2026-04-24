@@ -53,12 +53,12 @@ describe('plantVisuals', () => {
     });
   });
 
-  it('places labels inside larger grouped footprints', () => {
+  it('keeps roomy group labels visible inside the footprint without hover', () => {
     expect(
       getPlantGroupLabelDecision({
         dragging: false,
         footprint: { depthFt: 2.5, widthFt: 5.5 },
-        hovering: true,
+        hovering: false,
         label: 'Tomato, 4 plants',
         pinned: false,
       }),

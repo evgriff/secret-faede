@@ -41,7 +41,7 @@ export function LibraryExpandedDetails({
         className={disclosureStyles.locationPanel}
         data-match-band={facts.locationMatchBand}
       >
-        <strong>Location Match: {facts.locationMatchLabel}</strong>
+        <strong>Plot fit: {facts.locationMatchLabel}</strong>
         <p>{facts.locationMatchSummary}</p>
         <p className={disclosureStyles.mutedText}>{facts.locationMatchBasis}</p>
         {facts.locationMatchDetails.length > 0 ? (

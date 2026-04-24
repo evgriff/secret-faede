@@ -75,15 +75,13 @@ export function SeasonCropBoard({
     <section className={styles.board} aria-label="Season crop board">
       <div className={styles.boardHeader}>
         <div>
-          <span className={styles.kicker}>Season board</span>
-          <h3>Wanted crops</h3>
-        </div>
-        <div className={styles.boardStats}>
-          <span>{selections.length} selected</span>
-          <span>
-            {plantCount} {plantCount === 1 ? 'plant' : 'plants'}
-          </span>
-          <span>{reviewCount} need review</span>
+          <span className={styles.kicker}>Picked plants</span>
+          <h3>Save the crops you want to grow</h3>
+          <p className={styles.boardSummary}>
+            {selections.length > 0
+              ? `${selections.length} crop${selections.length === 1 ? '' : 's'} selected, ${plantCount} ${plantCount === 1 ? 'plant' : 'plants'}${reviewCount > 0 ? `, ${reviewCount} to review` : ''}.`
+              : 'Search the library, adjust quantity, then save the list.'}
+          </p>
         </div>
       </div>
 
@@ -119,7 +117,7 @@ export function SeasonCropBoard({
           })}
         </div>
       ) : (
-        <p className={styles.emptyText}>No plants selected.</p>
+        <p className={styles.emptyText}>Search and add crops to start.</p>
       )}
     </section>
   );
@@ -158,9 +156,8 @@ function CropBoardItem({
     selection.quantity,
     selection.plantingForm,
   );
-  const modeOptions = getQuantityFirstPlantingModes(crop, selection.quantity);
   const currentModeLabel = modeLabels[currentMode];
-  const formText = currentModeLabel;
+  const modeOptions = getQuantityFirstPlantingModes(crop, selection.quantity);
   const showSupportOption = crop.trellisRequired || crop.trellisRecommended;
   const showReview = needsSeasonCropReview(fit);
   const facts = getCompactPlantFacts({
@@ -176,6 +173,7 @@ function CropBoardItem({
     spacingOverrideInches: selection.spacingOverrideInches ?? null,
   });
   const showSupport = facts.supportShortLabel !== 'No support';
+  const showMode = selection.quantity > 1 || currentMode !== 'single';
 
   function handleQuantityChange(value: string) {
     const nextQuantity = coercePlantQuantity(value);
@@ -221,24 +219,6 @@ function CropBoardItem({
         </label>
         <div className={compactStyles.rowActions}>
           <button
-            aria-label={`Move ${crop.commonName} up`}
-            className={compactStyles.iconAction}
-            disabled={isFirst}
-            onClick={onMoveUp}
-            type="button"
-          >
-            ↑
-          </button>
-          <button
-            aria-label={`Move ${crop.commonName} down`}
-            className={compactStyles.iconAction}
-            disabled={isLast}
-            onClick={onMoveDown}
-            type="button"
-          >
-            ↓
-          </button>
-          <button
             aria-label={`Remove ${crop.commonName}`}
             className={compactStyles.iconAction}
             onClick={onRemove}
@@ -265,31 +245,54 @@ function CropBoardItem({
         className={compactStyles.factStrip}
         aria-label="Selected plant facts"
       >
-        <FactPill label={`${formText} form`}>
-          <PlacementGlyph mode={currentMode} />
-        </FactPill>
         <FactPill icon="space" label={formatFootprintFact(footprint)} />
+        {showMode ? (
+          <FactPill label={`${currentModeLabel} form`}>
+            <PlacementGlyph mode={currentMode} />
+          </FactPill>
+        ) : null}
+        <FactPill icon="sun" label={facts.sunShortLabel} />
         {showSupport ? (
           <FactPill icon="support" label={facts.supportShortLabel} />
         ) : null}
-        <FactPill icon="sun" label={facts.sunShortLabel} />
-        <FactPill icon="water" label={facts.waterShortLabel} />
         {showReview ? (
           <ReviewDisclosure cropName={crop.commonName} fit={fit} />
         ) : null}
       </div>
 
       {isExpanded ? (
-        <BoardExpandedDetails
-          crop={crop}
-          facts={facts}
-          fit={fit}
-          id={detailsId}
-          modeOptions={modeOptions}
-          onUpdate={onUpdate}
-          selection={{ ...selection, plantingForm: currentMode }}
-          showSupportOption={showSupportOption}
-        />
+        <>
+          <BoardExpandedDetails
+            crop={crop}
+            facts={facts}
+            fit={fit}
+            id={detailsId}
+            modeOptions={modeOptions}
+            onUpdate={onUpdate}
+            selection={{ ...selection, plantingForm: currentMode }}
+            showSupportOption={showSupportOption}
+          />
+          <div className={styles.boardCardActions}>
+            <button
+              aria-label={`Move ${crop.commonName} up`}
+              className={styles.boardAction}
+              disabled={isFirst}
+              onClick={onMoveUp}
+              type="button"
+            >
+              Move earlier
+            </button>
+            <button
+              aria-label={`Move ${crop.commonName} down`}
+              className={styles.boardAction}
+              disabled={isLast}
+              onClick={onMoveDown}
+              type="button"
+            >
+              Move later
+            </button>
+          </div>
+        </>
       ) : null}
     </article>
   );
@@ -297,23 +300,15 @@ function CropBoardItem({
 
 function FactPill({
   children,
-  difficulty,
   icon,
   label,
-  matchBand,
 }: {
   children?: ReactNode;
-  difficulty?: string;
   icon?: string;
   label: string;
-  matchBand?: string;
 }) {
   return (
-    <span
-      className={compactStyles.factPill}
-      data-difficulty={difficulty}
-      data-match-band={matchBand}
-    >
+    <span className={compactStyles.factPill}>
       <span
         className={compactStyles.factIcon}
         data-icon={children ? undefined : icon}

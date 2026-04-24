@@ -93,7 +93,7 @@ export function useSettingsDemoMode({
       } catch (demoError) {
         setState(
           readSettingsDemoState(authUser.uid, {
-            error: toErrorMessage(demoError, 'Unable to load demo garden.'),
+            error: toErrorMessage(demoError, 'Unable to open sample garden.'),
           }),
         );
         return false;
@@ -147,7 +147,10 @@ export function useSettingsDemoMode({
     } catch (demoError) {
       setState(
         readSettingsDemoState(authUser.uid, {
-          error: toErrorMessage(demoError, 'Unable to exit demo mode.'),
+          error: toErrorMessage(
+            demoError,
+            'Unable to return to the saved garden.',
+          ),
         }),
       );
       return false;

@@ -176,7 +176,7 @@ describe('reviewSuggestions', () => {
     );
 
     expect(path?.widthFt).toBe(8);
-    expect(path?.depthFt).toBe(3);
+    expect(path?.depthFt).toBe(1.5);
   });
 
   it('moves shade-tolerant crops into intentional partial sun when legal', () => {

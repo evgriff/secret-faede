@@ -14,11 +14,16 @@ import {
   type SunShadeArea,
 } from '../../../domain/gardens/GardenRepository';
 import { pixelsPerFoot } from '../../garden/gardenMath';
-import type { PlanWarning } from '../../garden/gardenPlanning';
+import type { FootRect, PlanWarning } from '../../garden/gardenPlanning';
 import type { SunSeason } from '../../garden/sunShadeEngine';
 import type { SelectedGardenItem } from '../../garden/useGarden';
 import type { PlanInfluenceOverlayModel } from '../planInfluenceOverlay';
-import type { ResizeHandle, SnapGuide } from '../planInteractionGeometry';
+import {
+  getPlanItemKey,
+  type PlanPreviewOffset,
+  type ResizeHandle,
+  type SnapGuide,
+} from '../planInteractionGeometry';
 import { getPlantingFocusKey } from '../planCropFocus';
 import type { ProposalDiffOverlayModel } from '../proposalDiffOverlay';
 import { PlanInfluenceOverlay } from './PlanInfluenceOverlay';
@@ -31,8 +36,11 @@ import { PlanRuler } from './PlanRuler';
 import { PlanStructureBox } from './PlanStructureBox';
 import { PlanSunOverlay } from './PlanSunOverlay';
 
+const emptyPlanWarnings: PlanWarning[] = [];
+
 export const PlanCanvasScene = memo(function PlanCanvasScene({
   activeSunLayer,
+  dragPreviewOffsetsByItemKey,
   draggingPlantId,
   draggingStructureId,
   focusedCropKey,
@@ -64,6 +72,7 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   plotRef,
   plotStyle,
   proposalDiffOverlay,
+  resizePreview,
   resizingStructureId,
   sceneStyle,
   selectedPlantIds,
@@ -75,6 +84,7 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   visiblePlantLabelIds,
 }: {
   activeSunLayer: { areas: SunShadeArea[] };
+  dragPreviewOffsetsByItemKey: Record<string, PlanPreviewOffset>;
   draggingPlantId: string | null;
   draggingStructureId: string | null;
   focusedCropKey: string | null;
@@ -141,6 +151,10 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   plotRef: RefObject<HTMLDivElement | null>;
   plotStyle: CSSProperties;
   proposalDiffOverlay: ProposalDiffOverlayModel | null;
+  resizePreview: {
+    rect: FootRect;
+    structureId: string;
+  } | null;
   resizingStructureId: string | null;
   sceneStyle: CSSProperties;
   selectedPlantIds: string[];
@@ -208,13 +222,14 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
           >
             {garden.plantings.length === 0 && garden.structures.length === 0 ? (
               <div className={styles.emptyHint}>
-                <strong>Build the plan in order.</strong>
+                <strong>Start with the parts you really need.</strong>
                 <ol>
-                  <li>Set the boundary and beds</li>
-                  <li>Add paths and trellises</li>
-                  <li>Choose plant quantities for grouped footprints</li>
-                  <li>Optimize and resolve problems</li>
-                  <li>Review sun, then use Detailed View for care edits</li>
+                  <li>Set the plot, beds, and paths you actually use</li>
+                  <li>Add plants or save a crop list</li>
+                  <li>Review problems if something feels tight</li>
+                  <li>
+                    Try layout ideas only when you want another arrangement
+                  </li>
                 </ol>
               </div>
             ) : null}
@@ -296,23 +311,39 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
               />
             ) : null}
 
-            {pageStructures.map((structure) => (
-              <PlanStructureBox
-                draggingStructureId={draggingStructureId}
-                key={structure.id}
-                onResizePointerDown={onResizePointerDown}
-                onResizePointerEnd={onResizePointerEnd}
-                onResizePointerMove={onResizePointerMove}
-                onSelectItem={onSelectItem}
-                onStructurePointerDown={onStructurePointerDown}
-                onStructurePointerEnd={onStructurePointerEnd}
-                onStructurePointerMove={onStructurePointerMove}
-                planWarnings={visibleWarnings}
-                resizingStructureId={resizingStructureId}
-                selectedStructureIds={selectedStructureIds}
-                structure={structure}
-              />
-            ))}
+            {pageStructures.map((structure) => {
+              const structurePreviewOffset =
+                dragPreviewOffsetsByItemKey[
+                  getPlanItemKey({ id: structure.id, type: 'structure' })
+                ] ?? null;
+
+              return (
+                <PlanStructureBox
+                  isDragging={Boolean(
+                    draggingStructureId === structure.id ||
+                    structurePreviewOffset,
+                  )}
+                  isResizing={resizingStructureId === structure.id}
+                  key={structure.id}
+                  onResizePointerDown={onResizePointerDown}
+                  onResizePointerEnd={onResizePointerEnd}
+                  onResizePointerMove={onResizePointerMove}
+                  onSelectItem={onSelectItem}
+                  onStructurePointerDown={onStructurePointerDown}
+                  onStructurePointerEnd={onStructurePointerEnd}
+                  onStructurePointerMove={onStructurePointerMove}
+                  planWarnings={visibleWarnings}
+                  previewOffset={structurePreviewOffset}
+                  previewRect={
+                    resizePreview?.structureId === structure.id
+                      ? resizePreview.rect
+                      : null
+                  }
+                  selectedStructureIds={selectedStructureIds}
+                  structure={structure}
+                />
+              );
+            })}
 
             {plantingPreview ? (
               <PlanPlantingPreview plant={plantingPreview} />
@@ -320,6 +351,10 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
 
             {garden.plantings.map((plant, index) => {
               const plantFocusKey = getPlantingFocusKey(plant);
+              const plantPreviewOffset =
+                dragPreviewOffsetsByItemKey[
+                  getPlanItemKey({ id: plant.id, type: 'planting' })
+                ] ?? null;
 
               return (
                 <PlanPlantGroup
@@ -330,7 +365,9 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
                   )}
                   isHoverLabelVisible={hoveredPlantGroupId === plant.id}
                   isLabelVisible={visiblePlantLabelIdSet.has(plant.id)}
-                  isDragging={draggingPlantId === plant.id}
+                  isDragging={Boolean(
+                    draggingPlantId === plant.id || plantPreviewOffset,
+                  )}
                   isSelected={selectedPlantIds.includes(plant.id)}
                   key={plant.id}
                   onHideLabel={onPlantLabelHide}
@@ -342,8 +379,11 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
                   onShowLabel={onPlantLabelShow}
                   onSelectItem={onSelectItem}
                   plant={plant}
+                  previewOffset={plantPreviewOffset}
                   structures={garden.structures}
-                  warnings={warningsByPlantId.get(plant.id) ?? []}
+                  warnings={
+                    warningsByPlantId.get(plant.id) ?? emptyPlanWarnings
+                  }
                 />
               );
             })}

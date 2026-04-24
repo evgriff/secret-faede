@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { openPlanTool } from './appSmokeHelpers';
+import { enterDemoFromShell, openPlanTool } from './appSmokeHelpers';
 
 const visualTime = new Date('2026-06-21T14:00:00.000Z');
 const routes = [
@@ -76,7 +76,7 @@ test.describe('Plan workflow visual baselines', () => {
       ).toBeVisible();
       await page.getByRole('button', { name: 'Add Tomato' }).click();
       if (viewport.name === 'mobile') {
-        await page.getByRole('tab', { name: 'Season Board' }).click();
+        await page.getByRole('tab', { name: 'Picked' }).click();
       }
       await expect(
         page.getByRole('region', { name: 'Season crop board' }),
@@ -99,10 +99,10 @@ test.describe('Plan workflow visual baselines', () => {
       await generateLayoutCandidates(page);
       await expect(
         page
-          .getByRole('region', { name: 'Layout walkthrough' })
+          .getByRole('region', { name: 'Generated layouts' })
           .getByRole('heading', {
             exact: true,
-            name: 'Checked layout variants',
+            name: 'Try a different arrangement',
           }),
       ).toBeVisible();
       await expect(
@@ -124,18 +124,16 @@ test.describe('Plan workflow visual baselines', () => {
       await setVisualViewport(page, viewport);
       await signInAndCreateBlankPlan(page);
       await addTomatoToPlan(page);
-      await clickVisibleOrLauncherTool(page, 'Optimize');
+      await clickVisibleOrLauncherTool(page, 'Review problems');
       await expect(
-        page.getByRole('heading', { name: 'Problem inbox and variants' }),
+        page.getByRole('heading', { name: 'Review problems' }),
+      ).toBeVisible();
+      await expect(page.getByText('Review', { exact: true })).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Apply fix' }).first(),
       ).toBeVisible();
       await expect(
-        page.getByText('Problem inbox', { exact: true }),
-      ).toBeVisible();
-      await expect(
-        page.getByRole('button', { name: 'Apply complete resolution' }).first(),
-      ).toBeVisible();
-      await expect(
-        page.getByRole('button', { name: 'Ignore problem' }).first(),
+        page.getByRole('button', { name: 'Ignore for now' }).first(),
       ).toBeVisible();
       await stabilizeVisualState(page);
       await expect(page).toHaveScreenshot(`review-queue-${viewport.name}.png`, {
@@ -160,13 +158,7 @@ async function setVisualViewport(
 
 async function signInAndLoadDemo(page: Page) {
   await signInAndCreateBlankPlan(page);
-  await page.getByRole('button', { name: 'Enter demo' }).click();
-  await expect(
-    page.getByLabel('Demo controls').getByRole('button', { name: 'Exit demo' }),
-  ).toBeVisible();
-  await expect(page.getByText('20 ft by 16 ft')).toBeVisible({
-    timeout: 15_000,
-  });
+  await enterDemoFromShell(page);
 }
 
 async function signInAndCreateBlankPlan(page: Page) {
@@ -183,7 +175,7 @@ async function signInAndCreateBlankPlan(page: Page) {
 }
 
 async function openChoosePlants(page: Page) {
-  await clickVisibleOrLauncherTool(page, 'Add Plants');
+  await clickVisibleOrLauncherTool(page, 'Add plants');
   await expect(
     page.getByRole('dialog', { name: 'Choose Plants' }),
   ).toBeVisible();
@@ -193,7 +185,7 @@ async function addTomatoToSeasonList(page: Page) {
   await openChoosePlants(page);
   await page.getByRole('searchbox', { name: 'Search plants' }).fill('tomato');
   await page.getByRole('button', { name: 'Add Tomato' }).click();
-  const seasonBoardTab = page.getByRole('tab', { name: 'Season Board' });
+  const seasonBoardTab = page.getByRole('tab', { name: 'Picked' });
 
   if (await seasonBoardTab.isVisible().catch(() => false)) {
     await seasonBoardTab.click();
@@ -220,15 +212,21 @@ async function addTomatoToPlan(page: Page) {
 }
 
 async function generateLayoutCandidates(page: Page) {
-  await clickVisibleOrLauncherTool(page, 'Optimize');
+  await clickVisibleOrLauncherTool(page, 'Generated layouts');
 
   await expect(
-    page.getByRole('heading', { name: 'Problem inbox and variants' }),
+    page.getByRole('heading', { name: 'Review problems' }),
   ).toBeVisible();
-  await page
-    .getByRole('button', { name: 'Generate checked variants' })
-    .first()
-    .click();
+  const beforeAfterPreview = page.getByRole('region', {
+    name: 'Before and after preview',
+  });
+
+  if (!(await beforeAfterPreview.isVisible().catch(() => false))) {
+    await page
+      .getByRole('button', { name: /Generate layouts|Refresh layouts/ })
+      .first()
+      .click();
+  }
 }
 
 async function clickVisibleOrLauncherTool(page: Page, name: string) {
@@ -239,11 +237,11 @@ async function clickVisibleOrLauncherTool(page: Page, name: string) {
     return;
   }
 
-  await page.getByRole('button', { name: 'Open build tools' }).click();
-  const launcher = page.getByLabel('Build tool launcher');
+  await page.getByRole('button', { name: 'Open more tools' }).click();
+  const launcher = page.locator('[aria-label="More tools menu"]');
 
   await expect(launcher).toBeVisible();
-  await launcher.getByRole('button', { name }).click();
+  await launcher.getByRole('button', { name }).click({ force: true });
 }
 
 async function stabilizeVisualState(page: Page) {

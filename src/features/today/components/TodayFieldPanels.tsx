@@ -15,12 +15,7 @@ import type {
 import { getTaskTargetLink } from '../todayTaskLinks';
 import { getCriticalCheckTasks } from '../todaySelectors';
 import type { TodayQuickActionState } from './TodayQuickActionRail';
-import {
-  CropStageCard,
-  IssueCard,
-  RecentActivityItem,
-  WaterCard,
-} from './TodayFieldCards';
+import { CropStageCard, IssueCard, WaterCard } from './TodayFieldCards';
 import { TodayHarvestCard } from './TodayHarvestCard';
 import styles from './TodayFieldPanels.module.css';
 
@@ -66,11 +61,7 @@ export function TodayFieldPanels({
     model.unresolvedIssues.length > 0 ||
     criticalTasks.length > 0;
   const hasAnyFieldPanel =
-    hasWatering ||
-    hasCriticalChecks ||
-    model.harvestReady.length > 0 ||
-    model.bedAttention.length > 0 ||
-    model.recentActivity.length > 0;
+    hasWatering || hasCriticalChecks || model.harvestReady.length > 0;
 
   if (!hasAnyFieldPanel) {
     return null;
@@ -111,8 +102,8 @@ export function TodayFieldPanels({
         <section className={styles.panel}>
           <div className={styles.panelHeader}>
             <div>
-              <p className={styles.kicker}>Checks</p>
-              <h2>Critical field checks</h2>
+              <p className={styles.kicker}>Look now</p>
+              <h2>Checks to make today</h2>
             </div>
             <StatusBadge tone="warning">
               {model.urgentAlerts.length +
@@ -174,46 +165,6 @@ export function TodayFieldPanels({
                 onOpenAction={onOpenAction}
                 todayDate={todayDate}
               />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {model.bedAttention.length > 0 ? (
-        <section className={styles.panel}>
-          <div className={styles.panelHeader}>
-            <div>
-              <p className={styles.kicker}>Attention</p>
-              <h2>Beds and containers</h2>
-            </div>
-            <StatusBadge>{model.bedAttention.length}</StatusBadge>
-          </div>
-          <ul className={styles.bedList}>
-            {model.bedAttention.map((bed) => (
-              <li key={bed.label}>
-                <span>
-                  {bed.label}
-                  <small>{bed.summary}</small>
-                </span>
-                <strong>{bed.count}</strong>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {model.recentActivity.length > 0 ? (
-        <section className={styles.panel}>
-          <div className={styles.panelHeader}>
-            <div>
-              <p className={styles.kicker}>Recent</p>
-              <h2>Feed highlights</h2>
-            </div>
-            <StatusBadge>{model.recentActivity.length}</StatusBadge>
-          </div>
-          <div className={styles.compactList}>
-            {model.recentActivity.map((activity) => (
-              <RecentActivityItem activity={activity} key={activity.id} />
             ))}
           </div>
         </section>

@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-} from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
 import {
   cropCatalog,
@@ -21,13 +14,7 @@ import type {
   PlantingMode,
   SunExposure,
 } from '../../domain/gardens/GardenRepository';
-import {
-  closeOnBackdropMouseDown,
-  trapDialogFocus,
-  useDialogScrollLock,
-  useEscapeToClose,
-  useInitialDialogFocus,
-} from '../shared/design/dialogDismiss';
+import { Button, Modal } from '../shared/design/DesignPrimitives';
 import { cropSunRequirementMet, type SunSeason } from './sunShadeEngine';
 import styles from '../plan/PlanModal.module.css';
 import type { AddPlantingRequest } from './useGarden';
@@ -77,8 +64,6 @@ export function AddPlantModal({
   sunExposureAtPlacement,
   sunSeason,
 }: AddPlantModalProps) {
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useRef<HTMLElement>(null);
   const [category, setCategory] = useState<CategoryFilter>('any');
   const [growthForm, setGrowthForm] = useState<GrowthFormFilter>('any');
   const [mode, setMode] = useState<PlantingMode>('single');
@@ -171,13 +156,6 @@ export function AddPlantModal({
           sunExposureAtPlacement,
         )} in ${formatLabel(sunSeason)}.`
       : null;
-  useEscapeToClose(onClose);
-  useDialogScrollLock();
-  useInitialDialogFocus({
-    dialogRef,
-    initialFocusRef: closeButtonRef,
-  });
-
   useEffect(() => {
     onPreviewChange?.(
       buildAddPlantRequest({
@@ -261,150 +239,130 @@ export function AddPlantModal({
     setClusterRadiusFt('');
   }
 
-  function handleDialogKeyDown(event: KeyboardEvent<HTMLElement>) {
-    trapDialogFocus(event, dialogRef.current);
-  }
-
   return (
-    <div
-      className={`${styles.modalBackdrop} ${styles.placementBackdrop}`}
-      onMouseDown={(event) => closeOnBackdropMouseDown(event, onClose)}
+    <Modal
+      bodyClassName={styles.cropModalBody}
+      className={styles.cropModal}
+      closeLabel="Close crop picker"
+      description="Pick a crop and place it at the current snapped spot."
+      footer={
+        <>
+          <Button onClick={onClose} tone="secondary" type="button">
+            Cancel
+          </Button>
+          <Button form="add-plant-form" tone="primary" type="submit">
+            Add plant
+          </Button>
+        </>
+      }
+      mobilePresentation="fullScreen"
+      onClose={onClose}
+      title="Add Plant"
     >
-      <section
-        aria-labelledby="add-plant-title"
-        aria-modal="true"
-        className={`${styles.modal} ${styles.cropModal}`}
-        onKeyDown={handleDialogKeyDown}
-        ref={dialogRef}
-        role="dialog"
+      <form
+        className={styles.cropPickerForm}
+        id="add-plant-form"
+        onSubmit={handleSubmit}
       >
-        <div className={styles.modalHeader}>
-          <h2 id="add-plant-title">Add Plant</h2>
-          <button
-            aria-label="Close crop picker"
-            className={styles.iconButton}
-            onClick={onClose}
-            ref={closeButtonRef}
-            type="button"
-          >
-            x
-          </button>
+        <div className={styles.cropPickerLayout}>
+          <div className={styles.cropSearchPanel}>
+            <CropPickerFilters
+              category={category}
+              growthForm={growthForm}
+              onCategoryChange={setCategory}
+              onGrowthFormChange={setGrowthForm}
+              onQueryChange={setQuery}
+              onSowMethodChange={setSowMethod}
+              onSunRequirementChange={setSunRequirement}
+              onWaterNeedsChange={setWaterNeeds}
+              query={query}
+              sowMethod={sowMethod}
+              sunRequirement={sunRequirement}
+              waterNeeds={waterNeeds}
+            />
+
+            <VirtualCropResultList
+              className={cropStyles.cropResults}
+              crops={filteredCrops}
+              empty={
+                <p className={cropStyles.emptyResults}>No matching crops.</p>
+              }
+              itemHeightPx={92}
+              renderCrop={(crop) => {
+                const cropMode = getRecommendedPlantingMode(crop, plantCount);
+                const cropArrangement = getPlantingArrangementDefaults(
+                  crop,
+                  cropMode,
+                  plantCount,
+                );
+
+                return (
+                  <CropResultButton
+                    crop={crop}
+                    isSelected={crop.id === selectedCrop.id}
+                    key={crop.id}
+                    onSelect={() => handleSelectCrop(crop.id)}
+                    suitabilityLabel={formatSuitabilityLevel(
+                      scoreCropSuitability({
+                        climateProfile: garden.climateProfile,
+                        crop,
+                        mode: cropMode,
+                        plantCount,
+                        plotType: inferPlotType(garden),
+                        requestedAreaSqFt: cropArrangement.requestedAreaSqFt,
+                        sunExposureAtPlacement,
+                      }),
+                    )}
+                  />
+                );
+              }}
+            />
+          </div>
+
+          <div className={styles.cropDetailPanel}>
+            <CropDetailCard
+              crop={selectedCrop}
+              suitability={suitability}
+              sunWarning={sunWarning}
+            />
+
+            <CropComparePanel
+              crops={compareCrops}
+              onSelect={handleSelectCrop}
+              selectedCropId={selectedCrop.id}
+            />
+
+            <PlantingModeControls
+              blockDepthFt={blockDepthFt}
+              blockDepthPlaceholder={formatFeetInput(
+                arrangementDefaults.blockDepthFt,
+              )}
+              blockWidthFt={blockWidthFt}
+              blockWidthPlaceholder={formatFeetInput(
+                arrangementDefaults.blockWidthFt,
+              )}
+              clusterRadiusFt={clusterRadiusFt}
+              clusterRadiusPlaceholder={formatFeetInput(
+                arrangementDefaults.clusterRadiusFt,
+              )}
+              onBlockDepthChange={setBlockDepthFt}
+              onBlockWidthChange={setBlockWidthFt}
+              onClusterRadiusChange={setClusterRadiusFt}
+              onModeChange={handleModeChange}
+              onQuantityChange={handleQuantityChange}
+              onRowLengthChange={setRowLengthFt}
+              plantCount={plantCount}
+              rowLengthFt={rowLengthFt}
+              rowLengthPlaceholder={formatFeetInput(
+                arrangementDefaults.rowLengthFt,
+              )}
+              selectedCrop={selectedCrop}
+              selectedMode={selectedMode}
+            />
+          </div>
         </div>
-
-        <form className={styles.cropPickerForm} onSubmit={handleSubmit}>
-          <div className={styles.cropPickerLayout}>
-            <div className={styles.cropSearchPanel}>
-              <CropPickerFilters
-                category={category}
-                growthForm={growthForm}
-                onCategoryChange={setCategory}
-                onGrowthFormChange={setGrowthForm}
-                onQueryChange={setQuery}
-                onSowMethodChange={setSowMethod}
-                onSunRequirementChange={setSunRequirement}
-                onWaterNeedsChange={setWaterNeeds}
-                query={query}
-                sowMethod={sowMethod}
-                sunRequirement={sunRequirement}
-                waterNeeds={waterNeeds}
-              />
-
-              <VirtualCropResultList
-                className={cropStyles.cropResults}
-                crops={filteredCrops}
-                empty={
-                  <p className={cropStyles.emptyResults}>No matching crops.</p>
-                }
-                itemHeightPx={92}
-                renderCrop={(crop) => {
-                  const cropMode = getRecommendedPlantingMode(crop, plantCount);
-                  const cropArrangement = getPlantingArrangementDefaults(
-                    crop,
-                    cropMode,
-                    plantCount,
-                  );
-
-                  return (
-                    <CropResultButton
-                      crop={crop}
-                      isSelected={crop.id === selectedCrop.id}
-                      key={crop.id}
-                      onSelect={() => handleSelectCrop(crop.id)}
-                      suitabilityLabel={formatSuitabilityLevel(
-                        scoreCropSuitability({
-                          climateProfile: garden.climateProfile,
-                          crop,
-                          mode: cropMode,
-                          plantCount,
-                          plotType: inferPlotType(garden),
-                          requestedAreaSqFt: cropArrangement.requestedAreaSqFt,
-                          sunExposureAtPlacement,
-                        }),
-                      )}
-                    />
-                  );
-                }}
-              />
-            </div>
-
-            <div className={styles.cropDetailPanel}>
-              <CropDetailCard
-                crop={selectedCrop}
-                suitability={suitability}
-                sunWarning={sunWarning}
-              />
-
-              <CropComparePanel
-                crops={compareCrops}
-                onSelect={handleSelectCrop}
-                selectedCropId={selectedCrop.id}
-              />
-
-              <PlantingModeControls
-                blockDepthFt={blockDepthFt}
-                blockDepthPlaceholder={formatFeetInput(
-                  arrangementDefaults.blockDepthFt,
-                )}
-                blockWidthFt={blockWidthFt}
-                blockWidthPlaceholder={formatFeetInput(
-                  arrangementDefaults.blockWidthFt,
-                )}
-                clusterRadiusFt={clusterRadiusFt}
-                clusterRadiusPlaceholder={formatFeetInput(
-                  arrangementDefaults.clusterRadiusFt,
-                )}
-                onBlockDepthChange={setBlockDepthFt}
-                onBlockWidthChange={setBlockWidthFt}
-                onClusterRadiusChange={setClusterRadiusFt}
-                onModeChange={handleModeChange}
-                onQuantityChange={handleQuantityChange}
-                onRowLengthChange={setRowLengthFt}
-                plantCount={plantCount}
-                rowLengthFt={rowLengthFt}
-                rowLengthPlaceholder={formatFeetInput(
-                  arrangementDefaults.rowLengthFt,
-                )}
-                selectedCrop={selectedCrop}
-                selectedMode={selectedMode}
-              />
-            </div>
-          </div>
-
-          <div className={styles.modalActions}>
-            <button
-              className={styles.secondaryButton}
-              onClick={onClose}
-              type="button"
-            >
-              Cancel
-            </button>
-            <button className={styles.primaryButton} type="submit">
-              Add plant
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
+      </form>
+    </Modal>
   );
 }
 

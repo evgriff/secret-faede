@@ -8,7 +8,6 @@ import type { SunSeason } from '../../garden/sunShadeEngine';
 import type { AutoLayoutCandidate } from '../autoLayoutTypes';
 import { PlanOptimizePreview } from './PlanOptimizePreview';
 import styles from './PlanOptimizeCandidates.module.css';
-import { ReasonTooltip, ReasonTooltipList } from './ReasonTooltip';
 
 export function PlanOptimizeCandidates({
   autoLayoutCandidates,
@@ -60,25 +59,23 @@ export function PlanOptimizeCandidates({
     <div className={styles.walkthroughPanel}>
       <header className={styles.walkthroughHeader}>
         <div>
-          <span className={styles.kicker}>Variant comparison</span>
-          <h4>Compare fully checked layout variants.</h4>
+          <span className={styles.kicker}>Layout ideas</span>
+          <h4>Try a simpler arrangement if you want one.</h4>
           <p>
-            Each variant has already been run through downstream conflict
-            checks. Apply only a complete variant, or ignore it for this draft.
+            These ideas aim for workable access, spacing, and structure use.
+            Pick one to preview it, then apply it or ignore it.
           </p>
         </div>
       </header>
 
-      <div className={styles.strategyRail} aria-label="Checked variants">
+      <div className={styles.strategyRail} aria-label="Layout ideas">
         {layoutVariants.map((variant) => {
           const candidate = candidateById.get(variant.id);
           const isIgnored = ignoredCandidateIds.has(variant.id);
           const isSelected = variant.id === selectedAutoLayoutCandidateId;
-          const reasonId = `variant-reason-${variant.id}`;
 
           return (
             <button
-              aria-describedby={reasonId}
               aria-pressed={isSelected}
               className={`${styles.strategyCard} ${
                 isSelected ? styles.selectedStrategyCard : ''
@@ -88,16 +85,12 @@ export function PlanOptimizeCandidates({
               onClick={() => onSelectAutoLayoutCandidate(variant.id)}
               type="button"
             >
-              <span>Checked variant</span>
+              <span>Layout idea</span>
               <strong>{variant.label}</strong>
+              <p className={styles.strategySummary}>
+                {getVariantCardSummary(variant, candidate, isIgnored)}
+              </p>
               <em>{formatVariantState(variant, candidate, isIgnored)}</em>
-              <span
-                className={styles.variantReason}
-                id={reasonId}
-                role="tooltip"
-              >
-                {getVariantReasonLines(variant, candidate, isIgnored).join(' ')}
-              </span>
             </button>
           );
         })}
@@ -107,47 +100,25 @@ export function PlanOptimizeCandidates({
         <section className={styles.walkthroughFocus}>
           <div className={styles.focusHeader}>
             <div>
-              <span className={styles.kicker}>Selected variant</span>
+              <span className={styles.kicker}>Selected idea</span>
               <h4>{selectedVariant.label}</h4>
               <p>{selectedVariant.summary}</p>
             </div>
             <div className={styles.proposalBadges}>
-              <ReasonTooltip
-                ariaLabel={`${selectedVariant.label} status reason`}
-                content={
-                  <ReasonTooltipList
-                    lines={getVariantReasonLines(
-                      selectedVariant,
-                      selectedCandidate,
-                    )}
-                  />
-                }
-              >
-                <span>
-                  {formatVariantState(selectedVariant, selectedCandidate)}
-                </span>
-              </ReasonTooltip>
-              <ReasonTooltip
-                ariaLabel={`${selectedVariant.label} ranking reason`}
-                content={
-                  <ReasonTooltipList
-                    lines={getVariantRankingLines(selectedVariant)}
-                  />
-                }
-              >
-                <span>ranked variant</span>
-              </ReasonTooltip>
+              <span>
+                {formatVariantState(selectedVariant, selectedCandidate)}
+              </span>
             </div>
           </div>
 
           {selectedVariant.downstreamValidation.status === 'failed' ? (
             <p className={styles.variantWarning} role="status">
               {selectedVariant.downstreamValidation.message ??
-                'This variant still has unresolved must-fix problems.'}
+                'This idea still leaves a must-fix issue in place.'}
             </p>
           ) : (
             <p className={styles.variantSuccess} role="status">
-              Checked downstream: no must-fix problems attached to this variant.
+              This idea clears the must-fix issues tied to the current draft.
             </p>
           )}
 
@@ -161,39 +132,19 @@ export function PlanOptimizeCandidates({
 
           <div className={styles.walkthroughDetailGrid}>
             <DetailBlock
-              fallback="No unresolved must-fix problems are attached."
-              items={selectedVariant.problems.map(
-                (problem) => `${problem.title}: ${problem.description}`,
-              )}
-              title="Problems checked"
+              fallback="This keeps the requested crops in a workable arrangement."
+              items={getVariantHighlights(selectedVariant, selectedCandidate)}
+              title="Why try it"
             />
             <DetailBlock
-              fallback="No separate resolution option is needed."
-              items={selectedVariant.resolutionOptions.map(
-                (option) => `${option.label}: ${option.description}`,
-              )}
-              title="Resolution options"
+              fallback="Nothing important still needs attention in this idea."
+              items={getVariantWatchLines(selectedVariant, selectedCandidate)}
+              title="What to watch"
             />
             <DetailBlock
-              fallback="No tradeoff introduced by this variant."
-              items={[
-                ...selectedCandidate.tradeoffs,
-                ...selectedCandidate.unplaced.map(
-                  (entry) => `${entry.cropName}: ${entry.reason}`,
-                ),
-                ...selectedCandidate.hardConstraintViolations,
-              ]}
-              title="Tradeoffs introduced"
-            />
-            <DetailBlock
-              items={[
-                getSearchSummary(selectedCandidate),
-                ...selectedVariant.assumptions,
-                ...selectedCandidate.search.unresolvedIssues.map(
-                  (issue) => `Still unresolved: ${issue}`,
-                ),
-              ]}
-              title="Solver check"
+              fallback="This idea stays within the current plot and structure setup."
+              items={getVariantOutcomeLines(selectedVariant, selectedCandidate)}
+              title="What it changes"
             />
           </div>
 
@@ -204,7 +155,7 @@ export function PlanOptimizeCandidates({
               onClick={onApplyAutoLayoutCandidate}
               type="button"
             >
-              Apply full variant to draft
+              Apply this layout
             </button>
             <button
               className={styles.decisionButton}
@@ -212,14 +163,12 @@ export function PlanOptimizeCandidates({
               onClick={() => onIgnoreAutoLayoutCandidate(selectedVariant.id)}
               type="button"
             >
-              Ignore variant
+              Ignore this idea
             </button>
           </div>
         </section>
       ) : (
-        <p className={styles.helpText}>
-          Select a checked variant to inspect the downstream result.
-        </p>
+        <p className={styles.helpText}>Pick a layout idea to preview it.</p>
       )}
     </div>
   );
@@ -246,7 +195,7 @@ function DetailBlock({
           ))}
         </ul>
       ) : (
-        <p>{fallback ?? 'No issues created by this variant.'}</p>
+        <p>{fallback ?? 'No issues created by this layout idea.'}</p>
       )}
     </section>
   );
@@ -266,77 +215,93 @@ function formatVariantState(
   }
 
   if (candidate.hardConstraintViolations.length > 0) {
-    return 'Blocked by hard constraint';
+    return 'Cannot apply yet';
   }
 
   if (variant.downstreamValidation.status === 'failed') {
-    return `${variant.downstreamValidation.remainingProblemIds.length} unresolved`;
-  }
-
-  if (candidate.search.status === 'resolved') {
-    return 'Checked and resolved';
+    return 'Still leaves work';
   }
 
   return candidate.unplaced.length > 0
-    ? 'Checked with unplaced crops'
-    : 'Checked variant';
+    ? 'Leaves some crops out'
+    : 'Ready to try';
 }
 
-function getVariantReasonLines(
+function getVariantCardSummary(
   variant: LayoutVariant,
   candidate: AutoLayoutCandidate | undefined | null,
   isIgnored = false,
 ) {
   if (isIgnored) {
-    return ['This variant was intentionally ignored for this private draft.'];
+    return 'Set aside for this draft.';
   }
 
   if (!candidate) {
-    return ['The saved variant no longer has matching generated geometry.'];
+    return 'This saved idea no longer matches the current draft.';
   }
 
   if (candidate.hardConstraintViolations.length > 0) {
-    return candidate.hardConstraintViolations.slice(0, 3);
+    return candidate.hardConstraintViolations[0] ?? 'This idea cannot apply.';
   }
 
   if (variant.downstreamValidation.status === 'failed') {
-    return [
+    return (
       variant.downstreamValidation.message ??
-        'Downstream checks found unresolved problems.',
-      ...variant.problems
-        .filter((problem) =>
-          variant.downstreamValidation.remainingProblemIds.includes(problem.id),
-        )
-        .map((problem) => `${problem.title}: ${problem.description}`),
-    ];
-  }
-
-  if (candidate.unplaced.length > 0) {
-    return candidate.unplaced.map(
-      (entry) => `${entry.cropName} is unplaced: ${entry.reason}`,
+      'This idea still leaves a must-fix issue behind.'
     );
   }
 
-  if (candidate.search.status === 'resolved') {
-    return [
-      `Solver checked ${candidate.search.evaluatedStates} states and pruned ${candidate.search.repeatedStates} repeated states before surfacing this variant.`,
-      'No must-fix downstream problem is attached to this variant.',
-    ];
+  if (candidate.unplaced.length > 0) {
+    return `${candidate.unplaced.length} crop${candidate.unplaced.length === 1 ? '' : 's'} would stay unplaced.`;
   }
 
-  return [
-    `Solver checked ${candidate.search.evaluatedStates} states to depth ${candidate.search.reachedDepth}/${candidate.search.maxDepth}.`,
-    variant.downstreamValidation.message ?? 'No must-fix problem is attached.',
-  ];
+  return variant.summary;
 }
 
-function getVariantRankingLines(variant: LayoutVariant) {
-  return [
-    `Access ${variant.score.components.access}, spacing ${variant.score.components.spacing}, sun ${variant.score.components.sun}, support ${variant.score.components.support}.`,
-    'The rank is a deterministic heuristic for comparing variants, not a yield prediction.',
-  ];
+function getVariantHighlights(
+  variant: LayoutVariant,
+  candidate: AutoLayoutCandidate,
+) {
+  return uniqueLines([
+    variant.summary,
+    ...candidate.explanations.filter(
+      (line) =>
+        !/recursive solver/i.test(line) && !/^Checked plot bounds/i.test(line),
+    ),
+  ]);
 }
 
-function getSearchSummary(candidate: AutoLayoutCandidate) {
-  return `Checked ${candidate.search.evaluatedStates} layout state${candidate.search.evaluatedStates === 1 ? '' : 's'}; pruned ${candidate.search.repeatedStates} repeat${candidate.search.repeatedStates === 1 ? '' : 's'} and ${candidate.search.prunedStates} capped branch${candidate.search.prunedStates === 1 ? '' : 'es'}.`;
+function getVariantWatchLines(
+  variant: LayoutVariant,
+  candidate: AutoLayoutCandidate,
+) {
+  return uniqueLines([
+    ...candidate.hardConstraintViolations,
+    variant.downstreamValidation.status === 'failed'
+      ? (variant.downstreamValidation.message ?? '')
+      : '',
+    ...candidate.unplaced.map(
+      (entry) => `${entry.cropName} stays unplaced: ${entry.reason}`,
+    ),
+    ...candidate.tradeoffs.filter((line) =>
+      /tight|mixed|still|needs|could not|review the plot/i.test(line),
+    ),
+  ]);
+}
+
+function getVariantOutcomeLines(
+  variant: LayoutVariant,
+  candidate: AutoLayoutCandidate,
+) {
+  return uniqueLines([
+    ...candidate.tradeoffs.filter(
+      (line) =>
+        !/tight|mixed|still|needs|could not|review the plot/i.test(line),
+    ),
+    ...variant.assumptions,
+  ]);
+}
+
+function uniqueLines(lines: string[]) {
+  return [...new Set(lines.filter(Boolean))];
 }

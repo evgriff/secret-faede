@@ -27,6 +27,7 @@ import {
   type CropSupportKind,
   getCropSupportNeed,
   getSupportLabel,
+  needsExplicitSupportSetup,
 } from '../garden/gardenStructureRules';
 import type { AutoLayoutStrategy } from './autoLayoutTypes';
 import { autoLayoutProposalMarker, type Placement } from './autoLayoutPlanner';
@@ -42,7 +43,11 @@ export function applySupportPlansAndBuildStructures(
     const crop = placement.unit.crop;
     const supportNeed = getCropSupportNeed(crop);
 
-    if (!supportNeed || !cropNeedsSupport(crop)) {
+    if (
+      !supportNeed ||
+      !cropNeedsSupport(crop) ||
+      !needsExplicitSupportSetup(crop)
+    ) {
       return placement;
     }
 
@@ -156,7 +161,7 @@ export function findHardConstraintViolations(
     }
 
     if (
-      cropNeedsSupport(placement.unit.crop) &&
+      needsExplicitSupportSetup(placement.unit.crop) &&
       !canSupportFootprint(garden, placement.unit.crop, footprint, [
         ...reservedRects,
         ...footprints.filter((candidate) => candidate.id !== footprint.id),
