@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -13,37 +14,47 @@ import {
 } from '../../garden/gardenImmutability';
 import {
   clientPointToPlotFeet,
+  pixelsPerFoot,
   type PlotClientRect,
   type PlotPoint,
 } from '../../garden/gardenMath';
-import type { SelectedGardenItem } from '../../garden/useGarden';
+import type {
+  GardenPositionUpdateOptions,
+  SelectedGardenItem,
+} from '../../garden/useGarden';
 import type { PlanMode } from '../planModes';
 import {
   areSamePlanItem,
   calculateResizeRect,
+  getPlanItemKey,
   getItemPointFromRect,
   getItemRect,
   getItemsInRect,
   rectFromPoints,
+  rectFromItemPoint,
   snapItemPoint,
   snapResizeRect,
   type PlanItemPositionUpdate,
+  type PlanPreviewOffset,
   type PlanItemRectUpdate,
   type PlanItemRef,
   type ResizeHandle,
   type SnapGuide,
 } from '../planInteractionGeometry';
 
+type ItemRect = NonNullable<ReturnType<typeof getItemRect>>;
+
 type DragState = {
   checkpointed: boolean;
   item: PlanItemRef;
   moved: boolean;
   originalPoints: PlanItemPositionUpdate[];
+  originalRects: Array<{ item: PlanItemRef; rect: ItemRect }>;
   plotRect: PlotClientRect;
   pointerOffset: PlotPoint;
   scrollLock: ScrollLock | null;
   selection: PlanItemRef[];
-  sourceRect: NonNullable<ReturnType<typeof getItemRect>>;
+  sourceRect: ItemRect;
   startClientX: number;
   startClientY: number;
 };
@@ -51,7 +62,8 @@ type DragState = {
 type ResizeState = {
   checkpointed: boolean;
   handle: ResizeHandle;
-  originalRect: NonNullable<ReturnType<typeof getItemRect>>;
+  moved: boolean;
+  originalRect: ItemRect;
   plotRect: PlotClientRect;
   scrollLock: ScrollLock | null;
   startClientX: number;
@@ -61,13 +73,25 @@ type ResizeState = {
 
 type MarqueeState = {
   additive: boolean;
+  moved: boolean;
   plotRect: PlotClientRect;
   scrollLock: ScrollLock | null;
   start: PlotPoint;
+  startClientX: number;
+  startClientY: number;
+};
+
+type ItemPressState = {
+  additive: boolean;
+  item: PlanItemRef;
+  moved: boolean;
+  startClientX: number;
+  startClientY: number;
 };
 
 type ScrollLock = {
   element: HTMLElement;
+  release(): void;
   scrollLeft: number;
   scrollTop: number;
 };
@@ -77,12 +101,17 @@ type PlanPointerInteractionContext = {
   mode: PlanMode;
   onCheckpoint(): void;
   onMarqueeSelect(items: PlanItemRef[], additive: boolean): void;
-  onSelectItem(item: SelectedGardenItem, additive: boolean): void;
+  onSelectItem(
+    item: SelectedGardenItem,
+    additive: boolean,
+    options?: { openSurface?: boolean },
+  ): void;
   resizeStructureRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
   selectedItems: PlanItemRef[];
   updateItemPositions(
     updates: PlanItemPositionUpdate[],
     trackHistory?: boolean,
+    options?: GardenPositionUpdateOptions,
   ): void;
 };
 
@@ -126,6 +155,42 @@ type PlanPointerInteractionHandlers = {
   ): void;
 };
 
+type DragPreview = {
+  guides: SnapGuide[];
+  hasChanged: boolean;
+  offsetsByItemKey: Record<string, PlanPreviewOffset>;
+  updates: PlanItemPositionUpdate[];
+};
+
+type ResizePreview = {
+  guides: SnapGuide[];
+  hasChanged: boolean;
+  rect: ItemRect;
+  update: PlanItemRectUpdate;
+};
+
+type InteractionPreviewState = {
+  dragOffsetsByItemKey: Record<string, PlanPreviewOffset>;
+  resizePreview: {
+    rect: ItemRect;
+    structureId: string;
+  } | null;
+  snapGuides: SnapGuide[];
+};
+
+const emptyInteractionPreviewState: InteractionPreviewState = {
+  dragOffsetsByItemKey: {},
+  resizePreview: null,
+  snapGuides: [],
+};
+
+export type PlanPointerInteractionState =
+  | 'drag'
+  | 'idle'
+  | 'marquee'
+  | 'press'
+  | 'resize';
+
 export function usePlanPointerInteractions({
   garden,
   mode,
@@ -140,12 +205,17 @@ export function usePlanPointerInteractions({
   mode: PlanMode;
   onCheckpoint(): void;
   onMarqueeSelect(items: PlanItemRef[], additive: boolean): void;
-  onSelectItem(item: SelectedGardenItem, additive: boolean): void;
+  onSelectItem(
+    item: SelectedGardenItem,
+    additive: boolean,
+    options?: { openSurface?: boolean },
+  ): void;
   resizeStructureRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
   selectedItems: PlanItemRef[];
   updateItemPositions(
     updates: PlanItemPositionUpdate[],
     trackHistory?: boolean,
+    options?: GardenPositionUpdateOptions,
   ): void;
 }) {
   const [draggingPlantId, setDraggingPlantId] = useState<string | null>(null);
@@ -158,9 +228,19 @@ export function usePlanPointerInteractions({
   const [resizingStructureId, setResizingStructureId] = useState<string | null>(
     null,
   );
-  const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
+  const [interactionState, setInteractionState] =
+    useState<PlanPointerInteractionState>('idle');
+  const [interactionPreviewState, setInteractionPreviewState] =
+    useState<InteractionPreviewState>(emptyInteractionPreviewState);
   const dragStateRef = useRef<DragState | null>(null);
+  const dragPreviewRef = useRef<DragPreview | null>(null);
+  const itemPressRef = useRef<ItemPressState | null>(null);
   const marqueeStateRef = useRef<MarqueeState | null>(null);
+  const pendingPreviewStateRef = useRef<InteractionPreviewState>(
+    emptyInteractionPreviewState,
+  );
+  const previewFrameRef = useRef<number | null>(null);
+  const resizePreviewRef = useRef<ResizePreview | null>(null);
   const resizeStateRef = useRef<ResizeState | null>(null);
   const plotRef = useRef<HTMLDivElement | null>(null);
   const contextRef = useRef<PlanPointerInteractionContext>({
@@ -173,6 +253,18 @@ export function usePlanPointerInteractions({
     selectedItems,
     updateItemPositions,
   });
+
+  useEffect(
+    () => () => {
+      if (
+        previewFrameRef.current !== null &&
+        typeof cancelAnimationFrame === 'function'
+      ) {
+        cancelAnimationFrame(previewFrameRef.current);
+      }
+    },
+    [],
+  );
 
   useLayoutEffect(() => {
     contextRef.current = {
@@ -196,12 +288,203 @@ export function usePlanPointerInteractions({
     updateItemPositions,
   ]);
 
+  function queueInteractionPreview(nextState: InteractionPreviewState) {
+    pendingPreviewStateRef.current = nextState;
+
+    if (previewFrameRef.current !== null) {
+      return;
+    }
+
+    if (typeof requestAnimationFrame !== 'function') {
+      setInteractionPreviewState(nextState);
+      return;
+    }
+
+    previewFrameRef.current = requestAnimationFrame(() => {
+      previewFrameRef.current = null;
+      setInteractionPreviewState(pendingPreviewStateRef.current);
+    });
+  }
+
+  function clearInteractionPreview() {
+    dragPreviewRef.current = null;
+    itemPressRef.current = null;
+    resizePreviewRef.current = null;
+    pendingPreviewStateRef.current = emptyInteractionPreviewState;
+
+    if (
+      previewFrameRef.current !== null &&
+      typeof cancelAnimationFrame === 'function'
+    ) {
+      cancelAnimationFrame(previewFrameRef.current);
+      previewFrameRef.current = null;
+    }
+
+    setInteractionPreviewState(emptyInteractionPreviewState);
+  }
+
+  function syncDragPreviewState(preview: DragPreview) {
+    queueInteractionPreview({
+      dragOffsetsByItemKey: preview.hasChanged ? preview.offsetsByItemKey : {},
+      resizePreview: null,
+      snapGuides: preview.hasChanged ? preview.guides : [],
+    });
+  }
+
+  function syncResizePreviewState(preview: ResizePreview, structureId: string) {
+    queueInteractionPreview({
+      dragOffsetsByItemKey: {},
+      resizePreview: preview.hasChanged
+        ? {
+            rect: preview.rect,
+            structureId,
+          }
+        : null,
+      snapGuides: preview.hasChanged ? preview.guides : [],
+    });
+  }
+
+  function buildDragPreview(
+    event: PointerEvent<HTMLElement>,
+    dragState: DragState,
+    currentGarden: Garden,
+  ): DragPreview {
+    const pointerPoint = clientPointToPlotFeet(
+      event,
+      dragState.plotRect,
+      currentGarden.plot,
+    );
+    const nextPoint = {
+      xFt: pointerPoint.xFt - dragState.pointerOffset.xFt,
+      yFt: pointerPoint.yFt - dragState.pointerOffset.yFt,
+    };
+    const snapResult = snapItemPoint({
+      freeMove: event.altKey,
+      garden: currentGarden,
+      item: dragState.item,
+      point: nextPoint,
+      sourceRect: dragState.sourceRect,
+      snap: true,
+      snapExclusions: dragState.selection,
+    });
+    const sourcePoint =
+      dragState.originalPoints.find((point) =>
+        areSamePlanItem(point, dragState.item),
+      ) ?? dragState.originalPoints[0];
+
+    if (!sourcePoint) {
+      return {
+        guides: [],
+        hasChanged: false,
+        offsetsByItemKey: {},
+        updates: dragState.originalPoints,
+      };
+    }
+
+    const delta = {
+      xFt: snapResult.point.xFt - sourcePoint.xFt,
+      yFt: snapResult.point.yFt - sourcePoint.yFt,
+    };
+    const updates = dragState.originalPoints.map((point) => ({
+      ...point,
+      xFt: roundFeet(point.xFt + delta.xFt),
+      yFt: roundFeet(point.yFt + delta.yFt),
+    }));
+    const updatesByKey = new Map(
+      updates.map((update) => [getPlanItemKey(update), update]),
+    );
+    const offsetsByItemKey = dragState.originalRects.reduce<
+      Record<string, PlanPreviewOffset>
+    >((offsets, entry) => {
+      const nextPoint = updatesByKey.get(getPlanItemKey(entry.item));
+
+      if (!nextPoint) {
+        return offsets;
+      }
+
+      const previewRect = rectFromItemPoint(entry.item, nextPoint, entry.rect);
+      const xPx = roundPixels(
+        (previewRect.xFt - entry.rect.xFt) * pixelsPerFoot,
+      );
+      const yPx = roundPixels(
+        (previewRect.yFt - entry.rect.yFt) * pixelsPerFoot,
+      );
+
+      if (xPx === 0 && yPx === 0) {
+        return offsets;
+      }
+
+      offsets[getPlanItemKey(entry.item)] = { xPx, yPx };
+      return offsets;
+    }, {});
+    const hasChanged = updates.some((update, index) => {
+      const original = dragState.originalPoints[index];
+
+      return (
+        original && (update.xFt !== original.xFt || update.yFt !== original.yFt)
+      );
+    });
+
+    return {
+      guides: event.altKey ? [] : snapResult.guides,
+      hasChanged,
+      offsetsByItemKey,
+      updates,
+    };
+  }
+
+  function buildResizePreview(
+    event: PointerEvent<HTMLSpanElement>,
+    resizeState: ResizeState,
+    currentGarden: Garden,
+  ): ResizePreview {
+    const point = clientPointToPlotFeet(
+      event,
+      resizeState.plotRect,
+      currentGarden.plot,
+    );
+    const baseRect = calculateResizeRect({
+      currentPoint: point,
+      garden: currentGarden,
+      handle: resizeState.handle,
+      originalRect: resizeState.originalRect,
+    });
+    const snapResult = snapResizeRect({
+      freeMove: event.altKey,
+      garden: currentGarden,
+      handle: resizeState.handle,
+      rect: baseRect,
+      snapExclusions: [{ id: resizeState.structureId, type: 'structure' }],
+    });
+
+    return {
+      guides: event.altKey ? [] : snapResult.guides,
+      hasChanged: !areRectsEqual(snapResult.rect, resizeState.originalRect),
+      rect: snapResult.rect,
+      update: {
+        depthFt: snapResult.rect.depthFt,
+        id: resizeState.structureId,
+        type: 'structure',
+        widthFt: snapResult.rect.widthFt,
+        xFt: snapResult.rect.xFt,
+        yFt: snapResult.rect.yFt,
+      },
+    };
+  }
+
   function beginItemDrag(event: PointerEvent<HTMLElement>, item: PlanItemRef) {
-    const { garden, onSelectItem, selectedItems } = contextRef.current;
+    const { garden, selectedItems } = contextRef.current;
 
     event.preventDefault();
     event.stopPropagation();
-    onSelectItem(item, event.shiftKey);
+    itemPressRef.current = {
+      additive: event.shiftKey,
+      item,
+      moved: false,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+    };
+    setInteractionState('press');
 
     if (!garden || event.shiftKey || isItemLocked(garden, item)) {
       return;
@@ -220,24 +503,28 @@ export function usePlanPointerInteractions({
     const dragSelection =
       selectedItems.some((selected) => areSamePlanItem(selected, item)) &&
       selectedItems.length > 1
-        ? selectedItems
+        ? selectedItems.filter(
+            (selectedItem) => !isItemLocked(garden, selectedItem),
+          )
         : [item];
-    const originalPoints = dragSelection.flatMap((selectedItem) => {
+    const originalRects = dragSelection.flatMap((selectedItem) => {
       const selectedRect = getItemRect(garden, selectedItem);
 
       if (!selectedRect) {
         return [];
       }
 
-      return [
-        {
-          ...selectedItem,
-          ...getItemPointFromRect(selectedItem, selectedRect),
-        },
-      ];
+      return [{ item: selectedItem, rect: selectedRect }];
     });
+    const originalPoints = originalRects.map(
+      ({ item: selectedItem, rect }) => ({
+        ...selectedItem,
+        ...getItemPointFromRect(selectedItem, rect),
+      }),
+    );
 
     if (originalPoints.length === 0) {
+      releaseScrollLock(scrollLock);
       return;
     }
 
@@ -247,6 +534,7 @@ export function usePlanPointerInteractions({
       item,
       moved: false,
       originalPoints,
+      originalRects,
       plotRect: rect,
       pointerOffset: {
         xFt: pointerPoint.xFt - itemPoint.xFt,
@@ -258,12 +546,6 @@ export function usePlanPointerInteractions({
       startClientX: event.clientX,
       startClientY: event.clientY,
     };
-
-    if (item.type === 'planting') {
-      setDraggingPlantId(item.instanceId ?? item.id);
-    } else {
-      setDraggingStructureId(item.id);
-    }
   }
 
   function continueItemDrag(
@@ -286,88 +568,82 @@ export function usePlanPointerInteractions({
     event.stopPropagation();
     restoreScrollLock(dragState.scrollLock);
 
+    const wasMoved = dragState.moved;
+
     if (!markMoved(event, dragState)) {
+      const pressState = itemPressRef.current;
+
+      if (pressState && areSamePlanItem(pressState.item, item)) {
+        markMoved(event, pressState);
+      }
+
       return;
     }
 
-    checkpointDrag(dragState, onCheckpoint);
-    updateDraggedItems(event, dragState, false);
+    if (!wasMoved) {
+      setInteractionState('drag');
+      if (item.type === 'planting') {
+        setDraggingPlantId(item.instanceId ?? item.id);
+      } else {
+        setDraggingStructureId(item.id);
+      }
+    }
+
+    const preview = buildDragPreview(event, dragState, garden);
+
+    dragPreviewRef.current = preview;
+    restoreScrollLock(dragState.scrollLock);
+    syncDragPreviewState(preview);
+
+    if (preview.hasChanged) {
+      checkpointDrag(dragState, onCheckpoint);
+    }
   }
 
   function endItemDrag(event: PointerEvent<HTMLElement>, item: PlanItemRef) {
+    const { garden, onCheckpoint, onSelectItem, updateItemPositions } =
+      contextRef.current;
     const dragState = dragStateRef.current;
+    const pressState = itemPressRef.current;
 
-    if (!dragState || !areSamePlanItem(dragState.item, item)) {
+    if (
+      !garden ||
+      ((!dragState || !areSamePlanItem(dragState.item, item)) &&
+        (!pressState || !areSamePlanItem(pressState.item, item)))
+    ) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
+    const canceled = event.type === 'pointercancel';
 
-    if (dragState.moved) {
-      updateDraggedItems(event, dragState, true);
+    if (!canceled && dragState?.moved) {
+      const preview = buildDragPreview(event, dragState, garden);
+
+      dragPreviewRef.current = preview;
+
+      if (preview.hasChanged) {
+        checkpointDrag(dragState, onCheckpoint);
+        updateItemPositions(preview.updates, false, { saveAfterCommit: true });
+      }
+
+      if (dragState.selection.length === 1) {
+        onSelectItem(item, false, { openSurface: false });
+      }
+    } else if (!canceled && pressState && !pressState.moved) {
+      onSelectItem(item, pressState.additive, { openSurface: true });
     }
 
-    restoreScrollLock(dragState.scrollLock);
+    restoreScrollLock(dragState?.scrollLock ?? null);
+    restoreScrollLockAfterPaint(dragState?.scrollLock ?? null);
+    releaseScrollLock(dragState?.scrollLock ?? null);
     releasePointerCapture(event);
     dragStateRef.current = null;
     setDraggingPlantId(null);
     setDraggingStructureId(null);
-    setSnapGuides([]);
-  }
-
-  function updateDraggedItems(
-    event: PointerEvent<HTMLElement>,
-    dragState: DragState,
-    isFinal: boolean,
-  ) {
-    const { garden, updateItemPositions } = contextRef.current;
-
-    if (!garden) {
-      return;
-    }
-
-    restoreScrollLock(dragState.scrollLock);
-    const pointerPoint = clientPointToPlotFeet(
-      event,
-      dragState.plotRect,
-      garden.plot,
-    );
-    const nextPoint = {
-      xFt: pointerPoint.xFt - dragState.pointerOffset.xFt,
-      yFt: pointerPoint.yFt - dragState.pointerOffset.yFt,
-    };
-    const snapResult = snapItemPoint({
-      freeMove: event.altKey,
-      garden,
-      item: dragState.item,
-      point: nextPoint,
-      sourceRect: dragState.sourceRect,
-      snap: true,
-      snapExclusions: dragState.selection,
-    });
-    const sourcePoint =
-      dragState.originalPoints.find((point) =>
-        areSamePlanItem(point, dragState.item),
-      ) ?? dragState.originalPoints[0];
-
-    if (!sourcePoint) {
-      return;
-    }
-
-    const delta = {
-      xFt: snapResult.point.xFt - sourcePoint.xFt,
-      yFt: snapResult.point.yFt - sourcePoint.yFt,
-    };
-    const updates = dragState.originalPoints.map((point) => ({
-      ...point,
-      xFt: roundFeet(point.xFt + delta.xFt),
-      yFt: roundFeet(point.yFt + delta.yFt),
-    }));
-
-    updateItemPositions(updates, false);
-    restoreScrollLock(dragState.scrollLock);
-    setSnapGuides(isFinal || event.altKey ? [] : snapResult.guides);
+    setInteractionState('idle');
+    clearInteractionPreview();
   }
 
   function beginResize(
@@ -375,11 +651,11 @@ export function usePlanPointerInteractions({
     structureId: string,
     handle: ResizeHandle,
   ) {
-    const { garden, onSelectItem } = contextRef.current;
+    const { garden } = contextRef.current;
 
     event.preventDefault();
     event.stopPropagation();
-    onSelectItem({ id: structureId, type: 'structure' }, event.shiftKey);
+    setInteractionState('press');
 
     if (
       !garden ||
@@ -403,6 +679,7 @@ export function usePlanPointerInteractions({
     resizeStateRef.current = {
       checkpointed: false,
       handle,
+      moved: false,
       originalRect,
       plotRect,
       scrollLock,
@@ -410,7 +687,6 @@ export function usePlanPointerInteractions({
       startClientY: event.clientY,
       structureId,
     };
-    setResizingStructureId(structureId);
   }
 
   function continueResize(event: PointerEvent<HTMLSpanElement>) {
@@ -424,77 +700,70 @@ export function usePlanPointerInteractions({
     event.stopPropagation();
     restoreScrollLock(resizeStateRef.current.scrollLock);
 
+    const wasMoved = resizeStateRef.current.moved;
+
     if (!markMoved(event, resizeStateRef.current)) {
       return;
     }
 
-    if (!resizeStateRef.current.checkpointed) {
+    if (!wasMoved) {
+      setInteractionState('resize');
+      setResizingStructureId(resizeStateRef.current.structureId);
+    }
+
+    const preview = buildResizePreview(event, resizeStateRef.current, garden);
+
+    resizePreviewRef.current = preview;
+    restoreScrollLock(resizeStateRef.current.scrollLock);
+    syncResizePreviewState(preview, resizeStateRef.current.structureId);
+
+    if (preview.hasChanged && !resizeStateRef.current.checkpointed) {
       onCheckpoint();
       resizeStateRef.current.checkpointed = true;
     }
-
-    updateResizedStructure(event, resizeStateRef.current, false);
   }
 
   function endResize(event: PointerEvent<HTMLSpanElement>) {
-    if (!resizeStateRef.current) {
+    const { garden, onCheckpoint, onSelectItem, resizeStructureRect } =
+      contextRef.current;
+
+    if (!garden || !resizeStateRef.current) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
-    updateResizedStructure(event, resizeStateRef.current, true);
+    const canceled = event.type === 'pointercancel';
+
+    const preview = buildResizePreview(event, resizeStateRef.current, garden);
+
+    resizePreviewRef.current = preview;
+
+    if (!canceled && preview.hasChanged) {
+      if (!resizeStateRef.current.checkpointed) {
+        onCheckpoint();
+        resizeStateRef.current.checkpointed = true;
+      }
+
+      resizeStructureRect(preview.update, false);
+    }
+
+    if (!canceled) {
+      onSelectItem(
+        { id: resizeStateRef.current.structureId, type: 'structure' },
+        false,
+        { openSurface: false },
+      );
+    }
+
     restoreScrollLock(resizeStateRef.current.scrollLock);
+    restoreScrollLockAfterPaint(resizeStateRef.current.scrollLock);
+    releaseScrollLock(resizeStateRef.current.scrollLock);
     releasePointerCapture(event);
     resizeStateRef.current = null;
     setResizingStructureId(null);
-    setSnapGuides([]);
-  }
-
-  function updateResizedStructure(
-    event: PointerEvent<HTMLSpanElement>,
-    resizeState: ResizeState,
-    isFinal: boolean,
-  ) {
-    const { garden, resizeStructureRect } = contextRef.current;
-
-    if (!garden) {
-      return;
-    }
-
-    restoreScrollLock(resizeState.scrollLock);
-    const point = clientPointToPlotFeet(
-      event,
-      resizeState.plotRect,
-      garden.plot,
-    );
-    const baseRect = calculateResizeRect({
-      currentPoint: point,
-      garden,
-      handle: resizeState.handle,
-      originalRect: resizeState.originalRect,
-    });
-    const snapResult = snapResizeRect({
-      freeMove: event.altKey,
-      garden,
-      handle: resizeState.handle,
-      rect: baseRect,
-      snapExclusions: [{ id: resizeState.structureId, type: 'structure' }],
-    });
-
-    resizeStructureRect(
-      {
-        depthFt: snapResult.rect.depthFt,
-        id: resizeState.structureId,
-        type: 'structure',
-        widthFt: snapResult.rect.widthFt,
-        xFt: snapResult.rect.xFt,
-        yFt: snapResult.rect.yFt,
-      },
-      false,
-    );
-    restoreScrollLock(resizeState.scrollLock);
-    setSnapGuides(isFinal || event.altKey ? [] : snapResult.guides);
+    setInteractionState('idle');
+    clearInteractionPreview();
   }
 
   function beginMarquee(event: PointerEvent<HTMLDivElement>) {
@@ -527,11 +796,14 @@ export function usePlanPointerInteractions({
     const start = clientPointToPlotFeet(event, rect, garden.plot);
     marqueeStateRef.current = {
       additive: event.shiftKey,
+      moved: false,
       plotRect: rect,
       scrollLock,
       start,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
     };
-    setMarqueeRect(rectFromPoints(start, start));
+    setInteractionState('press');
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
@@ -545,6 +817,12 @@ export function usePlanPointerInteractions({
     event.preventDefault();
     event.stopPropagation();
     restoreScrollLock(marqueeStateRef.current.scrollLock);
+
+    if (!markMoved(event, marqueeStateRef.current)) {
+      return;
+    }
+
+    setInteractionState('marquee');
     setMarqueeRect(
       rectFromPoints(
         marqueeStateRef.current.start,
@@ -566,18 +844,27 @@ export function usePlanPointerInteractions({
 
     event.preventDefault();
     event.stopPropagation();
+    const canceled = event.type === 'pointercancel';
     const state = marqueeStateRef.current;
 
     restoreScrollLock(state.scrollLock);
-    const selectionRect = rectFromPoints(
-      state.start,
-      clientPointToPlotFeet(event, state.plotRect, garden.plot),
-    );
-    onMarqueeSelect(getItemsInRect(garden, selectionRect), state.additive);
+    restoreScrollLockAfterPaint(state.scrollLock);
+    releaseScrollLock(state.scrollLock);
+
+    if (!canceled && state.moved) {
+      const selectionRect = rectFromPoints(
+        state.start,
+        clientPointToPlotFeet(event, state.plotRect, garden.plot),
+      );
+      onMarqueeSelect(getItemsInRect(garden, selectionRect), state.additive);
+    } else if (!canceled) {
+      onMarqueeSelect([], false);
+    }
 
     releasePointerCapture(event);
     marqueeStateRef.current = null;
     setMarqueeRect(null);
+    setInteractionState('idle');
   }
 
   // The wrappers stay stable for memoized canvas items; the helpers read latest state from contextRef.
@@ -625,13 +912,16 @@ export function usePlanPointerInteractions({
   );
 
   return {
+    dragPreviewOffsetsByItemKey: interactionPreviewState.dragOffsetsByItemKey,
     draggingPlantId,
     draggingStructureId,
     ...stableHandlers,
+    interactionState,
     marqueeRect,
     plotRef,
+    resizePreview: interactionPreviewState.resizePreview,
     resizingStructureId,
-    snapGuides,
+    snapGuides: interactionPreviewState.snapGuides,
   };
 }
 
@@ -697,6 +987,19 @@ function roundFeet(value: number) {
   return Number(value.toFixed(3));
 }
 
+function roundPixels(value: number) {
+  return Number(value.toFixed(3));
+}
+
+function areRectsEqual(left: ItemRect, right: ItemRect) {
+  return (
+    left.xFt === right.xFt &&
+    left.yFt === right.yFt &&
+    left.widthFt === right.widthFt &&
+    left.depthFt === right.depthFt
+  );
+}
+
 function getFrozenPlotRect(element: HTMLElement | null): PlotClientRect | null {
   const rect = element?.getBoundingClientRect();
 
@@ -718,11 +1021,31 @@ function captureScrollLock(element: HTMLElement): ScrollLock | null {
     return null;
   }
 
-  return {
+  let restoring = false;
+  const scrollLock: ScrollLock = {
     element: scrollport,
+    release() {
+      scrollport.removeEventListener('scroll', handleScrollLockChange);
+    },
     scrollLeft: scrollport.scrollLeft,
     scrollTop: scrollport.scrollTop,
   };
+
+  function handleScrollLockChange() {
+    if (restoring) {
+      return;
+    }
+
+    restoring = true;
+    restoreScrollLock(scrollLock);
+    restoring = false;
+  }
+
+  scrollport.addEventListener('scroll', handleScrollLockChange, {
+    passive: true,
+  });
+
+  return scrollLock;
 }
 
 function restoreScrollLock(scrollLock: ScrollLock | null) {
@@ -737,6 +1060,20 @@ function restoreScrollLock(scrollLock: ScrollLock | null) {
   if (scrollLock.element.scrollTop !== scrollLock.scrollTop) {
     scrollLock.element.scrollTop = scrollLock.scrollTop;
   }
+}
+
+function restoreScrollLockAfterPaint(scrollLock: ScrollLock | null) {
+  if (!scrollLock || typeof requestAnimationFrame !== 'function') {
+    return;
+  }
+
+  requestAnimationFrame(() => {
+    restoreScrollLock(scrollLock);
+  });
+}
+
+function releaseScrollLock(scrollLock: ScrollLock | null) {
+  scrollLock?.release();
 }
 
 function releasePointerCapture(event: PointerEvent<HTMLElement>) {

@@ -4,37 +4,31 @@ import styles from '../TodayPage.module.css';
 export function TodayPageHeader({
   error,
   isOffline,
-  onSyncSchedule,
-  openIssueCount,
+  onRefreshWeatherAndWatering,
   saveStatus,
-  selectedTaskCount,
-  wateringCount,
 }: {
   error: string | null;
   isOffline: boolean;
-  onSyncSchedule(): void;
-  openIssueCount: number;
+  onRefreshWeatherAndWatering(): void;
   saveStatus: TodaySaveStatus;
-  selectedTaskCount: number;
-  wateringCount: number;
 }) {
   return (
     <header className={styles.header}>
       <div>
-        <p className={styles.kicker}>Garden operations</p>
+        <p className={styles.kicker}>Today's work</p>
         <h1>Today</h1>
         <p className={styles.summary}>
-          {selectedTaskCount} tasks, {wateringCount} watering, {openIssueCount}{' '}
-          open issues
+          Do the watering, harvests, checks, and issue follow-up for the
+          selected day. Notes and photos belong in Feed.
         </p>
       </div>
       <div className={styles.actions}>
         <button
           className={styles.secondaryButton}
-          onClick={onSyncSchedule}
+          onClick={onRefreshWeatherAndWatering}
           type="button"
         >
-          Sync schedule
+          Refresh weather &amp; watering schedule
         </button>
         <TodaySaveState
           error={error}

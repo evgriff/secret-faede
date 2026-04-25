@@ -94,6 +94,22 @@ class TestWeatherProvider implements WeatherProvider {
   getForecast(): Promise<WeatherForecast> {
     return Promise.resolve({
       dailyHighF: 88,
+      days: [
+        {
+          conditionSummary: 'Sunny then slight chance of rain',
+          date: '2026-06-21',
+          expectedRainIn: 0.05,
+          highF: 88,
+          precipitationChancePercent: 20,
+        },
+        {
+          conditionSummary: 'Chance of rain',
+          date: '2026-06-22',
+          expectedRainIn: 0.1,
+          highF: 84,
+          precipitationChancePercent: 50,
+        },
+      ],
       generatedAtIso: '2026-06-21T11:00:00.000Z',
       next24hPrecipIn: 0.05,
       next48hPrecipIn: 0.15,

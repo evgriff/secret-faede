@@ -27,15 +27,24 @@ async function generateGardenOperations({
     context,
     snapshot,
     now,
+    {
+      defaultWateringCheckTime:
+        profile?.notificationPreference?.defaultWateringCheckTime || '07:00',
+      timezone:
+        profile?.notificationPreference?.timezone ||
+        profile?.timezone ||
+        garden?.plot?.location?.timezone ||
+        'America/Detroit',
+    },
   );
-  const waterRecommendations = mergeWaterRecommendations(
-    garden.waterRecommendations || [],
+  const wateringSchedule = mergeWaterRecommendations(
+    garden.wateringSchedule || garden.waterRecommendations || [],
     generatedRecommendations,
     now,
   );
   const tasks = mergeTasks(
     garden.tasks || [],
-    buildAutomatedTasks({ ...garden, waterRecommendations }, snapshot, now),
+    buildAutomatedTasks({ ...garden, wateringSchedule }, snapshot, now),
   );
 
   return {
@@ -44,7 +53,7 @@ async function generateGardenOperations({
     recommendations: generatedRecommendations,
     snapshot,
     tasks,
-    waterRecommendations,
+    wateringSchedule,
     weatherSnapshots: [...(garden.weatherSnapshots || []), snapshot].slice(-8),
   };
 }
@@ -121,6 +130,7 @@ function defaultCurrent(provider, nowIso) {
 function defaultForecast(provider, nowIso) {
   return {
     dailyHighF: null,
+    days: [],
     generatedAtIso: nowIso,
     next24hPrecipIn: 0,
     next48hPrecipIn: 0,

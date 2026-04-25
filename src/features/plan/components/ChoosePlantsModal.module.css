@@ -1,87 +1,45 @@
-.backdrop {
-  align-items: center;
-  overflow: hidden;
-  padding: clamp(0.5rem, 2dvh, var(--space-4));
-}
-
 .modal {
-  grid-template-areas:
-    'header'
-    'tabs'
-    'content'
-    'footer';
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  gap: 0;
   width: min(100%, 72rem);
   height: min(50rem, calc(100dvh - 2rem));
   max-height: calc(100dvh - 2rem);
+  padding: 0;
+}
+
+.modalBody {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0;
+  min-height: 0;
   overflow: hidden;
   padding: 0;
 }
 
-.header,
-.footer {
-  z-index: 2;
-  background: #fffdf7;
-  padding: var(--space-4);
-}
-
 .header {
-  grid-area: header;
-  border-bottom: 1px solid rgba(54, 48, 40, 0.1);
+  align-items: center;
 }
 
 .footer {
-  grid-area: footer;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.75rem;
-  border-top: 1px solid rgba(54, 48, 40, 0.1);
-  padding-block: 0.75rem;
-  box-shadow: 0 -0.75rem 1.35rem rgba(31, 27, 24, 0.06);
-}
-
-.headerMeta,
-.footerSummary,
-.emptyText {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-small);
-}
-
-.headerSummary {
   display: flex;
-  flex: 1;
-  flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 0.4rem;
-}
-
-.headerSummary span {
-  border-radius: 999px;
-  background: rgba(54, 48, 40, 0.08);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-caption);
-  font-weight: 820;
-  padding: 0.18rem 0.45rem;
 }
 
 .mobileTabs {
-  grid-area: tabs;
   display: none;
 }
 
 .layout {
-  grid-area: content;
   display: grid;
-  grid-template-columns: minmax(18rem, 0.85fr) minmax(25rem, 1.15fr);
+  grid-template-columns: minmax(30rem, 1fr) minmax(8.5rem, 0.18fr);
   grid-template-rows: minmax(0, 1fr) auto;
   gap: var(--space-4);
   min-height: 0;
   overflow: hidden;
   padding: var(--space-4);
   padding-top: 0;
+}
+
+.layout[data-board-state='expanded'] {
+  grid-template-columns: minmax(28rem, 1.2fr) minmax(24rem, 0.8fr);
 }
 
 .panelSlot,
@@ -97,6 +55,36 @@
 .library {
   grid-template-rows: auto auto minmax(0, 1fr);
   height: 100%;
+}
+
+.libraryFilters {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.searchRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.filterToggle {
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: #fffdf7;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 780;
+  padding: 0 0.9rem;
+}
+
+.emptyText {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
 }
 
 .panelSlot > section {
@@ -210,27 +198,86 @@
 
 .comparePanel {
   display: grid;
-  grid-column: 1;
   gap: 0.55rem;
-  max-height: 12.5rem;
+  max-height: 14rem;
   overflow: auto;
-}
-
-.layout:has(.library button[aria-expanded='true']) .comparePanel {
-  max-height: 8rem;
 }
 
 .boardSlot {
   grid-column: 2;
-  grid-row: 1 / span 2;
+  grid-row: 1;
 }
 
 .librarySlot {
   grid-column: 1;
 }
 
-.footerSummary {
-  margin-right: auto;
+.boardStack {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.layout[data-board-state='collapsed'] .boardStack {
+  display: none;
+}
+
+.collapsedBoard {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 0.35rem;
+  height: 100%;
+  min-height: 10rem;
+  border: 1px solid rgba(54, 48, 40, 0.13);
+  border-radius: var(--radius-card);
+  background: #fffdf7;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  padding: 0.75rem;
+  text-align: left;
+}
+
+.collapsedBoard strong {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-title);
+  line-height: 1;
+}
+
+.collapsedBoard span:last-child {
+  font-size: var(--font-size-caption);
+  line-height: 1.25;
+}
+
+.collapsedKicker {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 780;
+  text-transform: uppercase;
+}
+
+.layout[data-board-state='expanded'] .collapsedBoard {
+  display: none;
+}
+
+.boardPanelToolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.collapseBoardButton {
+  min-height: 2rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: #fffdf7;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: 780;
+  padding: 0 0.65rem;
 }
 
 .footerActions {
@@ -242,11 +289,6 @@
 }
 
 @media (max-width: 58rem) {
-  .backdrop {
-    align-items: stretch;
-    padding: 0;
-  }
-
   .modal {
     width: 100%;
     height: 100dvh;
@@ -254,22 +296,13 @@
     border-radius: 0;
   }
 
-  .header,
-  .footer {
-    padding: var(--space-3);
-  }
-
   .header {
     align-items: flex-start;
   }
 
-  .headerSummary {
-    display: none;
-  }
-
   .mobileTabs {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.35rem;
     border-bottom: 1px solid rgba(54, 48, 40, 0.1);
     background: #fffdf7;
@@ -300,15 +333,34 @@
     padding: var(--space-3);
   }
 
+  .layout[data-board-state='expanded'],
+  .layout[data-board-state='collapsed'] {
+    grid-template-columns: none;
+  }
+
   .panelSlot {
     display: none;
     overflow: visible;
   }
 
   .layout[data-active-tab='library'] .librarySlot,
-  .layout[data-active-tab='board'] .boardSlot,
-  .layout[data-active-tab='compare'] .comparePanel {
+  .layout[data-active-tab='board'] .boardSlot {
     display: grid;
+  }
+
+  .collapsedBoard,
+  .boardPanelToolbar {
+    display: none;
+  }
+
+  .layout[data-board-state='collapsed'] .boardStack {
+    display: grid;
+  }
+
+  .searchRow {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 0.5rem;
   }
 
   .comparePanel {
@@ -325,13 +377,8 @@
   }
 
   .footer {
-    display: grid;
-    grid-template-columns: 1fr;
+    justify-content: stretch;
     padding-block: var(--space-3);
-  }
-
-  .footerSummary {
-    margin-right: 0;
   }
 
   .footerActions {

@@ -7,189 +7,88 @@ import type {
 } from '../../../domain/gardens/GardenRepository';
 import type { PlanWarning } from '../../garden/gardenPlanning';
 import type { SunSeason } from '../../garden/sunShadeEngine';
-import type { SuccessionRecommendation } from '../../tasks/taskEngine';
 import type {
   AutoLayoutCandidate,
   AutoLayoutRunStatus,
 } from '../autoLayoutTypes';
-import { buildMaterialsList } from '../materialsList';
-import { buildSeasonCropLayoutRequests } from '../seasonCropPlan';
 import {
-  formatAlerts,
-  formatNextRain,
-  formatRecommendationAmount,
-  formatUrgency,
-  formatWateringSummary,
-  formatWeatherSummary,
-  getLatestWeatherSnapshot,
-} from './planFormatters';
+  getAutoLayoutButtonLabel,
+  getAutoLayoutStageState,
+  getVisibleAutoLayoutStages,
+  isAutoLayoutBusy,
+} from '../autoLayoutRunState';
+import { buildSeasonCropLayoutRequests } from '../seasonCropPlan';
 import { PlanOptimizeCandidates } from './PlanOptimizeCandidates';
 import styles from './PlanOperationsPanel.module.css';
 
 export function PlanOperationsPanel({
-  autoLayoutCandidates,
+  autoLayoutSuggestion,
   currentWarnings,
   garden,
-  isOffline,
-  isLoading,
-  onApproveSuccession,
   onApplyAutoLayoutCandidate,
-  onGenerateAutoLayoutCandidates,
-  onIgnoreAutoLayoutCandidate,
-  onRefresh,
-  onSelectAutoLayoutCandidate,
+  onDismissAutoLayoutSuggestion,
+  onGenerateAutoLayoutSuggestion,
+  optimizerIncludesDraftSave,
   optimizerMessage,
   optimizerStatus,
-  refreshError,
-  selectedAutoLayoutCandidateId,
-  ignoredAutoLayoutCandidateIds,
-  layoutVariants,
-  successionRecommendations,
+  suggestion,
   sunLayer,
   sunSeason,
 }: {
-  autoLayoutCandidates: AutoLayoutCandidate[];
+  autoLayoutSuggestion: AutoLayoutCandidate | null;
   currentWarnings: PlanWarning[];
   garden: Garden;
-  isOffline: boolean;
-  isLoading: boolean;
-  ignoredAutoLayoutCandidateIds: string[];
-  layoutVariants: LayoutVariant[];
-  onApproveSuccession(recommendation: SuccessionRecommendation): void;
   onApplyAutoLayoutCandidate(): void;
-  onGenerateAutoLayoutCandidates(): void;
-  onIgnoreAutoLayoutCandidate(candidateId: string): void;
-  onRefresh(): void;
-  onSelectAutoLayoutCandidate(candidateId: string): void;
+  onDismissAutoLayoutSuggestion(): void;
+  onGenerateAutoLayoutSuggestion(): void;
+  optimizerIncludesDraftSave: boolean;
   optimizerMessage: string | null;
   optimizerStatus: AutoLayoutRunStatus;
-  refreshError: string | null;
-  selectedAutoLayoutCandidateId: string | null;
-  successionRecommendations: SuccessionRecommendation[];
+  suggestion: LayoutVariant | null;
   sunLayer: SunShadeLayer | null;
   sunSeason: SunSeason;
 }) {
-  const latestSnapshot = getLatestWeatherSnapshot(garden.weatherSnapshots);
-  const activeRecommendations = garden.waterRecommendations.filter(
-    (recommendation) =>
-      recommendation.status === 'active' ||
-      recommendation.status === 'new' ||
-      recommendation.status === 'suppressed',
-  );
-  const todayRecommendations = activeRecommendations.filter(
-    (recommendation) =>
-      recommendation.recommendationDate === latestSnapshot?.observedForDate,
-  );
-  const visibleRecommendations =
-    todayRecommendations.length > 0
-      ? todayRecommendations
-      : activeRecommendations.slice(0, 3);
-  const inAppNotifications = [...garden.notificationLogs]
-    .filter((log) => log.channel === 'inApp')
-    .sort((left, right) => right.createdAtIso.localeCompare(left.createdAtIso))
-    .slice(0, 3);
-  const materials = buildMaterialsList(garden);
   const layoutRequests = buildSeasonCropLayoutRequests(garden);
   const requestedPlantCount = layoutRequests.reduce(
     (total, request) => total + request.quantity,
     0,
   );
-  const isOptimizing = optimizerStatus === 'running';
+  const hasSuggestion = Boolean(autoLayoutSuggestion && suggestion);
+  const isOptimizing = isAutoLayoutBusy(optimizerStatus);
   const layoutSectionRef = useRef<HTMLElement>(null);
+  const progressStages = getVisibleAutoLayoutStages(optimizerIncludesDraftSave);
 
   useEffect(() => {
-    if (autoLayoutCandidates.length === 0) {
+    if (!hasSuggestion) {
       return;
     }
 
     layoutSectionRef.current?.scrollIntoView?.({ block: 'start' });
-  }, [autoLayoutCandidates]);
+  }, [autoLayoutSuggestion?.id, hasSuggestion]);
 
   return (
-    <section className={styles.panel} aria-label="Garden operations">
-      <div className={styles.header}>
-        <div>
-          <span className={styles.kicker}>Plan context</span>
-          <h2>Weather and watering</h2>
-        </div>
-        <button
-          className={styles.secondaryButton}
-          disabled={isLoading || isOffline}
-          onClick={onRefresh}
-          type="button"
-        >
-          {isLoading ? 'Updating...' : isOffline ? 'Offline' : 'Update weather'}
-        </button>
-      </div>
-      <div className={styles.metricGrid}>
-        {Object.entries({
-          'Current weather': formatWeatherSummary(latestSnapshot),
-          'Next rain': formatNextRain(latestSnapshot),
-          Alerts: formatAlerts(latestSnapshot),
-          Watering: formatWateringSummary(activeRecommendations),
-        }).map(([label, value]) => (
-          <OperationMetric key={label} label={label} value={value} />
-        ))}
-      </div>
-      {visibleRecommendations.length > 0 ? (
-        <ul className={styles.recommendationList}>
-          {visibleRecommendations.slice(0, 4).map((recommendation) => (
-            <li key={recommendation.id}>
-              <strong>
-                {recommendation.targetLabel}:{' '}
-                {formatRecommendationAmount(recommendation)}
-              </strong>
-              <span>
-                {formatUrgency(recommendation.urgency)} -{' '}
-                {recommendation.reason}
-              </span>
-              <span>
-                Refreshed{' '}
-                {formatRefreshTime(
-                  recommendation.refreshedAtIso ??
-                    recommendation.generatedAtIso,
-                )}
-                ; quality {recommendation.dataQuality ?? 'limited'}; source{' '}
-                {recommendation.generatedBy ?? 'client'}
-              </span>
-              {recommendation.rationale.length > 1 ? (
-                <ul className={styles.recommendationReasons}>
-                  {recommendation.rationale.slice(1, 4).map((reason) => (
-                    <li key={reason}>{reason}</li>
-                  ))}
-                </ul>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className={styles.helpText}>
-          No active watering recommendations. Update weather to refresh the
-          garden model.
-        </p>
-      )}
-      {refreshError ? (
-        <p className={styles.error} role="alert">
-          {refreshError}
-        </p>
-      ) : null}
+    <section className={styles.panel} aria-label="Layout suggestion workflow">
       <section
         className={styles.materials}
-        aria-label="Layout walkthrough"
+        aria-label="Layout suggestion"
         ref={layoutSectionRef}
       >
         <div className={styles.sectionHeader}>
           <div>
-            <span className={styles.kicker}>Variant comparison</span>
-            <h3>Checked layout variants</h3>
+            <span className={styles.kicker}>Layout suggestion</span>
+            <h3>Try a different arrangement</h3>
+            <p className={styles.helpText}>
+              Use this when you want one checked whole-plot suggestion for the
+              crops already saved to the plan.
+            </p>
           </div>
           <button
             className={styles.secondaryButton}
             disabled={layoutRequests.length === 0 || isOptimizing}
-            onClick={onGenerateAutoLayoutCandidates}
+            onClick={onGenerateAutoLayoutSuggestion}
             type="button"
           >
-            {isOptimizing ? 'Checking...' : 'Generate checked variants'}
+            {getAutoLayoutButtonLabel(optimizerStatus, hasSuggestion)}
           </button>
         </div>
         {optimizerMessage ? (
@@ -202,48 +101,61 @@ export function PlanOperationsPanel({
             {optimizerMessage}
           </p>
         ) : null}
+        {isOptimizing ? (
+          <div className={styles.progressCard} role="status">
+            <p className={styles.progressIntro}>
+              Saving and checking one whole-plot suggestion. The plot will stay
+              put while this runs.
+            </p>
+            <ol className={styles.progressList}>
+              {progressStages.map((stage) => (
+                <li
+                  className={styles.progressItem}
+                  data-state={getAutoLayoutStageState(
+                    optimizerStatus,
+                    stage.status,
+                  )}
+                  key={stage.status}
+                >
+                  <strong>{stage.label}</strong>
+                  <span>{stage.description}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
         {layoutRequests.length > 0 ? (
           <>
-            <p className={styles.helpText}>
-              {layoutRequests.length} crop request
-              {layoutRequests.length === 1 ? '' : 's'}; {requestedPlantCount}{' '}
-              plant{requestedPlantCount === 1 ? '' : 's'}. Previewing does not
-              change the draft.
-            </p>
-            {autoLayoutCandidates.length === 0 ? (
-              <ul className={styles.candidateList}>
-                {layoutRequests.slice(0, 5).map((request) => (
-                  <li key={request.cropId}>
-                    <strong>{request.crop.commonName}</strong>
-                    <span>
-                      {request.quantity} target - {request.fit.label}
-                    </span>
-                    <small>{request.fit.summary}</small>
-                  </li>
-                ))}
-              </ul>
-            ) : (
+            {!isOptimizing ? (
               <p className={styles.helpText}>
-                {layoutRequests
-                  .slice(0, 3)
-                  .map(
-                    (request) =>
-                      `${request.crop.commonName} ${request.quantity} target - ${request.fit.label}`,
-                  )
-                  .join('; ')}
+                {hasSuggestion
+                  ? 'Review this suggestion, then apply it or keep the current layout.'
+                  : `${layoutRequests.length} saved crop request${layoutRequests.length === 1 ? '' : 's'} still need room in the plan, covering ${requestedPlantCount} plant${requestedPlantCount === 1 ? '' : 's'} total.`}
               </p>
-            )}
-            {autoLayoutCandidates.length > 0 ? (
+            ) : null}
+            {!hasSuggestion && !isOptimizing ? (
+              <p className={styles.helpText}>
+                Generate one layout suggestion when you want a simpler full-plot
+                option.
+              </p>
+            ) : null}
+            {optimizerStatus === 'noBetterLayout' ? (
+              <section className={styles.resultCard}>
+                <h4>Keep current plan</h4>
+                <p>
+                  No simpler checked arrangement looked better than the current
+                  draft.
+                </p>
+              </section>
+            ) : null}
+            {autoLayoutSuggestion && suggestion ? (
               <PlanOptimizeCandidates
-                autoLayoutCandidates={autoLayoutCandidates}
+                autoLayoutSuggestion={autoLayoutSuggestion}
                 currentWarnings={currentWarnings}
                 garden={garden}
-                ignoredAutoLayoutCandidateIds={ignoredAutoLayoutCandidateIds}
-                layoutVariants={layoutVariants}
                 onApplyAutoLayoutCandidate={onApplyAutoLayoutCandidate}
-                onIgnoreAutoLayoutCandidate={onIgnoreAutoLayoutCandidate}
-                onSelectAutoLayoutCandidate={onSelectAutoLayoutCandidate}
-                selectedAutoLayoutCandidateId={selectedAutoLayoutCandidateId}
+                onDismissAutoLayoutSuggestion={onDismissAutoLayoutSuggestion}
+                suggestion={suggestion}
                 sunLayer={sunLayer}
                 sunSeason={sunSeason}
               />
@@ -251,138 +163,10 @@ export function PlanOperationsPanel({
           </>
         ) : (
           <p className={styles.helpText}>
-            Add plants before running layout optimization.
+            Add plants before generating a layout suggestion.
           </p>
         )}
       </section>
-      <section className={styles.materials} aria-label="Shopping list">
-        <div>
-          <span className={styles.kicker}>Shopping list</span>
-          <h3>Materials from this plan</h3>
-        </div>
-        {materials.seedStarts.length > 0 ? (
-          <ul>
-            {materials.seedStarts.slice(0, 5).map((item, index) => (
-              <li key={`${item.label}-${item.method}-${index}`}>
-                {item.count} {item.method}: {item.label}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className={styles.helpText}>
-            Add crops to estimate seeds, starts, and supports.
-          </p>
-        )}
-        {materials.beds.length > 0 ||
-        materials.paths.length > 0 ||
-        materials.supports.length > 0 ||
-        materials.addOns.length > 0 ||
-        materials.totals.length > 0 ? (
-          <div className={styles.materialGrid}>
-            {materials.beds.slice(0, 3).map((bed) => (
-              <span key={bed.label}>
-                <strong>{bed.label}</strong>
-                {bed.summary}
-              </span>
-            ))}
-            {materials.paths.slice(0, 2).map((path) => (
-              <span key={path.label}>
-                <strong>{path.label}</strong>
-                {path.summary}
-              </span>
-            ))}
-            {materials.supports.slice(0, 3).map((support, index) => (
-              <span key={`${support}-${index}`}>{support}</span>
-            ))}
-            {materials.addOns.slice(0, 4).map((addOn) => (
-              <span key={addOn.id}>
-                <strong>{addOn.label}</strong>
-                {formatAddOnQuantity(addOn.quantity, addOn.unit)} -{' '}
-                {addOn.reason}
-              </span>
-            ))}
-            {materials.totals.slice(0, 3).map((total) => (
-              <span key={total}>{total}</span>
-            ))}
-          </div>
-        ) : null}
-        <p className={styles.helpText}>{materials.amendments[0]}</p>
-      </section>
-      <section className={styles.materials} aria-label="Succession windows">
-        <div>
-          <span className={styles.kicker}>Succession</span>
-          <h3>Bed openings</h3>
-        </div>
-        {successionRecommendations.length > 0 ? (
-          <ul className={styles.successionList}>
-            {successionRecommendations.slice(0, 4).map((recommendation) => (
-              <li key={recommendation.id}>
-                <div>
-                  <strong>
-                    {recommendation.cropName} after {recommendation.targetLabel}
-                  </strong>
-                  <span>
-                    Opens {recommendation.bedOpensOn};{' '}
-                    {recommendation.daysRemaining} frost-free days remain.
-                  </span>
-                </div>
-                <button
-                  onClick={() => onApproveSuccession(recommendation)}
-                  type="button"
-                >
-                  Add to plan
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className={styles.helpText}>
-            Harvest dates and crop maturity will surface follow-on windows.
-          </p>
-        )}
-      </section>
-      {inAppNotifications.length > 0 ? (
-        <div className={styles.inAppNotifications}>
-          <span className={styles.kicker}>In-app notifications</span>
-          <ul>
-            {inAppNotifications.map((log) => (
-              <li key={log.id}>{log.body || log.messageSummary}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
     </section>
   );
-}
-
-function formatRefreshTime(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return 'unknown';
-  }
-
-  return date.toLocaleString(undefined, {
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    month: 'short',
-  });
-}
-
-function OperationMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className={styles.metric}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function formatAddOnQuantity(quantity: number, unit: string) {
-  const formatted = Number.isInteger(quantity)
-    ? String(quantity)
-    : quantity.toFixed(1);
-
-  return `${formatted} ${unit}`;
 }

@@ -1,6 +1,6 @@
 # Secret Faede
 
-Secret Faede is a private Garden OS for one real home food garden. It uses
+Secret Faede is a private garden planner for one real home food garden. It uses
 Firebase email/password auth for exactly two provisioned accounts, then routes
 the signed-in user into Plan, Today, Feed, and Settings around one shared
 published garden with private drafts.
@@ -24,26 +24,30 @@ Included:
 - plant and planting-instance positions stored as `xFt` and `yFt`
 - quantity-first Add Plant and Choose Plants flows that create individual plant
   nodes inside arrangement-aware groups
-- problem inbox and checked layout variants with before/after plot diff
-  overlays, explicit resolution actions, ignore decisions, and no decorative
+- date-aware crop fit guidance that answers what to plant now in the garden
+  timezone
+- problem inbox and one checked whole-plot layout suggestion with before/after
+  diff overlays, explicit apply or keep-current actions, and no decorative
   scoring surface
 - authenticated app shell for Plan, Today, Feed, and Settings
 - editable settings for alert location, timezone, check time, thresholds, push
   delivery, quiet hours, and local/native notification support
-- weather provider layer with NWS default, optional Tomorrow.io, and watering
-  recommendations
+- weather provider layer with NWS default, optional Tomorrow.io, and a saved
+  watering schedule
 - in-app notification logs, FCM web/native push registration, and local native
   alerts
 - generated task timeline for planting, trellising, thinning, pruning,
   fertilizing, mulching, watering, harvest windows, and succession prompts
+- actual planting-event tracking for started-inside, direct-sow, planted-out,
+  and thinned work, with derived follow-up tasks
 - journal, issue tracking, photo attachments, harvest logging, and in-season
   summaries
 - one-tap Today field actions and contextual photo follow-up for harvest/photo
   workflows
 - Feed memory cards with a single New entry launcher and image-led photo
   updates
-- sample garden mode with shell and Settings controls to enter, reset, return
-  to the current workspace, and exit a stable Detroit garden
+- sample garden controls in Settings plus a shell-level **Back to my garden**
+  restore path while the sample is active on the current device
 - Firebase Cloud Functions source for daily watering checks and weather-driven
   frost, heat, and severe-weather alerts
 - Firebase Storage for authenticated journal photos
@@ -73,10 +77,13 @@ Optional local config:
 
 Plan now centers on grouped plant footprints. Add Plants asks for crop and
 quantity first, then derives row, block, or cluster geometry from spacing data.
-On the plot, clicking a plant group shows its label; the wrench opens the plant
-editor; Detailed View keeps that editor available while moving between relevant
-items. Review Problems opens the problem inbox, Optimize generates checked
-variants, and Sun shows modeled direct sun plus maturity-based shade sources.
+On the plot, clicking a plant group opens crop focus, and the wrench or
+**Open details** opens the plant editor. Detailed View keeps that editor
+available while moving between relevant items. Review Problems opens the
+problem inbox, Generate layout walks through one checked layout suggestion, and
+Sun shows modeled direct sun plus maturity-based shade sources. Crop fit and
+planting-window guidance use the current garden day in the saved timezone, and
+recorded planting events drive the next derived Today tasks and Feed history.
 
 ## Runtime modes
 
@@ -130,7 +137,8 @@ If Firebase mode is requested without complete web config, the app falls back to
 - `npm run quality:bundle`
 - `npm run build`
 - `npm run ci`
-- `npm run seed:dev`: seed an existing Firebase Auth user with Detroit demo data
+- `npm run seed:dev`: seed an existing Firebase Auth user with the Detroit
+  sample garden data
 
 ## Firebase and deployment
 

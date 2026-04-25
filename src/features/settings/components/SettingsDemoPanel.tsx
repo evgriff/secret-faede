@@ -1,5 +1,11 @@
 import pageStyles from '../SettingsPage.module.css';
 import type { DemoModeStatus } from '../settingsDemoMode';
+import {
+  sampleGardenActiveLabel,
+  sampleGardenRestoreDisabledMessage,
+  sampleGardenRestoreLabel,
+  sampleGardenRestoreTitle,
+} from '../settingsDemoSession';
 import styles from './SettingsDemoPanel.module.css';
 
 export function SettingsDemoPanel({
@@ -23,30 +29,32 @@ export function SettingsDemoPanel({
   onResetDemo(): void;
   status: DemoModeStatus;
 }) {
+  const restoreHelpText = isActive
+    ? canExit
+      ? `Reset returns the sample to its seeded baseline. ${sampleGardenRestoreLabel} restores what was backed up on this device.`
+      : sampleGardenRestoreDisabledMessage
+    : 'Open the sample only when you want a clean example to explore without touching your garden.';
+
   return (
     <section
-      aria-label="sample garden"
+      aria-label="Sample garden"
       className={styles.panel}
       data-demo-state={isActive ? 'demo' : 'real'}
     >
       <div>
-        <p className={pageStyles.kicker}>sample garden</p>
-        <h2>Real garden or seeded demo</h2>
+        <p className={pageStyles.kicker}>Sample garden</p>
+        <h2>Open a resettable sample garden</h2>
         <p>
-          Real garden is the default. Enter the Detroit demo only for
-          walkthroughs; this browser saves the current garden first so Exit demo
-          can restore it.
+          Your saved garden stays primary. Open the Detroit sample only when
+          you need a clean example on this device; the current garden is backed
+          up first so you can return to it.
         </p>
       </div>
       <div className={styles.statusLine}>
         <strong>
-          {isActive ? 'Demo workspace active.' : 'Real garden workspace.'}
+          {isActive ? sampleGardenActiveLabel : 'Your garden is active.'}
         </strong>
-        <span>
-          {isActive
-            ? 'Reset returns this walkthrough to the seeded baseline. Exit demo restores the saved real garden.'
-            : 'Enter demo for a release walkthrough, then exit back to this real garden.'}
-        </span>
+        <span>{restoreHelpText}</span>
       </div>
       <div className={styles.actions}>
         <button
@@ -55,7 +63,9 @@ export function SettingsDemoPanel({
           onClick={onLoadDemo}
           type="button"
         >
-          {isBusy && status === 'loading' ? 'Entering demo...' : 'Enter demo'}
+          {isBusy && status === 'loading'
+            ? 'Opening sample...'
+            : 'Open sample garden'}
         </button>
         <button
           className={pageStyles.secondaryButton}
@@ -63,7 +73,7 @@ export function SettingsDemoPanel({
           onClick={onResetDemo}
           type="button"
         >
-          Reset seeded demo
+          Reset sample garden
         </button>
         <button
           className={pageStyles.secondaryButton}
@@ -71,20 +81,25 @@ export function SettingsDemoPanel({
           onClick={onExitDemo}
           title={
             canExit
-              ? 'Restore the garden saved before demo mode.'
-              : 'No real garden backup is available in this browser.'
+              ? sampleGardenRestoreTitle.available
+              : sampleGardenRestoreTitle.unavailable
           }
           type="button"
         >
-          Exit demo
+          {sampleGardenRestoreLabel}
         </button>
       </div>
       {message ? <p className={pageStyles.saved}>{message}</p> : null}
       {error ? <p className={pageStyles.error}>{error}</p> : null}
+      {isActive && !canExit ? (
+        <p className={styles.restoreWarning}>
+          {sampleGardenRestoreLabel} stays disabled until this device has a
+          saved garden backup to restore.
+        </p>
+      ) : null}
       {status === 'exited' ? (
         <p className={styles.restoreNote}>
-          The seeded demo has been replaced by the garden saved before demo
-          mode.
+          The sample garden has been replaced by your garden from this device.
         </p>
       ) : null}
     </section>

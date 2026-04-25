@@ -18,6 +18,10 @@
   box-shadow: var(--shadow-panel);
 }
 
+.menuGroup {
+  position: relative;
+}
+
 .toolbar strong {
   color: var(--color-text-strong);
   font-size: var(--font-size-caption);
@@ -37,6 +41,51 @@
   padding: 0 0.65rem;
 }
 
+.menuPanel {
+  position: absolute;
+  bottom: calc(100% + 0.45rem);
+  left: 0;
+  z-index: 1;
+  display: grid;
+  gap: 0.35rem;
+  min-width: 10.5rem;
+  border: 1px solid rgba(54, 48, 40, 0.14);
+  border-radius: var(--radius-card);
+  background: #fffdf7;
+  padding: 0.45rem;
+  box-shadow: var(--shadow-panel);
+}
+
+.menuMessage {
+  max-width: 14rem;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--color-text-strong);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.field input {
+  min-height: 2.35rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: #ffffff;
+  color: var(--color-text-strong);
+  font: inherit;
+  padding: 0 0.65rem;
+}
+
+.menuPanel button {
+  justify-content: flex-start;
+}
+
 .dangerButton {
   border-color: rgba(163, 52, 40, 0.34) !important;
   color: #8f2d23 !important;
@@ -54,5 +103,10 @@
   .toolbar button,
   .toolbar strong {
     flex: 0 0 auto;
+  }
+
+  .menuPanel {
+    right: 0;
+    left: auto;
   }
 }

@@ -5,14 +5,10 @@ import type {
 import {
   scoreAccess,
   scoreCompatibleGrouping,
-  scoreNorthTallPlacement,
-  scoreSeasonalSuitability,
   scoreSpacingQuality,
-  scoreSunFootprintFit,
   scoreSupportPlacement,
   type ScoredPlacement,
 } from './autoLayoutScoring';
-import { scorePlacementShadeDiscipline } from './autoLayoutShadeScoring';
 import type { Placement } from './autoLayoutPlanner';
 import type { AutoLayoutStrategy } from './autoLayoutTypes';
 
@@ -20,25 +16,17 @@ export function scorePlacement(
   garden: Garden,
   placement: Placement,
   strategy: AutoLayoutStrategy,
-  sunLayer: SunShadeLayer | null,
+  _sunLayer: SunShadeLayer | null,
   placedPlacements: Placement[] = [],
 ) {
   const scoredPlacement = toScoredPlacement(placement);
   const scoredPlacedPlacements = placedPlacements.map(toScoredPlacement);
-  const sunFit = scoreSunFootprintFit(
-    placement.unit.crop,
-    sunLayer,
-    placement.planting,
-  );
-  const access = scoreAccess(garden, placement.planting);
-  const support = scoreSupportPlacement(garden, scoredPlacement);
-  const tallNorth = scoreNorthTallPlacement(garden, scoredPlacement);
-  const seasonal = scoreSeasonalSuitability(placement.unit.request.fit.level);
-  const shadeDiscipline = scorePlacementShadeDiscipline(
+  const access = scoreAccess(
     garden,
-    scoredPlacement,
-    scoredPlacedPlacements,
+    placement.planting,
+    placedPlacements.map((candidate) => candidate.planting),
   );
+  const support = scoreSupportPlacement(garden, scoredPlacement);
   const spacing = scoreSpacingQuality([
     scoredPlacement,
     ...scoredPlacedPlacements,
@@ -50,12 +38,8 @@ export function scorePlacement(
   const weights = getPlacementWeights(strategy);
 
   return (
-    sunFit * weights.sun +
     access * weights.access +
     support * weights.support +
-    tallNorth * weights.tall +
-    seasonal * weights.seasonal +
-    shadeDiscipline * weights.shade +
     spacing * weights.spacing +
     compatibleGrouping * weights.grouping +
     getStrategyBias(garden, placement, strategy) * 0.04
@@ -73,39 +57,27 @@ export function toScoredPlacement(placement: Placement): ScoredPlacement {
 function getPlacementWeights(strategy: AutoLayoutStrategy) {
   if (strategy === 'accessFirst') {
     return {
-      access: 0.28,
-      grouping: 0.08,
-      seasonal: 0.08,
-      shade: 0.13,
-      spacing: 0.08,
-      sun: 0.2,
-      support: 0.1,
-      tall: 0,
+      access: 0.42,
+      grouping: 0.14,
+      spacing: 0.22,
+      support: 0.18,
     };
   }
 
   if (strategy === 'supportFirst') {
     return {
-      access: 0.1,
-      grouping: 0.1,
-      seasonal: 0.08,
-      shade: 0.18,
-      spacing: 0.08,
-      sun: 0.18,
-      support: 0.2,
-      tall: 0.08,
+      access: 0.18,
+      grouping: 0.14,
+      spacing: 0.22,
+      support: 0.42,
     };
   }
 
   return {
-    access: 0.1,
-    grouping: 0.08,
-    seasonal: 0.1,
-    shade: 0.14,
-    spacing: 0.08,
-    sun: 0.32,
-    support: 0.08,
-    tall: 0.08,
+    access: 0.2,
+    grouping: 0.32,
+    spacing: 0.24,
+    support: 0.2,
   };
 }
 
@@ -117,13 +89,13 @@ function getStrategyBias(
   const xRatio = placement.planting.xFt / garden.plot.widthFt;
   const yRatio = placement.planting.yFt / garden.plot.depthFt;
 
-  if (strategy === 'supportFirst') {
-    return 1 - yRatio;
-  }
-
   if (strategy === 'accessFirst') {
     return Math.max(xRatio, 1 - xRatio, yRatio, 1 - yRatio);
   }
 
-  return xRatio;
+  if (strategy === 'supportFirst') {
+    return 0.5;
+  }
+
+  return Math.max(0, 1 - (Math.abs(xRatio - 0.5) + Math.abs(yRatio - 0.5)));
 }

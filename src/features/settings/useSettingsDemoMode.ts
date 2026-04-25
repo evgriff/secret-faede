@@ -7,12 +7,15 @@ import type {
   Garden,
   UserProfile,
 } from '../../domain/gardens/GardenRepository';
-import { routePaths } from '../../shared/lib/routes';
+import {
+  getSafeDemoReturnTo,
+  isDemoModeAction,
+  readSettingsDemoState,
+  type SettingsDemoState,
+} from './settingsDemoSession';
 import {
   exitSettingsDemoGarden,
   loadSettingsDemoGarden,
-  readSettingsDemoState,
-  type SettingsDemoState,
 } from './settingsDemoMode';
 import { toErrorMessage } from './settingsHelpers';
 
@@ -93,7 +96,7 @@ export function useSettingsDemoMode({
       } catch (demoError) {
         setState(
           readSettingsDemoState(authUser.uid, {
-            error: toErrorMessage(demoError, 'Unable to load demo garden.'),
+            error: toErrorMessage(demoError, 'Unable to open sample garden.'),
           }),
         );
         return false;
@@ -147,7 +150,7 @@ export function useSettingsDemoMode({
     } catch (demoError) {
       setState(
         readSettingsDemoState(authUser.uid, {
-          error: toErrorMessage(demoError, 'Unable to exit demo mode.'),
+          error: toErrorMessage(demoError, 'Unable to return to your garden.'),
         }),
       );
       return false;
@@ -163,7 +166,7 @@ export function useSettingsDemoMode({
   ]);
 
   useEffect(() => {
-    if (!authUser || !profile || !isDemoAction(requestedDemoAction)) {
+    if (!authUser || !profile || !isDemoModeAction(requestedDemoAction)) {
       handledCommandRef.current = null;
       return;
     }
@@ -206,29 +209,4 @@ export function useSettingsDemoMode({
     loadDemoGarden,
     state,
   };
-}
-
-function isDemoAction(
-  value: string | null,
-): value is 'enter' | 'exit' | 'reset' {
-  return value === 'enter' || value === 'exit' || value === 'reset';
-}
-
-function getSafeDemoReturnTo(value: string | null) {
-  if (!value) {
-    return null;
-  }
-
-  const allowedRoutes = [
-    routePaths.plan,
-    routePaths.today,
-    routePaths.feed,
-    routePaths.settings,
-  ];
-
-  return allowedRoutes.some(
-    (route) => value === route || value.startsWith(`${route}?`),
-  )
-    ? value
-    : null;
 }

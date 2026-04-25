@@ -29,7 +29,10 @@ const garden = {
     {
       body: 'Watered Bed A 0.25 inches',
       createdAtIso: '2026-06-21T10:00:00.000Z',
+      occurredOn: '2026-06-21',
       id: 'note-1',
+      structureId: 'bed-a',
+      targetLabel: 'Bed A',
       title: 'Water done',
     },
   ],
@@ -69,7 +72,7 @@ const garden = {
   ],
   tasks: [],
   userId: 'user-a',
-  waterRecommendations: [],
+  wateringSchedule: [],
   weatherSnapshots: [],
 };
 
@@ -92,6 +95,15 @@ const weatherProvider = {
   getForecast: () =>
     Promise.resolve({
       dailyHighF: 96,
+      days: [
+        {
+          conditionSummary: 'Hot',
+          date: '2026-06-21',
+          expectedRainIn: 0,
+          highF: 96,
+          precipitationChancePercent: null,
+        },
+      ],
       generatedAtIso: now.toISOString(),
       next24hPrecipIn: 0,
       next48hPrecipIn: 0,
@@ -132,9 +144,12 @@ const weatherProvider = {
   });
 
   assert.equal(result.snapshot.heatRisk, 'warning');
-  assert.equal(result.recommendations[0].generatedBy, 'backend');
+  assert.equal(result.recommendations[0].source, 'backend');
   assert.equal(result.recommendations[0].dataQuality, 'complete');
-  assert.match(result.recommendations[0].rationale.join(' '), /Zone 1/);
+  assert.equal(result.recommendations[0].status, 'partial');
+  assert.equal(result.recommendations[0].targetId, 'bed-a');
+  assert.equal(result.recommendations[0].targetKind, 'bed');
+  assert.match(result.recommendations[0].reasonDetails.join(' '), /Zone 1/);
   assert.ok(result.tasks.some((task) => task.type === 'water'));
   assert.ok(result.tasks.some((task) => task.id === 'weather-heat-2026-06-21'));
   assert.ok(
@@ -150,5 +165,30 @@ const weatherProvider = {
   );
 
   assert.equal(preserved[0].status, 'completed');
+
+  const scheduledResult = await generateGardenOperations({
+    garden: {
+      ...garden,
+      journalEntries: [],
+    },
+    logger: { warn() {} },
+    now: new Date('2026-06-21T11:00:00.000Z'),
+    profile,
+    weatherProvider,
+  });
+
+  assert.equal(scheduledResult.recommendations[0].status, 'scheduled');
+  assert.equal(
+    Date.parse(scheduledResult.recommendations[0].dueWindowStartIso),
+    Date.parse('2026-06-21T11:30:00.000Z'),
+  );
+
+  const snoozed = mergeWaterRecommendations(
+    [{ ...scheduledResult.recommendations[0], status: 'snoozed' }],
+    scheduledResult.recommendations,
+    now,
+  );
+
+  assert.equal(snoozed[0].status, 'snoozed');
   console.log('gardenOperations tests passed');
 })();

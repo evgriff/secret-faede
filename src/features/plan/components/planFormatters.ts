@@ -1,7 +1,7 @@
 import type {
   Planting,
   StructureType,
-  WaterRecommendation,
+  WateringScheduleEntry,
   WeatherSnapshot,
 } from '../../../domain/gardens/GardenRepository';
 import type { SunSeason } from '../../garden/sunShadeEngine';
@@ -40,9 +40,14 @@ export function formatStructureType(type: StructureType) {
 }
 
 export function getLatestWeatherSnapshot(snapshots: WeatherSnapshot[]) {
-  return [...snapshots].sort((left, right) =>
-    right.capturedAtIso.localeCompare(left.capturedAtIso),
-  )[0];
+  return snapshots.reduce<WeatherSnapshot | undefined>(
+    (latestSnapshot, snapshot) =>
+      latestSnapshot === undefined ||
+      snapshot.capturedAtIso >= latestSnapshot.capturedAtIso
+        ? snapshot
+        : latestSnapshot,
+    undefined,
+  );
 }
 
 export function formatWeatherSummary(snapshot: WeatherSnapshot | undefined) {
@@ -82,9 +87,14 @@ export function formatAlerts(snapshot: WeatherSnapshot | undefined) {
   );
 }
 
-export function formatWateringSummary(recommendations: WaterRecommendation[]) {
+export function formatWateringSummary(
+  recommendations: WateringScheduleEntry[],
+) {
   const activeCount = recommendations.filter(
-    (recommendation) => recommendation.status !== 'suppressed',
+    (recommendation) =>
+      recommendation.status !== 'suppressed' &&
+      recommendation.status !== 'completed' &&
+      recommendation.status !== 'skipped',
   ).length;
   const suppressedCount = recommendations.length - activeCount;
 
@@ -96,16 +106,16 @@ export function formatWateringSummary(recommendations: WaterRecommendation[]) {
 }
 
 export function formatRecommendationAmount(
-  recommendation: WaterRecommendation,
+  recommendation: WateringScheduleEntry,
 ) {
   if (recommendation.status === 'suppressed') {
-    return `wait until ${formatShortDateTime(recommendation.suppressUntilIso)}`;
+    return `wait until ${formatShortDateTime(recommendation.nextRecalculationAtIso)}`;
   }
 
-  return `${recommendation.recommendedWaterInches.toFixed(2)} in`;
+  return `${recommendation.targetAmountInches.toFixed(2)} in`;
 }
 
-export function formatUrgency(urgency: WaterRecommendation['urgency']) {
+export function formatUrgency(urgency: WateringScheduleEntry['urgency']) {
   return urgency
     .replace(/([A-Z])/g, ' $1')
     .replace(/^./, (letter) => letter.toUpperCase());

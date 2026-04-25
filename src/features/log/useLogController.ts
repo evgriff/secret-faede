@@ -28,6 +28,7 @@ import {
   reportFieldIssue,
   updateIssueStatus,
 } from '../today/todayActions';
+import { rebuildGardenWateringFromLatestSnapshot } from '../garden/wateringScheduleRefresh';
 import {
   buildTargetOptions,
   createId,
@@ -51,6 +52,7 @@ export function useLogController() {
     mediaStorageService,
     mobileDeviceService,
     telemetryService,
+    userProfileRepository,
   } = useServices();
   const { state } = useAuth();
   const networkStatus = useNetworkStatus();
@@ -147,14 +149,30 @@ export function useLogController() {
     [feedItems, garden],
   );
 
-  async function saveUpdatedGarden(updatedGarden: Garden) {
-    setGarden(updatedGarden);
+  async function saveUpdatedGarden(
+    updatedGarden: Garden,
+    options: { refreshWateringFromSnapshot?: boolean } = {},
+  ) {
+    let gardenToSave = updatedGarden;
+    const authUser = state.user;
+
+    if (options.refreshWateringFromSnapshot && authUser?.email) {
+      const profile = await userProfileRepository
+        .getUserProfile(authUser.uid, authUser.email)
+        .catch(() => null);
+
+      gardenToSave = rebuildGardenWateringFromLatestSnapshot(updatedGarden, {
+        profile,
+      });
+    }
+
+    setGarden(gardenToSave);
     setSaveStatus('saving');
     setError(null);
 
     try {
       const wasOffline = isBrowserOffline();
-      await gardenRepository.saveGarden(updatedGarden);
+      await gardenRepository.saveGarden(gardenToSave);
       setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
       return true;
     } catch (saveError) {
@@ -234,7 +252,9 @@ export function useLogController() {
               target,
               title: entryTitle.trim() || 'Garden note',
             });
-      const saved = await saveUpdatedGarden(updatedGarden);
+      const saved = await saveUpdatedGarden(updatedGarden, {
+        refreshWateringFromSnapshot: entryType !== 'issue',
+      });
 
       if (saved) {
         telemetryService.trackEvent(
@@ -297,11 +317,16 @@ export function useLogController() {
       unit: harvestUnit,
     };
 
-    const saved = await saveUpdatedGarden({
-      ...garden,
-      harvestEvents: [harvest, ...garden.harvestEvents],
-      updatedAtIso: new Date().toISOString(),
-    });
+    const saved = await saveUpdatedGarden(
+      {
+        ...garden,
+        harvestEvents: [harvest, ...garden.harvestEvents],
+        updatedAtIso: new Date().toISOString(),
+      },
+      {
+        refreshWateringFromSnapshot: true,
+      },
+    );
 
     if (saved) {
       telemetryService.trackEvent('harvest_logged', {

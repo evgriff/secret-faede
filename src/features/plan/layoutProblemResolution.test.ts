@@ -50,7 +50,7 @@ describe('layoutProblemResolution', () => {
     });
 
     const model = buildLayoutProblemResolutionModel({
-      candidates: [],
+      candidate: null,
       garden,
       reviewSuggestions: [suggestion],
       suggestionDecisions: [],
@@ -110,7 +110,7 @@ describe('layoutProblemResolution', () => {
     };
 
     const model = buildLayoutProblemResolutionModel({
-      candidates: [],
+      candidate: null,
       garden,
       reviewSuggestions: [suggestion],
       suggestionDecisions: [decision],
@@ -132,20 +132,20 @@ describe('layoutProblemResolution', () => {
     });
   });
 
-  it('groups optimizer variants with their complete solution option', () => {
+  it('builds one optimizer suggestion with its complete solution option', () => {
     const garden = makeGarden();
     const candidate: AutoLayoutCandidate = {
-      explanations: ['Moves sun-hungry crops into the sunniest open bed.'],
+      explanations: ['Keeps similar watering needs closer together.'],
       hardConstraintViolations: ['Carrot group still overlaps the boundary.'],
       id: 'sun-first',
-      label: 'Sun-first',
+      label: 'Group watering',
       materials: [],
       plantings: garden.plantings,
       scoreBreakdown: {
-        seasonalSuitability: 80,
-        shadeManagement: 70,
-        spacingQuality: 90,
-        waterGrouping: 60,
+        accessQuality: 0.8,
+        spacingQuality: 0.9,
+        structureCompatibility: 0.7,
+        waterGrouping: 0.6,
       },
       search: createPendingSearchReport(),
       strategy: 'sunFirst',
@@ -169,26 +169,26 @@ describe('layoutProblemResolution', () => {
       id: 'review:optimizer:sun-first',
       itemIds: ['tomato-1', 'path-1'],
       source: 'optimizer',
-      title: 'Use Sun-first layout',
+      title: 'Use grouped-watering layout',
       type: 'optimizerProposal',
     });
 
     const model = buildLayoutProblemResolutionModel({
-      candidates: [candidate],
+      candidate,
       garden,
       reviewSuggestions: [suggestion],
       suggestionDecisions: [],
       warnings: [],
     });
 
-    expect(model.variants[0]).toMatchObject({
+    expect(model.suggestion).toMatchObject({
       id: candidate.id,
       problemIds: expect.arrayContaining([
         'layout:problem:sun-first:constraint-1',
       ]),
       resolutionOptionIds: [model.resolutionOptions[0]?.id],
     });
-    expect(model.variants[0]?.downstreamValidation).toMatchObject({
+    expect(model.suggestion?.downstreamValidation).toMatchObject({
       remainingProblemIds: ['layout:problem:sun-first:constraint-1'],
       status: 'failed',
     });
@@ -227,7 +227,7 @@ function makeWarning(overrides: Partial<PlanWarning> = {}): PlanWarning {
     fix: 'Use a concrete layout change.',
     id: 'warning-1',
     itemIds: ['tomato-1'],
-    kind: 'pathway',
+    kind: 'spacing',
     message: 'A saved layout problem needs resolution.',
     severity: 'warning',
     title: 'Layout problem',

@@ -2,11 +2,12 @@ import {
   useEffect,
   type KeyboardEvent,
   type MouseEvent,
+  type PointerEvent,
   type RefObject,
 } from 'react';
 
 export function closeOnBackdropMouseDown(
-  event: MouseEvent<HTMLElement>,
+  event: MouseEvent<HTMLElement> | PointerEvent<HTMLElement>,
   onClose: () => void,
 ) {
   if (event.target === event.currentTarget) {
@@ -17,7 +18,7 @@ export function closeOnBackdropMouseDown(
 export function useEscapeToClose(onClose: () => void) {
   useEffect(() => {
     function handleKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key !== 'Escape') {
+      if (event.defaultPrevented || event.key !== 'Escape') {
         return;
       }
 
@@ -39,9 +40,29 @@ export function useDialogScrollLock(enabled = true) {
     const lockCount = Number(document.body.dataset.dialogScrollLocks ?? '0');
 
     if (lockCount === 0) {
+      const currentBodyPaddingRight = window.getComputedStyle(
+        document.body,
+      ).paddingRight;
+      const documentWidth = document.documentElement.clientWidth;
+      const scrollbarWidth =
+        documentWidth > 0 ? Math.max(window.innerWidth - documentWidth, 0) : 0;
+
       document.body.dataset.dialogPreviousOverflow =
         document.body.style.overflow;
+      document.body.dataset.dialogPreviousPaddingRight =
+        document.body.style.paddingRight;
       document.body.style.overflow = 'hidden';
+
+      if (scrollbarWidth > 0) {
+        const currentPaddingRight = Number.parseFloat(currentBodyPaddingRight);
+        const safePaddingRight = Number.isFinite(currentPaddingRight)
+          ? currentPaddingRight
+          : 0;
+
+        document.body.style.paddingRight = `${
+          safePaddingRight + scrollbarWidth
+        }px`;
+      }
     }
 
     document.body.dataset.dialogScrollLocks = String(lockCount + 1);
@@ -55,7 +76,10 @@ export function useDialogScrollLock(enabled = true) {
       if (nextCount === 0) {
         document.body.style.overflow =
           document.body.dataset.dialogPreviousOverflow ?? '';
+        document.body.style.paddingRight =
+          document.body.dataset.dialogPreviousPaddingRight ?? '';
         delete document.body.dataset.dialogPreviousOverflow;
+        delete document.body.dataset.dialogPreviousPaddingRight;
         delete document.body.dataset.dialogScrollLocks;
         return;
       }

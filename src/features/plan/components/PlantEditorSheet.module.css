@@ -35,6 +35,10 @@
   animation: sheetIn var(--motion-medium) var(--ease-out);
 }
 
+.overlayDrawer {
+  width: min(34rem, 100%);
+}
+
 .pinnedSheet {
   width: 100%;
   height: 100%;
@@ -172,7 +176,65 @@
   height: 1.2rem;
 }
 
-.photoList,
+.eventPanel {
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid rgba(76, 85, 70, 0.14);
+  border-radius: var(--radius-card);
+  background: rgba(246, 242, 233, 0.48);
+  padding: var(--space-2);
+}
+
+.eventHeader {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.eventHeader strong {
+  color: var(--color-text-strong);
+}
+
+.eventHeader span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.eventButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.eventHistory {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.eventHistory li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid rgba(76, 85, 70, 0.12);
+  border-radius: var(--radius-control);
+  background: #ffffff;
+  padding: 0.55rem 0.65rem;
+}
+
+.eventHistory strong,
+.eventHistory span {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-small);
+}
+
+.eventHistory li > span:last-child {
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
 .warningList {
   display: grid;
   gap: 0.45rem;
@@ -181,24 +243,6 @@
   list-style: none;
 }
 
-.photoList li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  border: 1px solid rgba(76, 85, 70, 0.14);
-  border-radius: var(--radius-control);
-  background: rgba(246, 242, 233, 0.42);
-  padding: 0.5rem 0.6rem;
-}
-
-.photoMeta {
-  display: grid;
-  gap: 0.3rem;
-  min-width: 0;
-}
-
-.photoList button,
 .secondaryButton,
 .footerActions button,
 .notice button {
@@ -287,6 +331,13 @@
   background: var(--color-surface-solid);
   padding-top: var(--space-3);
   padding-bottom: var(--space-3);
+}
+
+.overlayFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
 }
 
 .footer span {

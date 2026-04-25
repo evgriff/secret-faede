@@ -19,7 +19,7 @@ import type {
 } from './autoLayoutTypes';
 
 const preferredBedWidthFt = 4;
-const compactPathWidthFt = 2;
+const minimumOpenPlotPathSpanFt = 8;
 
 export interface WholePlotPlanningContext {
   garden: Garden;
@@ -97,14 +97,15 @@ function buildAccessPathStructures(
 }
 
 function getPlannedPathWidth(garden: Garden) {
+  const beds = garden.structures.filter(isBedLikeStructure);
   const narrowSide = Math.min(garden.plot.widthFt, garden.plot.depthFt);
 
-  if (narrowSide >= minimumStandardPathWidthFt + preferredBedWidthFt) {
-    return minimumStandardPathWidthFt;
+  if (beds.length === 0 && narrowSide < minimumOpenPlotPathSpanFt) {
+    return null;
   }
 
-  return narrowSide >= compactPathWidthFt + preferredBedWidthFt
-    ? compactPathWidthFt
+  return narrowSide >= minimumStandardPathWidthFt + preferredBedWidthFt
+    ? minimumStandardPathWidthFt
     : null;
 }
 
@@ -163,14 +164,31 @@ function scorePathCandidate(
   occupiedRects: FootRect[],
 ) {
   const beds = garden.structures.filter(isBedLikeStructure);
-  const bedAdjacency = beds.filter((bed) =>
-    rectsOverlap(expandRect(getStructureFootprint(bed), 2), candidate),
-  ).length;
+  const reachableBeds = beds.filter((bed) => {
+    const clearanceFt = Math.max(
+      bed.workingClearanceFt ?? minimumWorkingAisleWidthFt,
+      minimumWorkingAisleWidthFt,
+    );
+
+    return rectsOverlap(
+      expandRect(getStructureFootprint(bed), clearanceFt),
+      candidate,
+    );
+  }).length;
   const overlapPenalty = occupiedRects.filter((rect) =>
     rectsOverlap(rect, candidate),
   ).length;
+  const areaPenalty = candidate.widthFt * candidate.depthFt;
+  const crossPlotPenalty =
+    candidate.id === 'path-north' || candidate.id === 'path-south' ? 4 : 0;
 
-  return bedAdjacency * 8 - overlapPenalty * 20 + edgePathBias(candidate);
+  return (
+    reachableBeds * 18 -
+    areaPenalty * 0.75 -
+    overlapPenalty * 24 -
+    crossPlotPenalty +
+    edgePathBias(candidate)
+  );
 }
 
 function createPathStructure(
@@ -220,27 +238,28 @@ function buildPlantZones(placements: Placement[]) {
 
 function getZoneId(placement: Placement) {
   const crop = placement.unit.crop;
-  const light = crop.sunRequirement === 'fullSun' ? 'full-sun' : 'flex-sun';
   const water = crop.waterNeeds;
-  const height =
-    (crop.matureHeightInches ?? 0) >= 42 || crop.trellisRecommended
-      ? 'tall'
-      : 'low';
+  const support =
+    crop.trellisRequired ||
+    crop.trellisRecommended ||
+    crop.growthForm === 'climber' ||
+    crop.growthForm === 'vining'
+      ? 'support'
+      : 'open';
 
-  return `${light}-${water}-${height}`;
+  return `${water}-${support}`;
 }
 
 function getZoneLabel(zoneId: string) {
   const parts = zoneId.split('-');
-  const light = zoneId.startsWith('full-sun') ? 'Full-sun' : 'Flexible-sun';
   const water = parts.includes('high')
-    ? 'high-water'
+    ? 'High-water'
     : parts.includes('low')
-      ? 'low-water'
-      : 'medium-water';
-  const height = zoneId.endsWith('tall') ? 'tall crops' : 'lower crops';
+      ? 'Low-water'
+      : 'Medium-water';
+  const support = parts.includes('support') ? 'support crops' : 'open crops';
 
-  return `${light} ${water} ${height}`;
+  return `${water} ${support}`;
 }
 
 function summarizeZoneRationale(placements: Placement[]) {
@@ -250,13 +269,20 @@ function summarizeZoneRationale(placements: Placement[]) {
   const waterNeeds = [
     ...new Set(placements.map((placement) => placement.unit.crop.waterNeeds)),
   ];
-  const sunNeeds = [
+  const supportNeeds = [
     ...new Set(
-      placements.map((placement) => placement.unit.crop.sunRequirement),
+      placements.map((placement) =>
+        placement.unit.crop.trellisRequired ||
+        placement.unit.crop.trellisRecommended ||
+        placement.unit.crop.growthForm === 'climber' ||
+        placement.unit.crop.growthForm === 'vining'
+          ? 'support'
+          : 'open',
+      ),
     ),
   ];
 
-  return `${cropNames.join(', ')} grouped by ${sunNeeds.join('/')} light and ${waterNeeds.join('/')} water needs.`;
+  return `${cropNames.join(', ')} kept near ${waterNeeds.join('/')} watering and ${supportNeeds.join('/')} support needs.`;
 }
 
 function summarizeAccessHeuristics(structures: Structure[]) {
@@ -264,9 +290,9 @@ function summarizeAccessHeuristics(structures: Structure[]) {
 
   return paths.length > 0
     ? [
-        `${paths.length} access path${paths.length === 1 ? '' : 's'} reserved before crop placement.`,
+        `${paths.length} clear walking edge${paths.length === 1 ? '' : 's'} kept open before planting.`,
       ]
-    : ['Existing paths or bed edges are used for access.'];
+    : ['Existing plot edges or saved paths already give workable reach.'];
 }
 
 function summarizeTallCropHeuristics(placements: Placement[]) {
@@ -278,9 +304,9 @@ function summarizeTallCropHeuristics(placements: Placement[]) {
 
   return tallCount > 0
     ? [
-        `${tallCount} tall or trellised crop group${tallCount === 1 ? '' : 's'} biased north/up-sun.`,
+        `${tallCount} tall or trellised crop group${tallCount === 1 ? '' : 's'} kept where support and harvest stay manageable.`,
       ]
-    : ['No tall crop zone needed.'];
+    : ['No tall crop support area needed.'];
 }
 
 function summarizeWaterHeuristics(placements: Placement[]) {
@@ -289,7 +315,7 @@ function summarizeWaterHeuristics(placements: Placement[]) {
   );
 
   return [
-    `${waterZones.size} water-need zone${waterZones.size === 1 ? '' : 's'} kept legible for maintenance.`,
+    `${waterZones.size} watering zone${waterZones.size === 1 ? '' : 's'} kept easy to read in the plan.`,
   ];
 }
 

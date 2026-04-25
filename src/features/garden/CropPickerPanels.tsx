@@ -1,12 +1,13 @@
 import type { CropSuitabilityScore } from '../../domain/crops/cropSuitability';
 import type { CropProfile } from '../../domain/gardens/GardenRepository';
 import {
-  formatProfileCompleteness,
-  formatCropFamilyLine,
   formatCropSpacing,
   formatGlyph,
   formatLabel,
+  formatLocationFilterLabel,
+  formatLocationSource,
   formatSun,
+  formatTimingLabel,
   formatWater,
   getCropIconTone,
 } from './cropPickerHelpers';
@@ -14,14 +15,16 @@ import cropStyles from './CropPickerPanels.module.css';
 
 export function CropResultButton({
   crop,
+  fitHeadline,
   isSelected,
   onSelect,
-  suitabilityLabel,
+  timingLabel,
 }: {
   crop: CropProfile;
+  fitHeadline: string;
   isSelected: boolean;
   onSelect(): void;
-  suitabilityLabel: string;
+  timingLabel: string;
 }) {
   return (
     <button
@@ -43,10 +46,13 @@ export function CropResultButton({
       <span className={cropStyles.cropOptionBody}>
         <span className={cropStyles.cropOptionHeader}>
           <strong>{crop.commonName}</strong>
-          <span className={cropStyles.cropFit}>{suitabilityLabel}</span>
+          <span className={cropStyles.cropFit}>{timingLabel}</span>
         </span>
-        <small>{formatCropFamilyLine(crop)}</small>
-        <CropResultFacts crop={crop} />
+        <small className={cropStyles.fitHeadline}>{fitHeadline}</small>
+        <CropResultFacts
+          crop={crop}
+          cropTypeLabel={formatLabel(crop.category)}
+        />
       </span>
     </button>
   );
@@ -74,18 +80,27 @@ export function CropDetailCard({
         <div>
           <h3>{crop.commonName}</h3>
           <p>{crop.scientificName}</p>
+          <div className={cropStyles.detailBadges}>
+            <span className={cropStyles.cropFit}>
+              {formatTimingLabel(suitability.timing.status)}
+            </span>
+            <span className={cropStyles.cropDetailHint}>
+              {formatLocationSource(suitability, { concise: true })}
+            </span>
+          </div>
         </div>
       </div>
       <dl className={cropStyles.cropStats}>
+        <Stat
+          label="Garden fit"
+          value={formatLocationFilterLabel(suitability)}
+        />
         <Stat label="Sun" value={formatLabel(crop.sunRequirement)} />
         <Stat label="Water" value={formatWater(crop.waterNeeds)} />
         <Stat label="Spacing" value={`${crop.spacingInches ?? '-'} in`} />
         <Stat label="Maturity" value={`${crop.daysToMaturity ?? '-'} days`} />
+        <Stat label="Crop type" value={formatLabel(crop.category)} />
         <Stat label="Family" value={crop.family} />
-        <Stat
-          label="Catalog"
-          value={formatProfileCompleteness(crop.profileCompleteness)}
-        />
       </dl>
       <p className={cropStyles.cropNotes}>{crop.notes}</p>
       <SuitabilityPanel suitability={suitability} />
@@ -129,15 +144,22 @@ export function CropComparePanel({
 
 export function formatSuitabilityLevel(suitability: CropSuitabilityScore) {
   if (suitability.level === 'fit') {
-    return 'Ready to place';
+    return 'Fits here';
   }
 
-  return suitability.level === 'watch' ? 'Check details' : 'Needs review';
+  return suitability.level === 'watch' ? 'Possible fit' : 'Needs review';
 }
 
-export function CropResultFacts({ crop }: { crop: CropProfile }) {
+export function CropResultFacts({
+  crop,
+  cropTypeLabel,
+}: {
+  crop: CropProfile;
+  cropTypeLabel: string;
+}) {
   return (
     <span className={cropStyles.resultFacts}>
+      <span>{cropTypeLabel}</span>
       <span>{formatSun(crop.sunRequirement)}</span>
       <span>{formatWater(crop.waterNeeds)}</span>
       <span>{formatCropSpacing(crop)}</span>
@@ -150,24 +172,30 @@ function SuitabilityPanel({
 }: {
   suitability: CropSuitabilityScore;
 }) {
+  const visibleReasons = Array.from(
+    new Set([
+      suitability.timing.detail,
+      ...suitability.reasons,
+      ...suitability.warnings,
+    ]),
+  ).slice(0, 4);
   const lead =
     suitability.level === 'fit'
-      ? 'Ready to place'
+      ? 'Fits this garden'
       : suitability.level === 'watch'
-        ? 'Check details'
+        ? 'Worth a closer look'
         : 'Needs review';
 
   return (
     <section className={cropStyles.suitabilityPanel}>
       <div>
         <strong>{lead}</strong>
+        <span>{formatLocationFilterLabel(suitability)}</span>
       </div>
       <ul>
-        {[...suitability.reasons, ...suitability.warnings]
-          .slice(0, 4)
-          .map((reason) => (
-            <li key={reason}>{reason}</li>
-          ))}
+        {visibleReasons.map((reason) => (
+          <li key={reason}>{reason}</li>
+        ))}
       </ul>
     </section>
   );

@@ -33,6 +33,7 @@ import {
   getPlantGroupVisual,
   type PlantGroupLabelPlacement,
 } from '../plantVisuals';
+import type { PlanPreviewOffset } from '../planInteractionGeometry';
 import { PlantGroupIcon } from './PlantGroupIcon';
 import { footprintStyle } from './planCanvasGeometry';
 import itemStyles from './PlanCanvasItems.module.css';
@@ -57,7 +58,7 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
   onPlantPointerDown,
   onPlantPointerEnd,
   onPlantPointerMove,
-  onShowLabel,
+  previewOffset,
   onSelectItem,
   plant,
   structures,
@@ -88,8 +89,12 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
     plantId: string,
     instanceId?: string,
   ): void;
-  onShowLabel(plantId: string): void;
-  onSelectItem(item: SelectedGardenItem, additive: boolean): void;
+  previewOffset: PlanPreviewOffset | null;
+  onSelectItem(
+    item: SelectedGardenItem,
+    additive: boolean,
+    options?: { openSurface?: boolean },
+  ): void;
   plant: Planting;
   structures: Garden['structures'];
   warnings: PlanWarning[];
@@ -127,6 +132,7 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
   const hiddenDotCount = Math.max(instances.length - visibleDots.length, 0);
   const labelId = `plant-group-label-${plant.id}`;
   const labelText = quantity > 1 ? `${label}, ${quantity} plants` : label;
+  const quantityLabel = quantity > 1 ? `${quantity} plants` : '1 plant';
   const labelDecision = getPlantGroupLabelDecision({
     dragging: isDragging,
     footprint,
@@ -134,7 +140,11 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
     label: labelText,
     pinned: isLabelVisible,
   });
-  const shouldExposeLabel = labelDecision.visible;
+  const showInteriorLabel =
+    labelDecision.visible && labelDecision.placement === 'inside';
+  const showFloatingLabel =
+    labelDecision.visible && labelDecision.placement !== 'inside';
+  const shouldExposeLabel = showInteriorLabel || showFloatingLabel;
   const supportId = `plant-group-support-${plant.id}`;
   const warningId = `plant-group-warning-${plant.id}`;
   const describedBy = [
@@ -162,10 +172,14 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
         '--plant-dot-alt': visual.palette.dotAlt,
         '--plant-label-max-width': `${labelDecision.maxWidthPx}px`,
         '--plant-soft': visual.palette.soft,
+        '--preview-offset-x': `${previewOffset?.xPx ?? 0}px`,
+        '--preview-offset-y': `${previewOffset?.yPx ?? 0}px`,
       }) as CSSProperties,
     [
       footprint,
       labelDecision.maxWidthPx,
+      previewOffset?.xPx,
+      previewOffset?.yPx,
       visual.palette.accent,
       visual.palette.dot,
       visual.palette.dotAlt,
@@ -190,7 +204,7 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
           : itemStyles.compactPlantGroup
       } ${isLabelVisible ? itemStyles.labelVisiblePlantGroup : ''} ${
         isHoverLabelVisible ? itemStyles.hoverLabelPlantGroup : ''
-      } ${labelDecision.visible ? itemStyles.labelShownPlantGroup : ''} ${
+      } ${showFloatingLabel ? itemStyles.labelShownPlantGroup : ''} ${
         labelPlacementClasses[labelDecision.placement]
       }`}
       data-plant-group-id={plant.id}
@@ -211,19 +225,16 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
         className={itemStyles.plantGroupSurface}
         onClick={(event) => {
           if (event.detail === 0) {
-            onShowLabel(plant.id);
-            onSelectItem({ id: plant.id, type: 'planting' }, event.shiftKey);
+            onSelectItem({ id: plant.id, type: 'planting' }, event.shiftKey, {
+              openSurface: !event.shiftKey,
+            });
           }
         }}
-        onFocus={() => onShowLabel(plant.id)}
         onKeyDown={(event) =>
           handleSurfaceKeyDown(event, plant.id, onHideLabel)
         }
         onPointerCancel={(event) => onPlantPointerEnd(event, plant.id)}
-        onPointerDown={(event) => {
-          onShowLabel(plant.id);
-          onPlantPointerDown(event, plant.id);
-        }}
+        onPointerDown={(event) => onPlantPointerDown(event, plant.id)}
         onPointerMove={(event) => onPlantPointerMove(event, plant.id)}
         onPointerUp={(event) => onPlantPointerEnd(event, plant.id)}
         type="button"
@@ -243,6 +254,18 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
             <span className={itemStyles.plantGroupMore}>+{hiddenDotCount}</span>
           ) : null}
         </span>
+        {showInteriorLabel ? (
+          <span
+            className={itemStyles.plantGroupInteriorLabel}
+            data-plan-label="true"
+            id={labelId}
+          >
+            <span className={itemStyles.plantGroupInteriorMeta}>
+              {quantityLabel}
+            </span>
+            <span className={itemStyles.plantGroupInteriorName}>{label}</span>
+          </span>
+        ) : null}
         <span className={itemStyles.plantGroupIconWrap} aria-hidden="true">
           <PlantGroupIcon
             className={itemStyles.plantGroupIcon}
@@ -295,15 +318,16 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
           </span>
         ) : null}
       </button>
-      <span
-        aria-hidden={!shouldExposeLabel}
-        className={itemStyles.plantGroupLabel}
-        data-plan-label="true"
-        id={labelId}
-        role="tooltip"
-      >
-        <span className={itemStyles.plantGroupName}>{labelText}</span>
-      </span>
+      {showFloatingLabel ? (
+        <span
+          className={itemStyles.plantGroupLabel}
+          data-plan-label="true"
+          id={labelId}
+          role="tooltip"
+        >
+          <span className={itemStyles.plantGroupName}>{labelText}</span>
+        </span>
+      ) : null}
       <button
         aria-describedby={shouldExposeLabel ? labelId : undefined}
         aria-label={`Edit ${label} group`}
@@ -312,11 +336,11 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          onShowLabel(plant.id);
-          onSelectItem({ id: plant.id, type: 'planting' }, event.shiftKey);
+          onSelectItem({ id: plant.id, type: 'planting' }, event.shiftKey, {
+            openSurface: true,
+          });
           onOpenEditor(plant.id);
         }}
-        onFocus={() => onShowLabel(plant.id)}
         onKeyDown={(event) =>
           handleSurfaceKeyDown(event, plant.id, onHideLabel)
         }

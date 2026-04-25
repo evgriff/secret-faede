@@ -6,17 +6,21 @@ import type {
 export type AutoLayoutStrategy = 'accessFirst' | 'sunFirst' | 'supportFirst';
 export type AutoLayoutRunStatus =
   | 'applied'
-  | 'empty'
+  | 'collectingConstraints'
   | 'error'
+  | 'generatingSuggestion'
   | 'idle'
+  | 'noBetterLayout'
+  | 'preparingPreview'
   | 'ready'
-  | 'running';
+  | 'savingDraft'
+  | 'validatingSuggestion';
 export type AutoLayoutSearchStatus = 'blocked' | 'partial' | 'resolved';
 
 export interface AutoLayoutScoreBreakdown {
-  seasonalSuitability: number;
-  shadeManagement: number;
+  accessQuality: number;
   spacingQuality: number;
+  structureCompatibility: number;
   waterGrouping: number;
 }
 

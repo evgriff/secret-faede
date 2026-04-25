@@ -18,7 +18,7 @@ export const planModes: Array<{
   },
   {
     description:
-      'Resolve current problems and compare checked whole-plot variants.',
+      'Review planting issues and check one whole-plot layout suggestion.',
     label: 'Optimize',
     mode: 'optimize',
   },

@@ -21,9 +21,9 @@ export interface CropSupportNeed {
   reason: string;
 }
 
-export const minimumStandardPathWidthFt = 3;
+export const minimumStandardPathWidthFt = 1.5;
 export const minimumAccessiblePathWidthFt = 4;
-export const minimumWorkingAisleWidthFt = 2;
+export const minimumWorkingAisleWidthFt = minimumStandardPathWidthFt;
 const nearbySupportDistanceFt = 1.25;
 
 export function isBedLikeStructure(structure: Structure) {
@@ -132,7 +132,7 @@ export function getCropSupportNeed(crop: CropProfile): CropSupportNeed | null {
     return {
       kind: 'cage',
       reason: 'Tomatoes are tall, heavy fruiting crops.',
-      required: crop.trellisRequired,
+      required: false,
     };
   }
 
@@ -170,6 +170,15 @@ export function getCropSupportNeed(crop: CropProfile): CropSupportNeed | null {
 
 export function cropNeedsSupport(crop: CropProfile) {
   return Boolean(getCropSupportNeed(crop));
+}
+
+export function needsExplicitSupportSetup(crop: CropProfile) {
+  const supportNeed = getCropSupportNeed(crop);
+
+  return Boolean(
+    supportNeed &&
+    (supportNeed.kind === 'trellis' || supportNeed.required === true),
+  );
 }
 
 export function hasNearbySupport(garden: Garden, planting: Planting) {

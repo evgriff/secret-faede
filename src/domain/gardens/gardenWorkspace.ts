@@ -174,8 +174,8 @@ export function prepareGardenForUser(garden: Garden, userId: string): Garden {
     })),
     updatedAtIso: garden.updatedAtIso,
     userId,
-    waterRecommendations: garden.waterRecommendations.map((recommendation) => ({
-      ...recommendation,
+    wateringSchedule: garden.wateringSchedule.map((entry) => ({
+      ...entry,
       gardenId: userId,
     })),
     weatherSnapshots: garden.weatherSnapshots.map((snapshot) => ({

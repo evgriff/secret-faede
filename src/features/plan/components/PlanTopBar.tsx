@@ -1,48 +1,30 @@
 import type { Garden } from '../../../domain/gardens/GardenRepository';
 import { getSaveFeedback } from '../../../shared/sync/syncFeedback';
 import { StatusBadge } from '../../shared/design/DesignPrimitives';
-import type { PlanMode } from '../planModes';
-import { PlanPrimaryActions } from './PlanPrimaryActions';
 import styles from './PlanTopBar.module.css';
 
 export function PlanTopBar({
-  activeMode,
   canPublish,
   dirty,
   garden,
-  hasSelection,
-  isDetailedViewOpen,
   isOffline,
   onAddPlants,
-  onOpenDetails,
-  onOpenHistory,
   onOpenPlot,
-  onOptimize,
-  onReviewProblems,
-  onSun,
   onPublish,
+  onReviewProblems,
   onSave,
-  problemCount,
   saveStatus,
   workspaceState,
 }: {
-  activeMode: PlanMode;
   canPublish: boolean;
   dirty: boolean;
   garden: Garden;
-  hasSelection: boolean;
-  isDetailedViewOpen: boolean;
   isOffline: boolean;
   onAddPlants(): void;
-  onOpenDetails(): void;
-  onOpenHistory(): void;
   onOpenPlot(): void;
-  onOptimize(): void;
-  onReviewProblems(): void;
-  onSun(): void;
   onPublish(): void;
+  onReviewProblems(): void;
   onSave(): void;
-  problemCount: number;
   saveStatus: 'error' | 'idle' | 'queued' | 'saved' | 'saving';
   workspaceState: 'draft' | 'published' | 'stale';
 }) {
@@ -58,13 +40,27 @@ export function PlanTopBar({
     <header className={styles.topBar} aria-label="Plan actions">
       <div className={styles.context}>
         <div className={styles.titleBlock}>
-          <h1>Plan</h1>
+          <div className={styles.titleRow}>
+            <h1>Plan</h1>
+            <button
+              className={styles.plotButton}
+              onClick={onOpenPlot}
+              title="Plot settings"
+              type="button"
+            >
+              Plot settings
+            </button>
+          </div>
           <span>
             {garden.plot.widthFt} ft by {garden.plot.depthFt} ft
           </span>
+          <p className={styles.purpose}>
+            Place plants and review the layout. Draft changes refresh Today as
+            you work.
+          </p>
         </div>
         <div
-          aria-label="Plan sync state"
+          aria-label="Plan status"
           aria-live="polite"
           className={styles.statusGroup}
           role="status"
@@ -72,47 +68,34 @@ export function PlanTopBar({
           {cloudState.shouldRender ? (
             <StatusBadge tone={cloudState.tone}>{cloudState.label}</StatusBadge>
           ) : null}
-          <StatusBadge tone={workspaceStatus.tone}>
-            {workspaceStatus.label}
-          </StatusBadge>
-          {cloudState.detail ? (
-            <span className={styles.syncHint}>{cloudState.detail}</span>
-          ) : null}
+          <div className={styles.statusCopy}>
+            <strong>{workspaceStatus.label}</strong>
+            <span>{cloudState.detail ?? workspaceStatus.detail}</span>
+          </div>
         </div>
       </div>
 
-      <PlanPrimaryActions
-        activeMode={activeMode}
-        hasSelection={hasSelection}
-        isDetailedViewOpen={isDetailedViewOpen}
-        onAddPlants={onAddPlants}
-        onOpenDetails={onOpenDetails}
-        onOptimize={onOptimize}
-        onReviewProblems={onReviewProblems}
-        onSun={onSun}
-        problemCount={problemCount}
-      />
-
-      <div className={styles.workspaceActions}>
+      <nav
+        className={styles.workspaceActions}
+        aria-label="Primary plan actions"
+      >
         <button
-          className={styles.secondaryButton}
-          onClick={onOpenPlot}
-          title="Plot settings"
+          className={styles.primaryButton}
+          onClick={onAddPlants}
           type="button"
-          aria-label="Plot settings"
         >
-          Plot
+          Add plants
         </button>
         <button
           className={styles.secondaryButton}
-          onClick={onOpenHistory}
+          onClick={onReviewProblems}
           type="button"
         >
-          History
+          Review problems
         </button>
         {dirty ? (
           <button
-            className={styles.primaryButton}
+            className={styles.secondaryButton}
             disabled={saveStatus === 'saving'}
             onClick={onSave}
             type="button"
@@ -121,26 +104,35 @@ export function PlanTopBar({
           </button>
         ) : null}
         <button
-          className={styles.primaryButton}
+          className={`${styles.secondaryButton} ${styles.publishButton}`}
           disabled={!canPublish || saveStatus === 'saving'}
           onClick={onPublish}
           type="button"
         >
           Publish
         </button>
-      </div>
+      </nav>
     </header>
   );
 }
 
 function getWorkspaceStatus(workspaceState: 'draft' | 'published' | 'stale') {
   if (workspaceState === 'stale') {
-    return { label: 'Conflict', tone: 'danger' as const };
+    return {
+      detail: 'The published garden changed after this draft started.',
+      label: 'Publish conflict',
+    };
   }
 
   if (workspaceState === 'draft') {
-    return { label: 'Draft differs', tone: 'warning' as const };
+    return {
+      detail: 'This private draft differs from the published garden.',
+      label: 'Private draft',
+    };
   }
 
-  return { label: 'Matches published', tone: 'success' as const };
+  return {
+    detail: 'This plan matches the published garden.',
+    label: 'Published',
+  };
 }

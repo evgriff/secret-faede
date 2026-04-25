@@ -2,19 +2,13 @@ import {
   getDerivedPlantingDimensions,
   type CropProfile,
   type GardenPlant,
-  type PlantStatus,
-  type PlantStatusPhoto,
   type PlantSupportPlan,
   type PlantSupportType,
 } from '../../../domain/gardens/GardenRepository';
 import { PlantingArrangementEditor } from '../../garden/PlantingArrangementEditor';
 import type { PlanWarning } from '../../garden/gardenPlanning';
 import { toPlantingArrangementUpdate } from '../plantingArrangementUpdates';
-import {
-  createPictureSlot,
-  formatSupportType,
-  supportTypes,
-} from './PlantEditorSheetShared';
+import { formatSupportType, supportTypes } from './PlantEditorSheetShared';
 import styles from './PlantEditorSheet.module.css';
 
 type UpdatePlanting = (id: string, values: Partial<GardenPlant>) => void;
@@ -214,103 +208,5 @@ export function PlantEditorSupport({
         />
       </label>
     </section>
-  );
-}
-
-export function PlantEditorPhotos({
-  onUpdatePlanting,
-  plant,
-  plantStatus,
-}: {
-  onUpdatePlanting: UpdatePlanting;
-  plant: GardenPlant;
-  plantStatus: PlantStatus;
-}) {
-  function updatePhotos(photos: PlantStatus['photos']) {
-    onUpdatePlanting(plant.id, {
-      plantStatus: {
-        ...plantStatus,
-        photos,
-      },
-    });
-  }
-
-  return (
-    <details className={styles.details}>
-      <summary>Picture metadata</summary>
-      {plantStatus.photos.length > 0 ? (
-        <ul className={styles.photoList}>
-          {plantStatus.photos.map((photo) => (
-            <li key={photo.id}>
-              <PhotoMetadataField
-                onChange={(values) =>
-                  updatePhotos(
-                    plantStatus.photos.map((currentPhoto) =>
-                      currentPhoto.id === photo.id
-                        ? { ...currentPhoto, ...values }
-                        : currentPhoto,
-                    ),
-                  )
-                }
-                photo={photo}
-              />
-              <button
-                onClick={() =>
-                  updatePhotos(
-                    plantStatus.photos.filter(
-                      (currentPhoto) => currentPhoto.id !== photo.id,
-                    ),
-                  )
-                }
-                type="button"
-              >
-                Clear
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className={styles.muted}>
-          Keep a slot ready for a field photo without starting an upload.
-        </p>
-      )}
-      <button
-        className={styles.secondaryButton}
-        onClick={() =>
-          updatePhotos([
-            ...plantStatus.photos,
-            createPictureSlot(plant.id, plantStatus.photos.length + 1),
-          ])
-        }
-        type="button"
-      >
-        Reserve picture slot
-      </button>
-    </details>
-  );
-}
-
-function PhotoMetadataField({
-  onChange,
-  photo,
-}: {
-  onChange(values: Partial<PlantStatusPhoto>): void;
-  photo: PlantStatusPhoto;
-}) {
-  return (
-    <div className={styles.photoMeta}>
-      <label className={styles.field}>
-        <span>Picture label</span>
-        <input
-          onChange={(event) =>
-            onChange({ fileName: event.currentTarget.value })
-          }
-          value={photo.fileName}
-        />
-      </label>
-      <span className={styles.muted}>
-        {photo.uploadedAtIso ? 'Attached photo' : 'Metadata slot only'}
-      </span>
-    </div>
   );
 }

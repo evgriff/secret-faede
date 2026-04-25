@@ -58,19 +58,70 @@ function formatLocalDate(date, timezone) {
 function getLocalMinutes(date, timezone) {
   const parts = new Intl.DateTimeFormat('en-US', {
     hour: '2-digit',
-    hour12: false,
+    hourCycle: 'h23',
     minute: '2-digit',
     timeZone: timezone,
   }).formatToParts(date);
-  const hour = Number(part(parts, 'hour')) % 24;
+  const hour = Number(part(parts, 'hour'));
   const minute = Number(part(parts, 'minute'));
 
   return hour * 60 + minute;
 }
 
 function parseLocalTime(value) {
-  const [hour = '7', minute = '0'] = String(value).split(':');
-  return Number(hour) * 60 + Number(minute);
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(value).trim());
+
+  if (!match) {
+    return 7 * 60;
+  }
+
+  const hours = Math.min(Math.max(Number(match[1]), 0), 23);
+  const minutes = Math.min(Math.max(Number(match[2]), 0), 59);
+  return hours * 60 + minutes;
+}
+
+function isBeforeWateringCheck(date, timezone, wateringCheckTime) {
+  return getLocalMinutes(date, timezone) < parseLocalTime(wateringCheckTime);
+}
+
+function resolveWateringCheckWindowStartIso(
+  localDate,
+  timezone,
+  wateringCheckTime,
+) {
+  const midnightUtcMs = Date.parse(`${localDate}T00:00:00.000Z`);
+  const localMinutes = parseLocalTime(wateringCheckTime);
+  const candidate = new Date(midnightUtcMs + localMinutes * 60_000);
+  const offsetMinutes = getTimeZoneOffsetMinutes(candidate, timezone);
+
+  return new Date(
+    midnightUtcMs + (localMinutes - offsetMinutes) * 60_000,
+  ).toISOString();
+}
+
+function getTimeZoneOffsetMinutes(date, timezone) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    day: '2-digit',
+    hour: '2-digit',
+    hourCycle: 'h23',
+    minute: '2-digit',
+    month: '2-digit',
+    second: '2-digit',
+    timeZone: timezone,
+    year: 'numeric',
+  });
+  const parts = formatter.formatToParts(date);
+  const year = part(parts, 'year');
+  const month = part(parts, 'month');
+  const day = part(parts, 'day');
+  const hour = part(parts, 'hour');
+  const minute = part(parts, 'minute');
+  const second = part(parts, 'second');
+  const asUtc = Date.parse(
+    `${year}-${month}-${day}T${hour}:${minute}:${second}.000Z`,
+  );
+
+  return (asUtc - date.getTime()) / 60_000;
 }
 
 function addDays(dateString, days) {
@@ -108,7 +159,11 @@ module.exports = {
   formatLocalDate,
   getGardenLocation,
   getGardenTimezone,
+  getLocalMinutes,
   isUserDueForWateringCheck,
+  isBeforeWateringCheck,
+  parseLocalTime,
+  resolveWateringCheckWindowStartIso,
   roundTo,
   sortTasks,
 };

@@ -294,11 +294,10 @@ changes:
   the linked water task is done, and Feed shows the water note.
 - In Today, report an issue, confirm a follow-up inspect task appears, then
   resolve the issue and confirm the follow-up task completes.
-- In Today, use harvest-card **Log harvest** and confirm a default field harvest
-  is written, the linked harvest task completes, and the planting remains
-  harvest-ready. Confirm the optional harvest-photo prompt appears; use
-  **Details** to log a finished harvest and confirm the planting becomes
-  harvested.
+- In Today, use harvest schedule **Log harvest** and confirm a default field
+  harvest is written, the planting remains harvest-ready, and no photo-note
+  prompt appears automatically. Use **View details** to log a finished harvest
+  and confirm the planting becomes harvested.
 - Confirm Today Do Now cards and task cards use clear semantic actions while
   date, bed, priority, crop, and reason copy remains passive supporting text.
 - Confirm Today and Feed stay compact on desktop and mobile: empty secondary
@@ -306,8 +305,8 @@ changes:
   states explain how to return to the full stream, and photo memories still keep
   the title-image-caption hierarchy. On mobile Today, field priorities should
   appear before weather so the first screen leads with action.
-- In Today, mark a planned crop planted, then growing, then harvest-ready and
-  confirm setup tasks, generated tasks, Feed notes, and recent activity update.
+- In Today, mark a planned crop planted, then growing and confirm setup tasks,
+  generated tasks, Feed notes, recent activity, and harvest timing update.
 - In Feed, add a garden-scoped note, bed-scoped note, planting-scoped issue,
   photo attachment, and harvest.
 - In Feed, open **New entry**, then filter by search text, target, issue

@@ -11,13 +11,11 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
+  display: grid;
+  gap: 0.45rem;
   border-bottom: 1px solid rgba(54, 48, 40, 0.1);
   background: #fffdf7;
-  padding-bottom: 0.6rem;
+  padding-bottom: 0.5rem;
 }
 
 .boardHeader h3 {
@@ -35,21 +33,41 @@
   text-transform: uppercase;
 }
 
-.boardStats {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.35rem;
+.boardSummary {
+  margin: 0.1rem 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
 }
 
-.boardStats span,
-.stateBadge {
-  border-radius: 999px;
-  background: rgba(54, 48, 40, 0.08);
+.planReference {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.planReferenceLabel {
+  display: grid;
+  gap: 0.3rem;
+  max-width: none;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-caption);
+  font-weight: 780;
+}
+
+.planReferenceLabel select {
+  min-height: 2.2rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: #ffffff;
+  color: var(--color-text-strong);
+  font: inherit;
+  padding: 0 0.75rem;
+}
+
+.planReferenceCaption {
+  display: none;
+  margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-caption);
-  font-weight: 820;
-  padding: 0.18rem 0.45rem;
 }
 
 .stateBadge {
@@ -214,6 +232,30 @@
   opacity: 0.45;
 }
 
+.boardCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.boardAction {
+  min-height: 2.2rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: #fffdf7;
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-small);
+  font-weight: 760;
+  padding: 0 0.75rem;
+}
+
+.boardAction:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .primaryGrid,
 .secondaryGrid {
   display: grid;
@@ -300,6 +342,7 @@
 }
 
 .iconAction:focus-visible,
+.boardAction:focus-visible,
 .compactField:focus-within,
 .notesField:focus-within,
 .checkField:focus-within,
@@ -310,6 +353,11 @@
 
 @media (hover: hover) and (pointer: fine) {
   .iconAction:hover {
+    border-color: rgba(54, 48, 40, 0.38);
+    background: #f6f0e5;
+  }
+
+  .boardAction:hover {
     border-color: rgba(54, 48, 40, 0.38);
     background: #f6f0e5;
   }

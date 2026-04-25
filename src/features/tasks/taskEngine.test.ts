@@ -3,7 +3,7 @@ import {
   createDefaultPlanting,
   createDefaultStructure,
   type Garden,
-  type WaterRecommendation,
+  type WateringScheduleEntry,
   type WeatherSnapshot,
 } from '../../domain/gardens/GardenRepository';
 import {
@@ -15,7 +15,7 @@ import {
 } from './taskEngine';
 
 describe('taskEngine', () => {
-  it('generates climate, crop, support, harvest, and water tasks', () => {
+  it('generates climate, crop, support, and water tasks', () => {
     const garden = synchronizeGardenTasks(createTaskGarden(), {
       now: new Date('2026-04-20T12:00:00.000Z'),
     });
@@ -38,11 +38,7 @@ describe('taskEngine', () => {
           type: 'trellis',
         }),
         expect.objectContaining({
-          title: 'Harvest Tomato',
-          type: 'harvest',
-        }),
-        expect.objectContaining({
-          source: 'waterRecommendation',
+          source: 'wateringSchedule',
           title: 'Water Tomato 0.60 in',
           type: 'water',
         }),
@@ -68,7 +64,7 @@ describe('taskEngine', () => {
             status: 'planned',
           },
         ],
-        waterRecommendations: [],
+        wateringSchedule: [],
         weatherSnapshots: [createWeatherSnapshot()],
       },
       { now: new Date('2026-04-20T12:00:00.000Z') },
@@ -102,11 +98,102 @@ describe('taskEngine', () => {
     );
   });
 
+  it('derives direct-sow follow-up from recorded planting events', () => {
+    const garden = synchronizeGardenTasks(
+      {
+        ...createTaskGarden(),
+        plantings: [
+          {
+            ...createDefaultPlanting({
+              id: 'radish-1',
+              label: 'Radish row',
+              xFt: 3,
+              yFt: 3,
+            }),
+            cropId: 'radish',
+            mode: 'row',
+            plantCount: 12,
+            plannedFor: '2026-04-19',
+            plantingEvents: [
+              {
+                id: 'planting-event:directSowed:2026-04-12',
+                occurredOn: '2026-04-12',
+                type: 'directSowed',
+              },
+            ],
+            status: 'planted',
+          },
+        ],
+        wateringSchedule: [],
+      },
+      { now: new Date('2026-04-20T12:00:00.000Z') },
+    );
+
+    expect(garden.tasks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dueDate: '2026-04-19',
+          title: 'Check Radish row seedlings',
+          type: 'inspect',
+        }),
+        expect.objectContaining({
+          dueDate: '2026-04-26',
+          title: 'Thin Radish row',
+          type: 'thin',
+        }),
+      ]),
+    );
+  });
+
+  it('derives harden-off and plant-out timing from recorded indoor starts', () => {
+    const garden = synchronizeGardenTasks(
+      {
+        ...createTaskGarden(),
+        plantings: [
+          {
+            ...createDefaultPlanting({
+              id: 'tomato-1',
+              label: 'Tomato',
+              xFt: 3,
+              yFt: 3,
+            }),
+            cropId: 'tomato',
+            plantingEvents: [
+              {
+                id: 'planting-event:startedInside:2026-04-10',
+                occurredOn: '2026-04-10',
+                type: 'startedInside',
+              },
+            ],
+            status: 'planned',
+            sunRequirement: 'fullSun',
+          },
+        ],
+      },
+      { now: new Date('2026-04-20T12:00:00.000Z') },
+    );
+
+    expect(garden.tasks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dueDate: '2026-05-10',
+          title: 'Harden off Tomato',
+          type: 'inspect',
+        }),
+        expect.objectContaining({
+          dueDate: '2026-05-17',
+          title: 'Plant out Tomato',
+          type: 'transplant',
+        }),
+      ]),
+    );
+  });
+
   it('retires stale generated tasks when their source no longer applies', () => {
     const garden = synchronizeGardenTasks(createTaskGarden(), {
       now: new Date('2026-04-20T12:00:00.000Z'),
     });
-    const recommendation = garden.waterRecommendations[0];
+    const recommendation = garden.wateringSchedule[0];
 
     if (!recommendation) {
       throw new Error('Expected a water recommendation.');
@@ -115,7 +202,7 @@ describe('taskEngine', () => {
     const withoutWaterNeed = synchronizeGardenTasks(
       {
         ...garden,
-        waterRecommendations: [
+        wateringSchedule: [
           {
             ...recommendation,
             status: 'completed',
@@ -127,6 +214,42 @@ describe('taskEngine', () => {
 
     expect(
       withoutWaterNeed.tasks.find((task) => task.id === 'water-water-1'),
+    ).toMatchObject({
+      status: 'skipped',
+    });
+  });
+
+  it('retires legacy generated harvest tasks now that harvest is schedule context only', () => {
+    const garden = synchronizeGardenTasks(
+      {
+        ...createTaskGarden(),
+        tasks: [
+          {
+            bedLabel: 'Main bed',
+            completedAtIso: null,
+            createdAtIso: '2026-04-20T07:00:00.000Z',
+            deferredUntilDate: null,
+            dueDate: '2026-06-18',
+            gardenId: 'user-a',
+            id: 'planting-tomato-1-harvest',
+            notes: 'Check the bed before clearing it.',
+            plantingId: 'tomato-1',
+            priority: 'medium',
+            snoozedUntilDate: null,
+            source: 'generated',
+            sourceId: 'tomato-1',
+            status: 'open',
+            structureId: null,
+            title: 'Harvest Tomato',
+            type: 'harvest',
+          },
+        ],
+      },
+      { now: new Date('2026-04-20T12:00:00.000Z') },
+    );
+
+    expect(
+      garden.tasks.find((task) => task.id === 'planting-tomato-1-harvest'),
     ).toMatchObject({
       status: 'skipped',
     });
@@ -149,7 +272,7 @@ describe('taskEngine', () => {
             plantingId: 'tomato-1',
             priority: 'medium',
             snoozedUntilDate: null,
-            source: 'waterRecommendation',
+            source: 'wateringSchedule',
             sourceId: 'water-1',
             status: 'open',
             structureId: null,
@@ -188,16 +311,59 @@ describe('taskEngine', () => {
     );
 
     expect(wateredGarden.plantings[0]).toMatchObject({
+      plantingEvents: [
+        expect.objectContaining({
+          occurredOn: '2026-05-17',
+          type: 'plantedOut',
+        }),
+      ],
       plantedOn: '2026-05-17',
       status: 'growing',
     });
-    expect(wateredGarden.waterRecommendations[0]).toMatchObject({
+    expect(wateredGarden.wateringSchedule[0]).toMatchObject({
+      lastWateredAtIso: '2026-05-18T12:00:00.000Z',
       status: 'completed',
     });
     expect(
       wateredGarden.tasks.find((task) => task.id === 'planting-tomato-1-plant'),
     ).toMatchObject({
       status: 'done',
+    });
+    expect(wateredGarden.journalEntries[0]).toMatchObject({
+      title: 'Planted out Tomato',
+      type: 'note',
+    });
+  });
+
+  it('accumulates previously applied water when a partial schedule entry is completed', () => {
+    const garden = synchronizeGardenTasks(
+      {
+        ...createTaskGarden(),
+        wateringSchedule: [
+          createWateringScheduleEntry({
+            appliedAmountInches: 0.25,
+            lastWateredAtIso: '2026-04-20T09:00:00.000Z',
+            status: 'partial',
+            targetAmountInches: 0.35,
+            deficitInches: 0.35,
+          }),
+        ],
+      },
+      {
+        now: new Date('2026-04-20T12:00:00.000Z'),
+        refreshOpenGenerated: true,
+      },
+    );
+    const wateredGarden = completeTask(
+      garden,
+      'water-water-1',
+      new Date('2026-04-20T15:00:00.000Z'),
+    );
+
+    expect(wateredGarden.wateringSchedule[0]).toMatchObject({
+      appliedAmountInches: 0.6,
+      lastWateredAtIso: '2026-04-20T15:00:00.000Z',
+      status: 'completed',
     });
   });
 
@@ -219,7 +385,7 @@ describe('taskEngine', () => {
             sunRequirement: 'fullSun',
           },
         ],
-        waterRecommendations: [],
+        wateringSchedule: [],
       },
       { now: new Date('2026-04-20T12:00:00.000Z') },
     );
@@ -281,7 +447,7 @@ describe('taskEngine', () => {
             sunRequirement: 'fullSun',
           },
         ],
-        waterRecommendations: [],
+        wateringSchedule: [],
       },
       { now: new Date('2026-04-20T12:00:00.000Z') },
     );
@@ -348,29 +514,36 @@ function createTaskGarden(): Garden {
         label: 'Main bed',
       },
     ],
-    waterRecommendations: [createWaterRecommendation()],
+    wateringSchedule: [createWateringScheduleEntry()],
   };
 }
 
-function createWaterRecommendation(): WaterRecommendation {
+function createWateringScheduleEntry(
+  overrides: Partial<WateringScheduleEntry> = {},
+): WateringScheduleEntry {
   return {
+    appliedAmountInches: null,
+    createdAtIso: '2026-04-20T12:00:00.000Z',
     deficitInches: 0.6,
-    generatedAtIso: '2026-04-20T12:00:00.000Z',
+    dueDate: '2026-04-20',
+    dueWindowEndIso: null,
+    dueWindowStartIso: '2026-04-20T12:00:00.000Z',
     gardenId: 'user-a',
     id: 'water-1',
-    inchesNeeded: 0.6,
-    plantingId: 'tomato-1',
-    rationale: ['Rain is unlikely today.'],
-    reason: 'Dry soil',
-    recommendationDate: '2026-04-20',
-    recommendedWaterInches: 0.6,
-    status: 'active',
-    suppressUntilIso: null,
+    lastWateredAtIso: null,
+    nextRecalculationAtIso: null,
+    reasonDetails: ['Rain is unlikely today.'],
+    reasonSummary: 'Dry soil',
+    status: 'due',
     targetId: 'tomato-1',
+    targetAmountInches: 0.6,
+    targetKind: 'planting',
     targetLabel: 'Tomato',
-    targetType: 'planting',
+    updatedAtIso: '2026-04-20T12:00:00.000Z',
     urgency: 'high',
+    wateringZoneId: null,
     weatherSnapshotId: 'weather-1',
+    ...overrides,
   };
 }
 

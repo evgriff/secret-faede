@@ -123,9 +123,9 @@ function countAcknowledgedWaterAlerts(garden: Garden) {
   garden.tasks
     .filter((task) => task.type === 'water' && task.status === 'done')
     .forEach((task) => acknowledged.add(task.sourceId ?? task.id));
-  garden.waterRecommendations
-    .filter((recommendation) => recommendation.status === 'completed')
-    .forEach((recommendation) => acknowledged.add(recommendation.id));
+  garden.wateringSchedule
+    .filter((entry) => entry.status === 'completed')
+    .forEach((entry) => acknowledged.add(entry.id));
 
   return acknowledged.size;
 }

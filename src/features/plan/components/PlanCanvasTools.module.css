@@ -112,14 +112,8 @@
 }
 
 .miniPath {
-  border-color: #555a56;
-  background-color: #bfc1bd;
-  background-image: repeating-conic-gradient(
-    from 45deg,
-    #d7d8d4 0% 25%,
-    #9fa39e 0% 50%
-  );
-  background-size: 0.45rem 0.45rem;
+  border-color: rgba(78, 82, 78, 0.48);
+  background: rgba(142, 148, 142, 0.56);
 }
 
 .miniPlant {

@@ -1,4 +1,5 @@
 import { getCropById } from '../../domain/crops/cropCatalog';
+import { getLatestPlantingEventDate } from '../../domain/gardens/GardenRepository';
 import type {
   Garden,
   HarvestEvent,
@@ -91,7 +92,6 @@ function getNextFieldStatus(status: PlantingLifecycleStatus) {
   const next: Partial<
     Record<PlantingLifecycleStatus, PlantingLifecycleStatus>
   > = {
-    growing: 'harvest-ready',
     planned: 'planted',
     planted: 'growing',
   };
@@ -111,19 +111,38 @@ function getStageSummary(
   planting: Planting,
   nextStatus: PlantingLifecycleStatus,
 ) {
+  const startedInsideDate = getLatestPlantingEventDate(
+    planting,
+    'startedInside',
+  );
+  const directSowedDate = getLatestPlantingEventDate(planting, 'directSowed');
+  const plantedOutDate = getLatestPlantingEventDate(planting, 'plantedOut');
+
   if (nextStatus === 'planted') {
+    if (startedInsideDate) {
+      return `Started indoors ${startedInsideDate}. Plant out once it is ready for the bed.`;
+    }
+
     return planting.plannedFor
       ? `Planned for ${planting.plannedFor}`
       : 'Ready when planted in the field';
   }
 
   if (nextStatus === 'growing') {
+    if (directSowedDate) {
+      return `Direct sowed ${directSowedDate}`;
+    }
+
+    if (plantedOutDate ?? planting.plantedOn) {
+      return `Planted out ${plantedOutDate ?? planting.plantedOn}`;
+    }
+
     return planting.plantedOn
       ? `Planted ${planting.plantedOn}`
       : 'Confirm it has taken off';
   }
 
-  return 'Mark when picking should start';
+  return 'Update crop status';
 }
 
 function getPlantingSortDate(planting: Planting) {

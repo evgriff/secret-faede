@@ -8,7 +8,6 @@ import {
 } from './components/LogComposerModal';
 import { LogFeed } from './components/LogFeed';
 import { LogFilters } from './components/LogFilters';
-import { LogPulseBar } from './components/LogPulseBar';
 import { LogSaveState } from './components/LogSaveState';
 import styles from './LogPage.module.css';
 import { useLogController } from './useLogController';
@@ -47,14 +46,14 @@ export function LogPage() {
   }
 
   if (log.loadStatus === 'loading') {
-    return <LoadingState message="Loading garden memory." title="Feed" />;
+    return <LoadingState message="Loading garden log." title="Feed" />;
   }
 
-  if (log.loadStatus === 'error' || !log.garden || !log.analytics) {
+  if (log.loadStatus === 'error' || !log.garden) {
     return (
       <section className={styles.page}>
         <h1>Feed</h1>
-        <p role="alert">{log.error ?? 'Unable to load feed.'}</p>
+        <p role="alert">{log.error ?? 'Unable to load the garden log.'}</p>
       </section>
     );
   }
@@ -63,11 +62,11 @@ export function LogPage() {
     <section className={styles.page}>
       <header className={styles.header}>
         <div>
-          <p className={styles.kicker}>Garden memory</p>
+          <p className={styles.kicker}>Remember what happened</p>
           <h1>Feed</h1>
           <p className={styles.summary}>
-            {log.filteredFeedItems.length} of {log.feedItems.length} memories
-            shown
+            Watering, harvests, issues, notes, and photos stay here after the
+            work is done.
           </p>
         </div>
         <div className={styles.headerActions}>
@@ -85,12 +84,6 @@ export function LogPage() {
           />
         </div>
       </header>
-
-      <LogPulseBar
-        analytics={log.analytics}
-        feedItemCount={log.feedItems.length}
-        harvestCount={log.garden.harvestEvents.length}
-      />
 
       <div className={styles.layout}>
         <main className={styles.main}>

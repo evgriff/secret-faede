@@ -8,7 +8,7 @@ import { findPlanWarnings } from './gardenPlanning';
 import { buildPlanHealthReport } from './planHealthRules';
 
 describe('planHealthRules', () => {
-  it('catches missing tomato support, narrow paths, and mulch add-ons', () => {
+  it('catches missing tomato support and mulch add-ons without access-path issues', () => {
     const garden: Garden = {
       ...createDefaultGarden('user-a'),
       plantings: [
@@ -53,20 +53,11 @@ describe('planHealthRules', () => {
       warnings: findPlanWarnings(garden),
     });
 
-    expect(report.mustFixIssues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: 'Path too narrow',
-          type: 'pathTooNarrow',
-        }),
-      ]),
-    );
+    expect(
+      report.mustFixIssues.some((issue) => issue.type === 'pathTooNarrow'),
+    ).toBe(false);
     expect(report.recommendedImprovements).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          title: 'Tomato support missing',
-          type: 'tomatoSupportMissing',
-        }),
         expect.objectContaining({
           title: 'Mulch reminder',
           type: 'mulchReminder',
@@ -90,14 +81,9 @@ describe('planHealthRules', () => {
     expect(report.decisionGroups).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          category: 'pathway',
-          label: 'Pathway',
-          mustFixCount: 1,
-        }),
-        expect.objectContaining({
           category: 'support',
           label: 'Support',
-          recommendedCount: 1,
+          cautionCount: 1,
         }),
         expect.objectContaining({
           category: 'care',
@@ -105,6 +91,9 @@ describe('planHealthRules', () => {
         }),
       ]),
     );
+    expect(
+      report.decisionGroups.some((group) => group.category === 'pathway'),
+    ).toBe(false);
   });
 
   it('surfaces bed capacity, rotation caution, and seasonal row cover from real layout data', () => {
@@ -269,16 +258,16 @@ describe('planHealthRules', () => {
     expect(report.recommendedImprovements).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          message: expect.stringContaining('1 ft of walkable width'),
-          title: 'Path too narrow',
-          type: 'pathTooNarrow',
-        }),
-        expect.objectContaining({
           title: 'Cage support missing',
           type: 'cropSupportMissing',
         }),
       ]),
     );
+    expect(
+      report.recommendedImprovements.some(
+        (issue) => issue.type === 'pathTooNarrow',
+      ),
+    ).toBe(false);
     expect(report.materialAddOns).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

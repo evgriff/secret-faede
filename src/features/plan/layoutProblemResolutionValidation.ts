@@ -72,7 +72,7 @@ export function getVariantValidation(
     message:
       remainingProblemIds.length > 0
         ? `${remainingProblemIds.length} must-fix problem remains.`
-        : 'No must-fix problems are attached to this variant.',
+        : 'No must-fix problems are attached to this layout suggestion.',
     remainingProblemIds,
     status: remainingProblemIds.length > 0 ? 'failed' : 'passed',
   };

@@ -15,7 +15,6 @@ import {
   type LayoutProblem,
   type LayoutResolution,
   type LayoutResolutionOption,
-  type LayoutVariant,
   normalizePlantSupportPlanForQuantity,
   type PlantEditorEntryPoint,
   type PlantEditorTab,
@@ -27,7 +26,7 @@ import {
   type SunExposure,
   type Structure,
   type StructureType,
-  type WaterRecommendation,
+  type UserProfile,
 } from '../../domain/gardens/GardenRepository';
 import {
   createPlantingInstances,
@@ -64,10 +63,11 @@ import {
   type SunSeason,
 } from './sunShadeEngine';
 import {
-  buildWaterRecommendations,
-  createWeatherSnapshot,
-  loadWeatherWateringContext,
-} from './wateringEngine';
+  rebuildGardenWateringFromLatestSnapshot,
+  refreshGardenWateringFromWeather,
+} from './wateringScheduleRefresh';
+import { markPlantingsPlantedInGarden } from './gardenPlantingLifecycle';
+import { applyPlantingEventEffects } from './plantingEventEffects';
 import {
   applyReviewSuggestionActions,
   describeSuggestionDecision,
@@ -96,6 +96,7 @@ import {
   getSuccessionPlantingId,
   type SuccessionRecommendation,
 } from '../tasks/taskEngine';
+import { useAuth } from '../auth/auth-context';
 
 type GardenLoadStatus = 'error' | 'loading' | 'ready';
 type SaveStatus = 'error' | 'idle' | 'queued' | 'saved' | 'saving';
@@ -106,6 +107,16 @@ export type SelectedGardenItem =
 export type GardenItemPositionUpdate = SelectedGardenItem & {
   xFt: number;
   yFt: number;
+};
+
+export interface GardenPositionUpdateOptions {
+  saveAfterCommit?: boolean;
+}
+
+type QueuedDraftSave = {
+  garden: Garden;
+  resolvers: Array<(saved: boolean) => void>;
+  revision: number;
 };
 
 const arrangementFields: Array<keyof GardenPlant> = [
@@ -137,7 +148,8 @@ export interface AddPlantingRequest {
 }
 
 export function useGarden(userId: string | null) {
-  const { gardenOperationsService, gardenRepository, weatherProvider } =
+  const { state } = useAuth();
+  const { gardenRepository, userProfileRepository, weatherProvider } =
     useServices();
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -157,6 +169,9 @@ export function useGarden(userId: string | null) {
   const [suggestionDecisions, setSuggestionDecisions] = useState<
     GardenSuggestionDecision[]
   >([]);
+  const [wateringProfile, setWateringProfile] = useState<UserProfile | null>(
+    null,
+  );
   const selectedPlantId =
     selectedItem?.type === 'planting' ? selectedItem.id : null;
   const selectedStructureId =
@@ -164,6 +179,38 @@ export function useGarden(userId: string | null) {
   const gardenPlanningStorageSignature = gardenPlanningState
     ? getGardenPlanningStorageSignature(gardenPlanningState)
     : null;
+  const draftSaveContextRef = useRef({
+    gardenRepository,
+    suggestionDecisions,
+    userId,
+    workspace,
+  });
+  const gardenEditRevisionRef = useRef(0);
+  const isMountedRef = useRef(true);
+  const queuedDraftSaveRef = useRef<QueuedDraftSave | null>(null);
+  const scheduledDraftSaveRef = useRef<{
+    garden: Garden;
+    revision: number;
+  } | null>(null);
+  const saveTaskScheduledRef = useRef(false);
+  const saveInFlightRef = useRef(false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    draftSaveContextRef.current = {
+      gardenRepository,
+      suggestionDecisions,
+      userId,
+      workspace,
+    };
+  }, [gardenRepository, suggestionDecisions, userId, workspace]);
 
   useEffect(() => {
     if (!userId) {
@@ -190,6 +237,8 @@ export function useGarden(userId: string | null) {
         setGarden(loadedGarden);
         setGardenPlanningState(planningHydration.state);
         setDirty(false);
+        gardenEditRevisionRef.current = 0;
+        queuedDraftSaveRef.current = null;
         setRedoStack([]);
         setSaveStatus('idle');
         setSetupRequired(needsProfileSetup(loadedGarden));
@@ -212,6 +261,34 @@ export function useGarden(userId: string | null) {
       active = false;
     };
   }, [gardenRepository, userId]);
+
+  useEffect(() => {
+    const email = state.user?.email;
+
+    if (!userId || !email) {
+      setWateringProfile(null);
+      return;
+    }
+
+    let active = true;
+
+    void userProfileRepository
+      .getUserProfile(userId, email)
+      .then((savedProfile) => {
+        if (active) {
+          setWateringProfile(savedProfile);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setWateringProfile(null);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [state.user?.email, userId, userProfileRepository]);
 
   useEffect(() => {
     if (!garden) {
@@ -256,38 +333,139 @@ export function useGarden(userId: string | null) {
     writeGardenPlanningState(userId, stateToPersist);
   }, [gardenPlanningStorageSignature, userId]);
 
+  const writeQueuedDraftSave = useCallback(async (job: QueuedDraftSave) => {
+    const {
+      gardenRepository: currentGardenRepository,
+      suggestionDecisions: currentSuggestionDecisions,
+      userId: currentUserId,
+      workspace: currentWorkspace,
+    } = draftSaveContextRef.current;
+
+    if (!currentUserId || !currentWorkspace) {
+      job.resolvers.forEach((resolve) => resolve(false));
+      return false;
+    }
+
+    if (isMountedRef.current) {
+      setSaveStatus('saving');
+      setError(null);
+    }
+
+    try {
+      const wasOffline = isBrowserOffline();
+      await currentGardenRepository.saveDraft({
+        ...currentWorkspace.draft,
+        garden: job.garden,
+        suggestionDecisions: currentSuggestionDecisions,
+        updatedAtIso: new Date().toISOString(),
+        userId: currentUserId,
+      });
+      const nextWorkspace =
+        await currentGardenRepository.getWorkspace(currentUserId);
+
+      if (isMountedRef.current) {
+        if (job.revision === gardenEditRevisionRef.current) {
+          setDirty(false);
+          setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
+          setSuggestionDecisions(nextWorkspace.draft.suggestionDecisions);
+          setWorkspace(nextWorkspace);
+        } else if (!queuedDraftSaveRef.current) {
+          setSaveStatus('idle');
+        }
+      }
+
+      job.resolvers.forEach((resolve) => resolve(true));
+      return true;
+    } catch (saveError) {
+      if (isMountedRef.current) {
+        setError(toErrorMessage(saveError, 'Unable to save your garden.'));
+        setSaveStatus('error');
+      }
+
+      job.resolvers.forEach((resolve) => resolve(false));
+      return false;
+    }
+  }, []);
+
+  const flushQueuedDraftSaves = useCallback(async () => {
+    if (saveInFlightRef.current) {
+      return;
+    }
+
+    saveInFlightRef.current = true;
+
+    try {
+      while (queuedDraftSaveRef.current) {
+        const nextSave = queuedDraftSaveRef.current;
+        queuedDraftSaveRef.current = null;
+        await writeQueuedDraftSave(nextSave);
+      }
+    } finally {
+      saveInFlightRef.current = false;
+    }
+  }, [writeQueuedDraftSave]);
+
+  const enqueueDraftSave = useCallback(
+    (draftGarden: Garden, revision = gardenEditRevisionRef.current) =>
+      new Promise<boolean>((resolve) => {
+        const queuedSave = queuedDraftSaveRef.current;
+
+        queuedDraftSaveRef.current = {
+          garden: draftGarden,
+          resolvers: queuedSave
+            ? [...queuedSave.resolvers, resolve]
+            : [resolve],
+          revision,
+        };
+
+        if (isMountedRef.current) {
+          setSaveStatus('saving');
+          setError(null);
+        }
+
+        void flushQueuedDraftSaves();
+      }),
+    [flushQueuedDraftSaves],
+  );
+
+  const scheduleDraftAutosave = useCallback(
+    (draftGarden: Garden, revision: number) => {
+      scheduledDraftSaveRef.current = {
+        garden: draftGarden,
+        revision,
+      };
+
+      if (saveTaskScheduledRef.current) {
+        return;
+      }
+
+      saveTaskScheduledRef.current = true;
+
+      const run = () => {
+        const nextSave = scheduledDraftSaveRef.current;
+
+        scheduledDraftSaveRef.current = null;
+        saveTaskScheduledRef.current = false;
+
+        if (nextSave) {
+          void enqueueDraftSave(nextSave.garden, nextSave.revision);
+        }
+      };
+
+      void Promise.resolve().then(run);
+    },
+    [enqueueDraftSave],
+  );
+
   const saveCurrentDraft = useCallback(
-    async (draftGarden: Garden) => {
+    async (draftGarden: Garden, revision = gardenEditRevisionRef.current) => {
       if (!userId || !workspace) {
         return false;
       }
 
-      setSaveStatus('saving');
-      setError(null);
-
-      try {
-        const wasOffline = isBrowserOffline();
-        await gardenRepository.saveDraft({
-          ...workspace.draft,
-          garden: draftGarden,
-          suggestionDecisions,
-          updatedAtIso: new Date().toISOString(),
-          userId,
-        });
-        const nextWorkspace = await gardenRepository.getWorkspace(userId);
-
-        setDirty(false);
-        setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
-        setSuggestionDecisions(nextWorkspace.draft.suggestionDecisions);
-        setWorkspace(nextWorkspace);
-        return true;
-      } catch (saveError) {
-        setError(toErrorMessage(saveError, 'Unable to save your garden.'));
-        setSaveStatus('error');
-        return false;
-      }
+      return enqueueDraftSave(draftGarden, revision);
     },
-    [gardenRepository, suggestionDecisions, userId, workspace],
+    [enqueueDraftSave, userId, workspace],
   );
 
   const commitGardenUpdate = useCallback(
@@ -295,13 +473,25 @@ export function useGarden(userId: string | null) {
       updateGarden: (currentGarden: Garden) => Garden,
       selection?: SelectedGardenItem | null,
       trackHistory = true,
+      refreshWateringFromSnapshot = false,
+      afterCommit?: (updatedGarden: Garden, revision: number) => void,
     ) => {
+      const now = new Date();
+
       setGarden((currentGarden) => {
         if (!currentGarden) {
           return currentGarden;
         }
 
-        const updatedGarden = updateGarden(currentGarden);
+        const updatedGarden = refreshWateringFromSnapshot
+          ? rebuildGardenWateringFromLatestSnapshot(
+              updateGarden(currentGarden),
+              {
+                now,
+                profile: wateringProfile,
+              },
+            )
+          : updateGarden(currentGarden);
 
         if (updatedGarden === currentGarden) {
           return currentGarden;
@@ -314,15 +504,18 @@ export function useGarden(userId: string | null) {
 
         setDirty(true);
         setSaveStatus('idle');
+        gardenEditRevisionRef.current += 1;
+        const revision = gardenEditRevisionRef.current;
 
         if (selection !== undefined) {
           setSelectedItem(selection);
         }
 
+        afterCommit?.(updatedGarden, revision);
         return updatedGarden;
       });
     },
-    [],
+    [wateringProfile],
   );
 
   const checkpointGarden = useCallback(() => {
@@ -335,6 +528,7 @@ export function useGarden(userId: string | null) {
       setRedoStack([]);
       setDirty(true);
       setSaveStatus('idle');
+      gardenEditRevisionRef.current += 1;
       return currentGarden;
     });
   }, []);
@@ -521,29 +715,6 @@ export function useGarden(userId: string | null) {
     [updateGardenPlanningState],
   );
 
-  const selectLayoutVariant = useCallback(
-    (variantId: string | null) => {
-      updateGardenPlanningState((currentState) => ({
-        ...currentState,
-        detailedView: variantId
-          ? {
-              isOpen: true,
-              presentation: 'sidePanel',
-              subject: {
-                type: 'layoutVariant',
-                variantId,
-              },
-            }
-          : currentState.detailedView,
-        layout: {
-          ...currentState.layout,
-          selectedVariantId: variantId,
-        },
-      }));
-    },
-    [updateGardenPlanningState],
-  );
-
   const recordLayoutResolution = useCallback(
     (resolution: LayoutResolution) => {
       updateGardenPlanningState((currentState) => ({
@@ -643,6 +814,8 @@ export function useGarden(userId: string | null) {
         suggestion.itemIds[0]
           ? resolveSelectionFromId(garden, suggestion.itemIds[0])
           : undefined,
+        true,
+        true,
       );
       recordReviewSuggestionDecision(suggestion, 'accepted');
     },
@@ -655,12 +828,16 @@ export function useGarden(userId: string | null) {
         return;
       }
 
-      commitGardenUpdate((currentGarden) =>
-        suggestions.reduce(
-          (nextGarden, suggestion) =>
-            applyReviewSuggestionActions(nextGarden, suggestion.actions),
-          currentGarden,
-        ),
+      commitGardenUpdate(
+        (currentGarden) =>
+          suggestions.reduce(
+            (nextGarden, suggestion) =>
+              applyReviewSuggestionActions(nextGarden, suggestion.actions),
+            currentGarden,
+          ),
+        undefined,
+        true,
+        true,
       );
 
       for (const suggestion of suggestions) {
@@ -697,6 +874,8 @@ export function useGarden(userId: string | null) {
           plantings: [...currentGarden.plantings, addedPlant],
         }),
         { id: addedPlant.id, type: 'planting' },
+        true,
+        true,
       );
     },
     [commitGardenUpdate, garden],
@@ -747,6 +926,8 @@ export function useGarden(userId: string | null) {
           structures: [...currentGarden.structures, structure],
         }),
         { id: structure.id, type: 'structure' },
+        true,
+        true,
       );
     },
     [commitGardenUpdate, garden],
@@ -766,6 +947,8 @@ export function useGarden(userId: string | null) {
         (currentGarden) =>
           addSuccessionPlanting(currentGarden, recommendation, new Date()),
         { id: plantingId, type: 'planting' },
+        true,
+        true,
       );
     },
     [commitGardenUpdate, recordSuggestionDecision],
@@ -806,6 +989,7 @@ export function useGarden(userId: string | null) {
         },
         createSelectedPlantingItem(plantId, instanceId),
         trackHistory,
+        true,
       );
     },
     [commitGardenUpdate],
@@ -851,13 +1035,18 @@ export function useGarden(userId: string | null) {
         },
         { id: structureId, type: 'structure' },
         trackHistory,
+        true,
       );
     },
     [commitGardenUpdate],
   );
 
   const updateItemPositions = useCallback(
-    (updates: GardenItemPositionUpdate[], trackHistory = true) => {
+    (
+      updates: GardenItemPositionUpdate[],
+      trackHistory = true,
+      options: GardenPositionUpdateOptions = {},
+    ) => {
       if (updates.length === 0) {
         return;
       }
@@ -869,51 +1058,62 @@ export function useGarden(userId: string | null) {
           .map((update) => [update.id, update]),
       );
 
-      commitGardenUpdate(
-        (currentGarden) => ({
-          ...currentGarden,
-          plantings: currentGarden.plantings.map((planting) => {
-            const plantingUpdates = plantUpdatesById.get(planting.id);
+      const applyPositionUpdates = (currentGarden: Garden): Garden => ({
+        ...currentGarden,
+        plantings: currentGarden.plantings.map((planting) => {
+          const plantingUpdates = plantUpdatesById.get(planting.id);
 
-            if (!plantingUpdates || !canManuallyMovePlanting(planting)) {
-              return planting;
-            }
+          if (!plantingUpdates || !canManuallyMovePlanting(planting)) {
+            return planting;
+          }
 
-            return plantingUpdates.reduce((nextPlanting, update) => {
-              const point = normalizePointToPlot(
-                { xFt: update.xFt, yFt: update.yFt },
-                currentGarden.plot,
-                false,
-              );
-
-              return update.instanceId
-                ? movePlantingInstance(nextPlanting, update.instanceId, point)
-                : movePlantingWithInstances(nextPlanting, point);
-            }, planting);
-          }),
-          structures: currentGarden.structures.map((structure) => {
-            const update = structureUpdates.get(structure.id);
-
-            if (!update || structure.locked) {
-              return structure;
-            }
-
-            return clampStructureToPlot(
-              {
-                ...structure,
-                xFt: update.xFt,
-                yFt: update.yFt,
-              },
+          return plantingUpdates.reduce((nextPlanting, update) => {
+            const point = normalizePointToPlot(
+              { xFt: update.xFt, yFt: update.yFt },
               currentGarden.plot,
               false,
             );
-          }),
+
+            return update.instanceId
+              ? movePlantingInstance(nextPlanting, update.instanceId, point)
+              : movePlantingWithInstances(nextPlanting, point);
+          }, planting);
         }),
+        structures: currentGarden.structures.map((structure) => {
+          const update = structureUpdates.get(structure.id);
+
+          if (!update || structure.locked) {
+            return structure;
+          }
+
+          return clampStructureToPlot(
+            {
+              ...structure,
+              xFt: update.xFt,
+              yFt: update.yFt,
+            },
+            currentGarden.plot,
+            false,
+          );
+        }),
+      });
+      const autosaveRevision = gardenEditRevisionRef.current + 1;
+      const autosaveGarden =
+        options.saveAfterCommit && garden ? applyPositionUpdates(garden) : null;
+
+      commitGardenUpdate(
+        applyPositionUpdates,
         updates.at(0) ?? undefined,
         trackHistory,
+        false,
+        options.saveAfterCommit ? scheduleDraftAutosave : undefined,
       );
+
+      if (autosaveGarden) {
+        scheduleDraftAutosave(autosaveGarden, autosaveRevision);
+      }
     },
-    [commitGardenUpdate],
+    [commitGardenUpdate, garden, scheduleDraftAutosave],
   );
 
   const resizeStructure = useCallback(
@@ -949,6 +1149,7 @@ export function useGarden(userId: string | null) {
         },
         { id: structureId, type: 'structure' },
         trackHistory,
+        true,
       );
     },
     [commitGardenUpdate],
@@ -979,6 +1180,7 @@ export function useGarden(userId: string | null) {
         }),
         { id: update.id, type: 'structure' },
         trackHistory,
+        true,
       );
     },
     [commitGardenUpdate],
@@ -991,56 +1193,62 @@ export function useGarden(userId: string | null) {
       orientationDegrees: number,
       location?: GardenLocation,
     ) => {
-      commitGardenUpdate((currentGarden) => {
-        if (!currentGarden) {
-          return currentGarden;
-        }
+      commitGardenUpdate(
+        (currentGarden) => {
+          if (!currentGarden) {
+            return currentGarden;
+          }
 
-        const plot: GardenPlot = {
-          ...currentGarden.plot,
-          depthFt: clampPlotDimension(depthFt),
-          location: location ?? currentGarden.plot.location,
-          orientationDegrees: normalizeOrientation(orientationDegrees),
-          widthFt: clampPlotDimension(widthFt),
-        };
-        const plantings = currentGarden.plantings.map((plant) =>
-          clampPlantingToPlot(plant, plot),
-        );
-        const structures = currentGarden.structures.map((structure) =>
-          clampStructureToPlot(structure, plot),
-        );
-        const changed =
-          plot.widthFt !== currentGarden.plot.widthFt ||
-          plot.depthFt !== currentGarden.plot.depthFt ||
-          plot.location.latitude !== currentGarden.plot.location.latitude ||
-          plot.location.longitude !== currentGarden.plot.location.longitude ||
-          plot.location.locationQuery !==
-            currentGarden.plot.location.locationQuery ||
-          plot.orientationDegrees !== currentGarden.plot.orientationDegrees ||
-          plantings.some(
-            (plant, index) =>
-              plant.xFt !== currentGarden.plantings[index]?.xFt ||
-              plant.yFt !== currentGarden.plantings[index]?.yFt,
-          ) ||
-          structures.some(
-            (structure, index) =>
-              structure.xFt !== currentGarden.structures[index]?.xFt ||
-              structure.yFt !== currentGarden.structures[index]?.yFt ||
-              structure.widthFt !== currentGarden.structures[index]?.widthFt ||
-              structure.depthFt !== currentGarden.structures[index]?.depthFt,
+          const plot: GardenPlot = {
+            ...currentGarden.plot,
+            depthFt: clampPlotDimension(depthFt),
+            location: location ?? currentGarden.plot.location,
+            orientationDegrees: normalizeOrientation(orientationDegrees),
+            widthFt: clampPlotDimension(widthFt),
+          };
+          const plantings = currentGarden.plantings.map((plant) =>
+            clampPlantingToPlot(plant, plot),
           );
+          const structures = currentGarden.structures.map((structure) =>
+            clampStructureToPlot(structure, plot),
+          );
+          const changed =
+            plot.widthFt !== currentGarden.plot.widthFt ||
+            plot.depthFt !== currentGarden.plot.depthFt ||
+            plot.location.latitude !== currentGarden.plot.location.latitude ||
+            plot.location.longitude !== currentGarden.plot.location.longitude ||
+            plot.location.locationQuery !==
+              currentGarden.plot.location.locationQuery ||
+            plot.orientationDegrees !== currentGarden.plot.orientationDegrees ||
+            plantings.some(
+              (plant, index) =>
+                plant.xFt !== currentGarden.plantings[index]?.xFt ||
+                plant.yFt !== currentGarden.plantings[index]?.yFt,
+            ) ||
+            structures.some(
+              (structure, index) =>
+                structure.xFt !== currentGarden.structures[index]?.xFt ||
+                structure.yFt !== currentGarden.structures[index]?.yFt ||
+                structure.widthFt !==
+                  currentGarden.structures[index]?.widthFt ||
+                structure.depthFt !== currentGarden.structures[index]?.depthFt,
+            );
 
-        if (!changed) {
-          return currentGarden;
-        }
+          if (!changed) {
+            return currentGarden;
+          }
 
-        return {
-          ...currentGarden,
-          plantings,
-          plot,
-          structures,
-        };
-      });
+          return {
+            ...currentGarden,
+            plantings,
+            plot,
+            structures,
+          };
+        },
+        undefined,
+        true,
+        true,
+      );
     },
     [commitGardenUpdate],
   );
@@ -1052,6 +1260,11 @@ export function useGarden(userId: string | null) {
 
     await saveCurrentDraft(garden);
   }, [dirty, garden, saveCurrentDraft]);
+
+  const saveDraftGarden = useCallback(
+    async (draftGarden: Garden) => saveCurrentDraft(draftGarden),
+    [saveCurrentDraft],
+  );
 
   const publishDraft = useCallback(
     async (userEmail: string, force = false) => {
@@ -1146,59 +1359,14 @@ export function useGarden(userId: string | null) {
 
     try {
       const wasOffline = isBrowserOffline();
-      if (userId && !wasOffline) {
-        try {
-          const backendResult =
-            await gardenOperationsService.refreshGardenOperations(userId);
-
-          if (backendResult.backendAvailable && backendResult.ok) {
-            const refreshedGarden = await gardenRepository.getGarden(userId);
-
-            if (refreshedGarden) {
-              setGarden(refreshedGarden);
-              setDirty(false);
-              setSaveStatus(isBrowserOffline() ? 'queued' : 'saved');
-              return;
-            }
-          }
-        } catch (backendError) {
-          console.warn(
-            'Backend garden operations refresh failed; using client fallback.',
-            backendError,
-          );
-        }
-      }
-
-      const context = await loadWeatherWateringContext(
+      const updatedGarden = await refreshGardenWateringFromWeather(
+        garden,
         weatherProvider,
-        garden.plot.location,
+        {
+          forceWeatherRefresh: true,
+          profile: wateringProfile,
+        },
       );
-      const snapshot = createWeatherSnapshot(garden, context);
-      const recommendations = buildWaterRecommendations(
-        garden,
-        context,
-        snapshot,
-      );
-      const { buildInAppNotificationLogs } =
-        await import('./notificationDecisions');
-      const notificationLogs = buildInAppNotificationLogs(
-        garden,
-        recommendations,
-        snapshot,
-      );
-      const updatedGarden: Garden = {
-        ...garden,
-        notificationLogs: [
-          ...garden.notificationLogs,
-          ...notificationLogs,
-        ].slice(-60),
-        updatedAtIso: new Date().toISOString(),
-        waterRecommendations: mergeWaterRecommendations(
-          garden.waterRecommendations,
-          recommendations,
-        ),
-        weatherSnapshots: [...garden.weatherSnapshots, snapshot].slice(-8),
-      };
 
       await gardenRepository.saveGarden(updatedGarden);
       setGarden(updatedGarden);
@@ -1208,19 +1376,13 @@ export function useGarden(userId: string | null) {
       setError(
         toErrorMessage(
           weatherError,
-          'Unable to update weather and watering recommendations.',
+          'Unable to refresh weather and watering schedule.',
         ),
       );
       setSaveStatus('error');
       throw weatherError;
     }
-  }, [
-    garden,
-    gardenOperationsService,
-    gardenRepository,
-    userId,
-    weatherProvider,
-  ]);
+  }, [garden, gardenRepository, wateringProfile, weatherProvider]);
 
   const updateStructureShade = useCallback(
     (
@@ -1324,9 +1486,8 @@ export function useGarden(userId: string | null) {
   const updatePlanting = useCallback(
     (plantingId: string, values: Partial<GardenPlant>) => {
       commitGardenUpdate(
-        (currentGarden) => ({
-          ...currentGarden,
-          plantings: currentGarden.plantings.map((planting) => {
+        (currentGarden) => {
+          const nextPlantings = currentGarden.plantings.map((planting) => {
             if (planting.id !== plantingId) {
               return planting;
             }
@@ -1375,9 +1536,17 @@ export function useGarden(userId: string | null) {
                   normalizedPlanting.instances.length,
               ),
             };
-          }),
-        }),
+          });
+
+          return applyPlantingEventEffects({
+            garden: currentGarden,
+            nextPlantings,
+            now: new Date(),
+          });
+        },
         { id: plantingId, type: 'planting' },
+        true,
+        true,
       );
     },
     [commitGardenUpdate],
@@ -1436,6 +1605,30 @@ export function useGarden(userId: string | null) {
     [gardenPlanningState?.plantGroups, updatePlanting],
   );
 
+  const markPlantingsPlanted = useCallback(
+    (plantingIds: string[], plantedOn: string) => {
+      const primaryPlantingId = plantingIds[0];
+
+      if (!primaryPlantingId) {
+        return;
+      }
+
+      commitGardenUpdate(
+        (currentGarden) =>
+          markPlantingsPlantedInGarden({
+            garden: currentGarden,
+            now: new Date(),
+            plantedOn,
+            plantingIds,
+          }),
+        { id: primaryPlantingId, type: 'planting' },
+        true,
+        true,
+      );
+    },
+    [commitGardenUpdate],
+  );
+
   const updateStructure = useCallback(
     (structureId: string, values: Partial<Structure>) => {
       commitGardenUpdate(
@@ -1455,6 +1648,8 @@ export function useGarden(userId: string | null) {
           ),
         }),
         { id: structureId, type: 'structure' },
+        true,
+        true,
       );
     },
     [commitGardenUpdate],
@@ -1498,6 +1693,8 @@ export function useGarden(userId: string | null) {
           ],
         }),
         plantings[0] ? { id: plantings[0].id, type: 'planting' } : null,
+        true,
+        true,
       );
     },
     [commitGardenUpdate],
@@ -1548,6 +1745,8 @@ export function useGarden(userId: string | null) {
           plantings: [...currentGarden.plantings, duplicate],
         }),
         { id: duplicate.id, type: 'planting' },
+        true,
+        true,
       );
       return duplicate.id;
     },
@@ -1586,6 +1785,8 @@ export function useGarden(userId: string | null) {
           structures: [...currentGarden.structures, duplicate],
         }),
         { id: duplicate.id, type: 'structure' },
+        true,
+        true,
       );
     },
     [commitGardenUpdate, garden],
@@ -1669,6 +1870,8 @@ export function useGarden(userId: string | null) {
           structures: [...currentGarden.structures, ...duplicatedStructures],
         }),
         duplicatedItems[0],
+        true,
+        true,
       );
 
       return duplicatedItems;
@@ -1729,15 +1932,18 @@ export function useGarden(userId: string | null) {
                 (task.structureId && structureIds.has(task.structureId))
               ),
           ),
-          waterRecommendations: currentGarden.waterRecommendations.filter(
-            (recommendation) =>
+          wateringSchedule: currentGarden.wateringSchedule.filter(
+            (entry) =>
               !(
-                recommendation.plantingId &&
-                plantingIds.has(recommendation.plantingId)
-              ),
+                entry.targetKind === 'planting' &&
+                plantingIds.has(entry.targetId)
+              ) &&
+              !(entry.targetKind === 'bed' && structureIds.has(entry.targetId)),
           ),
         }),
         null,
+        true,
+        true,
       );
     },
     [commitGardenUpdate],
@@ -1827,14 +2033,13 @@ export function useGarden(userId: string | null) {
       resolutionOptions: [] as LayoutResolutionOption[],
       resolutions: [] as LayoutResolution[],
       selectedProblemId: null,
-      selectedVariantId: null,
-      variants: [] as LayoutVariant[],
     },
     locationMatchState:
       gardenPlanningState?.locationMatch ??
       (garden ? createDefaultGardenPlanningState(garden).locationMatch : null),
     movePlant,
     moveStructure,
+    markPlantingsPlanted,
     openDetailedViewForItem,
     openPlantGroupEditor,
     paintSunShadeCell,
@@ -1851,9 +2056,9 @@ export function useGarden(userId: string | null) {
     rejectReviewSuggestion,
     revertToRevision,
     saveGarden,
+    saveDraftGarden,
     saveStatus,
     selectLayoutProblem,
-    selectLayoutVariant,
     selectedItem,
     selectedPlantGroupId: gardenPlanningState?.selectedPlantGroupId ?? null,
     selectedPlantId,
@@ -2159,23 +2364,6 @@ function toPlantingMode(placementMode: PlantPlacementMode): PlantingMode {
 function normalizeOrientation(value: number) {
   const normalized = Number.isFinite(value) ? value % 360 : 0;
   return normalized < 0 ? normalized + 360 : normalized;
-}
-
-function mergeWaterRecommendations(
-  existing: WaterRecommendation[],
-  generated: WaterRecommendation[],
-) {
-  const generatedIds = new Set(
-    generated.map((recommendation) => recommendation.id),
-  );
-  const preserved = existing.filter(
-    (recommendation) =>
-      !generatedIds.has(recommendation.id) &&
-      recommendation.status !== 'active' &&
-      recommendation.status !== 'suppressed',
-  );
-
-  return [...preserved.slice(-20), ...generated];
 }
 
 function toErrorMessage(error: unknown, fallback: string) {

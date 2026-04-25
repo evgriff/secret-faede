@@ -34,14 +34,13 @@ Date: 2026-04-21
   show manual correction.
 - Open Plan operations and confirm weather, watering rationale, active
   recommendation, notification history, and succession suggestions are not empty.
-- Open Today and confirm due tasks, active watering, harvest-ready crops,
+- Open Today and confirm due tasks, active watering, harvest schedule,
   unresolved issue, and bed attention are populated.
 - In Today, confirm **Water done**, **Task done**, and crop-stage actions finish
-  in one tap. On a harvest-ready card, confirm **Log harvest** immediately logs
-  a default field harvest and completes the linked harvest task, while
-  opening the dismissible Add Photo sheet. Confirm **Water done** and
-  **Task done** do not ask for photos. **Details** remains available for
-  quantity, notes, or final-harvest detail.
+  in one tap. On a harvest schedule card, confirm **Log harvest** immediately
+  logs a default field harvest without opening a photo-note flow. Confirm
+  **Water done** and **Task done** do not ask for photos. **View details**
+  remains available for quantity, notes, or final-harvest detail.
 - Confirm Today's Do Now and field cards are readable outdoors: each card has
   one visually dominant action, passive context does not look pressable, and
   mobile touch targets remain comfortable.

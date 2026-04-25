@@ -2,18 +2,22 @@ import type { ReviewSuggestion } from '../garden/reviewSuggestions';
 import type { AutoLayoutCandidate } from './autoLayoutTypes';
 
 export function buildAutoLayoutReviewSuggestions(
-  candidates: AutoLayoutCandidate[],
+  candidate: AutoLayoutCandidate | null,
 ): ReviewSuggestion[] {
-  return candidates.map((candidate) => {
-    const supportCount =
-      candidate.structures.filter((structure) => structure.type === 'trellis')
-        .length +
-      candidate.plantings.filter(
-        (planting) =>
-          planting.support.type !== 'none' && planting.support.quantity > 0,
-      ).length;
+  if (!candidate) {
+    return [];
+  }
 
-    return {
+  const supportCount =
+    candidate.structures.filter((structure) => structure.type === 'trellis')
+      .length +
+    candidate.plantings.filter(
+      (planting) =>
+        planting.support.type !== 'none' && planting.support.quantity > 0,
+    ).length;
+
+  return [
+    {
       actions: [
         {
           kind: 'replaceAutoLayoutProposal',
@@ -58,10 +62,10 @@ export function buildAutoLayoutReviewSuggestions(
             : 'info',
       source: 'optimizer',
       sourceWarningId: null,
-      title: `Use ${candidate.label} layout`,
+      title: 'Use suggested layout',
       type: 'optimizerProposal',
-    };
-  });
+    },
+  ];
 }
 
 export function getAutoLayoutReviewSuggestionId(candidateId: string) {

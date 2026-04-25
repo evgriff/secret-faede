@@ -2,7 +2,7 @@ import type {
   Garden,
   SunShadeLayer,
 } from '../../domain/gardens/GardenRepository';
-import type { PlanWarning } from './gardenPlanning';
+import { isUserFacingPlanWarning, type PlanWarning } from './gardenPlanning';
 import {
   buildShadeCropSuggestions,
   buildTallCropSuggestions,
@@ -35,9 +35,9 @@ export function buildReviewSuggestions({
   warnings: PlanWarning[];
 }): ReviewSuggestion[] {
   const suggestions = [
-    ...warnings.flatMap((warning) =>
-      buildWarningSuggestions(garden, warning, sunLayer),
-    ),
+    ...warnings
+      .filter(isUserFacingPlanWarning)
+      .flatMap((warning) => buildWarningSuggestions(garden, warning, sunLayer)),
     ...buildTallCropSuggestions(garden),
     ...buildShadeCropSuggestions(garden, sunLayer),
     ...buildWaterZoneSuggestions(garden),

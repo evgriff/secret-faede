@@ -87,9 +87,14 @@ function parseGridValues(payload, propertyName) {
 
 function sumGridPrecip(values, start, end) {
   return values.reduce((total, entry) => {
-    return entry.start < start || entry.start > end
+    const overlapMs = getIntervalOverlapMs(entry.start, entry.end, start, end);
+    const durationMs = entry.end.getTime() - entry.start.getTime();
+
+    return overlapMs <= 0 || durationMs <= 0
       ? total
-      : total + Math.max(entry.value * millimetersToInches, 0);
+      : total +
+          Math.max(entry.value * millimetersToInches, 0) *
+            (overlapMs / durationMs);
   }, 0);
 }
 
@@ -120,6 +125,106 @@ function findNextRainIso(periods, now) {
           (period.precipitationChancePercent || 0) >= 50)
       );
     })?.startIso || null
+  );
+}
+
+function buildForecastDays(periods, qpfValues, timezone) {
+  const rainByDate = allocateGridPrecipitationByLocalDate(qpfValues, timezone);
+  const days = new Map();
+
+  periods.forEach((period) => {
+    const periodStart = new Date(period.startIso);
+
+    if (Number.isNaN(periodStart.getTime())) {
+      return;
+    }
+
+    const date = formatLocalDate(periodStart, timezone);
+    const current = days.get(date) || {
+      firstSummary: null,
+      highF: null,
+      precipitationChancePercent: null,
+      preferredSummary: null,
+    };
+
+    current.firstSummary ||= period.shortForecast;
+    if (period.isDaytime === true) {
+      current.preferredSummary ||= period.shortForecast;
+    }
+
+    if (
+      period.temperatureF !== null &&
+      (period.isDaytime !== false || current.highF === null)
+    ) {
+      current.highF =
+        current.highF === null
+          ? period.temperatureF
+          : Math.max(current.highF, period.temperatureF);
+    }
+
+    current.precipitationChancePercent =
+      current.precipitationChancePercent === null
+        ? period.precipitationChancePercent
+        : period.precipitationChancePercent === null
+          ? current.precipitationChancePercent
+          : Math.max(
+              current.precipitationChancePercent,
+              period.precipitationChancePercent,
+            );
+    days.set(date, current);
+  });
+
+  rainByDate.forEach((_rain, date) => {
+    if (!days.has(date)) {
+      days.set(date, {
+        firstSummary: null,
+        highF: null,
+        precipitationChancePercent: null,
+        preferredSummary: null,
+      });
+    }
+  });
+
+  return [...days.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .slice(0, 14)
+    .map(([date, day]) => ({
+      conditionSummary:
+        day.preferredSummary || day.firstSummary || 'NWS forecast',
+      date,
+      expectedRainIn: roundTo(rainByDate.get(date) || 0, 2),
+      highF: day.highF,
+      precipitationChancePercent: day.precipitationChancePercent,
+    }));
+}
+
+function allocateGridPrecipitationByLocalDate(values, timezone) {
+  const totals = new Map();
+
+  values.forEach((entry) => {
+    const durationMs = entry.end.getTime() - entry.start.getTime();
+
+    if (durationMs <= 0) {
+      return;
+    }
+
+    let cursor = entry.start;
+
+    while (cursor < entry.end) {
+      const date = formatLocalDate(cursor, timezone);
+      const segmentEnd = findNextLocalDateBoundary(cursor, entry.end, timezone);
+      const segmentMs = segmentEnd.getTime() - cursor.getTime();
+      const segmentRain =
+        Math.max(entry.value * millimetersToInches, 0) *
+        (segmentMs / durationMs);
+
+      totals.set(date, (totals.get(date) || 0) + segmentRain);
+      cursor = segmentEnd;
+    }
+  });
+
+  return new Map(
+    [...totals.entries()].map(([date, total]) => [date, roundTo(total, 2)]),
   );
 }
 
@@ -174,13 +279,99 @@ function parseValidTimeEnd(value) {
   return addHours(new Date(startIso), hoursValue);
 }
 
+function findNextLocalDateBoundary(start, end, timezone) {
+  const startDate = formatLocalDate(start, timezone);
+  let probe = new Date(
+    Math.min(end.getTime(), start.getTime() + 60 * 60 * 1000),
+  );
+
+  while (probe < end && formatLocalDate(probe, timezone) === startDate) {
+    probe = new Date(Math.min(end.getTime(), probe.getTime() + 60 * 60 * 1000));
+  }
+
+  if (probe >= end && formatLocalDate(probe, timezone) === startDate) {
+    return end;
+  }
+
+  let low = start;
+  let high = probe;
+
+  while (high.getTime() - low.getTime() > 1000) {
+    const middle = new Date((low.getTime() + high.getTime()) / 2);
+
+    if (formatLocalDate(middle, timezone) === startDate) {
+      low = middle;
+    } else {
+      high = middle;
+    }
+  }
+
+  return high;
+}
+
+function getIntervalOverlapMs(firstStart, firstEnd, secondStart, secondEnd) {
+  return Math.max(
+    Math.min(firstEnd.getTime(), secondEnd.getTime()) -
+      Math.max(firstStart.getTime(), secondStart.getTime()),
+    0,
+  );
+}
+
+function formatLocalDate(date, timezone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: timezone,
+    year: 'numeric',
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value || '0000';
+  const month = parts.find((part) => part.type === 'month')?.value || '01';
+  const day = parts.find((part) => part.type === 'day')?.value || '01';
+
+  return `${year}-${month}-${day}`;
+}
+
 function readQuantity(record, key) {
   const quantity = asRecord(record?.[key]);
   return readNumberOrNull(quantity?.value);
 }
 
+function readPrecipitationQuantityInches(record, key) {
+  const quantity = asRecord(record?.[key]);
+  const value = readNumberOrNull(quantity?.value);
+  const unitCode = readStringOrNull(quantity?.unitCode);
+
+  return convertPrecipitationQuantityToInches(value, unitCode);
+}
+
 function metersToOptionalInches(value) {
   return value === null ? null : roundTo(value * metersToInches, 2);
+}
+
+function convertPrecipitationQuantityToInches(value, unitCode) {
+  if (value === null || value < 0 || !unitCode) {
+    return null;
+  }
+
+  const normalizedUnit = unitCode.toLowerCase();
+
+  if (normalizedUnit.endsWith(':mm') || normalizedUnit === 'mm') {
+    return roundTo(value * millimetersToInches, 2);
+  }
+
+  if (normalizedUnit.endsWith(':m') || normalizedUnit === 'm') {
+    return roundTo(value * metersToInches, 2);
+  }
+
+  if (
+    normalizedUnit.endsWith(':in') ||
+    normalizedUnit === 'in' ||
+    normalizedUnit.includes('inch')
+  ) {
+    return roundTo(value, 2);
+  }
+
+  return null;
 }
 
 function celsiusToFahrenheit(value) {
@@ -230,6 +421,7 @@ module.exports = {
   addHours,
   asArray,
   asRecord,
+  buildForecastDays,
   cachedJson,
   celsiusToFahrenheit,
   findNextGridRainIso,
@@ -242,6 +434,7 @@ module.exports = {
   overnightLow,
   parseGridValues,
   parseHourlyPeriods,
+  readPrecipitationQuantityInches,
   readNumberOrNull,
   readQuantity,
   readString,

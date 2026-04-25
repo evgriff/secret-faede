@@ -41,8 +41,11 @@ export function LibraryExpandedDetails({
         className={disclosureStyles.locationPanel}
         data-match-band={facts.locationMatchBand}
       >
-        <strong>Location Match: {facts.locationMatchLabel}</strong>
+        <strong>Plot fit: {facts.locationMatchLabel}</strong>
         <p>{facts.locationMatchSummary}</p>
+        <p>
+          <strong>Today:</strong> {facts.timingLabel}. {facts.timingDetail}
+        </p>
         <p className={disclosureStyles.mutedText}>{facts.locationMatchBasis}</p>
         {facts.locationMatchDetails.length > 0 ? (
           <ul>
@@ -199,6 +202,10 @@ export function BoardExpandedDetails({
           <div>
             <dt>Lifecycle</dt>
             <dd>{facts.lifecycleLabel}</dd>
+          </div>
+          <div>
+            <dt>Today</dt>
+            <dd>{facts.timingLabel}</dd>
           </div>
           <div>
             <dt>Harvest</dt>

@@ -1,13 +1,13 @@
 import type {
   Garden,
   NotificationLog,
-  WaterRecommendation,
+  WateringScheduleEntry,
   WeatherSnapshot,
 } from '../../domain/gardens/GardenRepository';
 
 export function buildInAppNotificationLogs(
   garden: Garden,
-  recommendations: WaterRecommendation[],
+  recommendations: WateringScheduleEntry[],
   snapshot: WeatherSnapshot,
   now = new Date(),
 ): NotificationLog[] {
@@ -15,8 +15,8 @@ export function buildInAppNotificationLogs(
     ...recommendations
       .filter(
         (recommendation) =>
-          recommendation.status === 'active' &&
-          recommendation.deficitInches >= 0.25 &&
+          recommendation.status === 'due' &&
+          recommendation.targetAmountInches >= 0.25 &&
           !hasRecentWateringAction(garden, recommendation, now),
       )
       .slice(0, 4)
@@ -133,7 +133,7 @@ function createNotificationLog({
 }
 
 function buildWateringBody(
-  recommendation: WaterRecommendation,
+  recommendation: WateringScheduleEntry,
   snapshot: WeatherSnapshot,
 ) {
   const rainPhrase =
@@ -142,28 +142,28 @@ function buildWateringBody(
       : `${(snapshot.forecastRainNext24In ?? 0).toFixed(1)} in of rain may arrive today.`;
 
   const amount =
-    recommendation.deficitInches >= 0.75
-      ? recommendation.deficitInches.toFixed(1)
-      : recommendation.deficitInches.toFixed(2);
+    recommendation.targetAmountInches >= 0.75
+      ? recommendation.targetAmountInches.toFixed(1)
+      : recommendation.targetAmountInches.toFixed(2);
 
   return `Water ${recommendation.targetLabel} ${amount} in today. ${rainPhrase}`;
 }
 
-function buildWateringDedupeKey(recommendation: WaterRecommendation) {
+function buildWateringDedupeKey(recommendation: WateringScheduleEntry) {
   return [
     'watering',
-    recommendation.targetType,
+    recommendation.targetKind,
     recommendation.targetId,
-    recommendation.recommendationDate,
+    recommendation.dueDate,
   ].join(':');
 }
 
-function getWaterTaskId(garden: Garden, recommendation: WaterRecommendation) {
+function getWaterTaskId(garden: Garden, recommendation: WateringScheduleEntry) {
   return (
     garden.tasks.find(
       (task) =>
         task.type === 'water' &&
-        task.source === 'waterRecommendation' &&
+        task.source === 'wateringSchedule' &&
         task.sourceId === recommendation.id,
     )?.id ?? null
   );
@@ -171,11 +171,10 @@ function getWaterTaskId(garden: Garden, recommendation: WaterRecommendation) {
 
 function hasRecentWateringAction(
   garden: Garden,
-  recommendation: WaterRecommendation,
+  recommendation: WateringScheduleEntry,
   now: Date,
 ) {
-  const targetDate =
-    recommendation.recommendationDate || now.toISOString().slice(0, 10);
+  const targetDate = recommendation.dueDate || now.toISOString().slice(0, 10);
   const completedWaterTask = garden.tasks.some(
     (task) =>
       task.type === 'water' &&
@@ -193,7 +192,10 @@ function hasRecentWateringAction(
   return garden.journalEntries.some((entry) => {
     const text = `${entry.title} ${entry.body}`.toLowerCase();
     const matchesTarget =
-      entry.plantingId === recommendation.plantingId ||
+      entry.plantingId ===
+        (recommendation.targetKind === 'planting'
+          ? recommendation.targetId
+          : null) ||
       entry.structureId === recommendation.targetId ||
       entry.targetLabel === recommendation.targetLabel ||
       text.includes(targetLabel);

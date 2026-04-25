@@ -1,6 +1,12 @@
+import {
+  appendPlantingEvent,
+  createPlantingEvent,
+  createPlantingEventJournalEntry,
+  getLatestPlantingEventDate,
+  type PlantingEventType,
+} from '../../domain/gardens/GardenRepository';
 import type {
   Garden,
-  JournalEntry,
   PlantingLifecycleStatus,
   Task,
 } from '../../domain/gardens/GardenRepository';
@@ -30,10 +36,12 @@ export function markPlantingLifecycle(
     'harvest-ready',
     'harvested',
   ].includes(status);
+  const plantingEventType = getLifecycleEventType(planting, status);
   const lifecycleNote = createLifecycleJournalEntry({
     garden,
     nowIso,
     occurredOn,
+    eventType: plantingEventType,
     planting,
     status,
   });
@@ -42,14 +50,14 @@ export function markPlantingLifecycle(
     journalEntries: [lifecycleNote, ...garden.journalEntries],
     plantings: garden.plantings.map((candidate) =>
       candidate.id === planting.id
-        ? {
-            ...candidate,
-            plantedOn:
-              shouldStampPlantedOn && !candidate.plantedOn
-                ? occurredOn
-                : candidate.plantedOn,
+        ? applyLifecycleUpdate(
+            candidate,
+            occurredOn,
+            nowIso,
+            plantingEventType,
+            shouldStampPlantedOn,
             status,
-          }
+          )
         : candidate,
     ),
     tasks: garden.tasks.map((task) =>
@@ -74,35 +82,96 @@ function createLifecycleJournalEntry({
   garden,
   nowIso,
   occurredOn,
+  eventType,
   planting,
   status,
 }: {
   garden: Garden;
   nowIso: string;
   occurredOn: string;
+  eventType: PlantingEventType | null;
   planting: Garden['plantings'][number];
   status: PlantingLifecycleStatus;
-}): JournalEntry {
+}) {
+  const event = eventType
+    ? createPlantingEvent({
+        occurredOn,
+        type: eventType,
+      })
+    : null;
   const statusLabel = formatLifecycleStatus(status);
 
+  return event
+    ? createPlantingEventJournalEntry({
+        createdAtIso: nowIso,
+        event,
+        gardenId: garden.id,
+        plantingId: planting.id,
+        plantingLabel: planting.label,
+      })
+    : {
+        body: `${planting.label} was marked ${statusLabel.toLowerCase()} from Today.`,
+        createdAtIso: nowIso,
+        gardenId: garden.id,
+        id: createTodayId('lifecycle'),
+        issueCategory: null,
+        issueSeverity: null,
+        issueStatus: null,
+        occurredOn,
+        photos: [],
+        plantingId: planting.id,
+        structureId: null,
+        targetLabel: planting.label,
+        targetType: 'planting' as const,
+        title: `Marked ${planting.label} ${statusLabel.toLowerCase()}`,
+        type: 'note' as const,
+        weatherSnapshotId: null,
+      };
+}
+
+function applyLifecycleUpdate(
+  planting: Garden['plantings'][number],
+  occurredOn: string,
+  nowIso: string,
+  eventType: PlantingEventType | null,
+  shouldStampPlantedOn: boolean,
+  status: PlantingLifecycleStatus,
+) {
+  const eventfulPlanting = eventType
+    ? appendPlantingEvent(planting, {
+        nowIso,
+        occurredOn,
+        type: eventType,
+      })
+    : planting;
+
   return {
-    body: `${planting.label} was marked ${statusLabel.toLowerCase()} from Today.`,
-    createdAtIso: nowIso,
-    gardenId: garden.id,
-    id: createTodayId('lifecycle'),
-    issueCategory: null,
-    issueSeverity: null,
-    issueStatus: null,
-    occurredOn,
-    photos: [],
-    plantingId: planting.id,
-    structureId: null,
-    targetLabel: planting.label,
-    targetType: 'planting',
-    title: `Marked ${planting.label} ${statusLabel.toLowerCase()}`,
-    type: 'note',
-    weatherSnapshotId: null,
+    ...eventfulPlanting,
+    plantStatus: {
+      ...eventfulPlanting.plantStatus,
+      lifecycle: status,
+    },
+    plantedOn:
+      shouldStampPlantedOn && !eventfulPlanting.plantedOn
+        ? occurredOn
+        : eventfulPlanting.plantedOn,
+    status,
   };
+}
+
+function getLifecycleEventType(
+  planting: Garden['plantings'][number],
+  status: PlantingLifecycleStatus,
+): PlantingEventType | null {
+  if (
+    status === 'planted' &&
+    !getLatestPlantingEventDate(planting, 'plantedOut') &&
+    !getLatestPlantingEventDate(planting, 'directSowed')
+  ) {
+    return 'plantedOut';
+  }
+
+  return null;
 }
 
 function shouldCompleteSetupTask(

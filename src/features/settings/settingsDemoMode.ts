@@ -20,31 +20,7 @@ import {
 
 export type DemoModeStatus = 'idle' | 'loading' | 'loaded' | 'reset' | 'exited';
 
-export interface SettingsDemoState {
-  canExit: boolean;
-  error: string | null;
-  isActive: boolean;
-  isBusy: boolean;
-  message: string | null;
-  status: DemoModeStatus;
-}
-
 const sampleGardenName = 'Sample Kitchen Garden';
-
-export function readSettingsDemoState(
-  uid: string | null | undefined,
-  overrides: Partial<SettingsDemoState> = {},
-): SettingsDemoState {
-  return {
-    canExit: uid ? Boolean(readDemoModeBackup(uid)) : false,
-    error: null,
-    isActive: uid ? hasDemoModeSession(uid) : false,
-    isBusy: false,
-    message: null,
-    status: 'idle',
-    ...overrides,
-  };
-}
 
 export async function loadSettingsDemoGarden({
   email,
@@ -91,7 +67,8 @@ export async function loadSettingsDemoGarden({
 
   return {
     garden: demoGarden,
-    message: status === 'reset' ? 'Seeded demo reset.' : 'Seeded demo ready.',
+    message:
+      status === 'reset' ? 'Sample garden reset.' : 'Sample garden ready.',
     profile: demoProfile,
   };
 }
@@ -111,7 +88,7 @@ export async function exitSettingsDemoGarden({
 
   if (!backup) {
     throw new Error(
-      'No saved real garden is available in this browser. Load the demo from the real garden first.',
+      'No saved garden backup is available on this device. Open the sample from your garden first.',
     );
   }
 
@@ -137,7 +114,7 @@ export async function exitSettingsDemoGarden({
 
   return {
     garden,
-    message: 'Real garden restored.',
+    message: 'Returned to your garden.',
     profile,
   };
 }

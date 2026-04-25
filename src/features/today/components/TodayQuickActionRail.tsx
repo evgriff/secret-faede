@@ -17,12 +17,6 @@ export function TodayQuickActionRail({
     <details className={styles.quickRail}>
       <summary>Field entry</summary>
       <div className={styles.actionMenu}>
-        <button onClick={() => onOpenAction({ kind: 'note' })} type="button">
-          Add note
-        </button>
-        <button onClick={() => onOpenAction({ kind: 'photo' })} type="button">
-          Add photo
-        </button>
         <button onClick={() => onOpenAction({ kind: 'issue' })} type="button">
           Report issue
         </button>

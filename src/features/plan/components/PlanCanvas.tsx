@@ -2,13 +2,13 @@ import {
   memo,
   type CSSProperties,
   type PointerEvent,
-  type RefObject,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
+import { flushSync } from 'react-dom';
 
 import type {
   Garden,
@@ -22,10 +22,24 @@ import {
   type PlanWarning,
 } from '../../garden/gardenPlanning';
 import type { SunSeason } from '../../garden/sunShadeEngine';
-import type { SelectedGardenItem } from '../../garden/useGarden';
-import { usePlanCanvasView } from '../hooks/usePlanCanvasView';
+import type {
+  GardenPositionUpdateOptions,
+  SelectedGardenItem,
+} from '../../garden/useGarden';
+import {
+  usePlanCanvasView,
+  type CanvasFitBounds,
+} from '../hooks/usePlanCanvasView';
+import {
+  usePlanPointerInteractions,
+  type PlanPointerInteractionState,
+} from '../hooks/usePlanPointerInteractions';
 import type { PlanInfluenceOverlayModel } from '../planInfluenceOverlay';
-import type { ResizeHandle, SnapGuide } from '../planInteractionGeometry';
+import type {
+  PlanItemPositionUpdate,
+  PlanItemRectUpdate,
+  PlanItemRef,
+} from '../planInteractionGeometry';
 import type { PlanMode } from '../planModes';
 import type { ProposalDiffOverlayModel } from '../proposalDiffOverlay';
 import {
@@ -38,8 +52,6 @@ import styles from './PlanCanvas.module.css';
 
 export const PlanCanvas = memo(function PlanCanvas({
   activeSunLayer,
-  draggingPlantId,
-  draggingStructureId,
   focusedCropKey,
   garden,
   hoveredPlantGroupId,
@@ -47,41 +59,28 @@ export const PlanCanvas = memo(function PlanCanvas({
   manualSunEdit,
   manualSunExposure,
   mode,
+  onCheckpoint,
+  onMarqueeSelect,
   onPaintSunShadeCell,
   onPlantHoverChange,
   onPlantLabelHide,
-  onPlantLabelShow,
   onPlantEditorOpen,
-  onMarqueePointerDown,
-  onMarqueePointerEnd,
-  onMarqueePointerMove,
-  onPlantPointerDown,
-  onPlantPointerEnd,
-  onPlantPointerMove,
-  onResizePointerDown,
-  onResizePointerEnd,
-  onResizePointerMove,
+  onInteractionStateChange,
   onSelectItem,
   onShowSunOverlayChange,
-  onStructurePointerDown,
-  onStructurePointerEnd,
-  onStructurePointerMove,
   plantingPreview,
   planWarnings,
   proposalDiffOverlay,
-  plotRef,
-  marqueeRect,
-  resizingStructureId,
+  resizeStructureRect,
+  selectedItems,
   selectedPlantIds,
   selectedStructureIds,
   showSunOverlay,
-  snapGuides,
   sunSeason,
+  updateItemPositions,
   visiblePlantLabelIds,
 }: {
   activeSunLayer: { areas: SunShadeArea[] };
-  draggingPlantId: string | null;
-  draggingStructureId: string | null;
   focusedCropKey: string | null;
   garden: Garden;
   hoveredPlantGroupId: string | null;
@@ -89,6 +88,8 @@ export const PlanCanvas = memo(function PlanCanvas({
   manualSunEdit: boolean;
   manualSunExposure: SunExposure;
   mode: PlanMode;
+  onCheckpoint(): void;
+  onMarqueeSelect(items: PlanItemRef[], additive: boolean): void;
   onPaintSunShadeCell(
     season: SunSeason,
     xFt: number,
@@ -97,63 +98,28 @@ export const PlanCanvas = memo(function PlanCanvas({
   ): void;
   onPlantHoverChange(plantId: string | null): void;
   onPlantLabelHide(plantId: string): void;
-  onPlantLabelShow(plantId: string): void;
   onPlantEditorOpen(plantId: string): void;
-  onMarqueePointerDown(event: PointerEvent<HTMLDivElement>): void;
-  onMarqueePointerEnd(event: PointerEvent<HTMLDivElement>): void;
-  onMarqueePointerMove(event: PointerEvent<HTMLDivElement>): void;
-  onPlantPointerDown(
-    event: PointerEvent<HTMLButtonElement>,
-    plantId: string,
-    instanceId?: string,
+  onInteractionStateChange(state: PlanPointerInteractionState | 'pan'): void;
+  onSelectItem(
+    item: SelectedGardenItem,
+    additive: boolean,
+    options?: { openSurface?: boolean },
   ): void;
-  onPlantPointerEnd(
-    event: PointerEvent<HTMLButtonElement>,
-    plantId: string,
-    instanceId?: string,
-  ): void;
-  onPlantPointerMove(
-    event: PointerEvent<HTMLButtonElement>,
-    plantId: string,
-    instanceId?: string,
-  ): void;
-  onResizePointerDown(
-    event: PointerEvent<HTMLSpanElement>,
-    structureId: string,
-    handle: ResizeHandle,
-  ): void;
-  onResizePointerEnd(event: PointerEvent<HTMLSpanElement>): void;
-  onResizePointerMove(event: PointerEvent<HTMLSpanElement>): void;
-  onSelectItem(item: SelectedGardenItem, additive: boolean): void;
   onShowSunOverlayChange(value: boolean): void;
-  onStructurePointerDown(
-    event: PointerEvent<HTMLDivElement>,
-    structureId: string,
-  ): void;
-  onStructurePointerEnd(
-    event: PointerEvent<HTMLDivElement>,
-    structureId: string,
-  ): void;
-  onStructurePointerMove(
-    event: PointerEvent<HTMLDivElement>,
-    structureId: string,
-  ): void;
   plantingPreview: Planting | null;
   planWarnings: PlanWarning[];
   proposalDiffOverlay: ProposalDiffOverlayModel | null;
-  plotRef: RefObject<HTMLDivElement | null>;
-  marqueeRect: {
-    depthFt: number;
-    widthFt: number;
-    xFt: number;
-    yFt: number;
-  } | null;
-  resizingStructureId: string | null;
+  resizeStructureRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
+  selectedItems: PlanItemRef[];
   selectedPlantIds: string[];
   selectedStructureIds: string[];
   showSunOverlay: boolean;
-  snapGuides: SnapGuide[];
   sunSeason: SunSeason;
+  updateItemPositions(
+    updates: PlanItemPositionUpdate[],
+    trackHistory?: boolean,
+    options?: GardenPositionUpdateOptions,
+  ): void;
   visiblePlantLabelIds: string[];
 }) {
   const [layers, setLayers] = useState<PlanCanvasLayers>({
@@ -161,75 +127,100 @@ export const PlanCanvas = memo(function PlanCanvas({
     labels: true,
     miniMap: false,
     sun: showSunOverlay,
-    warnings: false,
   });
   const [isPanMode, setIsPanMode] = useState(false);
+  const pointerInteractions = usePlanPointerInteractions({
+    garden,
+    mode,
+    onCheckpoint,
+    onMarqueeSelect,
+    onSelectItem,
+    resizeStructureRect,
+    selectedItems,
+    updateItemPositions,
+  });
   const {
     fitView,
     handlePanPointerDown,
     handlePanPointerEnd,
     handlePanPointerMove,
+    handleViewportWheel,
     isPanning,
-    pan,
     resetView,
+    scrollportRef,
     zoom,
     zoomIn,
     zoomOut,
     zoomState,
   } = usePlanCanvasView({ isPanMode });
-  const scrollportRef = useRef<HTMLDivElement | null>(null);
   const didFitInitialView = useRef(false);
   const immediateWarnings = useMemo(
     () => planWarnings.filter(isCanvasPlanWarning),
     [planWarnings],
   );
-  const visibleWarnings = layers.warnings ? planWarnings : immediateWarnings;
   const isPointerInteractionActive = Boolean(
-    draggingPlantId ||
-    draggingStructureId ||
-    marqueeRect ||
-    resizingStructureId,
+    pointerInteractions.interactionState !== 'idle' || isPanning,
   );
-  const fitContentSize = useMemo(
+  const plotHeightPx = garden.plot.depthFt * pixelsPerFoot;
+  const plotWidthPx = garden.plot.widthFt * pixelsPerFoot;
+  const framePadding = useMemo(
     () => ({
-      height: garden.plot.depthFt * pixelsPerFoot + 48,
-      width: garden.plot.widthFt * pixelsPerFoot + 48,
+      x: Math.max(560, plotWidthPx * 0.8),
+      y: Math.max(360, plotHeightPx * 0.8),
     }),
-    [garden.plot.depthFt, garden.plot.widthFt],
+    [plotHeightPx, plotWidthPx],
   );
-  const getFitBounds = useCallback(() => {
-    const viewportRect = scrollportRef.current?.getBoundingClientRect();
-
-    if (!viewportRect) {
-      return null;
-    }
-
-    return {
-      contentHeight: fitContentSize.height,
-      contentWidth: fitContentSize.width,
-      viewportHeight: viewportRect.height,
-      viewportWidth: viewportRect.width,
-    };
-  }, [fitContentSize.height, fitContentSize.width]);
-  const handleFitView = useCallback(() => {
+  const handleFitView = () => {
     didFitInitialView.current = true;
-    fitView(getFitBounds());
-  }, [fitView, getFitBounds]);
-  const plotStyle = useMemo(
+    fitView(
+      readCanvasFitBounds(
+        scrollportRef.current,
+        pointerInteractions.plotRef.current,
+      ),
+    );
+  };
+  const handleResetView = () => {
+    resetView(
+      readCanvasFitBounds(
+        scrollportRef.current,
+        pointerInteractions.plotRef.current,
+      ),
+    );
+  };
+  const handleZoomIn = () => {
+    zoomIn(
+      readCanvasFitBounds(
+        scrollportRef.current,
+        pointerInteractions.plotRef.current,
+      ),
+    );
+  };
+  const handleZoomOut = () => {
+    zoomOut(
+      readCanvasFitBounds(
+        scrollportRef.current,
+        pointerInteractions.plotRef.current,
+      ),
+    );
+  };
+  const workbenchStyle = useMemo(
     () =>
       ({
         '--cell-size': `${pixelsPerFoot}px`,
-        '--plot-height': `${garden.plot.depthFt * pixelsPerFoot}px`,
-        '--plot-width': `${garden.plot.widthFt * pixelsPerFoot}px`,
+        '--canvas-zoom': String(zoom),
+        '--frame-padding-x': `${framePadding.x}px`,
+        '--frame-padding-y': `${framePadding.y}px`,
+        '--plot-height': `${plotHeightPx}px`,
+        '--plot-width': `${plotWidthPx}px`,
       }) as CSSProperties,
-    [garden.plot.depthFt, garden.plot.widthFt],
+    [framePadding.x, framePadding.y, plotHeightPx, plotWidthPx, zoom],
   );
   const sceneStyle = useMemo(
     () =>
       ({
-        transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+        transform: `scale(${zoom})`,
       }) as CSSProperties,
-    [pan.x, pan.y, zoom],
+    [zoom],
   );
   const viewportClassName = useMemo(
     () =>
@@ -252,9 +243,22 @@ export const PlanCanvas = memo(function PlanCanvas({
 
   useEffect(() => {
     if (!didFitInitialView.current || zoomState === 'fit') {
-      handleFitView();
+      didFitInitialView.current = true;
+      fitView(
+        readCanvasFitBounds(
+          scrollportRef.current,
+          pointerInteractions.plotRef.current,
+        ),
+      );
     }
-  }, [handleFitView, zoomState]);
+  }, [
+    fitView,
+    garden.plot.depthFt,
+    garden.plot.widthFt,
+    pointerInteractions.plotRef,
+    scrollportRef,
+    zoomState,
+  ]);
 
   useEffect(() => {
     const viewport = scrollportRef.current;
@@ -268,13 +272,25 @@ export const PlanCanvas = memo(function PlanCanvas({
     }
 
     const observer = new ResizeObserver(() => {
-      fitView(getFitBounds());
+      fitView(
+        readCanvasFitBounds(
+          scrollportRef.current,
+          pointerInteractions.plotRef.current,
+        ),
+      );
     });
 
     observer.observe(viewport);
 
     return () => observer.disconnect();
-  }, [fitView, getFitBounds, zoomState]);
+  }, [
+    fitView,
+    garden.plot.depthFt,
+    garden.plot.widthFt,
+    pointerInteractions.plotRef,
+    scrollportRef,
+    zoomState,
+  ]);
 
   useEffect(() => {
     setLayers((current) =>
@@ -294,6 +310,109 @@ export const PlanCanvas = memo(function PlanCanvas({
     },
     [onShowSunOverlayChange, showSunOverlay],
   );
+  const syncInteractionState = useCallback(
+    (state: PlanPointerInteractionState | 'pan') => {
+      flushSync(() => {
+        onInteractionStateChange(state);
+      });
+    },
+    [onInteractionStateChange],
+  );
+  const {
+    handleMarqueePointerDown: handleMarqueePointerDownInternal,
+    handleMarqueePointerEnd: handleMarqueePointerEndInternal,
+    handlePlantPointerDown: handlePlantPointerDownInternal,
+    handlePlantPointerEnd: handlePlantPointerEndInternal,
+    handleResizePointerDown: handleResizePointerDownInternal,
+    handleResizePointerEnd: handleResizePointerEndInternal,
+    handleStructurePointerDown: handleStructurePointerDownInternal,
+    handleStructurePointerEnd: handleStructurePointerEndInternal,
+  } = pointerInteractions;
+  const handlePanPointerDownCapture = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (isPanMode) {
+        syncInteractionState('pan');
+      }
+
+      handlePanPointerDown(event);
+    },
+    [handlePanPointerDown, isPanMode, syncInteractionState],
+  );
+  const handlePanPointerEndCapture = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      handlePanPointerEnd(event);
+      syncInteractionState('idle');
+    },
+    [handlePanPointerEnd, syncInteractionState],
+  );
+  const handleMarqueePointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      syncInteractionState('press');
+      handleMarqueePointerDownInternal(event);
+    },
+    [handleMarqueePointerDownInternal, syncInteractionState],
+  );
+  const handleMarqueePointerEnd = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      handleMarqueePointerEndInternal(event);
+      syncInteractionState('idle');
+    },
+    [handleMarqueePointerEndInternal, syncInteractionState],
+  );
+  const handlePlantPointerDown = useCallback(
+    (
+      event: PointerEvent<HTMLButtonElement>,
+      plantId: string,
+      instanceId?: string,
+    ) => {
+      syncInteractionState('press');
+      handlePlantPointerDownInternal(event, plantId, instanceId);
+    },
+    [handlePlantPointerDownInternal, syncInteractionState],
+  );
+  const handlePlantPointerEnd = useCallback(
+    (
+      event: PointerEvent<HTMLButtonElement>,
+      plantId: string,
+      instanceId?: string,
+    ) => {
+      handlePlantPointerEndInternal(event, plantId, instanceId);
+      syncInteractionState('idle');
+    },
+    [handlePlantPointerEndInternal, syncInteractionState],
+  );
+  const handleResizePointerDown = useCallback(
+    (
+      event: PointerEvent<HTMLSpanElement>,
+      structureId: string,
+      handle: Parameters<typeof handleResizePointerDownInternal>[2],
+    ) => {
+      syncInteractionState('press');
+      handleResizePointerDownInternal(event, structureId, handle);
+    },
+    [handleResizePointerDownInternal, syncInteractionState],
+  );
+  const handleResizePointerEnd = useCallback(
+    (event: PointerEvent<HTMLSpanElement>) => {
+      handleResizePointerEndInternal(event);
+      syncInteractionState('idle');
+    },
+    [handleResizePointerEndInternal, syncInteractionState],
+  );
+  const handleStructurePointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>, structureId: string) => {
+      syncInteractionState('press');
+      handleStructurePointerDownInternal(event, structureId);
+    },
+    [handleStructurePointerDownInternal, syncInteractionState],
+  );
+  const handleStructurePointerEnd = useCallback(
+    (event: PointerEvent<HTMLDivElement>, structureId: string) => {
+      handleStructurePointerEndInternal(event, structureId);
+      syncInteractionState('idle');
+    },
+    [handleStructurePointerEndInternal, syncInteractionState],
+  );
 
   return (
     <div className={viewportClassName}>
@@ -303,9 +422,9 @@ export const PlanCanvas = memo(function PlanCanvas({
         onFitView={handleFitView}
         onLayersChange={updateLayers}
         onPanModeChange={setIsPanMode}
-        onResetView={resetView}
-        onZoomIn={zoomIn}
-        onZoomOut={zoomOut}
+        onResetView={handleResetView}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
         zoom={zoom}
         zoomState={zoomState}
       />
@@ -315,60 +434,69 @@ export const PlanCanvas = memo(function PlanCanvas({
         data-pan-mode={isPanMode ? 'true' : 'false'}
         data-plan-scrollport="true"
         data-testid="plot-viewport"
-        onPointerCancel={handlePanPointerEnd}
-        onPointerDownCapture={handlePanPointerDown}
+        onPointerCancel={handlePanPointerEndCapture}
+        onPointerDownCapture={handlePanPointerDownCapture}
         onPointerMove={handlePanPointerMove}
-        onPointerUp={handlePanPointerEnd}
+        onPointerUp={handlePanPointerEndCapture}
         onWheel={(event) => {
           if (isPointerInteractionActive) {
             event.preventDefault();
             event.stopPropagation();
+            return;
           }
+
+          handleViewportWheel(event);
         }}
         ref={scrollportRef}
       >
         <PlanCanvasScene
           activeSunLayer={activeSunLayer}
-          draggingPlantId={draggingPlantId}
-          draggingStructureId={draggingStructureId}
+          dragPreviewOffsetsByItemKey={
+            pointerInteractions.dragPreviewOffsetsByItemKey
+          }
+          draggingPlantId={pointerInteractions.draggingPlantId}
+          draggingStructureId={pointerInteractions.draggingStructureId}
           focusedCropKey={focusedCropKey}
           garden={garden}
           hoveredPlantGroupId={hoveredPlantGroupId}
           influenceOverlay={influenceOverlay}
           manualSunEdit={manualSunEdit}
           manualSunExposure={manualSunExposure}
-          marqueeRect={marqueeRect}
-          onMarqueePointerDown={onMarqueePointerDown}
-          onMarqueePointerEnd={onMarqueePointerEnd}
-          onMarqueePointerMove={onMarqueePointerMove}
+          marqueeRect={pointerInteractions.marqueeRect}
+          onMarqueePointerDown={handleMarqueePointerDown}
+          onMarqueePointerEnd={handleMarqueePointerEnd}
+          onMarqueePointerMove={pointerInteractions.handleMarqueePointerMove}
           onPaintSunShadeCell={onPaintSunShadeCell}
           onPlantEditorOpen={onPlantEditorOpen}
           onPlantHoverChange={onPlantHoverChange}
           onPlantLabelHide={onPlantLabelHide}
-          onPlantLabelShow={onPlantLabelShow}
-          onPlantPointerDown={onPlantPointerDown}
-          onPlantPointerEnd={onPlantPointerEnd}
-          onPlantPointerMove={onPlantPointerMove}
-          onResizePointerDown={onResizePointerDown}
-          onResizePointerEnd={onResizePointerEnd}
-          onResizePointerMove={onResizePointerMove}
+          onPlantPointerDown={handlePlantPointerDown}
+          onPlantPointerEnd={handlePlantPointerEnd}
+          onPlantPointerMove={pointerInteractions.handlePlantPointerMove}
+          onResizePointerDown={handleResizePointerDown}
+          onResizePointerEnd={handleResizePointerEnd}
+          onResizePointerMove={pointerInteractions.handleResizePointerMove}
           onSelectItem={onSelectItem}
-          onStructurePointerDown={onStructurePointerDown}
-          onStructurePointerEnd={onStructurePointerEnd}
-          onStructurePointerMove={onStructurePointerMove}
+          onStructurePointerDown={handleStructurePointerDown}
+          onStructurePointerEnd={handleStructurePointerEnd}
+          onStructurePointerMove={
+            pointerInteractions.handleStructurePointerMove
+          }
           plantingPreview={plantingPreview}
-          plotRef={plotRef}
-          plotStyle={plotStyle}
+          plotRef={pointerInteractions.plotRef}
+          plotStyle={workbenchStyle}
           proposalDiffOverlay={proposalDiffOverlay}
-          resizingStructureId={resizingStructureId}
+          resizePreview={pointerInteractions.resizePreview}
+          resizingStructureId={pointerInteractions.resizingStructureId}
           sceneStyle={sceneStyle}
           selectedPlantIds={selectedPlantIds}
           selectedStructureIds={selectedStructureIds}
           showSunLayer={layers.sun}
-          snapGuides={snapGuides}
+          snapGuides={pointerInteractions.snapGuides}
           sunSeason={sunSeason}
-          visibleWarnings={visibleWarnings}
+          visibleWarnings={immediateWarnings}
           visiblePlantLabelIds={visiblePlantLabelIds}
+          workbenchStyle={workbenchStyle}
         />
       </div>
       {layers.miniMap ? (
@@ -380,3 +508,40 @@ export const PlanCanvas = memo(function PlanCanvas({
     </div>
   );
 });
+
+function getElementOffsetWithinAncestor(
+  element: HTMLElement,
+  ancestor: HTMLElement,
+) {
+  let left = 0;
+  let top = 0;
+  let current: HTMLElement | null = element;
+
+  while (current && current !== ancestor) {
+    left += current.offsetLeft;
+    top += current.offsetTop;
+    current = current.offsetParent as HTMLElement | null;
+  }
+
+  return { left, top };
+}
+
+function readCanvasFitBounds(
+  viewport: HTMLDivElement | null,
+  plot: HTMLDivElement | null,
+): CanvasFitBounds | null {
+  if (!viewport || !plot) {
+    return null;
+  }
+
+  const plotOffset = getElementOffsetWithinAncestor(plot, viewport);
+
+  return {
+    framePaddingX: plotOffset.left,
+    framePaddingY: plotOffset.top,
+    plotHeight: plot.clientHeight,
+    plotWidth: plot.clientWidth,
+    viewportHeight: viewport.clientHeight,
+    viewportWidth: viewport.clientWidth,
+  };
+}

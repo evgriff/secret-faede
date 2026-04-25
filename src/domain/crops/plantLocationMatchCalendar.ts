@@ -1,4 +1,5 @@
 import type { MonthDayString, SunExposure } from '../gardens/GardenRepository';
+import { getCalendarDateInTimeZone } from '../../shared/lib/timezoneDate';
 import type { MonthDayRange } from './plantCatalogTypes';
 
 export function getLastSpringFrostWindow(zone: string): MonthDayRange {
@@ -44,23 +45,33 @@ export function sunRequirementMet(required: SunExposure, actual: SunExposure) {
   return rank[actual] >= rank[required] - 1;
 }
 
-export function daysUntilMonthDay(today: Date, monthDay: MonthDayString) {
+export function daysUntilMonthDay(
+  today: Date,
+  monthDay: MonthDayString,
+  timezone?: string | null,
+) {
   const { day, month } = parseMonthDay(monthDay);
+  const currentDate = getCalendarDateInTimeZone(today, timezone);
   const target = new Date(
-    today.getFullYear(),
-    Math.max(month - 1, 0),
-    Math.max(day, 1),
+    Date.UTC(
+      currentDate.getUTCFullYear(),
+      Math.max(month - 1, 0),
+      Math.max(day, 1),
+      12,
+    ),
   );
 
-  if (target.getTime() < today.getTime()) {
-    target.setFullYear(target.getFullYear() + 1);
+  if (target.getTime() < currentDate.getTime()) {
+    target.setUTCFullYear(target.getUTCFullYear() + 1);
   }
 
-  return Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
+  return Math.ceil((target.getTime() - currentDate.getTime()) / 86_400_000);
 }
 
-export function dateToMonthDayNumber(date: Date) {
-  return (date.getMonth() + 1) * 100 + date.getDate();
+export function dateToMonthDayNumber(date: Date, timezone?: string | null) {
+  const currentDate = getCalendarDateInTimeZone(date, timezone);
+
+  return (currentDate.getUTCMonth() + 1) * 100 + currentDate.getUTCDate();
 }
 
 export function monthDayToNumber(value: MonthDayString) {

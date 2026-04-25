@@ -152,6 +152,55 @@
     transform var(--motion-micro) var(--ease-standard);
 }
 
+.waterCard {
+  grid-template-columns: minmax(0, 1.1fr) minmax(16rem, 0.9fr);
+  align-items: stretch;
+}
+
+.waterCardCopy {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.waterCardHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.waterMeta {
+  color: var(--color-text-strong) !important;
+  font-size: 0.94rem;
+  font-weight: 720;
+}
+
+.waterCardActions {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: start;
+  justify-items: stretch;
+}
+
+.waterMemberList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.waterMemberChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.9rem;
+  border: 1px solid rgba(76, 85, 70, 0.14);
+  border-radius: 999px;
+  background: rgba(239, 247, 235, 0.7);
+  color: var(--color-text);
+  font-size: 0.82rem;
+  padding: 0.28rem 0.6rem;
+}
+
 .activityItem {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -179,39 +228,23 @@
   gap: 0.45rem;
 }
 
+.harvestCopy {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.harvestHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
 .harvestActions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.45rem;
-}
-
-.delayControls {
-  display: grid;
-  grid-column: 1 / -1;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.45rem;
-  border: 1px solid rgba(76, 85, 70, 0.14);
-  border-radius: var(--radius-control);
-  background: var(--color-surface-alt);
-  padding: 0.5rem;
-  animation: fieldControlsIn var(--motion-short) var(--ease-out);
-}
-
-.delayControls label {
-  display: grid;
-  grid-column: 1 / -1;
-  gap: 0.25rem;
-  color: var(--color-text-strong);
-}
-
-.delayControls input {
-  min-height: 2.75rem;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  background: var(--color-surface-solid);
-  color: var(--color-text-strong);
-  font: inherit;
-  padding: 0.55rem 0.65rem;
 }
 
 .cardActions a,
@@ -299,15 +332,12 @@
   }
 }
 
-@keyframes fieldControlsIn {
-  from {
-    opacity: 0;
-    transform: translateY(-0.2rem);
-  }
-}
-
 @media (max-width: 58rem) {
   .fieldStack {
+    grid-template-columns: 1fr;
+  }
+
+  .waterCard {
     grid-template-columns: 1fr;
   }
 }
@@ -317,7 +347,6 @@
   .alertItem,
   .miniCard,
   .activityItem,
-  .delayControls,
   .cardActions a,
   .cardActions button:not([data-ui='action']),
   .harvestActions button:not([data-ui='action']),

@@ -18,7 +18,10 @@ import {
   buildAutoLayoutCandidate,
   createPendingSearchReport,
 } from './autoLayoutCandidateBuilder';
-import { getAutoLayoutCandidateRankingScore } from './autoLayoutCandidateRanking';
+import {
+  getAutoLayoutCandidateQualityScore,
+  getAutoLayoutCandidateRankingScore,
+} from './autoLayoutCandidateRanking';
 import {
   isLegalRect,
   rectInsideRect,
@@ -304,7 +307,9 @@ function buildSearchReport({
 }): AutoLayoutSearchReport {
   const unresolvedIssues = [
     ...evaluation.candidate.hardConstraintViolations,
-    ...evaluation.activeWarnings.map((warning) => warning.title),
+    ...evaluation.activeWarnings
+      .filter((warning) => warning.kind !== 'pathway')
+      .map((warning) => warning.title),
     ...unplaced.map((item) => `${item.cropName}: ${item.reason}`),
   ];
   const status =
@@ -338,7 +343,7 @@ function compareEvaluations(left: SearchEvaluation, right: SearchEvaluation) {
       right.candidate.hardConstraintViolations.length ||
     warningWeight(left.activeWarnings) - warningWeight(right.activeWarnings) ||
     left.candidate.unplaced.length - right.candidate.unplaced.length ||
-    getAverageScore(right.candidate) - getAverageScore(left.candidate) ||
+    getSearchPreferenceScore(right) - getSearchPreferenceScore(left) ||
     left.moveDistanceFt - right.moveDistanceFt ||
     left.stateHash.localeCompare(right.stateHash)
   );
@@ -352,14 +357,11 @@ function warningWeight(warnings: PlanWarning[]) {
 }
 
 function getAverageScore(candidate: AutoLayoutCandidate) {
-  const breakdown = candidate.scoreBreakdown;
+  return getAutoLayoutCandidateQualityScore(candidate);
+}
 
-  return (
-    breakdown.seasonalSuitability +
-    breakdown.shadeManagement +
-    breakdown.spacingQuality +
-    breakdown.waterGrouping
-  );
+function getSearchPreferenceScore(evaluation: SearchEvaluation) {
+  return getAverageScore(evaluation.candidate) - evaluation.moveDistanceFt * 8;
 }
 
 function getMoveDistance(

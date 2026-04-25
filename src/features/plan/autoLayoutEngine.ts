@@ -38,6 +38,8 @@ import type {
   AutoLayoutStrategy,
 } from './autoLayoutTypes';
 
+const minimumImprovementToMoveScore = 0.04;
+
 export function generateAutoLayoutCandidates(
   garden: Garden,
   options: {
@@ -73,6 +75,19 @@ export function generateAutoLayoutCandidates(
       }),
     )
     .sort(compareAutoLayoutCandidates);
+}
+
+export function generateAutoLayoutSuggestion(
+  garden: Garden,
+  options: {
+    ignoredWarningIds?: string[];
+    maxSearchDepth?: number;
+    maxSearchStates?: number;
+    sunLayer?: SunShadeLayer | null;
+    sunSeason?: SunSeason;
+  } = {},
+) {
+  return generateAutoLayoutCandidates(garden, options)[0] ?? null;
 }
 
 function buildCandidate({
@@ -307,7 +322,7 @@ function improvePlacements({
           otherPlacements,
         );
 
-        if (score > bestScore + 0.01) {
+        if (score > bestScore + minimumImprovementToMoveScore) {
           best = shifted;
           bestScore = score;
         }

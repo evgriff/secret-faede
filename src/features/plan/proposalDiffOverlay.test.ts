@@ -20,7 +20,7 @@ describe('proposal diff overlay', () => {
     const [candidate] = generateAutoLayoutCandidates(garden, { sunLayer });
 
     if (!candidate) {
-      throw new Error('Expected a generated layout candidate.');
+      throw new Error('Expected a layout suggestion.');
     }
 
     const overlay = buildAutoLayoutProposalDiffOverlay({
@@ -34,7 +34,7 @@ describe('proposal diff overlay', () => {
       sunSeason: 'summer',
     });
 
-    expect(overlay.title).toContain(candidate.label);
+    expect(overlay.title).toBe('Layout suggestion');
     expect(overlay.summary.addedCount).toBeGreaterThan(0);
     expect(overlay.afterRects.some((rect) => rect.kind === 'added')).toBe(true);
   });

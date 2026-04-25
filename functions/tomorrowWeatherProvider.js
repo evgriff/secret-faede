@@ -80,6 +80,7 @@ class TomorrowIoProvider {
 
       return {
         dailyHighF: maxTemperature(periods, now, in24h),
+        days: buildTomorrowForecastDays(periods, location.timezone),
         generatedAtIso: now.toISOString(),
         next24hPrecipIn: roundTo(sumForecastPrecip(periods, now, in24h), 2),
         next48hPrecipIn: roundTo(sumForecastPrecip(periods, now, in48h), 2),
@@ -176,6 +177,70 @@ function getHourlyTimelines(payload) {
         return record ? [record] : [];
       })
     : [];
+}
+
+function buildTomorrowForecastDays(periods, timezone) {
+  const days = new Map();
+
+  periods.forEach((period) => {
+    const start = new Date(period.startIso);
+
+    if (Number.isNaN(start.getTime())) {
+      return;
+    }
+
+    const date = formatLocalDate(start, timezone);
+    const current = days.get(date) || {
+      conditionSummary: null,
+      expectedRainIn: 0,
+      highF: null,
+      precipitationChancePercent: null,
+    };
+
+    current.conditionSummary ||= period.shortForecast;
+    current.expectedRainIn += period.precipitationAmountIn || 0;
+    current.highF =
+      period.temperatureF === null
+        ? current.highF
+        : current.highF === null
+          ? period.temperatureF
+          : Math.max(current.highF, period.temperatureF);
+    current.precipitationChancePercent =
+      current.precipitationChancePercent === null
+        ? period.precipitationChancePercent
+        : period.precipitationChancePercent === null
+          ? current.precipitationChancePercent
+          : Math.max(
+              current.precipitationChancePercent,
+              period.precipitationChancePercent,
+            );
+    days.set(date, current);
+  });
+
+  return [...days.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .slice(0, 14)
+    .map(([date, day]) => ({
+      conditionSummary: day.conditionSummary || 'Tomorrow.io forecast',
+      date,
+      expectedRainIn: roundTo(day.expectedRainIn, 2),
+      highF: day.highF,
+      precipitationChancePercent: day.precipitationChancePercent,
+    }));
+}
+
+function formatLocalDate(date, timezone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: timezone,
+    year: 'numeric',
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value || '0000';
+  const month = parts.find((part) => part.type === 'month')?.value || '01';
+  const day = parts.find((part) => part.type === 'day')?.value || '01';
+
+  return `${year}-${month}-${day}`;
 }
 
 function formatWeatherCode(value) {

@@ -14,6 +14,7 @@ export function CropComparePanel({
   layoutRequests,
   onClearCompare,
   sunExposureAtPlacement,
+  today,
 }: {
   explicitCompareCount: number;
   garden: Garden;
@@ -21,6 +22,7 @@ export function CropComparePanel({
   layoutRequests: SeasonCropLayoutRequest[];
   onClearCompare(): void;
   sunExposureAtPlacement: SunExposure | null;
+  today: Date;
 }) {
   return (
     <section
@@ -30,8 +32,8 @@ export function CropComparePanel({
     >
       <div className={styles.compareHeader}>
         <div>
-          <span className={styles.kicker}>Compare</span>
-          <h3>Quick facts</h3>
+          <span className={styles.kicker}>Optional compare</span>
+          <h3>Check a few crops side by side</h3>
         </div>
         {explicitCompareCount > 0 ? (
           <button
@@ -51,6 +53,7 @@ export function CropComparePanel({
               garden,
               mode: request.plantingForm,
               sunExposureAtPlacement,
+              today,
             });
 
             return (
@@ -59,19 +62,14 @@ export function CropComparePanel({
                   <span aria-hidden="true">{formatGlyph(request.crop)}</span>
                   <strong>{request.crop.commonName}</strong>
                 </div>
-                <div className={styles.factChips}>
-                  <CompareChip
-                    label="Difficulty"
-                    value={facts.difficultyShortLabel}
-                  />
-                  <CompareChip
+                <dl className={styles.compareFacts}>
+                  <CompareFact
                     label="Space"
-                    value={`${request.quantity} ${
-                      request.quantity === 1 ? 'plant' : 'plants'
-                    } - ${request.estimatedAreaSqFt} sq ft`}
+                    value={`${request.quantity} ${request.quantity === 1 ? 'plant' : 'plants'} · ${request.estimatedAreaSqFt} sq ft`}
                   />
-                  <CompareChip
-                    label="Location Match"
+                  <CompareFact label="Sun" value={facts.sunShortLabel} />
+                  <CompareFact
+                    label="Plot fit"
                     reasonLines={[
                       ...facts.locationMatchDetails,
                       facts.locationMatchBasis,
@@ -79,28 +77,28 @@ export function CropComparePanel({
                     tone={facts.locationMatchBand}
                     value={facts.locationMatchShortLabel}
                   />
-                  <CompareChip
+                  <CompareFact
                     label="Support"
                     value={facts.supportShortLabel}
                   />
-                  <CompareChip label="Lifecycle" value={facts.lifecycleLabel} />
-                  <CompareChip label="Harvest" value={facts.harvestLabel} />
-                </div>
+                  <CompareFact label="Today" value={facts.timingLabel} />
+                  <CompareFact label="Harvest" value={facts.harvestLabel} />
+                </dl>
               </li>
             );
           })}
         </ul>
       ) : (
         <p className={styles.emptyText}>
-          Select up to 3 plants to compare difficulty, space, match, support,
-          and harvest timing.
+          Use Compare on a crop if you want a quick side-by-side check before
+          saving.
         </p>
       )}
     </section>
   );
 }
 
-function CompareChip({
+function CompareFact({
   label,
   reasonLines,
   tone,
@@ -111,15 +109,15 @@ function CompareChip({
   tone?: string;
   value: string;
 }) {
-  const chip = (
-    <span
+  const fact = (
+    <div
       aria-label={`${label}: ${value}`}
-      className={styles.compareChip}
+      className={styles.compareFact}
       data-tone={tone}
     >
-      <span aria-hidden="true">{label}</span>
-      {value}
-    </span>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
   );
 
   return reasonLines?.length ? (
@@ -127,9 +125,9 @@ function CompareChip({
       ariaLabel={`${label} reason: ${value}`}
       content={<ReasonTooltipList lines={reasonLines} />}
     >
-      {chip}
+      {fact}
     </ReasonTooltip>
   ) : (
-    chip
+    fact
   );
 }

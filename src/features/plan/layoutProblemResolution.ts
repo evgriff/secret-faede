@@ -6,7 +6,10 @@ import type {
   LayoutResolutionOption,
   LayoutVariant,
 } from '../../domain/gardens/GardenRepository';
-import type { PlanWarning } from '../garden/gardenPlanning';
+import {
+  isUserFacingPlanWarning,
+  type PlanWarning,
+} from '../garden/gardenPlanning';
 import type { ReviewSuggestion } from '../garden/reviewSuggestions';
 import type { AutoLayoutCandidate } from './autoLayoutTypes';
 import {
@@ -23,7 +26,7 @@ import {
   validateProblem,
   validateResolutionOption,
 } from './layoutProblemResolutionValidation';
-import { buildLayoutVariants } from './layoutProblemVariants';
+import { buildLayoutSuggestion } from './layoutProblemVariants';
 import {
   buildLayoutResolutionOption,
   buildLayoutResolutionRecord,
@@ -33,17 +36,17 @@ export interface LayoutProblemResolutionModel {
   problems: LayoutProblem[];
   resolutionOptions: LayoutResolutionOption[];
   resolutions: LayoutResolution[];
-  variants: LayoutVariant[];
+  suggestion: LayoutVariant | null;
 }
 
 export function buildLayoutProblemResolutionModel({
-  candidates,
+  candidate,
   garden,
   reviewSuggestions,
   suggestionDecisions,
   warnings,
 }: {
-  candidates: AutoLayoutCandidate[];
+  candidate: AutoLayoutCandidate | null;
   garden: Garden;
   reviewSuggestions: ReviewSuggestion[];
   suggestionDecisions: GardenSuggestionDecision[];
@@ -61,8 +64,9 @@ export function buildLayoutProblemResolutionModel({
     }),
   );
   const optionIdsByProblemId = groupOptionIdsByProblem(resolutionOptions);
+  const visibleWarnings = warnings.filter(isUserFacingPlanWarning);
   const seeds = [
-    ...warnings.map((warning) =>
+    ...visibleWarnings.map((warning) =>
       buildProblemSeedFromWarning({
         targets: buildTargets(garden, warning.itemIds),
         warning,
@@ -132,8 +136,8 @@ export function buildLayoutProblemResolutionModel({
     problems: validatedProblems,
     resolutionOptions: validatedOptions,
     resolutions,
-    variants: buildLayoutVariants({
-      candidates,
+    suggestion: buildLayoutSuggestion({
+      candidate,
       garden,
       problems: validatedProblems,
       resolutionOptions: validatedOptions,

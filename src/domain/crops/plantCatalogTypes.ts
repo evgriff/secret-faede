@@ -22,6 +22,13 @@ export type PlantHarvestCycle =
   | 'successive';
 export type PlantLocationMatchBand = 'good' | 'poor' | 'strong' | 'watch';
 export type PlantLocationMatchConfidence = 'high' | 'low' | 'medium';
+export type PlantTimingStatus =
+  | 'goodForFall'
+  | 'plantNow'
+  | 'possibleNowWithProtection'
+  | 'startIndoorsNow'
+  | 'tooLateForSpringWindow'
+  | 'waitUntilAfterFrost';
 
 export interface MonthDayRange {
   end: MonthDayString;
@@ -118,4 +125,10 @@ export interface PlantLocationMatchRationale {
   basis: string;
   details: string[];
   headline: string;
+}
+
+export interface PlantTimingGuidance {
+  detail: string;
+  label: string;
+  status: PlantTimingStatus;
 }

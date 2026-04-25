@@ -1,4 +1,3 @@
-import { getCropById } from '../../domain/crops/cropCatalog';
 import {
   annArborLocation,
   type DrainageProfile,
@@ -7,7 +6,7 @@ import {
   type Planting,
   type SoilType,
   type Structure,
-  type WaterRecommendation,
+  type WateringScheduleEntry,
   type WeatherSnapshot,
 } from '../../domain/gardens/GardenRepository';
 import type {
@@ -18,8 +17,15 @@ import type {
   WeatherForecast,
   WeatherLocation,
   WeatherProvider,
+  WeatherRequestOptions,
 } from '../../domain/weather/WeatherProvider';
 import { getStructureFootprint } from './gardenPlanning';
+import {
+  ACTIVE_WATERING_STATUSES,
+  getPlantingWaterProfile,
+  getTargetLifecycleStage,
+  type PlantingWaterProfile,
+} from './wateringLifecycle';
 
 export interface WeatherWateringContext {
   agricultureMetrics: OptionalAgricultureMetrics;
@@ -29,21 +35,36 @@ export interface WeatherWateringContext {
   recentPrecipitation: RecentPrecipitation;
 }
 
+export interface WateringScheduleDefaults {
+  defaultWateringCheckTime?: string | null;
+  timezone?: string | null;
+}
+
 interface WaterTarget {
   drainageProfile: DrainageProfile;
   id: string;
   irrigationZone: string | null;
   label: string;
+  lifecycleStage: 'establishing' | 'mixed' | 'steady';
+  memberCount: number;
   mulched: boolean;
   soilType: SoilType;
-  targetType: 'bed' | 'planting';
+  targetKind: 'bed' | 'planting';
   waterNeedSource: 'cropProfile' | 'fallback' | 'manual';
   weeklyWaterNeedInches: number;
 }
 
+interface ManualWateringHistory {
+  appliedAmountInches: number;
+  lastWateredAtIso: string | null;
+}
+
+const MIN_ACTIONABLE_DEFICIT_INCHES = 0.15;
+
 export async function loadWeatherWateringContext(
   provider: WeatherProvider,
   gardenLocation: GardenLocation,
+  options: WeatherRequestOptions = {},
 ): Promise<WeatherWateringContext> {
   const location = toWeatherLocation(gardenLocation);
   const [
@@ -53,11 +74,11 @@ export async function loadWeatherWateringContext(
     recentPrecipitation,
     agricultureMetrics,
   ] = await Promise.all([
-    provider.getCurrentConditions(location),
-    provider.getForecast(location),
-    provider.getWeatherAlerts(location),
-    provider.getRecentPrecipitation(location, 72),
-    provider.getOptionalAgricultureMetrics(location),
+    provider.getCurrentConditions(location, options),
+    provider.getForecast(location, options),
+    provider.getWeatherAlerts(location, options),
+    provider.getRecentPrecipitation(location, 72, options),
+    provider.getOptionalAgricultureMetrics(location, options),
   ]);
 
   return {
@@ -85,6 +106,11 @@ export function createWeatherSnapshot(
     dataQuality: getWeatherDataQuality(context),
     evapotranspirationIn:
       context.agricultureMetrics.evapotranspirationNext24hIn,
+    forecastDays: buildForecastDays(
+      context.forecast,
+      garden.plot.location.timezone,
+      observedForDate,
+    ),
     forecastRainNext24In: context.forecast.next24hPrecipIn,
     forecastRainNext48In: context.forecast.next48hPrecipIn,
     frostRisk: getFrostRisk(context.forecast.overnightLowF),
@@ -108,118 +134,255 @@ export function createWeatherSnapshot(
   };
 }
 
-export function buildWaterRecommendations(
+export function buildWateringSchedule(
   garden: Garden,
   context: WeatherWateringContext,
   snapshot: WeatherSnapshot,
   now = new Date(),
-): WaterRecommendation[] {
-  const recommendationDate = formatLocalDate(
-    now,
-    garden.plot.location.timezone,
-  );
+  defaults: WateringScheduleDefaults = {},
+): WateringScheduleEntry[] {
+  const scheduleTimezone = defaults.timezone || garden.plot.location.timezone;
+  const wateringCheckTime = defaults.defaultWateringCheckTime ?? '07:00';
+  const dueDate = formatLocalDate(now, scheduleTimezone);
   const forecastCredit = Math.min(context.forecast.next24hPrecipIn * 0.6, 0.75);
-  const effectiveRainIn =
-    context.recentPrecipitation.last72hIn + forecastCredit;
+  const recentRainIn = context.recentPrecipitation.last72hIn;
   const heatMultiplier = getHeatMultiplier(context.forecast.dailyHighF);
   const etAdjustment = Math.min(
     context.agricultureMetrics.evapotranspirationNext24hIn ?? 0,
     0.35,
   );
 
-  return getWaterTargets(garden).flatMap((target): WaterRecommendation[] => {
-    const manualWaterIn = estimateManualWateringIn(garden, target, now);
-    const mulchMultiplier = target.mulched ? 0.85 : 1;
-    const soilMultiplier = getSoilMultiplier(target.soilType);
-    const drainageMultiplier = getDrainageMultiplier(target.drainageProfile);
-    const adjustedNeedInches =
-      target.weeklyWaterNeedInches *
-        heatMultiplier *
-        mulchMultiplier *
-        soilMultiplier *
-        drainageMultiplier +
-      etAdjustment;
-    const deficitInches = Math.max(
-      adjustedNeedInches - effectiveRainIn - manualWaterIn,
-      0,
-    );
+  return getWaterTargets(garden, now).flatMap(
+    (target): WateringScheduleEntry[] => {
+      const manualWateringHistory = estimateManualWatering(garden, target, now);
+      const manualWaterIn = manualWateringHistory.appliedAmountInches;
+      const mulchMultiplier = target.mulched ? 0.85 : 1;
+      const soilMultiplier = getSoilMultiplier(target.soilType);
+      const drainageMultiplier = getDrainageMultiplier(target.drainageProfile);
+      const adjustedNeedInches =
+        target.weeklyWaterNeedInches *
+          heatMultiplier *
+          mulchMultiplier *
+          soilMultiplier *
+          drainageMultiplier +
+        etAdjustment;
+      const remainingBeforeForecastInches = Math.max(
+        adjustedNeedInches - recentRainIn - manualWaterIn,
+        0,
+      );
+      const remainingAfterForecastInches = Math.max(
+        remainingBeforeForecastInches - forecastCredit,
+        0,
+      );
+      const manualCreditInches = roundTo(
+        Math.min(manualWaterIn, adjustedNeedInches),
+        2,
+      );
+      const createdAtIso = now.toISOString();
+      const dueWindowStartIso = resolveWateringCheckWindowStartIso(
+        dueDate,
+        scheduleTimezone,
+        wateringCheckTime,
+      );
+      const nextRecalculationAtIso = getNextRecalculationAtIso(
+        context.forecast,
+        now,
+      );
 
-    if (deficitInches < 0.15) {
-      return [];
-    }
+      if (
+        remainingBeforeForecastInches < MIN_ACTIONABLE_DEFICIT_INCHES &&
+        manualCreditInches <= 0
+      ) {
+        return [];
+      }
 
-    const suppressUntilIso = getSuppressUntilIso(
-      context.forecast,
-      deficitInches,
-    );
-    const status = suppressUntilIso ? 'suppressed' : 'active';
-    const recommendedWaterInches =
-      status === 'suppressed' ? 0 : roundTo(deficitInches, 2);
-    const urgency = getUrgency(deficitInches, context.forecast.dailyHighF);
-    const rationale = buildRationale({
-      adjustedNeedInches,
-      deficitInches,
-      effectiveRainIn,
-      forecastCredit,
-      heatMultiplier,
-      manualWaterIn,
-      mulched: target.mulched,
-      recommendedWaterInches,
-      status,
-      target,
-    });
+      const suppressUntilIso = getSuppressUntilIso(
+        context.forecast,
+        remainingBeforeForecastInches,
+      );
+      let status: WateringScheduleEntry['status'];
+      let targetAmountInches = 0;
+      let deficitInches = 0;
 
-    return [
-      {
-        deficitInches: roundTo(deficitInches, 2),
-        generatedAtIso: now.toISOString(),
-        generatedBy: 'client',
-        gardenId: garden.id,
-        id: `water-${target.targetType}-${target.id}-${recommendationDate}`,
-        inchesNeeded: recommendedWaterInches,
-        plantingId: target.targetType === 'planting' ? target.id : null,
-        rationale,
-        reason: rationale[0] ?? 'Water deficit detected.',
-        recommendationDate,
-        recommendedWaterInches,
-        refreshedAtIso: now.toISOString(),
+      if (remainingBeforeForecastInches < MIN_ACTIONABLE_DEFICIT_INCHES) {
+        status = 'completed';
+      } else if (suppressUntilIso) {
+        status = 'suppressed';
+        deficitInches = roundTo(remainingBeforeForecastInches, 2);
+      } else if (remainingAfterForecastInches < MIN_ACTIONABLE_DEFICIT_INCHES) {
+        if (manualCreditInches <= 0) {
+          return [];
+        }
+
+        status = 'completed';
+      } else {
+        status = isBeforeWateringCheck(now, scheduleTimezone, wateringCheckTime)
+          ? 'scheduled'
+          : manualCreditInches > 0
+            ? 'partial'
+            : 'due';
+        targetAmountInches = roundTo(remainingAfterForecastInches, 2);
+        deficitInches = targetAmountInches;
+      }
+
+      const urgency = getUrgency(
+        status === 'suppressed' ? deficitInches : targetAmountInches,
+        context.forecast.dailyHighF,
+      );
+      const rationale = buildRationale({
+        adjustedNeedInches,
+        deficitInches,
+        forecastCredit,
+        heatMultiplier,
+        manualWaterIn,
+        mulched: target.mulched,
+        recentRainIn,
+        targetAmountInches,
         status,
-        suppressUntilIso,
-        targetId: target.id,
-        targetLabel: target.label,
-        targetType: target.targetType,
-        urgency,
-        dataQuality: getRecommendationDataQuality(context, target),
-        weatherSnapshotId: snapshot.id,
-      },
-    ];
-  });
+        target,
+        wateringCheckTime,
+      });
+
+      return [
+        {
+          appliedAmountInches:
+            manualCreditInches > 0 ? manualCreditInches : null,
+          createdAtIso,
+          deficitInches,
+          dueDate,
+          dueWindowEndIso: nextRecalculationAtIso,
+          dueWindowStartIso,
+          gardenId: garden.id,
+          id: `water-${target.targetKind}-${target.id}-${dueDate}`,
+          lastWateredAtIso: manualWateringHistory.lastWateredAtIso,
+          nextRecalculationAtIso,
+          reasonDetails: rationale,
+          reasonSummary: rationale[0] ?? 'Watering check scheduled.',
+          source: 'client',
+          status,
+          targetId: target.id,
+          targetAmountInches,
+          targetKind: target.targetKind,
+          targetLabel: target.label,
+          updatedAtIso: createdAtIso,
+          urgency,
+          dataQuality: getRecommendationDataQuality(context, target),
+          wateringZoneId: target.irrigationZone,
+          weatherSnapshotId: snapshot.id,
+        },
+      ];
+    },
+  );
 }
 
-function getWaterTargets(garden: Garden): WaterTarget[] {
+export function mergeWateringSchedule(
+  existing: WateringScheduleEntry[],
+  generated: WateringScheduleEntry[],
+  options: { preserveDueWindowStart?: boolean } = {},
+) {
+  const preserveDueWindowStart = options.preserveDueWindowStart ?? true;
+  const existingById = new Map(existing.map((entry) => [entry.id, entry]));
+  const generatedIds = new Set(generated.map((entry) => entry.id));
+  const preserved = existing.filter(
+    (entry) =>
+      !generatedIds.has(entry.id) &&
+      entry.status !== 'due' &&
+      entry.status !== 'partial' &&
+      entry.status !== 'scheduled' &&
+      entry.status !== 'suppressed',
+  );
+  const mergedGenerated = generated.map((entry) => {
+    const existingEntry = existingById.get(entry.id);
+
+    if (!existingEntry) {
+      return entry;
+    }
+
+    const mergedEntry = {
+      ...entry,
+      createdAtIso: existingEntry.createdAtIso ?? entry.createdAtIso,
+      dueWindowStartIso: preserveDueWindowStart
+        ? (existingEntry.dueWindowStartIso ?? entry.dueWindowStartIso)
+        : entry.dueWindowStartIso,
+    };
+
+    if (
+      existingEntry.status !== 'completed' &&
+      existingEntry.status !== 'skipped' &&
+      existingEntry.status !== 'snoozed'
+    ) {
+      return mergedEntry;
+    }
+
+    return {
+      ...mergedEntry,
+      appliedAmountInches:
+        existingEntry.appliedAmountInches ?? entry.appliedAmountInches,
+      lastWateredAtIso:
+        existingEntry.lastWateredAtIso ?? entry.lastWateredAtIso,
+      nextRecalculationAtIso:
+        existingEntry.nextRecalculationAtIso ?? entry.nextRecalculationAtIso,
+      status: existingEntry.status,
+      updatedAtIso: existingEntry.updatedAtIso ?? entry.updatedAtIso,
+    };
+  });
+
+  return [...preserved.slice(-20), ...mergedGenerated];
+}
+
+export const buildWaterRecommendations = buildWateringSchedule;
+
+function getWaterTargets(garden: Garden, now: Date): WaterTarget[] {
+  const groupedPlantings = new Map<string, Planting[]>();
+  const standalonePlantings: Array<{
+    planting: Planting;
+    structure: Structure | undefined;
+  }> = [];
+
+  garden.plantings
+    .filter((planting) => ACTIVE_WATERING_STATUSES.has(planting.status))
+    .forEach((planting) => {
+      const structure = getPlantingStructure(garden, planting);
+
+      if (structure && isWaterableBed(structure)) {
+        const plantings = groupedPlantings.get(structure.id) ?? [];
+        plantings.push(planting);
+        groupedPlantings.set(structure.id, plantings);
+        return;
+      }
+
+      standalonePlantings.push({ planting, structure });
+    });
+
   return [
-    ...garden.plantings
-      .filter((planting) => planting.status !== 'removed')
-      .map((planting) => createPlantingTarget(garden, planting)),
-    ...garden.structures.flatMap((structure): WaterTarget[] =>
-      isWaterableBed(structure) ? [createBedTarget(garden, structure)] : [],
+    ...garden.structures.flatMap((structure): WaterTarget[] => {
+      if (!isWaterableBed(structure)) {
+        return [];
+      }
+
+      const structurePlantings = groupedPlantings.get(structure.id) ?? [];
+
+      return structurePlantings.length > 0
+        ? [createBedTarget(structure, structurePlantings, now)]
+        : [];
+    }),
+    ...standalonePlantings.map(({ planting, structure }) =>
+      createPlantingTarget(planting, structure, now),
     ),
   ];
 }
 
-function createPlantingTarget(garden: Garden, planting: Planting): WaterTarget {
-  const crop = getCropById(planting.cropId);
-  const structure = getPlantingStructure(garden, planting);
+function createPlantingTarget(
+  planting: Planting,
+  structure: Structure | undefined,
+  now: Date,
+): WaterTarget {
   const containerMultiplier = getStructureWaterMultiplier(structure);
-  const source = planting.weeklyWaterNeedInches
-    ? 'manual'
-    : crop?.weeklyWaterNeedInches
-      ? 'cropProfile'
-      : 'fallback';
-  const weeklyWaterNeedInches =
-    planting.weeklyWaterNeedInches ??
-    crop?.weeklyWaterNeedInches ??
-    fallbackCropWaterNeed(crop?.waterNeeds ?? null);
+  const waterProfile = getPlantingWaterProfile(
+    planting,
+    now,
+    fallbackCropWaterNeed,
+  );
 
   return {
     drainageProfile: structure?.drainageProfile ?? 'unknown',
@@ -227,29 +390,30 @@ function createPlantingTarget(garden: Garden, planting: Planting): WaterTarget {
     irrigationZone:
       planting.irrigationZone ?? structure?.irrigationZone ?? null,
     label: planting.label,
+    lifecycleStage: waterProfile.lifecycleStage,
+    memberCount: 1,
     mulched: planting.mulched,
     soilType: structure?.soilType ?? 'unknown',
-    targetType: 'planting',
-    waterNeedSource: source,
-    weeklyWaterNeedInches: weeklyWaterNeedInches * containerMultiplier,
+    targetKind: 'planting',
+    waterNeedSource: waterProfile.waterNeedSource,
+    weeklyWaterNeedInches:
+      waterProfile.weeklyWaterNeedInches * containerMultiplier,
   };
 }
 
-function createBedTarget(garden: Garden, structure: Structure): WaterTarget {
-  const bedPlantings = garden.plantings.filter((planting) =>
-    isPointInsideStructure(planting.xFt, planting.yFt, structure),
+function createBedTarget(
+  structure: Structure,
+  bedPlantings: Planting[],
+  now: Date,
+): WaterTarget {
+  const plantWaterProfiles = bedPlantings.map((planting) =>
+    getPlantingWaterProfile(planting, now, fallbackCropWaterNeed),
   );
   const averageCropNeed =
-    bedPlantings.length > 0
-      ? bedPlantings.reduce(
-          (total, planting) =>
-            total +
-            (planting.weeklyWaterNeedInches ??
-              getCropById(planting.cropId)?.weeklyWaterNeedInches ??
-              1),
-          0,
-        ) / bedPlantings.length
-      : 1;
+    plantWaterProfiles.reduce(
+      (total, profile) => total + profile.weeklyWaterNeedInches,
+      0,
+    ) / plantWaterProfiles.length;
   const bedMultiplier =
     structure.type === 'container'
       ? 1.25
@@ -262,17 +426,21 @@ function createBedTarget(garden: Garden, structure: Structure): WaterTarget {
     id: structure.id,
     irrigationZone: structure.irrigationZone ?? null,
     label: structure.label,
+    lifecycleStage: getTargetLifecycleStage(bedPlantings, now),
+    memberCount: bedPlantings.length,
     mulched: structure.mulched,
     soilType: structure.soilType ?? 'unknown',
-    targetType: 'bed',
-    waterNeedSource: bedPlantings.length > 0 ? 'cropProfile' : 'fallback',
+    targetKind: 'bed',
+    waterNeedSource: combineWaterNeedSources(plantWaterProfiles),
     weeklyWaterNeedInches: averageCropNeed * bedMultiplier,
   };
 }
 
 function getPlantingStructure(garden: Garden, planting: Planting) {
-  return garden.structures.find((candidate) =>
-    isPointInsideStructure(planting.xFt, planting.yFt, candidate),
+  return garden.structures.find(
+    (candidate) =>
+      isWaterableBed(candidate) &&
+      isPointInsideStructure(planting.xFt, planting.yFt, candidate),
   );
 }
 
@@ -316,29 +484,51 @@ function isPointInsideStructure(
   );
 }
 
-function estimateManualWateringIn(
+function estimateManualWatering(
   garden: Garden,
   target: WaterTarget,
   now: Date,
 ) {
   const targetText = target.label.toLowerCase();
-  const start = new Date(now.getTime() - 72 * 60 * 60 * 1000);
+  const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-  return garden.journalEntries.reduce((total, entry) => {
-    const entryDate = new Date(entry.occurredOn);
-    const text = `${entry.title} ${entry.body}`.toLowerCase();
+  return garden.journalEntries.reduce<ManualWateringHistory>(
+    (history, entry) => {
+      const entryIso = getJournalEntryIso(entry.createdAtIso, entry.occurredOn);
+      const entryDate = new Date(entryIso);
+      const text = `${entry.title} ${entry.body}`.toLowerCase();
+      const directMatch =
+        target.targetKind === 'planting'
+          ? entry.plantingId === target.id
+          : entry.structureId === target.id;
+      const labelMatch =
+        entry.targetLabel.toLowerCase() === targetText ||
+        text.includes(targetText);
 
-    if (
-      Number.isNaN(entryDate.getTime()) ||
-      entryDate < start ||
-      !text.includes('water') ||
-      (!text.includes(targetText) && !text.includes('garden'))
-    ) {
-      return total;
-    }
+      if (
+        Number.isNaN(entryDate.getTime()) ||
+        entryDate < start ||
+        !text.includes('water') ||
+        (!directMatch && !labelMatch)
+      ) {
+        return history;
+      }
 
-    return total + readWaterAmountInches(text);
-  }, 0);
+      return {
+        appliedAmountInches:
+          history.appliedAmountInches + readWaterAmountInches(text),
+        lastWateredAtIso:
+          !history.lastWateredAtIso ||
+          entryDate.getTime() > Date.parse(history.lastWateredAtIso)
+            ? entryIso
+            : history.lastWateredAtIso,
+      };
+    },
+    {
+      appliedAmountInches: 0,
+      lastWateredAtIso: null,
+    },
+  );
 }
 
 function readWaterAmountInches(text: string) {
@@ -424,88 +614,230 @@ function getUrgency(deficitInches: number, dailyHighF: number | null) {
 }
 
 function getSuppressUntilIso(forecast: WeatherForecast, deficitInches: number) {
-  if (!forecast.nextRainIso || forecast.next24hPrecipIn < deficitInches) {
+  if (!forecast.nextRainIso || forecast.next24hPrecipIn + 0.1 < deficitInches) {
     return null;
   }
 
   return forecast.nextRainIso;
 }
 
+function getNextRecalculationAtIso(forecast: WeatherForecast, now: Date) {
+  return (
+    forecast.nextRainIso ??
+    new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString()
+  );
+}
+
 function buildRationale({
   adjustedNeedInches,
   deficitInches,
-  effectiveRainIn,
   forecastCredit,
   heatMultiplier,
   manualWaterIn,
   mulched,
-  recommendedWaterInches,
+  recentRainIn,
+  targetAmountInches,
   status,
   target,
+  wateringCheckTime,
 }: {
   adjustedNeedInches: number;
   deficitInches: number;
-  effectiveRainIn: number;
   forecastCredit: number;
   heatMultiplier: number;
   manualWaterIn: number;
   mulched: boolean;
-  recommendedWaterInches: number;
-  status: WaterRecommendation['status'];
+  recentRainIn: number;
+  status: WateringScheduleEntry['status'];
   target: WaterTarget;
+  targetAmountInches: number;
+  wateringCheckTime: string;
 }) {
   const rationale = [
-    `${target.label} needs about ${roundTo(adjustedNeedInches, 2)} in/week after crop, bed, mulch, and heat adjustments.`,
-    `Recent rain plus near-term forecast credit covers ${roundTo(effectiveRainIn, 2)} in.`,
+    status === 'completed'
+      ? `${target.label} is covered for now after ${roundTo(manualWaterIn, 2)} in already logged.`
+      : status === 'suppressed'
+        ? `${target.label} can wait; rain due soon should cover about ${roundTo(deficitInches, 2)} in.`
+        : status === 'scheduled'
+          ? `${target.label} is lined up for the ${wateringCheckTime} watering check with about ${roundTo(targetAmountInches, 2)} in likely due.`
+          : status === 'partial'
+            ? `${target.label} still needs about ${roundTo(targetAmountInches, 2)} in after ${roundTo(manualWaterIn, 2)} in already logged.`
+            : `${target.label} needs about ${roundTo(targetAmountInches, 2)} in soon.`,
+    `Adjusted need is about ${roundTo(adjustedNeedInches, 2)} in this week.`,
+    `Rain credit: ${roundTo(recentRainIn, 2)} in recent and ${roundTo(forecastCredit, 2)} in forecast.`,
   ];
 
   if (manualWaterIn > 0) {
-    rationale.push(`Manual watering logs add ${roundTo(manualWaterIn, 2)} in.`);
+    rationale.push(
+      `Logged watering already covered ${roundTo(manualWaterIn, 2)} in.`,
+    );
   }
 
   if (heatMultiplier > 1) {
-    rationale.push('Heat stress increased the water target.');
+    rationale.push('Heat is pushing the water need up.');
   }
 
   if (mulched) {
-    rationale.push('Mulch reduced the water target.');
+    rationale.push('Mulch is easing the demand a bit.');
   }
 
   if (target.soilType === 'sandy' || target.drainageProfile === 'fast') {
-    rationale.push('Fast-draining conditions increased the water target.');
+    rationale.push('Fast-draining soil means this area dries out faster.');
   }
 
   if (target.soilType === 'clay' || target.drainageProfile === 'slow') {
-    rationale.push('Slow-draining conditions reduced the water target.');
+    rationale.push('Slower drainage trims the near-term water need.');
+  }
+
+  if (target.lifecycleStage === 'establishing') {
+    rationale.push('New plantings need steadier moisture right now.');
+  }
+
+  if (target.lifecycleStage === 'mixed') {
+    rationale.push(
+      'This bed includes some newer plantings that dry out faster.',
+    );
+  }
+
+  if (target.targetKind === 'bed' && target.memberCount > 1) {
+    rationale.push(
+      `This is rolled up for ${target.memberCount} active plantings in the same bed.`,
+    );
   }
 
   if (target.irrigationZone) {
-    rationale.push(`Assigned irrigation zone: ${target.irrigationZone}.`);
+    rationale.push(`Water with ${target.irrigationZone}.`);
   }
 
   if (target.waterNeedSource === 'fallback') {
     rationale.push(
-      'Crop-specific water data is incomplete, so a conservative default was used.',
+      'Crop-specific water data is thin here, so a conservative default was used.',
     );
   }
 
   if (status === 'suppressed') {
     rationale.push(
-      `Rain is expected soon, so the ${roundTo(deficitInches, 2)} in deficit is suppressed until the forecast rain window.`,
+      'Keep this off the Today list until that rain window passes.',
     );
+  } else if (status === 'completed') {
+    rationale.push('No more watering is due right now.');
+  } else if (status === 'scheduled') {
+    rationale.push(`Bring this forward at ${wateringCheckTime}.`);
   } else {
     rationale.push(
-      `Apply ${roundTo(recommendedWaterInches, 2)} in to close the current deficit.`,
-    );
-  }
-
-  if (forecastCredit > 0) {
-    rationale.push(
-      `${roundTo(forecastCredit, 2)} in of forecast rain is counted at partial credit.`,
+      `Apply ${roundTo(targetAmountInches, 2)} in to close the current deficit.`,
     );
   }
 
   return rationale;
+}
+
+function combineWaterNeedSources(
+  sources: PlantingWaterProfile[],
+): WaterTarget['waterNeedSource'] {
+  const sourceList = sources.map((source) => source.waterNeedSource);
+
+  if (sourceList.includes('fallback')) {
+    return 'fallback';
+  }
+
+  if (sourceList.includes('manual')) {
+    return 'manual';
+  }
+
+  return 'cropProfile';
+}
+
+function getJournalEntryIso(createdAtIso: string, occurredOn: string) {
+  return createdAtIso || `${occurredOn}T12:00:00.000Z`;
+}
+
+function buildForecastDays(
+  forecast: WeatherForecast,
+  timezone: string,
+  observedForDate: string,
+) {
+  if (forecast.days.length > 0) {
+    return forecast.days.slice(0, 14).map((day) => ({
+      conditionSummary: day.conditionSummary,
+      date: day.date,
+      expectedRainIn: roundTo(day.expectedRainIn, 2),
+      highF: day.highF,
+      precipitationChancePercent: day.precipitationChancePercent,
+    }));
+  }
+
+  if (forecast.periods.length === 0) {
+    return [
+      {
+        conditionSummary: forecast.summary,
+        date: observedForDate,
+        expectedRainIn: roundTo(forecast.next24hPrecipIn, 2),
+        highF: forecast.dailyHighF,
+        precipitationChancePercent: null,
+      },
+      {
+        conditionSummary: forecast.summary,
+        date: addLocalDays(observedForDate, 1),
+        expectedRainIn: roundTo(
+          Math.max(forecast.next48hPrecipIn - forecast.next24hPrecipIn, 0),
+          2,
+        ),
+        highF: forecast.dailyHighF,
+        precipitationChancePercent: null,
+      },
+    ];
+  }
+
+  const days = new Map<
+    string,
+    {
+      conditionSummaries: string[];
+      expectedRainIn: number;
+      highF: number | null;
+      precipitationChancePercent: number | null;
+    }
+  >();
+
+  forecast.periods.forEach((period) => {
+    const date = formatLocalDate(new Date(period.startIso), timezone);
+    const current = days.get(date) ?? {
+      conditionSummaries: [],
+      expectedRainIn: 0,
+      highF: null,
+      precipitationChancePercent: null,
+    };
+
+    current.conditionSummaries.push(period.shortForecast);
+    current.expectedRainIn += period.precipitationAmountIn ?? 0;
+    current.precipitationChancePercent =
+      current.precipitationChancePercent === null
+        ? period.precipitationChancePercent
+        : period.precipitationChancePercent === null
+          ? current.precipitationChancePercent
+          : Math.max(
+              current.precipitationChancePercent,
+              period.precipitationChancePercent,
+            );
+    current.highF =
+      current.highF === null
+        ? period.temperatureF
+        : period.temperatureF === null
+          ? current.highF
+          : Math.max(current.highF, period.temperatureF);
+    days.set(date, current);
+  });
+
+  return [...days.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .slice(0, 14)
+    .map(([date, day]) => ({
+      conditionSummary: day.conditionSummaries[0] ?? forecast.summary,
+      date,
+      expectedRainIn: roundTo(day.expectedRainIn, 2),
+      highF: day.highF,
+      precipitationChancePercent: day.precipitationChancePercent,
+    }));
 }
 
 function getWeatherDataQuality(context: WeatherWateringContext) {
@@ -568,7 +900,91 @@ function formatLocalDate(date: Date, timezone: string) {
   return `${year}-${month}-${day}`;
 }
 
+function isBeforeWateringCheck(
+  date: Date,
+  timezone: string,
+  wateringCheckTime: string,
+) {
+  return getLocalMinutes(date, timezone) < parseLocalTime(wateringCheckTime);
+}
+
+function resolveWateringCheckWindowStartIso(
+  localDate: string,
+  timezone: string,
+  wateringCheckTime: string,
+) {
+  const midnightUtcMs = Date.parse(`${localDate}T00:00:00.000Z`);
+  const localMinutes = parseLocalTime(wateringCheckTime);
+  const candidate = new Date(midnightUtcMs + localMinutes * 60_000);
+  const offsetMinutes = getTimeZoneOffsetMinutes(candidate, timezone);
+
+  return new Date(
+    midnightUtcMs + (localMinutes - offsetMinutes) * 60_000,
+  ).toISOString();
+}
+
+function getLocalMinutes(date: Date, timezone: string) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    hourCycle: 'h23',
+    minute: '2-digit',
+    timeZone: timezone,
+  }).formatToParts(date);
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0);
+  const minute = Number(
+    parts.find((part) => part.type === 'minute')?.value ?? 0,
+  );
+
+  return hour * 60 + minute;
+}
+
+function parseLocalTime(value: string) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+
+  if (!match) {
+    return 7 * 60;
+  }
+
+  const hours = Math.min(Math.max(Number(match[1]), 0), 23);
+  const minutes = Math.min(Math.max(Number(match[2]), 0), 59);
+  return hours * 60 + minutes;
+}
+
+function getTimeZoneOffsetMinutes(date: Date, timezone: string) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    day: '2-digit',
+    hour: '2-digit',
+    hourCycle: 'h23',
+    minute: '2-digit',
+    month: '2-digit',
+    second: '2-digit',
+    timeZone: timezone,
+    year: 'numeric',
+  }).formatToParts(date);
+  const year = Number(parts.find((part) => part.type === 'year')?.value ?? 0);
+  const month =
+    Number(parts.find((part) => part.type === 'month')?.value ?? 1) - 1;
+  const day = Number(parts.find((part) => part.type === 'day')?.value ?? 1);
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0);
+  const minute = Number(
+    parts.find((part) => part.type === 'minute')?.value ?? 0,
+  );
+  const second = Number(
+    parts.find((part) => part.type === 'second')?.value ?? 0,
+  );
+
+  return (
+    (Date.UTC(year, month, day, hour, minute, second) - date.getTime()) / 60_000
+  );
+}
+
 function roundTo(value: number, decimals: number) {
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;
+}
+
+function addLocalDays(localDate: string, days: number) {
+  const parsedDate = new Date(`${localDate}T12:00:00.000Z`);
+  parsedDate.setUTCDate(parsedDate.getUTCDate() + days);
+  return parsedDate.toISOString().slice(0, 10);
 }

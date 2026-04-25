@@ -129,6 +129,12 @@ function SelectedView({ summary }: { summary: CropFocusSummary }) {
           <dt>Status</dt>
           <dd>{summary.selected.status}</dd>
         </div>
+        {summary.selected.lastWork ? (
+          <div>
+            <dt>Last work</dt>
+            <dd>{summary.selected.lastWork}</dd>
+          </div>
+        ) : null}
         <div>
           <dt>Group</dt>
           <dd>{summary.selected.plantingLabel}</dd>
@@ -161,6 +167,7 @@ function CropView({ summary }: { summary: CropFocusSummary }) {
 
 function NeedsView({ summary }: { summary: CropFocusSummary }) {
   const items = [
+    ...(summary.needs.harvest ? [summary.needs.harvest] : []),
     ...(summary.needs.support ? [summary.needs.support] : []),
     ...(summary.needs.sun ? [summary.needs.sun] : []),
     ...summary.needs.warnings,

@@ -51,7 +51,7 @@ export function PlanOptimizePreview({
       <div className={styles.previewHeader}>
         <div>
           <span className={styles.kicker}>Before / after</span>
-          <h4>{candidate.label} variant preview</h4>
+          <h4>Layout preview</h4>
         </div>
         <div className={styles.previewBadges}>
           <span>{preview.summary.addedCount} added</span>
@@ -93,7 +93,7 @@ export function PlanOptimizePreview({
         ) : null}
         {showAfter ? (
           <PreviewFrame
-            label="Selected variant"
+            label="Suggested layout"
             plotDepthFt={garden.plot.depthFt}
             plotWidthFt={garden.plot.widthFt}
             rects={preview.afterRects}
@@ -116,7 +116,7 @@ export function PlanOptimizePreview({
           value={formatWarningList(preview.summary.introducedWarnings, 'None')}
         />
         <ImpactTerm
-          label="Plan warnings"
+          label="Open warnings"
           value={`${preview.summary.totalBeforeWarnings} -> ${preview.summary.totalAfterWarnings}`}
         />
         <ImpactTerm

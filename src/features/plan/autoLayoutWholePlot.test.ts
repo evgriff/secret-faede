@@ -37,15 +37,15 @@ describe('auto layout whole-plot planning', () => {
       expect.objectContaining({
         continuousPath: true,
         label: 'Main access path',
-        widthFt: 3,
+        widthFt: 1.5,
       }),
     );
     expect(candidate.wholePlot.accessPathIds).toContain(path?.id);
     expect(candidate.wholePlot.plantZones.length).toBeGreaterThanOrEqual(2);
     expect(candidate.wholePlot.heuristics).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('access path'),
-        expect.stringContaining('tall or trellised crop group'),
+        expect.stringContaining('walking edge'),
+        expect.stringContaining('support and harvest stay manageable'),
       ]),
     );
 
@@ -61,8 +61,42 @@ describe('auto layout whole-plot planning', () => {
         ),
       ).toBe(false);
     }
+  });
 
-    expect(tomato.yFt).toBeLessThanOrEqual(lettuce.yFt);
+  it('does not carve a dedicated path into a smaller open plot', () => {
+    const garden: Garden = {
+      ...createDefaultGarden('compact-open-user'),
+      plot: {
+        ...createDefaultGarden('compact-open-user').plot,
+        depthFt: 6,
+        widthFt: 6,
+      },
+      seasonPlan: {
+        updatedAtIso: '2026-04-21T12:00:00.000Z',
+        wantedCrops: [
+          makeSeasonSelection({
+            cropId: 'lettuce',
+            id: 'season-lettuce',
+            plantingForm: 'block',
+            quantity: 4,
+          }),
+          makeSeasonSelection({
+            cropId: 'basil',
+            id: 'season-basil',
+            plantingForm: 'block',
+            quantity: 2,
+          }),
+        ],
+      },
+      structures: [],
+    };
+    const [candidate] = generateAutoLayoutCandidates(garden, {
+      sunLayer: createSunLayer(garden),
+    });
+
+    expect(
+      candidate?.structures.some((structure) => structure.type === 'pathway'),
+    ).toBe(false);
   });
 });
 

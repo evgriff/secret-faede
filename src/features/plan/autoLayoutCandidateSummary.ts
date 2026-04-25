@@ -23,7 +23,10 @@ export function buildExplanations(
   structures: Structure[],
 ) {
   const tallCount = placements.filter(
-    (placement) => (placement.crop.matureHeightInches ?? 0) >= 42,
+    (placement) =>
+      (placement.crop.matureHeightInches ?? 0) >= 42 ||
+      placement.crop.trellisRecommended ||
+      placement.crop.trellisRequired,
   ).length;
 
   const trellisCount = structures.filter(
@@ -34,19 +37,19 @@ export function buildExplanations(
 
   return [
     `${getStrategyLabel(strategy)} placed ${placements.length} crop footprint${placements.length === 1 ? '' : 's'}.`,
-    'Checked plot bounds, saved structures, anchors, spacing, sun, and support clearance.',
+    'Checked plot bounds, bed fit, saved structures, access, spacing, and support clearance.',
     tallCount > 0
-      ? `${tallCount} tall or trellised crop${tallCount === 1 ? '' : 's'} kept north where possible.`
-      : 'No tall crop drove the layout.',
+      ? `${tallCount} tall or trellised crop${tallCount === 1 ? '' : 's'} kept where support stays straightforward.`
+      : 'No tall crop drove support spacing.',
     plantSupportCount > 0
-      ? `${plantSupportCount} plant-level support assignment${plantSupportCount === 1 ? '' : 's'} proposed as crop attributes.`
-      : 'No plant-level cage or stake assignment needed.',
+      ? `${plantSupportCount} extra cage or stake setup${plantSupportCount === 1 ? '' : 's'} added only where the crop truly needed it.`
+      : 'No extra cage or stake setup was added just to make the layout work.',
     trellisCount > 0
-      ? `${trellisCount} trellis structure${trellisCount === 1 ? '' : 's'} proposed on the grid.`
+      ? `${trellisCount} trellis structure${trellisCount === 1 ? '' : 's'} added where a saved support line helps.`
       : 'No new trellis structures needed.',
     pathCount > 0
-      ? `${pathCount} access path${pathCount === 1 ? '' : 's'} proposed before placement.`
-      : 'No new access path structure needed.',
+      ? `${pathCount} clear walking edge${pathCount === 1 ? '' : 's'} reserved before placement.`
+      : 'No new path was needed to keep the plan workable.',
   ];
 }
 
@@ -58,19 +61,22 @@ export function buildTradeoffs(
 ) {
   return [
     strategy === 'accessFirst'
-      ? 'This favors open paths and reachable edges over perfect sun.'
+      ? 'This keeps a clearer route open for weeding, harvest, and watering.'
       : strategy === 'supportFirst'
-        ? 'This favors crops with support needs before filling remaining space.'
-        : 'This favors the sunniest legal cells, then checks support and access.',
+        ? 'This puts support-hungry crops where setup stays simple.'
+        : 'This keeps similar watering needs together without crowding the work lanes.',
     breakdown.waterGrouping < 0.72
-      ? 'Water grouping is mixed where space was tight.'
-      : 'Water needs are grouped where practical.',
+      ? 'Watering stays mixed where space was tight.'
+      : 'Watering needs stay grouped where practical.',
     breakdown.spacingQuality < 0.82
       ? 'Spacing is legal but tight; inspect quantities.'
       : 'Mature spacing has legal clearance.',
-    breakdown.seasonalSuitability < 0.72
-      ? 'At least one crop keeps a season or climate caution.'
-      : 'Season fit is strong enough.',
+    breakdown.accessQuality < 0.72
+      ? 'Some groups are still workable, but the reach is tighter than ideal.'
+      : 'Most groups keep a clear route from a path or working edge.',
+    breakdown.structureCompatibility < 0.82
+      ? 'At least one support-needing crop still needs a quick setup check.'
+      : 'Existing trellises and easy support spots stay usable.',
     unplaced.length > 0
       ? `${unplaced.length} crop footprint${unplaced.length === 1 ? '' : 's'} could not be placed.`
       : 'All crop footprints found legal positions.',

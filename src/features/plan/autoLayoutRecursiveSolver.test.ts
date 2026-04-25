@@ -5,7 +5,7 @@ import { generateAutoLayoutCandidates } from './autoLayoutEngine';
 import { createLayoutFixture, createSunLayer } from './autoLayoutTestFixtures';
 
 describe('auto layout recursive solver', () => {
-  it('surfaces downstream warnings before proposals are applied', () => {
+  it('keeps access-path warnings out of user-facing unresolved issue copy', () => {
     const garden = {
       ...createLayoutFixture(),
       structures: createLayoutFixture().structures.map((structure) =>
@@ -24,7 +24,7 @@ describe('auto layout recursive solver', () => {
 
     expect(candidate?.search.status).toBe('partial');
     expect(candidate?.search.activeWarningCount).toBeGreaterThan(0);
-    expect(candidate?.search.unresolvedIssues).toContain('Path too narrow');
+    expect(candidate?.search.unresolvedIssues).not.toContain('Path too narrow');
 
     const [ignoredCandidate] = generateAutoLayoutCandidates(garden, {
       ignoredWarningIds: ['path-width-path-east'],

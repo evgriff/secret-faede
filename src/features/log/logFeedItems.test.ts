@@ -60,6 +60,21 @@ describe('logFeedItems', () => {
       }).map((item) => item.id),
     ).toEqual(['journal-issue-1']);
   });
+
+  it('formats watering history as a feed item and omits duplicate watering tasks', () => {
+    const garden = createFeedGarden();
+    const items = buildLogFeedItems({ garden, revisions: [] });
+    const wateringItem = items.find((item) => item.type === 'watering');
+
+    expect(wateringItem).toMatchObject({
+      body: 'Watered Tomato with 0.4 inches.',
+      id: 'journal-water-1',
+      targetLabel: 'Tomato',
+      title: 'Watered Tomato',
+      type: 'watering',
+    });
+    expect(items.map((item) => item.id)).not.toContain('task-task-water-1');
+  });
 });
 
 function createFeedGarden(): Garden {
@@ -172,7 +187,7 @@ function createFeedGarden(): Garden {
         plantingId: 'tomato-1',
         priority: 'medium',
         snoozedUntilDate: null,
-        source: 'waterRecommendation',
+        source: 'wateringSchedule',
         sourceId: 'water-1',
         status: 'done',
         structureId: null,

@@ -1,5 +1,10 @@
 import { getCropById } from '../../domain/crops/cropCatalog';
-import { createDefaultPlanting } from '../../domain/gardens/GardenRepository';
+import {
+  createDefaultPlanting,
+  createPlantingEventJournalEntry,
+  getInGroundDate,
+  getLatestPlantingEventDate,
+} from '../../domain/gardens/GardenRepository';
 import { withPlantingInstances } from '../../domain/gardens/plantingInstances';
 import type {
   CropProfile,
@@ -11,9 +16,14 @@ import type {
   Task,
   TaskPriority,
   TaskType,
-  WaterRecommendation,
+  WateringScheduleEntry,
   WeatherSnapshot,
 } from '../../domain/gardens/GardenRepository';
+import {
+  getPlantingEventTypeForCompletedTask,
+  updatePlantingFromCompletedTask,
+} from './taskPlantingMutations';
+import { getPlantingHarvestSchedule } from '../garden/harvestSchedule';
 
 const dayMs = 24 * 60 * 60 * 1000;
 
@@ -121,8 +131,8 @@ export function buildGeneratedTasks(garden: Garden, now = new Date()): Task[] {
   const tasks = garden.plantings.flatMap((planting) =>
     buildPlantingTasks(garden, planting, now),
   );
-  const waterTasks = garden.waterRecommendations.flatMap((recommendation) =>
-    buildWaterTask(garden, recommendation, now),
+  const waterTasks = garden.wateringSchedule.flatMap((entry) =>
+    buildWaterTask(garden, entry, now),
   );
   const weatherTasks = buildWeatherTasks(garden, now);
 
@@ -164,25 +174,60 @@ export function completeTask(
 
     return candidate;
   });
-  const plantings = garden.plantings.map((planting) =>
-    updatePlantingFromCompletedTask(planting, task, completedDate),
+  const eventfulPlanting = garden.plantings.find(
+    (candidate) => candidate.id === task.plantingId,
   );
-  const waterRecommendations =
+  const eventType = getPlantingEventTypeForCompletedTask(task);
+  const plantings = garden.plantings.map((planting) =>
+    updatePlantingFromCompletedTask(
+      planting,
+      task,
+      completedDate,
+      completedAtIso,
+      eventType,
+    ),
+  );
+  const wateringSchedule =
     task.type === 'water' && task.sourceId
-      ? garden.waterRecommendations.map((recommendation) =>
-          recommendation.id === task.sourceId
-            ? { ...recommendation, status: 'completed' as const }
-            : recommendation,
+      ? garden.wateringSchedule.map((entry) =>
+          entry.id === task.sourceId
+            ? {
+                ...entry,
+                appliedAmountInches:
+                  (entry.appliedAmountInches ?? 0) + entry.targetAmountInches,
+                lastWateredAtIso: completedAtIso,
+                status: 'completed' as const,
+                updatedAtIso: completedAtIso,
+              }
+            : entry,
         )
-      : garden.waterRecommendations;
+      : garden.wateringSchedule;
+  const journalEntries =
+    eventType && eventfulPlanting
+      ? [
+          createPlantingEventJournalEntry({
+            createdAtIso: completedAtIso,
+            event: {
+              id: `planting-event:${eventType}:${completedDate}`,
+              occurredOn: completedDate,
+              type: eventType,
+            },
+            gardenId: garden.id,
+            plantingId: eventfulPlanting.id,
+            plantingLabel: eventfulPlanting.label,
+          }),
+          ...garden.journalEntries,
+        ]
+      : garden.journalEntries;
 
   return synchronizeGardenTasks(
     {
       ...garden,
+      journalEntries,
       plantings,
       tasks: updatedTasks,
       updatedAtIso: completedAtIso,
-      waterRecommendations,
+      wateringSchedule,
     },
     {
       now: completedAt,
@@ -378,12 +423,18 @@ export function buildSuccessionRecommendations(
         return [];
       }
 
-      const harvestDate = getHarvestDate(garden, planting, crop, today);
+      const harvestSchedule =
+        planting.status === 'harvested'
+          ? null
+          : getPlantingHarvestSchedule(garden, planting, today);
       const earliestDate =
-        planting.status === 'harvested' ||
-        isHarvestTaskDone(garden, planting.id)
+        planting.status === 'harvested'
           ? today
-          : harvestDate;
+          : harvestSchedule?.expectedHarvestDate;
+
+      if (!earliestDate) {
+        return [];
+      }
       const daysRemaining = differenceInDays(firstFrost, earliestDate);
 
       if (daysRemaining < 28) {
@@ -444,10 +495,20 @@ function buildPlantingTasks(
   const crop = getCropById(planting.cropId);
   const bedLabel = getBedLabelForPlanting(garden, planting);
   const anchorDate = getPlantingAnchorDate(garden, planting, crop, now);
+  const startedInsideDate = getLatestPlantingEventDate(
+    planting,
+    'startedInside',
+  );
+  const directSowedDate = getLatestPlantingEventDate(planting, 'directSowed');
+  const thinnedDate = getLatestPlantingEventDate(planting, 'thinned');
+  const inGroundDate = getInGroundDate(planting);
   const tasks: Task[] = [];
 
-  if (!planting.plantedOn && crop) {
-    if (crop.sowMethod === 'transplant' || crop.sowMethod === 'both') {
+  if (!inGroundDate && crop) {
+    if (
+      (crop.sowMethod === 'transplant' || crop.sowMethod === 'both') &&
+      !startedInsideDate
+    ) {
       tasks.push(
         createTask(
           {
@@ -467,35 +528,91 @@ function buildPlantingTasks(
       );
     }
 
-    tasks.push(
-      createTask(
-        {
-          bedLabel,
-          dueDate: anchorDate,
-          id: `planting-${planting.id}-plant`,
-          notes: climateNote(garden, getPlantingInstruction(crop)),
-          plantingId: planting.id,
-          priority: crop.frostSensitive ? 'high' : 'medium',
-          source: 'generated',
-          sourceId: planting.id,
-          title: `${getPlantingVerb(crop)} ${planting.label}`,
-          type: getPlantingTaskType(crop),
-        },
-        now,
-      ),
-    );
+    if (startedInsideDate) {
+      const transplantDate = maxDate(
+        anchorDate,
+        addDays(startedInsideDate, 35),
+      );
+      const hardenOffDate = maxDate(
+        addDays(startedInsideDate, 28),
+        addDays(transplantDate, -7),
+      );
+
+      tasks.push(
+        createTask(
+          {
+            bedLabel,
+            dueDate: hardenOffDate,
+            id: `planting-${planting.id}-harden-off`,
+            notes: `Started indoors on ${startedInsideDate}. Begin hardening off before planting ${planting.label} out.`,
+            plantingId: planting.id,
+            source: 'generated',
+            sourceId: planting.id,
+            title: `Harden off ${planting.label}`,
+            type: 'inspect',
+          },
+          now,
+        ),
+      );
+      tasks.push(
+        createTask(
+          {
+            bedLabel,
+            dueDate: transplantDate,
+            id: `planting-${planting.id}-plant`,
+            notes: `Started indoors on ${startedInsideDate}. ${climateNote(garden, getPlantingInstruction(crop))}`,
+            plantingId: planting.id,
+            priority: crop.frostSensitive ? 'high' : 'medium',
+            source: 'generated',
+            sourceId: planting.id,
+            title: `Plant out ${planting.label}`,
+            type: 'transplant',
+          },
+          now,
+        ),
+      );
+    } else {
+      tasks.push(
+        createTask(
+          {
+            bedLabel,
+            dueDate: anchorDate,
+            id: `planting-${planting.id}-plant`,
+            notes: climateNote(garden, getPlantingInstruction(crop)),
+            plantingId: planting.id,
+            priority: crop.frostSensitive ? 'high' : 'medium',
+            source: 'generated',
+            sourceId: planting.id,
+            title: `${getPlantingVerb(crop)} ${planting.label}`,
+            type: getPlantingTaskType(crop),
+          },
+          now,
+        ),
+      );
+    }
   }
 
-  const plantedOrPlannedDate = planting.plantedOn ?? anchorDate;
+  const seedlingCheckDate =
+    directSowedDate ??
+    startedInsideDate ??
+    (startedInsideDate || inGroundDate ? null : anchorDate);
+  const thinningDate =
+    directSowedDate ?? (startedInsideDate || inGroundDate ? null : anchorDate);
+  const careAnchorDate =
+    inGroundDate ?? (startedInsideDate && !inGroundDate ? null : anchorDate);
 
-  if (needsSeedlingCheck(crop)) {
+  if (seedlingCheckDate && needsSeedlingCheck(crop)) {
     tasks.push(
       createTask(
         {
           bedLabel,
-          dueDate: addDays(plantedOrPlannedDate, 7),
+          dueDate: addDays(seedlingCheckDate, 7),
           id: `planting-${planting.id}-seedling-check`,
-          notes: `Check germination, moisture, pests, and gaps in ${bedLabel}. This follows the saved ${crop?.commonName ?? planting.label} sowing date.`,
+          notes: directSowedDate
+            ? `Direct sowed on ${directSowedDate}. Check germination, moisture, pests, and gaps in ${bedLabel}.`
+            : startedInsideDate
+              ? `Started indoors on ${startedInsideDate}. Check seedling growth, moisture, and spacing before planting out.`
+              : `Check germination, moisture, pests, and gaps in ${bedLabel}. This follows the saved ${crop?.commonName ?? planting.label} sowing date.`,
           plantingId: planting.id,
           source: 'generated',
           sourceId: planting.id,
@@ -507,14 +624,16 @@ function buildPlantingTasks(
     );
   }
 
-  if (needsThinning(planting, crop)) {
+  if (thinningDate && !thinnedDate && needsThinning(planting, crop)) {
     tasks.push(
       createTask(
         {
           bedLabel,
-          dueDate: addDays(plantedOrPlannedDate, 14),
+          dueDate: addDays(thinningDate, 14),
           id: `planting-${planting.id}-thin`,
-          notes: `Thin crowded seedlings in ${bedLabel} to ${formatSpacing(crop)} spacing so the saved planting can mature.`,
+          notes: directSowedDate
+            ? `Direct sowed on ${directSowedDate}. Thin crowded seedlings in ${bedLabel} to ${formatSpacing(crop)} spacing so the planting can mature.`
+            : `Thin crowded seedlings in ${bedLabel} to ${formatSpacing(crop)} spacing so the saved planting can mature.`,
           plantingId: planting.id,
           source: 'generated',
           sourceId: planting.id,
@@ -526,12 +645,12 @@ function buildPlantingTasks(
     );
   }
 
-  if (needsTrellis(planting, crop)) {
+  if (careAnchorDate && needsTrellis(planting, crop)) {
     tasks.push(
       createTask(
         {
           bedLabel,
-          dueDate: addDays(plantedOrPlannedDate, 7),
+          dueDate: addDays(careAnchorDate, 7),
           id: `planting-${planting.id}-trellis`,
           notes:
             'Install support before vines elongate and roots fill the bed.',
@@ -547,12 +666,12 @@ function buildPlantingTasks(
     );
   }
 
-  if (!planting.mulched) {
+  if (careAnchorDate && !planting.mulched) {
     tasks.push(
       createTask(
         {
           bedLabel,
-          dueDate: addDays(plantedOrPlannedDate, 10),
+          dueDate: addDays(careAnchorDate, 10),
           id: `planting-${planting.id}-mulch`,
           notes:
             'Mulch after seedlings establish to reduce evaporation and weeds.',
@@ -567,12 +686,12 @@ function buildPlantingTasks(
     );
   }
 
-  if (needsFertilizer(crop)) {
+  if (careAnchorDate && needsFertilizer(crop)) {
     tasks.push(
       createTask(
         {
           bedLabel,
-          dueDate: addDays(plantedOrPlannedDate, 28),
+          dueDate: addDays(careAnchorDate, 28),
           id: `planting-${planting.id}-fertilize`,
           notes: 'Side-dress or feed once active growth is underway.',
           plantingId: planting.id,
@@ -586,12 +705,12 @@ function buildPlantingTasks(
     );
   }
 
-  if (needsPruning(crop)) {
+  if (careAnchorDate && needsPruning(crop)) {
     tasks.push(
       createTask(
         {
           bedLabel,
-          dueDate: addDays(plantedOrPlannedDate, 35),
+          dueDate: addDays(careAnchorDate, 35),
           id: `planting-${planting.id}-prune`,
           notes: 'Inspect growth and prune lightly for airflow and access.',
           plantingId: planting.id,
@@ -605,38 +724,19 @@ function buildPlantingTasks(
     );
   }
 
-  if (crop?.daysToMaturity) {
-    tasks.push(
-      createTask(
-        {
-          bedLabel,
-          dueDate: addDays(plantedOrPlannedDate, crop.daysToMaturity),
-          id: `planting-${planting.id}-harvest`,
-          notes: `Harvest window estimate from ${crop.daysToMaturity} days to maturity. Check the bed before clearing it.`,
-          plantingId: planting.id,
-          priority: 'medium',
-          source: 'generated',
-          sourceId: planting.id,
-          title: `Harvest ${planting.label}`,
-          type: 'harvest',
-        },
-        now,
-      ),
-    );
-  }
-
   return tasks;
 }
 
 function buildWaterTask(
   garden: Garden,
-  recommendation: WaterRecommendation,
+  recommendation: WateringScheduleEntry,
   now: Date,
 ): Task[] {
   if (
     recommendation.status === 'suppressed' ||
     recommendation.status === 'completed' ||
-    recommendation.recommendedWaterInches <= 0
+    recommendation.status === 'skipped' ||
+    recommendation.targetAmountInches <= 0
   ) {
     return [];
   }
@@ -645,16 +745,19 @@ function buildWaterTask(
     createTask(
       {
         bedLabel: getBedLabelForRecommendation(garden, recommendation),
-        dueDate: recommendation.recommendationDate,
+        dueDate: recommendation.dueDate,
         id: `water-${recommendation.id}`,
         notes: buildWaterTaskNotes(recommendation),
-        plantingId: recommendation.plantingId,
+        plantingId:
+          recommendation.targetKind === 'planting'
+            ? recommendation.targetId
+            : null,
         priority: recommendation.urgency === 'high' ? 'high' : 'medium',
-        source: 'waterRecommendation',
+        source: 'wateringSchedule',
         sourceId: recommendation.id,
         structureId:
-          recommendation.targetType === 'bed' ? recommendation.targetId : null,
-        title: `Water ${formatWaterTaskTarget(recommendation)} ${formatInches(recommendation.recommendedWaterInches)} in`,
+          recommendation.targetKind === 'bed' ? recommendation.targetId : null,
+        title: `Water ${formatWaterTaskTarget(recommendation)} ${formatInches(recommendation.targetAmountInches)} in`,
         type: 'water',
       },
       now,
@@ -773,7 +876,7 @@ function shouldRefreshTask(task: Task, options: SynchronizeOptions) {
   return (
     Boolean(options.refreshOpenGenerated) &&
     task.status === 'open' &&
-    (task.source === 'generated' || task.source === 'waterRecommendation') &&
+    (task.source === 'generated' || task.source === 'wateringSchedule') &&
     !task.snoozedUntilDate &&
     !task.deferredUntilDate
   );
@@ -786,12 +889,12 @@ function shouldRetireStaleGeneratedTask(
   return (
     !generated &&
     task.status === 'open' &&
-    (task.source === 'generated' || task.source === 'waterRecommendation')
+    (task.source === 'generated' || task.source === 'wateringSchedule')
   );
 }
 
 function getGeneratedTaskKey(task: Task) {
-  if (task.source !== 'generated' && task.source !== 'waterRecommendation') {
+  if (task.source !== 'generated' && task.source !== 'wateringSchedule') {
     return null;
   }
 
@@ -811,44 +914,6 @@ function getGeneratedTaskKey(task: Task) {
     task.plantingId ?? '',
     task.structureId ?? '',
   ].join(':');
-}
-
-function updatePlantingFromCompletedTask(
-  planting: Planting,
-  task: Task,
-  completedDate: LocalDateString,
-): Planting {
-  if (planting.id !== task.plantingId) {
-    return planting;
-  }
-
-  if (
-    task.type === 'plant' ||
-    task.type === 'sow' ||
-    task.type === 'transplant'
-  ) {
-    return {
-      ...planting,
-      plantedOn: planting.plantedOn ?? completedDate,
-      status: planting.status === 'planned' ? 'growing' : planting.status,
-    };
-  }
-
-  if (task.type === 'harvest') {
-    return {
-      ...planting,
-      status: 'harvested',
-    };
-  }
-
-  if (task.type === 'mulch') {
-    return {
-      ...planting,
-      mulched: true,
-    };
-  }
-
-  return planting;
 }
 
 function shouldClearSetupTask(
@@ -1012,32 +1077,15 @@ function estimateSuccessionPlantCount(
   return Math.max(Math.floor(48 / Math.max(crop.spacingInches ?? 12, 4)), 1);
 }
 
-function getHarvestDate(
-  garden: Garden,
-  planting: Planting,
-  crop: CropProfile,
-  today: LocalDateString,
-) {
-  const anchorDate =
-    planting.plantedOn ??
-    getPlantingAnchorDate(garden, planting, crop, parseLocalDate(today));
-
-  return addDays(anchorDate, crop.daysToMaturity ?? 60);
+function buildWaterTaskNotes(recommendation: WateringScheduleEntry) {
+  return (
+    recommendation.reasonDetails.join(' ') ||
+    `${recommendation.targetLabel} has ${formatInches(recommendation.targetAmountInches)} still due.`
+  );
 }
 
-function buildWaterTaskNotes(recommendation: WaterRecommendation) {
-  const rationale = recommendation.rationale.join(' ');
-
-  return [
-    `${recommendation.targetLabel} needs ${formatInches(recommendation.recommendedWaterInches)} in because ${recommendation.reason}`,
-    rationale,
-  ]
-    .filter(Boolean)
-    .join(' ');
-}
-
-function formatWaterTaskTarget(recommendation: WaterRecommendation) {
-  if (recommendation.targetType !== 'bed') {
+function formatWaterTaskTarget(recommendation: WateringScheduleEntry) {
+  if (recommendation.targetKind !== 'bed') {
     return recommendation.targetLabel;
   }
 
@@ -1047,10 +1095,13 @@ function formatWaterTaskTarget(recommendation: WaterRecommendation) {
 }
 
 function getLatestWeatherSnapshot(garden: Garden): WeatherSnapshot | null {
-  return (
-    [...garden.weatherSnapshots].sort((left, right) =>
-      right.capturedAtIso.localeCompare(left.capturedAtIso),
-    )[0] ?? null
+  return garden.weatherSnapshots.reduce<WeatherSnapshot | null>(
+    (latestSnapshot, snapshot) =>
+      latestSnapshot === null ||
+      snapshot.capturedAtIso >= latestSnapshot.capturedAtIso
+        ? snapshot
+        : latestSnapshot,
+    null,
   );
 }
 
@@ -1088,25 +1139,16 @@ function chooseSuccessionCrop(
   return getCropById('radish');
 }
 
-function isHarvestTaskDone(garden: Garden, plantingId: string) {
-  return garden.tasks.some(
-    (task) =>
-      task.plantingId === plantingId &&
-      task.type === 'harvest' &&
-      task.status === 'done',
-  );
-}
-
 function getBedLabelForRecommendation(
   garden: Garden,
-  recommendation: WaterRecommendation,
+  recommendation: WateringScheduleEntry,
 ) {
-  if (recommendation.targetType === 'bed') {
+  if (recommendation.targetKind === 'bed') {
     return recommendation.targetLabel;
   }
 
   const planting = garden.plantings.find(
-    (candidate) => candidate.id === recommendation.plantingId,
+    (candidate) => candidate.id === recommendation.targetId,
   );
 
   return planting ? getBedLabelForPlanting(garden, planting) : 'Open plot';
@@ -1209,6 +1251,13 @@ function dateFromMonthDay(year: number, monthDay: string): LocalDateString {
 
 function addDays(date: LocalDateString, days: number): LocalDateString {
   return toLocalDate(new Date(parseLocalDate(date).getTime() + days * dayMs));
+}
+
+function maxDate(
+  left: LocalDateString,
+  right: LocalDateString,
+): LocalDateString {
+  return left >= right ? left : right;
 }
 
 function differenceInDays(

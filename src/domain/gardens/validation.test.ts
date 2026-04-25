@@ -78,6 +78,7 @@ describe('garden domain validation', () => {
         'planner workspace defaults normalized',
         'season plan inputs simplified',
         'plant planning defaults normalized',
+        'planting events normalized',
       ],
       fromVersion: 0,
       toVersion: CURRENT_GARDEN_SCHEMA_VERSION,
@@ -125,6 +126,7 @@ describe('garden domain validation', () => {
       applied: [
         'season plan inputs simplified',
         'plant planning defaults normalized',
+        'watering schedule normalized',
       ],
       fromVersion: 2,
       toVersion: CURRENT_GARDEN_SCHEMA_VERSION,
@@ -166,7 +168,11 @@ describe('garden domain validation', () => {
     });
 
     expect(migration).toMatchObject({
-      applied: ['plant planning defaults normalized'],
+      applied: [
+        'plant planning defaults normalized',
+        'watering schedule normalized',
+        'planting events normalized',
+      ],
       fromVersion: 3,
       toVersion: CURRENT_GARDEN_SCHEMA_VERSION,
     });
@@ -197,12 +203,130 @@ describe('garden domain validation', () => {
       ],
     });
 
-    expect(migration.applied).toEqual(['legacy utility structures removed']);
+    expect(migration.applied).toEqual([
+      'legacy utility structures removed',
+      'watering schedule normalized',
+    ]);
     expect(migration.record.structures).toEqual([
       { id: 'bed-1', type: 'raisedBed' },
       { id: 'path-1', type: 'pathway' },
       { id: 'trellis-1', type: 'trellis' },
     ]);
+  });
+
+  it('migrates legacy water recommendations into the canonical watering schedule', () => {
+    const garden = parseGarden('user-a', {
+      schemaVersion: 5,
+      waterRecommendations: [
+        {
+          deficitInches: 0.5,
+          generatedAtIso: '2026-06-21T11:00:00.000Z',
+          gardenId: 'user-a',
+          id: 'water-1',
+          inchesNeeded: 0.5,
+          plantingId: 'tomato-1',
+          rationale: ['Dry soil.'],
+          reason: 'Dry soil',
+          recommendationDate: '2026-06-21',
+          recommendedWaterInches: 0.5,
+          status: 'active',
+          suppressUntilIso: null,
+          targetId: 'tomato-1',
+          targetLabel: 'Tomato',
+          targetType: 'planting',
+          urgency: 'medium',
+          weatherSnapshotId: 'weather-1',
+        },
+      ],
+    });
+
+    expect(garden.wateringSchedule).toEqual([
+      expect.objectContaining({
+        dueDate: '2026-06-21',
+        id: 'water-1',
+        reasonDetails: ['Dry soil.'],
+        reasonSummary: 'Dry soil',
+        status: 'due',
+        targetAmountInches: 0.5,
+        targetId: 'tomato-1',
+        targetKind: 'planting',
+      }),
+    ]);
+  });
+
+  it('rejects impossible saved weather rain totals before they suppress watering', () => {
+    const garden = parseGarden('user-a', {
+      schemaVersion: CURRENT_GARDEN_SCHEMA_VERSION,
+      weatherSnapshots: [
+        {
+          capturedAtIso: '2026-04-24T23:30:00.000Z',
+          conditionSummary: 'Light Rain',
+          dataQuality: 'complete',
+          forecastDays: [
+            {
+              conditionSummary: 'Rain',
+              date: '2026-04-25',
+              expectedRainIn: 16,
+              highF: 64,
+            },
+          ],
+          forecastRainNext24In: 16,
+          forecastRainNext48In: 20,
+          frostRisk: 'none',
+          gardenId: 'user-a',
+          heatRisk: 'none',
+          humidityPercent: 90,
+          id: 'weather-bad-rain',
+          nextRainIso: null,
+          observedForDate: '2026-04-24',
+          overnightLowF: 52,
+          precipitationIn: 500,
+          providerLabel: 'National Weather Service',
+          recentPrecipitation72hIn: 500,
+          source: 'nationalWeatherService',
+          temperatureF: 64,
+          windMph: 5,
+        },
+      ],
+    });
+
+    expect(garden.weatherSnapshots[0]).toMatchObject({
+      dataQuality: 'limited',
+      forecastRainNext24In: null,
+      forecastRainNext48In: null,
+      precipitationIn: null,
+      recentPrecipitation72hIn: null,
+    });
+    expect(garden.weatherSnapshots[0]?.forecastDays?.[0]).toMatchObject({
+      expectedRainIn: 0,
+    });
+  });
+
+  it('backfills legacy thinning timestamps into planting events', () => {
+    const garden = parseGarden('user-a', {
+      schemaVersion: 6,
+      plantings: [
+        {
+          id: 'carrot-row',
+          label: 'Carrot row',
+          plantStatus: {
+            thinned: true,
+            thinnedAtIso: '2026-06-20T12:00:00.000Z',
+          },
+          xFt: 2,
+          yFt: 2,
+        },
+      ],
+    });
+
+    expect(garden.plantings[0]).toMatchObject({
+      plantingEvents: [
+        {
+          occurredOn: '2026-06-20',
+          type: 'thinned',
+        },
+      ],
+    });
   });
 
   it('parses structure planner types and keeps footprints inside the plot', () => {

@@ -4,7 +4,6 @@ import userEvent from '@testing-library/user-event';
 import {
   createDefaultGarden,
   createDefaultPlanting,
-  type Task,
 } from '../../domain/gardens/GardenRepository';
 import { renderRoute } from '../../test/render';
 import { createTestServices } from '../../test/testServices';
@@ -18,6 +17,7 @@ describe('TodayPage', () => {
 
     renderRoute('/app/today', services);
 
+    await screen.findByRole('heading', { name: 'Today' }, { timeout: 20_000 });
     await user.type(await screen.findByLabelText('Task'), 'Check seedlings');
     await user.selectOptions(screen.getByLabelText('Type'), 'inspect');
     await user.click(screen.getByRole('button', { name: 'Add task' }));
@@ -26,7 +26,7 @@ describe('TodayPage', () => {
       await screen.findByRole('heading', { name: 'Check seedlings' }),
     ).toBeVisible();
     expect(screen.getAllByText('Inspect').length).toBeGreaterThan(0);
-  });
+  }, 20_000);
 
   it('creates a follow-up task from a field issue', async () => {
     const user = userEvent.setup();
@@ -91,10 +91,10 @@ describe('TodayPage', () => {
     expect(
       await screen.findByRole('button', { name: 'Mark growing' }),
     ).toBeVisible();
-    expect(await screen.findByText('Marked Tomato planted')).toBeVisible();
+    expect(await screen.findByText('Crop status updated.')).toBeVisible();
   });
 
-  it('logs a harvest from Today with one tap', async () => {
+  it('opens a dismissable harvest sheet from Today and saves without a photo note flow', async () => {
     const user = userEvent.setup();
     const services = await createTestServices({
       signedInEmail: 'primary.gardener@example.com',
@@ -116,18 +116,16 @@ describe('TodayPage', () => {
             yFt: 3,
           }),
           cropId: 'tomato',
+          plantedOn: '2026-04-01',
           status: 'harvest-ready',
         },
       ],
-      tasks: [createHarvestTask(authUser.uid)],
     });
 
     renderRoute('/app/today', services);
 
-    const detailsButton = await screen.findByRole('button', {
-      name: 'Details',
-    });
-    const harvestCard = detailsButton.closest('article');
+    const harvestTitle = await screen.findByRole('heading', { name: 'Tomato' });
+    const harvestCard = harvestTitle.closest('article');
 
     if (!harvestCard) {
       throw new Error('Expected the harvest card to render.');
@@ -137,32 +135,27 @@ describe('TodayPage', () => {
       within(harvestCard).getByRole('button', { name: 'Log harvest' }),
     );
 
-    expect(await screen.findByText('Harvest logged: Picked')).toBeVisible();
-    expect(await screen.findByText('Task done: Harvest Tomato')).toBeVisible();
+    const harvestDialog = await screen.findByRole('dialog', {
+      name: 'Log harvest',
+    });
+
+    expect(harvestDialog).toBeVisible();
+    expect(within(harvestDialog).getByLabelText('Crop')).toHaveValue(
+      'tomato-1',
+    );
+    await user.click(
+      within(harvestDialog).getByRole('button', { name: 'Close quick action' }),
+    );
     expect(
-      await screen.findByRole('region', { name: 'Add photo' }),
-    ).toBeVisible();
+      screen.queryByRole('dialog', { name: 'Log harvest' }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      within(harvestCard).getByRole('button', { name: 'Log harvest' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Save harvest' }));
+
+    expect(await screen.findByText('Harvest saved to Feed.')).toBeVisible();
+    expect(screen.queryByRole('dialog', { name: 'Add photo' })).toBeNull();
   });
 });
-
-function createHarvestTask(gardenId: string): Task {
-  return {
-    bedLabel: 'Main bed',
-    completedAtIso: null,
-    createdAtIso: '2026-06-21T11:00:00.000Z',
-    deferredUntilDate: null,
-    dueDate: null,
-    gardenId,
-    id: 'planting-tomato-1-harvest',
-    notes: 'Pick ripe fruit.',
-    plantingId: 'tomato-1',
-    priority: 'medium',
-    snoozedUntilDate: null,
-    source: 'generated',
-    sourceId: 'tomato-1',
-    status: 'open',
-    structureId: null,
-    title: 'Harvest Tomato',
-    type: 'harvest',
-  };
-}

@@ -54,10 +54,10 @@ export function NotificationCenter({
     <section className={styles.notificationCenter}>
       <div className={styles.sectionHeader}>
         <div>
-          <h2>Notification center</h2>
+          <h2>Alert history</h2>
           <p>
-            Active alerts, recent sends, and delivery state without repeating
-            the same reminder.
+            Active alerts and recent sends from the garden without repeating the
+            same reminder.
           </p>
         </div>
       </div>

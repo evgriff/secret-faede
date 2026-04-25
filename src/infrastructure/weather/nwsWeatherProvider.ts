@@ -5,9 +5,11 @@ import type {
   WeatherAlert,
   WeatherCurrentConditions,
   WeatherForecast,
+  WeatherForecastDay,
   WeatherForecastPeriod,
   WeatherLocation,
   WeatherProvider,
+  WeatherRequestOptions,
 } from '../../domain/weather/WeatherProvider';
 
 const nwsBaseUrl = 'https://api.weather.gov';
@@ -15,7 +17,14 @@ const metersToInches = 39.3701;
 const millimetersToInches = 0.0393701;
 const kilometersPerHourToMph = 0.621371;
 
+interface GridPrecipitationValue {
+  end: Date;
+  start: Date;
+  valueIn: number;
+}
+
 interface NwsPointMetadata {
+  forecast: string | null;
   forecastGridData: string | null;
   forecastHourly: string | null;
   observationStations: string | null;
@@ -27,7 +36,9 @@ export class NationalWeatherServiceProvider implements WeatherProvider {
 
   async getCurrentConditions(
     location: WeatherLocation,
+    _options: WeatherRequestOptions = {},
   ): Promise<WeatherCurrentConditions> {
+    void _options;
     const stationId = await this.getPrimaryStationId(location);
     const observed = stationId
       ? await requestJson(
@@ -44,8 +55,9 @@ export class NationalWeatherServiceProvider implements WeatherProvider {
       feelsLikeF: celsiusToFahrenheit(readQuantity(properties, 'heatIndex')),
       humidityPercent: readQuantity(properties, 'relativeHumidity'),
       observationTimeIso: readStringOrNull(properties?.timestamp),
-      precipitationLastHourIn: metersToOptionalInches(
-        readQuantity(properties, 'precipitationLastHour'),
+      precipitationLastHourIn: readPrecipitationQuantityInches(
+        properties,
+        'precipitationLastHour',
       ),
       providerId: this.id,
       sourceLabel: this.label,
@@ -55,14 +67,20 @@ export class NationalWeatherServiceProvider implements WeatherProvider {
     };
   }
 
-  async getForecast(location: WeatherLocation): Promise<WeatherForecast> {
+  async getForecast(
+    location: WeatherLocation,
+    _options: WeatherRequestOptions = {},
+  ): Promise<WeatherForecast> {
+    void _options;
     const point = await this.getPointMetadata(location);
+    const forecast = point.forecast ? await requestJson(point.forecast) : null;
     const hourly = point.forecastHourly
       ? await requestJson(point.forecastHourly)
       : null;
     const grid = point.forecastGridData
       ? await requestJson(point.forecastGridData)
       : null;
+    const dailyPeriods = parseForecastPeriods(forecast);
     const periods = parseHourlyForecastPeriods(hourly);
     const qpfValues = parseGridValues(grid, 'quantitativePrecipitation');
     const now = new Date();
@@ -70,12 +88,18 @@ export class NationalWeatherServiceProvider implements WeatherProvider {
     const in48h = addHours(now, 48);
     const next24hPrecipIn = sumGridPrecipitation(qpfValues, now, in24h);
     const next48hPrecipIn = sumGridPrecipitation(qpfValues, now, in48h);
+    const days = buildForecastDays(
+      dailyPeriods.length > 0 ? dailyPeriods : periods,
+      qpfValues,
+      location.timezone,
+    );
     const nextRainIso =
       findNextGridRainIso(qpfValues, now) ??
       findNextLikelyRainIso(periods, now);
 
     return {
       dailyHighF: maxTemperature(periods, now, in24h),
+      days,
       generatedAtIso: now.toISOString(),
       next24hPrecipIn: roundTo(next24hPrecipIn, 2),
       next48hPrecipIn: roundTo(next48hPrecipIn, 2),
@@ -87,7 +111,11 @@ export class NationalWeatherServiceProvider implements WeatherProvider {
     };
   }
 
-  async getWeatherAlerts(location: WeatherLocation): Promise<WeatherAlert[]> {
+  async getWeatherAlerts(
+    location: WeatherLocation,
+    _options: WeatherRequestOptions = {},
+  ): Promise<WeatherAlert[]> {
+    void _options;
     const url = new URL(`${nwsBaseUrl}/alerts/active`);
     url.searchParams.set('point', `${location.latitude},${location.longitude}`);
     const payload = await requestJson(url.toString());
@@ -125,7 +153,9 @@ export class NationalWeatherServiceProvider implements WeatherProvider {
   async getRecentPrecipitation(
     location: WeatherLocation,
     hours: number,
+    _options: WeatherRequestOptions = {},
   ): Promise<RecentPrecipitation> {
+    void _options;
     const stationId = await this.getPrimaryStationId(location);
     const now = new Date();
     const start = addHours(now, -Math.max(hours, 1));
@@ -150,7 +180,11 @@ export class NationalWeatherServiceProvider implements WeatherProvider {
     };
   }
 
-  async getOptionalAgricultureMetrics(): Promise<OptionalAgricultureMetrics> {
+  async getOptionalAgricultureMetrics(
+    _location: WeatherLocation,
+    _options: WeatherRequestOptions = {},
+  ): Promise<OptionalAgricultureMetrics> {
+    void _options;
     return {
       evapotranspirationIn: null,
       evapotranspirationNext24hIn: null,
@@ -183,6 +217,7 @@ export class NationalWeatherServiceProvider implements WeatherProvider {
     const properties = asRecord(asRecord(payload)?.properties);
 
     return {
+      forecast: readStringOrNull(properties?.forecast),
       forecastGridData: readStringOrNull(properties?.forecastGridData),
       forecastHourly: readStringOrNull(properties?.forecastHourly),
       observationStations: readStringOrNull(properties?.observationStations),
@@ -201,24 +236,33 @@ export class NationalWeatherServiceProvider implements WeatherProvider {
     const payload = await requestJson(url.toString());
     const features = asArray(asRecord(payload)?.features);
 
-    return features.flatMap((feature): PrecipitationObservation[] => {
-      const properties = asRecord(asRecord(feature)?.properties);
-      const observedAtIso = readStringOrNull(properties?.timestamp);
-      const precipitationIn = metersToOptionalInches(
-        readQuantity(properties, 'precipitationLastHour'),
-      );
+    const observations = features.flatMap(
+      (feature): PrecipitationObservation[] => {
+        const properties = asRecord(asRecord(feature)?.properties);
+        const observedAtIso = readStringOrNull(properties?.timestamp);
+        const precipitationIn = readPrecipitationQuantityInches(
+          properties,
+          'precipitationLastHour',
+        );
 
-      if (!observedAtIso || precipitationIn === null || precipitationIn <= 0) {
-        return [];
-      }
+        if (
+          !observedAtIso ||
+          precipitationIn === null ||
+          precipitationIn <= 0
+        ) {
+          return [];
+        }
 
-      return [
-        {
-          observedAtIso,
-          precipitationIn,
-        },
-      ];
-    });
+        return [
+          {
+            observedAtIso,
+            precipitationIn,
+          },
+        ];
+      },
+    );
+
+    return coalesceHourlyPrecipitationObservations(observations);
   }
 }
 
@@ -237,6 +281,10 @@ async function requestJson(url: string) {
 }
 
 function parseHourlyForecastPeriods(payload: unknown): WeatherForecastPeriod[] {
+  return parseForecastPeriods(payload);
+}
+
+function parseForecastPeriods(payload: unknown): WeatherForecastPeriod[] {
   const periods = asArray(asRecord(asRecord(payload)?.properties)?.periods);
 
   return periods.flatMap((period): WeatherForecastPeriod[] => {
@@ -265,52 +313,166 @@ function parseHourlyForecastPeriods(payload: unknown): WeatherForecastPeriod[] {
   });
 }
 
-function parseGridValues(payload: unknown, propertyName: string) {
+function parseGridValues(
+  payload: unknown,
+  propertyName: string,
+): GridPrecipitationValue[] {
   const property = asRecord(
     asRecord(asRecord(payload)?.properties)?.[propertyName],
   );
   const values = asArray(property?.values);
 
-  return values.flatMap(
-    (entry): Array<{ end: Date; start: Date; valueIn: number }> => {
-      const record = asRecord(entry);
-      const validTime = readStringOrNull(record?.validTime);
-      const valueMm = readNumberOrNull(record?.value);
-      const interval = validTime ? parseValidTime(validTime) : null;
+  return values.flatMap((entry): GridPrecipitationValue[] => {
+    const record = asRecord(entry);
+    const validTime = readStringOrNull(record?.validTime);
+    const valueMm = readNumberOrNull(record?.value);
+    const interval = validTime ? parseValidTime(validTime) : null;
 
-      if (!interval || valueMm === null || valueMm <= 0) {
-        return [];
-      }
+    if (!interval || valueMm === null || valueMm <= 0) {
+      return [];
+    }
 
-      return [
-        {
-          end: interval.end,
-          start: interval.start,
-          valueIn: valueMm * millimetersToInches,
-        },
-      ];
-    },
-  );
+    return [
+      {
+        end: interval.end,
+        start: interval.start,
+        valueIn: valueMm * millimetersToInches,
+      },
+    ];
+  });
 }
 
 function sumGridPrecipitation(
-  values: Array<{ end: Date; start: Date; valueIn: number }>,
+  values: GridPrecipitationValue[],
   start: Date,
   end: Date,
 ) {
   return values.reduce((total, value) => {
-    if (value.end <= start || value.start >= end) {
+    const overlapMs = getIntervalOverlapMs(value.start, value.end, start, end);
+    const durationMs = value.end.getTime() - value.start.getTime();
+
+    if (overlapMs <= 0 || durationMs <= 0) {
       return total;
     }
 
-    return total + value.valueIn;
+    return total + value.valueIn * (overlapMs / durationMs);
   }, 0);
 }
 
-function findNextGridRainIso(
-  values: Array<{ end: Date; start: Date; valueIn: number }>,
-  now: Date,
+function buildForecastDays(
+  periods: WeatherForecastPeriod[],
+  qpfValues: GridPrecipitationValue[],
+  timezone: string,
+): WeatherForecastDay[] {
+  const rainByDate = allocateGridPrecipitationByLocalDate(qpfValues, timezone);
+  const days = new Map<
+    string,
+    {
+      firstSummary: string | null;
+      highF: number | null;
+      precipitationChancePercent: number | null;
+      preferredSummary: string | null;
+    }
+  >();
+
+  periods.forEach((period) => {
+    const periodStart = new Date(period.startIso);
+
+    if (Number.isNaN(periodStart.getTime())) {
+      return;
+    }
+
+    const date = formatLocalDate(periodStart, timezone);
+    const current = days.get(date) ?? {
+      firstSummary: null,
+      highF: null,
+      precipitationChancePercent: null,
+      preferredSummary: null,
+    };
+
+    current.firstSummary ??= period.shortForecast;
+    if (period.isDaytime === true) {
+      current.preferredSummary ??= period.shortForecast;
+    }
+
+    if (
+      period.temperatureF !== null &&
+      (period.isDaytime !== false || current.highF === null)
+    ) {
+      current.highF =
+        current.highF === null
+          ? period.temperatureF
+          : Math.max(current.highF, period.temperatureF);
+    }
+
+    current.precipitationChancePercent =
+      current.precipitationChancePercent === null
+        ? period.precipitationChancePercent
+        : period.precipitationChancePercent === null
+          ? current.precipitationChancePercent
+          : Math.max(
+              current.precipitationChancePercent,
+              period.precipitationChancePercent,
+            );
+    days.set(date, current);
+  });
+
+  rainByDate.forEach((_rain, date) => {
+    if (!days.has(date)) {
+      days.set(date, {
+        firstSummary: null,
+        highF: null,
+        precipitationChancePercent: null,
+        preferredSummary: null,
+      });
+    }
+  });
+
+  return [...days.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .slice(0, 14)
+    .map(([date, day]) => ({
+      conditionSummary:
+        day.preferredSummary ?? day.firstSummary ?? 'NWS forecast',
+      date,
+      expectedRainIn: roundTo(rainByDate.get(date) ?? 0, 2),
+      highF: day.highF,
+      precipitationChancePercent: day.precipitationChancePercent,
+    }));
+}
+
+function allocateGridPrecipitationByLocalDate(
+  values: GridPrecipitationValue[],
+  timezone: string,
 ) {
+  const totals = new Map<string, number>();
+
+  values.forEach((value) => {
+    const durationMs = value.end.getTime() - value.start.getTime();
+
+    if (durationMs <= 0) {
+      return;
+    }
+
+    let cursor = value.start;
+
+    while (cursor < value.end) {
+      const date = formatLocalDate(cursor, timezone);
+      const segmentEnd = findNextLocalDateBoundary(cursor, value.end, timezone);
+      const segmentMs = segmentEnd.getTime() - cursor.getTime();
+      const segmentRain = value.valueIn * (segmentMs / durationMs);
+
+      totals.set(date, (totals.get(date) ?? 0) + segmentRain);
+      cursor = segmentEnd;
+    }
+  });
+
+  return new Map(
+    [...totals.entries()].map(([date, total]) => [date, roundTo(total, 2)]),
+  );
+}
+
+function findNextGridRainIso(values: GridPrecipitationValue[], now: Date) {
   return (
     values
       .find((value) => value.start >= now && value.valueIn >= 0.01)
@@ -380,6 +542,63 @@ function parseValidTime(value: string) {
   };
 }
 
+function findNextLocalDateBoundary(start: Date, end: Date, timezone: string) {
+  const startDate = formatLocalDate(start, timezone);
+  let probe = new Date(
+    Math.min(end.getTime(), start.getTime() + 60 * 60 * 1000),
+  );
+
+  while (probe < end && formatLocalDate(probe, timezone) === startDate) {
+    probe = new Date(Math.min(end.getTime(), probe.getTime() + 60 * 60 * 1000));
+  }
+
+  if (probe >= end && formatLocalDate(probe, timezone) === startDate) {
+    return end;
+  }
+
+  let low = start;
+  let high = probe;
+
+  while (high.getTime() - low.getTime() > 1000) {
+    const middle = new Date((low.getTime() + high.getTime()) / 2);
+
+    if (formatLocalDate(middle, timezone) === startDate) {
+      low = middle;
+    } else {
+      high = middle;
+    }
+  }
+
+  return high;
+}
+
+function getIntervalOverlapMs(
+  firstStart: Date,
+  firstEnd: Date,
+  secondStart: Date,
+  secondEnd: Date,
+) {
+  return Math.max(
+    Math.min(firstEnd.getTime(), secondEnd.getTime()) -
+      Math.max(firstStart.getTime(), secondStart.getTime()),
+    0,
+  );
+}
+
+function formatLocalDate(date: Date, timezone: string) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: timezone,
+    year: 'numeric',
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value ?? '0000';
+  const month = parts.find((part) => part.type === 'month')?.value ?? '01';
+  const day = parts.find((part) => part.type === 'day')?.value ?? '01';
+
+  return `${year}-${month}-${day}`;
+}
+
 function parseDurationHours(value: string) {
   const match = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?)?$/.exec(value);
 
@@ -393,6 +612,66 @@ function parseDurationHours(value: string) {
 function readQuantity(record: unknown, key: string) {
   const value = asRecord(asRecord(record)?.[key])?.value;
   return readNumberOrNull(value);
+}
+
+function readPrecipitationQuantityInches(record: unknown, key: string) {
+  const quantity = asRecord(asRecord(record)?.[key]);
+  const value = readNumberOrNull(quantity?.value);
+  const unitCode = readStringOrNull(quantity?.unitCode);
+
+  return convertPrecipitationQuantityToInches(value, unitCode);
+}
+
+function convertPrecipitationQuantityToInches(
+  value: number | null,
+  unitCode: string | null,
+) {
+  if (value === null || value < 0 || !unitCode) {
+    return null;
+  }
+
+  const normalizedUnit = unitCode.toLowerCase();
+
+  if (normalizedUnit.endsWith(':mm') || normalizedUnit === 'mm') {
+    return roundTo(value * millimetersToInches, 2);
+  }
+
+  if (normalizedUnit.endsWith(':m') || normalizedUnit === 'm') {
+    return roundTo(value * metersToInches, 2);
+  }
+
+  if (
+    normalizedUnit.endsWith(':in') ||
+    normalizedUnit === 'in' ||
+    normalizedUnit.includes('inch')
+  ) {
+    return roundTo(value, 2);
+  }
+
+  return null;
+}
+
+function coalesceHourlyPrecipitationObservations(
+  observations: PrecipitationObservation[],
+) {
+  const observationsByHour = new Map<string, PrecipitationObservation>();
+
+  for (const observation of observations) {
+    const observedAt = new Date(observation.observedAtIso);
+
+    if (Number.isNaN(observedAt.getTime())) {
+      continue;
+    }
+
+    const hourKey = observedAt.toISOString().slice(0, 13);
+    const current = observationsByHour.get(hourKey);
+
+    if (!current || observation.precipitationIn > current.precipitationIn) {
+      observationsByHour.set(hourKey, observation);
+    }
+  }
+
+  return [...observationsByHour.values()];
 }
 
 function readNumberOrNull(value: unknown) {
@@ -419,10 +698,6 @@ function asArray(value: unknown): unknown[] {
 
 function celsiusToFahrenheit(value: number | null) {
   return value === null ? null : roundTo((value * 9) / 5 + 32, 1);
-}
-
-function metersToOptionalInches(value: number | null) {
-  return value === null ? null : roundTo(value * metersToInches, 2);
 }
 
 function sumObservationPrecipitation(observations: PrecipitationObservation[]) {

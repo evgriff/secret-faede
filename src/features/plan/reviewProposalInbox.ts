@@ -59,7 +59,7 @@ export function getReviewProposalNextAction(inbox: ReviewProposalInbox): {
   if (inbox.openSuggestions.length === 0) {
     return {
       detail:
-        'Generate checked variants or keep editing to surface problem decisions.',
+        'Generate a layout suggestion or keep editing to surface problem decisions.',
       label: 'No draft decisions waiting',
     };
   }
@@ -80,8 +80,8 @@ export function getReviewProposalNextAction(inbox: ReviewProposalInbox): {
 
   if (inbox.stats.layoutCount > 0) {
     return {
-      detail: 'Preview the generated layout before applying it to the draft.',
-      label: 'Walk through the layout proposal',
+      detail: 'Preview the layout suggestion before applying it to the draft.',
+      label: 'Walk through the layout suggestion',
     };
   }
 
@@ -146,7 +146,7 @@ export function getReviewProposalChangeSummary(suggestion: ReviewSuggestion) {
     case 'moveTallCropNorth':
       return 'Move a tall crop north to reduce shade pressure.';
     case 'optimizerProposal':
-      return 'Apply this generated layout candidate to the draft.';
+      return 'Apply this layout suggestion to the draft.';
     case 'reassignCropToBed':
       return 'Move the crop into a bed or container that fits it better.';
     case 'splitOvercrowdedPlanting':

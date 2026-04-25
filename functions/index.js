@@ -119,14 +119,22 @@ exports.refreshGardenOperations = onCall(async (request) => {
 });
 
 exports.onGardenWeatherSnapshotUpdated = onDocumentWritten(
-  'gardens/{uid}',
+  'gardenWorkspaces/main/drafts/{uid}',
   async (event) => {
-    const beforeGarden = event.data?.before.exists
+    const beforeDraft = event.data?.before.exists
       ? event.data.before.data()
       : null;
-    const afterGarden = event.data?.after.exists
+    const afterDraft = event.data?.after.exists
       ? event.data.after.data()
       : null;
+    const beforeGarden =
+      beforeDraft && typeof beforeDraft.garden === 'object'
+        ? beforeDraft.garden
+        : null;
+    const afterGarden =
+      afterDraft && typeof afterDraft.garden === 'object'
+        ? afterDraft.garden
+        : null;
 
     if (!afterGarden) {
       return;
@@ -172,6 +180,7 @@ exports.onGardenWeatherSnapshotUpdated = onDocumentWritten(
     for (const notification of notifications) {
       await dispatchNotification({
         body: notification.body,
+        dedupeKey: notification.dedupeKey ?? null,
         garden: afterGarden,
         profile,
         title: notification.title,
@@ -184,17 +193,19 @@ exports.onGardenWeatherSnapshotUpdated = onDocumentWritten(
 
 async function dispatchNotification({
   body,
+  dedupeKey = null,
   garden,
   profile,
   title,
   type,
   uid,
 }) {
-  const duplicate = await wasRecentlyLogged({
+  const duplicate = wasRecentlyLogged({
     body,
-    channel: 'inApp',
+    dedupeKey,
+    garden,
+    now: new Date(),
     type,
-    uid,
   });
 
   if (duplicate) {
@@ -202,34 +213,33 @@ async function dispatchNotification({
     return;
   }
 
+  const inAppDecision = shouldSendNotification({
+    channel: 'inApp',
+    profile,
+    type,
+  });
+
   await writeNotificationLog(
     createNotificationLog({
       body,
       channel: 'inApp',
-      decisionReason: shouldSendNotification({
-        channel: 'inApp',
-        profile,
-        type,
-      }).reason,
+      decisionReason: inAppDecision.reason,
+      dedupeKey,
       gardenId: garden.id || uid,
       provider: 'inApp',
       recipientRedacted: 'in-app',
-      status: shouldSendNotification({
-        channel: 'inApp',
-        profile,
-        type,
-      }).allowed
-        ? 'sent'
-        : 'skipped',
+      status: inAppDecision.allowed ? 'sent' : 'skipped',
       title,
       type,
       userId: uid,
     }),
     uid,
+    garden,
   );
 
   await sendPushAndLog({
     body,
+    dedupeKey,
     garden,
     profile,
     title,
@@ -238,7 +248,15 @@ async function dispatchNotification({
   });
 }
 
-async function sendPushAndLog({ body, garden, profile, title, type, uid }) {
+async function sendPushAndLog({
+  body,
+  dedupeKey = null,
+  garden,
+  profile,
+  title,
+  type,
+  uid,
+}) {
   const decision = shouldSendNotification({ channel: 'push', profile, type });
 
   if (!decision.allowed) {
@@ -247,6 +265,7 @@ async function sendPushAndLog({ body, garden, profile, title, type, uid }) {
         body,
         channel: 'push',
         decisionReason: decision.reason,
+        dedupeKey,
         errorMessage: decision.reason,
         gardenId: garden.id || uid,
         provider: 'firebaseCloudMessaging',
@@ -257,6 +276,7 @@ async function sendPushAndLog({ body, garden, profile, title, type, uid }) {
         userId: uid,
       }),
       uid,
+      garden,
     );
     return { reason: decision.reason, status: 'skipped' };
   }
@@ -280,6 +300,7 @@ async function sendPushAndLog({ body, garden, profile, title, type, uid }) {
       createNotificationLog({
         body,
         channel: 'push',
+        dedupeKey,
         errorMessage: 'No web or native push tokens registered',
         gardenId: garden.id || uid,
         provider: 'firebaseCloudMessaging',
@@ -290,6 +311,7 @@ async function sendPushAndLog({ body, garden, profile, title, type, uid }) {
         userId: uid,
       }),
       uid,
+      garden,
     );
     return {
       reason: 'No web or native push tokens registered',
@@ -320,6 +342,7 @@ async function sendPushAndLog({ body, garden, profile, title, type, uid }) {
         body,
         channel: 'push',
         decisionReason: 'push provider error',
+        dedupeKey,
         deepLink,
         errorMessage,
         gardenId: garden.id || uid,
@@ -331,6 +354,7 @@ async function sendPushAndLog({ body, garden, profile, title, type, uid }) {
         userId: uid,
       }),
       uid,
+      garden,
     );
 
     return { reason: errorMessage, status: 'failed' };
@@ -356,6 +380,7 @@ async function sendPushAndLog({ body, garden, profile, title, type, uid }) {
       channel: 'push',
       decisionReason:
         response.failureCount > 0 ? 'partial push failure' : 'allowed',
+      dedupeKey,
       deepLink,
       errorMessage:
         response.failureCount > 0
@@ -370,6 +395,7 @@ async function sendPushAndLog({ body, garden, profile, title, type, uid }) {
       userId: uid,
     }),
     uid,
+    garden,
   );
 
   return {
@@ -379,46 +405,55 @@ async function sendPushAndLog({ body, garden, profile, title, type, uid }) {
   };
 }
 
-async function writeNotificationLog(log, uid, extra = {}) {
+async function writeNotificationLog(log, uid, garden, extra = {}) {
   const payload = {
     ...log,
     ...extra,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
   };
+  const nextLogs = [...(garden.notificationLogs || []), payload].slice(-60);
+
+  garden.notificationLogs = nextLogs;
 
   await db
-    .collection('gardens')
+    .collection('gardenWorkspaces')
+    .doc('main')
+    .collection('drafts')
     .doc(uid)
-    .collection('notifications')
-    .doc(log.id)
-    .set(payload);
+    .set(
+      {
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAtIso: payload.createdAtIso,
+        userId: uid,
+        garden: {
+          notificationLogs: nextLogs,
+          updatedAtIso: payload.createdAtIso,
+        },
+      },
+      { merge: true },
+    );
 }
 
-async function wasRecentlyLogged({ body, channel, type, uid }) {
-  const snapshot = await db
-    .collection('gardens')
-    .doc(uid)
-    .collection('notifications')
-    .limit(100)
-    .get();
-  const nowMs = Date.now();
+function wasRecentlyLogged({ body, dedupeKey = null, garden, now, type }) {
+  const nowMs = now.getTime();
   const cutoffMs = nowMs - 24 * 60 * 60 * 1000;
-  const dedupeKey = `${channel}:${type}:${body}`;
+  const fallbackKey = `${type}:${body}`;
 
-  return snapshot.docs.some((document) => {
-    const log = document.data();
+  return (garden.notificationLogs || []).some((log) => {
     const createdAt = Date.parse(log.createdAtIso || '');
     const snoozedUntil = Date.parse(log.snoozedUntilIso || '');
     const matchesAlert =
-      log.channel === channel &&
-      log.type === type &&
-      (log.body === body || log.dedupeKey === dedupeKey);
+      (dedupeKey &&
+        log.type === type &&
+        (log.dedupeKey === dedupeKey || log.body === body)) ||
+      ((!dedupeKey || !log.dedupeKey) &&
+        log.type === type &&
+        (log.body === body || `${log.type}:${log.body}` === fallbackKey));
 
     if (!matchesAlert) {
       return false;
     }
 
-    if (Number.isFinite(snoozedUntil) && snoozedUntil > nowMs) {
+    if (Number.isFinite(snoozedUntil) && snoozedUntil > now.getTime()) {
       return true;
     }
 

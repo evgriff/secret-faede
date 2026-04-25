@@ -293,6 +293,10 @@ export function isActivePlanWarning(warning: PlanWarning) {
   return taxonomy === 'mustFix' || taxonomy === 'recommendedImprovement';
 }
 
+export function isUserFacingPlanWarning(warning: PlanWarning) {
+  return warning.kind !== 'pathway';
+}
+
 function dedupePlanWarnings(warnings: PlanWarning[]) {
   const byKey = new Map<string, PlanWarning>();
 

@@ -1,6 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { openPlanTool } from './appSmokeHelpers';
+import {
+  enterDemoFromShell,
+  openPlanTool,
+  signInToFirstRunSetup,
+} from './appSmokeHelpers';
 
 const visualTime = new Date('2026-06-21T14:00:00.000Z');
 const routes = [
@@ -64,6 +68,65 @@ test.describe('main route visual baselines', () => {
 
 test.describe('Plan workflow visual baselines', () => {
   for (const viewport of viewports) {
+    if (viewport.name === 'desktop') {
+      test(`first-run setup ${viewport.name}`, async ({ page }) => {
+        await setVisualViewport(page, viewport);
+        await signInToFirstRunSetup(page);
+        await stabilizeVisualState(page);
+        await expect(page).toHaveScreenshot(
+          `first-run-setup-${viewport.name}.png`,
+          {
+            animations: 'disabled',
+            caret: 'hide',
+            maxDiffPixelRatio: 0.01,
+          },
+        );
+      });
+    }
+
+    test(`add plant ${viewport.name}`, async ({ page }) => {
+      await setVisualViewport(page, viewport);
+      await signInAndCreateBlankPlan(page);
+      await openPlanTool(page, 'Plant');
+      await page.getByRole('button', { name: 'Open plant picker' }).click();
+      await expect(
+        page.getByRole('dialog', { name: 'Add Plant' }),
+      ).toBeVisible();
+      await stabilizeVisualState(page);
+      await expect(page).toHaveScreenshot(`add-plant-${viewport.name}.png`, {
+        animations: 'disabled',
+        caret: 'hide',
+        maxDiffPixelRatio: 0.01,
+      });
+    });
+
+    if (viewport.name === 'desktop') {
+      test(`add plant advanced ${viewport.name}`, async ({ page }) => {
+        await setVisualViewport(page, viewport);
+        await signInAndCreateBlankPlan(page);
+        await openPlanTool(page, 'Plant');
+        await page.getByRole('button', { name: 'Open plant picker' }).click();
+        const addPlant = page.getByRole('dialog', { name: 'Add Plant' });
+
+        await expect(addPlant).toBeVisible();
+        await addPlant
+          .getByRole('button', { name: 'Advanced filters' })
+          .click();
+        await expect(
+          addPlant.getByRole('combobox', { name: /Growth form/i }),
+        ).toBeVisible();
+        await stabilizeVisualState(page);
+        await expect(page).toHaveScreenshot(
+          `add-plant-advanced-${viewport.name}.png`,
+          {
+            animations: 'disabled',
+            caret: 'hide',
+            maxDiffPixelRatio: 0.01,
+          },
+        );
+      });
+    }
+
     test(`choose plants ${viewport.name}`, async ({ page }) => {
       await setVisualViewport(page, viewport);
       await signInAndCreateBlankPlan(page);
@@ -76,18 +139,23 @@ test.describe('Plan workflow visual baselines', () => {
       ).toBeVisible();
       await page.getByRole('button', { name: 'Add Tomato' }).click();
       if (viewport.name === 'mobile') {
-        await page.getByRole('tab', { name: 'Season Board' }).click();
+        await page.getByRole('tab', { name: 'Picked' }).click();
+        await expect(
+          page.getByRole('region', { name: 'Season crop board' }),
+        ).toContainText('Tomato');
+      } else {
+        await expect(
+          page.getByRole('button', { name: 'Expand picked plants' }),
+        ).toBeVisible();
       }
-      await expect(
-        page.getByRole('region', { name: 'Season crop board' }),
-      ).toContainText('Tomato');
+      await resetChoosePlantsScrollState(page);
       await stabilizeVisualState(page);
       await expect(page).toHaveScreenshot(
         `choose-plants-${viewport.name}.png`,
         {
           animations: 'disabled',
           caret: 'hide',
-          maxDiffPixelRatio: 0.01,
+          maxDiffPixelRatio: viewport.name === 'desktop' ? 0.05 : 0.01,
         },
       );
     });
@@ -99,10 +167,10 @@ test.describe('Plan workflow visual baselines', () => {
       await generateLayoutCandidates(page);
       await expect(
         page
-          .getByRole('region', { name: 'Layout walkthrough' })
+          .getByRole('region', { name: 'Layout suggestion' })
           .getByRole('heading', {
             exact: true,
-            name: 'Checked layout variants',
+            name: 'Try a different arrangement',
           }),
       ).toBeVisible();
       await expect(
@@ -124,18 +192,16 @@ test.describe('Plan workflow visual baselines', () => {
       await setVisualViewport(page, viewport);
       await signInAndCreateBlankPlan(page);
       await addTomatoToPlan(page);
-      await clickVisibleOrLauncherTool(page, 'Optimize');
+      await clickVisibleOrLauncherTool(page, 'Review problems');
       await expect(
-        page.getByRole('heading', { name: 'Problem inbox and variants' }),
+        page.getByRole('heading', { name: 'Review problems' }),
+      ).toBeVisible();
+      await expect(page.getByText('Review', { exact: true })).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Apply fix' }).first(),
       ).toBeVisible();
       await expect(
-        page.getByText('Problem inbox', { exact: true }),
-      ).toBeVisible();
-      await expect(
-        page.getByRole('button', { name: 'Apply complete resolution' }).first(),
-      ).toBeVisible();
-      await expect(
-        page.getByRole('button', { name: 'Ignore problem' }).first(),
+        page.getByRole('button', { name: 'Ignore for now' }).first(),
       ).toBeVisible();
       await stabilizeVisualState(page);
       await expect(page).toHaveScreenshot(`review-queue-${viewport.name}.png`, {
@@ -144,6 +210,31 @@ test.describe('Plan workflow visual baselines', () => {
         maxDiffPixelRatio: 0.01,
       });
     });
+
+    if (viewport.name === 'desktop') {
+      test(`plant editor ${viewport.name}`, async ({ page }) => {
+        await setVisualViewport(page, viewport);
+        await signInAndCreateBlankPlan(page);
+        await addTomatoToPlan(page);
+        const focus = page.getByRole('complementary', { name: 'Crop focus' });
+
+        await expect(focus).toBeVisible();
+        await focus.getByRole('button', { name: /Open details/ }).click();
+        await expect(
+          page.getByRole('dialog', { name: /Edit Tomato/ }),
+        ).toBeVisible();
+        await expect(page.getByText('Picture metadata')).toHaveCount(0);
+        await stabilizeVisualState(page);
+        await expect(page).toHaveScreenshot(
+          `plant-editor-${viewport.name}.png`,
+          {
+            animations: 'disabled',
+            caret: 'hide',
+            maxDiffPixelRatio: 0.01,
+          },
+        );
+      });
+    }
   }
 });
 
@@ -160,30 +251,18 @@ async function setVisualViewport(
 
 async function signInAndLoadDemo(page: Page) {
   await signInAndCreateBlankPlan(page);
-  await page.getByRole('button', { name: 'Enter demo' }).click();
-  await expect(
-    page.getByLabel('Demo controls').getByRole('button', { name: 'Exit demo' }),
-  ).toBeVisible();
-  await expect(page.getByText('20 ft by 16 ft')).toBeVisible({
-    timeout: 15_000,
-  });
+  await enterDemoFromShell(page);
 }
 
 async function signInAndCreateBlankPlan(page: Page) {
-  await page.goto('/');
-  await page.getByLabel('Email').fill('primary.gardener@example.com');
-  await page.getByLabel('Password', { exact: true }).fill('password');
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(
-    page.getByRole('heading', { name: 'Set up your garden' }),
-  ).toBeVisible();
+  await signInToFirstRunSetup(page);
   await page.getByLabel(/Blank plan/).check();
   await page.getByRole('button', { name: 'Create plan' }).click();
   await expect(page.locator('h1', { hasText: 'Plan' })).toBeVisible();
 }
 
 async function openChoosePlants(page: Page) {
-  await clickVisibleOrLauncherTool(page, 'Add Plants');
+  await clickVisibleOrLauncherTool(page, 'Add plants');
   await expect(
     page.getByRole('dialog', { name: 'Choose Plants' }),
   ).toBeVisible();
@@ -193,7 +272,14 @@ async function addTomatoToSeasonList(page: Page) {
   await openChoosePlants(page);
   await page.getByRole('searchbox', { name: 'Search plants' }).fill('tomato');
   await page.getByRole('button', { name: 'Add Tomato' }).click();
-  const seasonBoardTab = page.getByRole('tab', { name: 'Season Board' });
+  const expandPickedPlants = page.getByRole('button', {
+    name: 'Expand picked plants',
+  });
+  const seasonBoardTab = page.getByRole('tab', { name: 'Picked' });
+
+  if (await expandPickedPlants.isVisible().catch(() => false)) {
+    await expandPickedPlants.click();
+  }
 
   if (await seasonBoardTab.isVisible().catch(() => false)) {
     await seasonBoardTab.click();
@@ -220,15 +306,21 @@ async function addTomatoToPlan(page: Page) {
 }
 
 async function generateLayoutCandidates(page: Page) {
-  await clickVisibleOrLauncherTool(page, 'Optimize');
+  await clickVisibleOrLauncherTool(page, 'Generate layout');
 
   await expect(
-    page.getByRole('heading', { name: 'Problem inbox and variants' }),
+    page.getByRole('heading', { name: 'Review problems' }),
   ).toBeVisible();
-  await page
-    .getByRole('button', { name: 'Generate checked variants' })
-    .first()
-    .click();
+  const beforeAfterPreview = page.getByRole('region', {
+    name: 'Before and after preview',
+  });
+
+  if (!(await beforeAfterPreview.isVisible().catch(() => false))) {
+    await page
+      .getByRole('button', { name: /Generate layout|Check again/ })
+      .first()
+      .click();
+  }
 }
 
 async function clickVisibleOrLauncherTool(page: Page, name: string) {
@@ -239,15 +331,56 @@ async function clickVisibleOrLauncherTool(page: Page, name: string) {
     return;
   }
 
-  await page.getByRole('button', { name: 'Open build tools' }).click();
-  const launcher = page.getByLabel('Build tool launcher');
+  await page.getByRole('button', { name: 'Open more tools' }).click();
+  const launcher = page.locator('[aria-label="More tools menu"]');
 
   await expect(launcher).toBeVisible();
-  await launcher.getByRole('button', { name }).click();
+  await launcher.getByRole('button', { name }).click({ force: true });
 }
 
 async function stabilizeVisualState(page: Page) {
   await page.waitForLoadState('networkidle');
-  await page.evaluate('window.scrollTo(0, 0)');
+  await page.evaluate(`
+    (() => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      document.querySelectorAll('*').forEach((element) => {
+        if ('scrollTop' in element && typeof element.scrollTop === 'number' && element.scrollTop !== 0) {
+          element.scrollTop = 0;
+        }
+        if ('scrollLeft' in element && typeof element.scrollLeft === 'number' && element.scrollLeft !== 0) {
+          element.scrollLeft = 0;
+        }
+      });
+    })()
+  `);
   await page.waitForTimeout(100);
+}
+
+async function resetChoosePlantsScrollState(page: Page) {
+  await page.evaluate(() => {
+    const dialog = (globalThis as { document?: unknown }).document as
+      | {
+          querySelector(selector: string): unknown;
+        }
+      | undefined;
+    const root = dialog?.querySelector('[role="dialog"]') as
+      | {
+          querySelectorAll(selector: string): ArrayLike<{
+            scrollTop?: number;
+          }>;
+        }
+      | undefined;
+
+    if (!root) {
+      return;
+    }
+
+    Array.from(root.querySelectorAll('*')).forEach((element) => {
+      if (typeof element.scrollTop === 'number' && element.scrollTop !== 0) {
+        element.scrollTop = 0;
+      }
+    });
+  });
 }

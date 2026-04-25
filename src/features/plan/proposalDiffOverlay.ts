@@ -61,7 +61,7 @@ export function buildAutoLayoutProposalDiffOverlay({
     sunSeason,
   });
 
-  return toOverlayModel(`${candidate.label} variant`, preview);
+  return toOverlayModel('Layout suggestion', preview);
 }
 
 export function buildReviewSuggestionDiffOverlay({

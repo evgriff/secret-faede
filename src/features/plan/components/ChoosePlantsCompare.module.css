@@ -67,57 +67,50 @@
   white-space: nowrap;
 }
 
-.factChips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.28rem;
+.compareFacts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.35rem;
+  margin: 0;
 }
 
-.compareChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.22rem;
-  border-radius: 999px;
-  background: #f7f1e8;
-  color: #453b31;
+.compareFact {
+  display: grid;
+  gap: 0.12rem;
+  border: 1px solid rgba(54, 48, 40, 0.1);
+  border-radius: var(--radius-control);
+  background: rgba(246, 242, 233, 0.48);
+  padding: 0.42rem 0.5rem;
+}
+
+.compareFact dt {
+  color: var(--color-text-muted);
   font-size: var(--font-size-caption);
-  font-weight: 800;
-  line-height: 1;
-  padding: 0.22rem 0.42rem;
-  white-space: nowrap;
+  font-weight: 760;
+  margin: 0;
 }
 
-.compareChip span {
-  color: rgba(69, 59, 49, 0.72);
-  font-weight: 720;
+.compareFact dd {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-caption);
+  font-weight: 820;
 }
 
-.compareChip[data-tone='strong'] {
+.compareFact[data-tone='strong'] {
   background: #eef7ea;
-  color: #24472e;
 }
 
-.compareChip[data-tone='good'] {
+.compareFact[data-tone='good'] {
   background: #e8f5f4;
-  color: #164f52;
 }
 
-.compareChip[data-tone='watch'] {
+.compareFact[data-tone='watch'] {
   background: #fff3df;
-  color: #704211;
 }
 
-.compareChip[data-tone='poor'] {
+.compareFact[data-tone='poor'] {
   background: #f9edf0;
-  color: #6d2037;
-}
-
-.compareChip[data-tone='strong'] span,
-.compareChip[data-tone='good'] span,
-.compareChip[data-tone='watch'] span,
-.compareChip[data-tone='poor'] span {
-  color: currentColor;
-  opacity: 0.74;
 }
 
 .emptyText {

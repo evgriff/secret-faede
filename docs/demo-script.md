@@ -1,169 +1,109 @@
 # Demo Script
 
-Date: 2026-04-21
+Date: 2026-04-24
 
 ## Setup
 
 - Use mock runtime unless demonstrating Firebase specifically.
 - Start with `npm run dev`.
 - Sign in with an allowlisted email and the mock password `password`.
-- Click **Enter demo** from the shell. Settings has the same demo card if you
-  want to show the control surface explicitly; shell entry returns to the
-  workspace where the walkthrough started.
-- Use **Reset seeded demo** before a meeting to restore the stable Detroit
+- Open **Settings** and use **Open sample garden** to load the seeded Detroit
+  example. While the sample is active, the shell exposes **Back to my garden**
+  on every route.
+- Use **Reset sample garden** before a meeting to restore the seeded Detroit
   baseline; it should put the watering check back to 7:15 AM even if the prior
-  demo changed settings.
-- Use **Exit demo** after the walkthrough to restore the garden draft saved
-  before demo mode and return to the current workspace.
+  walkthrough changed settings or completed work.
+- Use **Back to my garden** after the walkthrough to restore the garden draft
+  saved before the sample was opened on this device and stay on the current
+  route whenever possible.
 - Never enter, seed, or commit off-scope contact-delivery test data.
 
 ## Story
 
-Secret Faede is a Garden OS for one real home food garden. The demo shows the
-closed loop: Plan the plot, run Today, capture the Feed, and control trust in
-Settings.
+Secret Faede is for one real home food garden. The sample garden shows the
+closed loop: place the garden in Plan, do the work in Today, remember it in
+Feed, and keep the defaults trustworthy in Settings.
 
-## Demo Garden
+## Sample Garden
 
 The sample garden loads **Sample Kitchen Garden** in Detroit, MI.
 
 It includes:
 
 - a 20 ft by 16 ft plot
-- three beds, an access path, trellis, and quiet water/compost operations markers
-- anchored peas, lettuce, radishes, and spinach with lower-volume individual
-  nodes that stay legible in the redesigned Plan canvas
-- movable planned tomatoes, pepper, cilantro, and carrot succession ideas with
-  clear `[auto-layout]` notes
-- a season board with tomatoes, cucumber, parsley, and cilantro ready for
-  re-optimization
-- active Review proposal-inbox items for tomato support, cucumber support,
-  pepper sun mismatch, rotation history, and a narrow access path
-- a summer sun layer with manual shade corrections
-- a high-priority watering recommendation
-- due tasks for watering, harvest, issue inspection, trellis, mulch, and
-  succession review
-- issue, note, large-photo, harvest, and notification history examples
-- coherent Detroit alert settings
+- three beds, one main path, and one saved trellis
+- active cool-season crops plus a few planned warm-season moves
+- Detroit location, timezone, frost dates, and watering defaults
+- one clear layout suggestion instead of a compare-many optimizer deck
+- one real watering schedule entry tied to weather, crop need, and bed context
+- due work in Today for watering, harvest, issue follow-up, support staging,
+  mulch prep, and succession timing
+- watering, issue, note, photo, harvest, publish, and alert history in Feed
+- sample controls in Settings plus **Back to my garden** in the shell
 
 ## Step-By-Step
 
 1. Auth
-   Open `/`, enter an allowlisted email and password, keep **Remember this
-   device** on, and sign in. Mention that Firebase Email/Password auth remains
-   behind `AuthService` and there is no public sign-up path.
+   Open `/`, enter an allowlisted email and password, keep **Stay signed in on
+   this trusted device** on, and sign in. Mention that Firebase Email/Password
+   auth remains behind `AuthService` and there is no public sign-up path.
 
 2. First-run
    On a fresh user, show the setup flow briefly: garden name, plot type, plot
    size, starter layouts, and Blank plan. Open **Optional location and climate**
    only to show that location, timezone, USDA zone, and frost dates can still be
-   refined without blocking the first entry. Then click **Enter demo** in the
-   shell for the main story.
+   refined without blocking the first entry.
 
-3. Settings demo controls
-   Open Settings and show the demo card. Point out that the shell and Settings
-   both expose enter/reset/exit, that Exit demo restores the saved real garden,
-   and that reset is safe before a meeting. Show the Detroit profile, 7:15 AM
-   watering check, quiet hours, push delivery, push consent, and notification
-   center. Mention that push and in-app history are the active notification
-   paths.
+3. Sample garden controls
+   Open Settings and show the sample-garden card. Point out that **Open sample
+   garden** loads a resettable Detroit example, **Reset sample garden**
+   restores the seeded baseline, and **Back to my garden** restores the saved
+   real garden from this device. Once the sample is active, point out the shell
+   banner so the return path stays obvious outside Settings.
 
 4. Plan
-   Open Plan. Show the feet-based plot, beds, path, trellis, crop nodes,
-   arrangements, and saved dimensions. Switch to Optimize and show the compact Plan health
-   panel separately from the Proposal inbox. Point out the small, useful issue
-   set: narrow path, tomato cage, pepper shade, and rotation history. Do not
-   present the demo as broken; it is a plausible draft with a few decisions to
-   make.
-   Open **Choose plants** and show the preloaded season board: two Roma
-   tomatoes, a trellised cucumber row, parsley, and cilantro. Adjust one plant
-   count, point out the recommended planting form, then save the list. Open Add
-   Plant for a quick three-plant crop example and show that the arrangement
-   editor creates separate feet-based nodes instead of one oversized circle.
-   Select the group and adjust spacing from the inspector so the same grouped
-   crop remains editable after placement. Select one tomato or carrot node and
-   show the crop focus card: Plant for the individual node, Crop for the
-   matching-node count, and Needs for support, sun, warnings, and open work.
-   Toggle **Show influence** to reveal the keep-away radius and any modeled
-   shade cells for that crop, then hide it before continuing. Use **Open
-   details** only when you want to show the full inspector.
-   The saved demo intentionally uses scan-friendly counts: eight peas, nine
-   lettuce heads, fourteen radishes, nine spinach plants, two planned tomatoes,
-   one planned pepper, six cilantro plants, and a sixteen-node carrot
-   succession.
-   Click **Optimize**, compare the named candidates, and use before/after
-   preview to show that rough
-   `[auto-layout]` planned ideas can move while planted/growing crops remain
-   anchored. Apply the clearest candidate and confirm the draft updates
-   immediately with proposed cucumber trellis and tomato cage materials.
-   Select a crop that is already planted or growing and show the anchored
-   lifecycle signal, optimizer mobility copy, and explicit **Allow relocation**
-   control. Explain that planned crops are still movable ideas, while
-   planted/growing crops stay fixed unless the gardener chooses to treat them as
-   movable.
-   In Review, point out that planned-only moves and physical-move requests are
-   labeled differently. Accept a planned-only proposal; avoid accepting a
-   physical move unless the story is explicitly about updating the plan after a
-   real-world transplant.
-   Switch to Structure mode, show that paths can use accessible 4 ft defaults,
-   then select the saved path or trellis and show material, continuity, working
-   clearance, and footprint details in the inspector instead of a crowded main
-   toolbar.
-   In Plan operations, point out that the material list now derives bed
-   dimensions, path surface area, trellis length, and crop cage/stake/trellis
-   suggestions from the saved plan, plus completeness add-ons like mulch and
-   seasonal row cover when the current crop mix and dates justify them.
-   Show the draft/published badge, save the private draft, open **Publish**, and
-   point out changed items, accepted Review proposals, rejected/snoozed
-   decisions, low-risk support, and physical-move confirmation. Use the
-   two-step **Review revert** path only after publishing or after explaining
-   that **Reset seeded demo** restores the baseline.
+   Open Plan. Show the feet-based plot, beds, path, trellis, crop nodes, and
+   saved dimensions. Explain that the draft is plausible already: peas and cool
+   crops are anchored, while warm-season ideas are still planned and movable.
+   Open **Generate layout** and show the practical review flow:
+   **What needs attention**, one **Layout suggestion**, one before/after
+   preview, one summary of why the suggestion helps, and **Apply this layout**
+   or **Keep current layout**. The point is not planner cleverness; it is one
+   checked arrangement that keeps crops reachable and support simpler.
+   Open **Add plants** and show that Detroit drives the picker: search works
+   normally, but the saved location and timing help surface what fits now or
+   soon. Mention that tomatoes and peppers are still future transplants here,
+   while cool-season crops already in the sample are planted now.
 
-5. Sun/shade
-   Switch to Sun/Climate mode. Show the spring, summer, and fall season
-   controls, the direct-sun hour legend, and the modeled shade-source counts.
-   Point out that saved shade context, support structures, and tall or
-   trellised crops can influence the modeled layer, but the demo story stays
-   plant-first. Paint one observed cell, then refresh the model
-   and show that manual cells are preserved. Select a crop and show the Care tab
-   language: **sun ready**, **sun check**, or **sun mismatch**, plus
-   source-aware advice for saved shade-source, structure, or tall-crop shade
-   and conservative microclimate notes such as west heat, reflected heat, cool
-   shade pocket, or wind-exposed edge.
+5. Today
+   Open Today. Show **Watering work** first. Point out that the due card is a
+   schedule entry, not a generic recommendation: it has an amount, a target,
+   weather-linked reasoning, and direct field actions for **Water done**,
+   **Partial watering**, **Skip for rain**, **Snooze to tonight**, **Snooze to
+   tomorrow**, and **Adjust amount**. Then show the rest of the day: harvest
+   work, the open slug issue, and the staged support and succession tasks.
+   Mention that Today is the work surface, so alerts should bring the gardener
+   back here rather than create a second dashboard.
 
-6. Watering
-   In Plan operations, show the latest weather snapshot and the active
-   recommendation for the roots and salad bed. Point out rationale, data quality,
-   and refreshed time.
+6. Feed
+   Open Feed. Show the watering history entry, the pinned slug issue, the pea
+   trellis photo update, the radish harvest photo memory, and the publish/task
+   entries. If time allows, log a short field note or a partial radish harvest.
+   Use filters briefly to show that Feed narrows cleanly without turning into an
+   admin table.
 
-7. Today
-   Open Today. Show urgent alerts, the watering card, due tasks, bed attention,
-   harvest-ready radishes/lettuce, and unresolved lettuce issue. Complete or
-   snooze a low-risk task only after explaining **Reset seeded demo** can
-   restore the baseline and Exit demo can restore the real garden draft.
+7. Settings
+   Return to Settings and show that location, timezone, watering check time,
+   quiet hours, and push/in-app preferences remain the single source of truth
+   for alerts and schedule timing. Change the watering check time, save, then
+   use **Reset sample garden** to show that the seeded baseline comes back clean.
 
-8. Feed
-   Open Feed. Show the compact activity stream, pinned unresolved slug issue,
-   pea trellis media update, radish harvest photo memory, watered-bed note,
-   task completion, publish entry, and harvest card. Use the type/crop/bed/season
-   filters to show how the feed narrows without becoming an admin table. Open
-   **New entry** to show
-   **New note**, **New issue**, **New photo update**, and **Log harvest** modes
-   inside the separate entry flow; log a short field note and, if time allows,
-   log a partial radish harvest. Reset seeded demo afterward or Exit demo to
-   return to the saved real garden.
-
-9. Offline
-   If time allows, toggle browser offline, open **New entry**, save a
-   text note in Feed, and show **Queued locally**. Do not claim offline photo
-   upload.
-
-10. Reload
-    Reload the app and confirm the demo garden persists. Close with the loop:
-    the plan drives today, today feeds the Feed, and the Feed improves future
-    planning.
+8. Restore
+   Use **Back to my garden** from the shell or Settings. Confirm the saved real
+   garden draft returns and that the app stays on the current route whenever it
+   can.
 
 ## Closing Line
 
-Secret Faede is not another static garden planner. It is a calm operating system
-for the one garden a household actually depends on.
+Secret Faede is not a planner deck. It is a calm working app for the one garden
+someone actually maintains.

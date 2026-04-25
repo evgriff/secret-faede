@@ -11,7 +11,7 @@ const alertTypeByNotificationType = {
 
 function buildWateringNotification(recommendation, snapshot = {}) {
   const deficit = Number(
-    recommendation.deficitInches || recommendation.inchesNeeded || 0,
+    recommendation.targetAmountInches || recommendation.deficitInches || 0,
   );
   const rainPhrase =
     Number(snapshot.forecastRainNext24In || 0) < 0.1
@@ -28,6 +28,15 @@ function buildWateringNotification(recommendation, snapshot = {}) {
   };
 }
 
+function buildWateringDedupeKey(recommendation) {
+  return [
+    'watering',
+    recommendation.targetKind,
+    recommendation.targetId,
+    recommendation.dueDate,
+  ].join(':');
+}
+
 function buildFrostNotification(garden, snapshot = {}) {
   const tenderCrops = getTenderCropLabels(garden);
   const cropPhrase =
@@ -37,6 +46,7 @@ function buildFrostNotification(garden, snapshot = {}) {
 
   return {
     body: `${cropPhrase}; frost is possible.`,
+    dedupeKey: `weather:frost:${snapshot.observedForDate || 'today'}`,
     title: 'Frost risk tonight',
     type: 'frost',
     urgency: snapshot.frostRisk || 'watch',
@@ -52,6 +62,7 @@ function buildHeatNotification(garden, snapshot = {}) {
 
   return {
     body: `Check water early ${targetPhrase}; heat stress is likely tomorrow afternoon.`,
+    dedupeKey: `weather:heat:${snapshot.observedForDate || 'today'}`,
     title: 'Heat stress likely',
     type: 'heatStress',
     urgency: snapshot.heatRisk || 'watch',
@@ -67,6 +78,7 @@ function buildSevereWeatherNotification(snapshot = {}) {
     body: summary
       ? `Check covers and supports: ${summary}`
       : 'Check covers and supports; severe weather may affect your garden today.',
+    dedupeKey: `weather:severe:${snapshot.observedForDate || 'today'}`,
     title: 'Severe weather alert',
     type: 'severeWeather',
   };
@@ -234,6 +246,7 @@ function formatList(values) {
 module.exports = {
   buildFrostNotification,
   buildHeatNotification,
+  buildWateringDedupeKey,
   buildSevereWeatherNotification,
   buildWateringNotification,
   createGrantedConsent,

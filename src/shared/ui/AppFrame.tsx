@@ -1,11 +1,15 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 
 import type { AuthUser } from '../../domain/auth/types';
 import {
-  hasDemoModeSession,
-  readDemoModeBackup,
-} from '../../features/demo/demoModeStorage';
+  buildSettingsDemoCommandPath,
+  readSettingsDemoState,
+  sampleGardenActiveLabel,
+  sampleGardenRestoreDisabledMessage,
+  sampleGardenRestoreLabel,
+  sampleGardenRestoreTitle,
+} from '../../features/settings/settingsDemoSession';
 import type { AppEnvironment } from '../config/env';
 import { routePaths } from '../lib/routes';
 import { useNetworkStatus } from '../network/networkStatus';
@@ -37,9 +41,14 @@ export function AppFrame({
   onSignOut,
   user,
 }: AppFrameProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const networkStatus = useNetworkStatus();
   const isOffline = networkStatus === 'offline';
   const syncState = usePendingGardenSyncState(user.uid);
+  const [demoState, setDemoState] = useState(() =>
+    readSettingsDemoState(user.uid),
+  );
   const hasQueuedChanges = syncState.status !== 'synced';
   const hasSyncConflict = syncState.status === 'conflict';
   const syncCopy = getSyncCopy({
@@ -55,6 +64,33 @@ export function AppFrame({
       ? 'warning'
       : 'success';
   const userLabel = getUserLabel(user);
+  const demoReturnTo = useMemo(
+    () => `${location.pathname}${location.search}`,
+    [location.pathname, location.search],
+  );
+  const demoRestorePath = useMemo(
+    () => buildSettingsDemoCommandPath('exit', demoReturnTo),
+    [demoReturnTo],
+  );
+  const demoRestoreHelp = demoState.canExit
+    ? 'Back to my garden restores the garden saved before the sample was opened on this device.'
+    : sampleGardenRestoreDisabledMessage;
+
+  useEffect(() => {
+    const syncDemoState = () => {
+      setDemoState(readSettingsDemoState(user.uid));
+    };
+
+    syncDemoState();
+    window.addEventListener('secret-faede:demo-mode-changed', syncDemoState);
+
+    return () => {
+      window.removeEventListener(
+        'secret-faede:demo-mode-changed',
+        syncDemoState,
+      );
+    };
+  }, [user.uid]);
 
   return (
     <div className={styles.shell}>
@@ -62,7 +98,7 @@ export function AppFrame({
         <div className={styles.branding}>
           <Link className={styles.brandLink} to={routePaths.root}>
             <span className={styles.title}>Secret Faede</span>
-            <span className={styles.subtitle}>Garden OS</span>
+            <span className={styles.subtitle}>Garden planner</span>
           </Link>
         </div>
         <nav aria-label="Workspace" className={styles.nav}>
@@ -78,19 +114,13 @@ export function AppFrame({
             </NavLink>
           ))}
         </nav>
-        <div className={styles.syncCard}>
-          <StatusBadge key={syncCopy.badge} tone={syncTone}>
-            {syncCopy.badge}
-          </StatusBadge>
-          <p>{syncCopy.message}</p>
-        </div>
       </aside>
 
       <div className={styles.contentColumn}>
         <header className={styles.topbar}>
           <div className={styles.mobileBrand}>
             <span className={styles.title}>Secret Faede</span>
-            <span className={styles.subtitle}>Garden OS</span>
+            <span className={styles.subtitle}>Garden planner</span>
           </div>
           <div className={styles.actions}>
             <div
@@ -104,7 +134,6 @@ export function AppFrame({
                 {syncCopy.badge}
               </StatusBadge>
             </div>
-            <ShellDemoControls userId={user.uid} />
             <span className={styles.user} title={user.email}>
               {userLabel}
             </span>
@@ -118,6 +147,35 @@ export function AppFrame({
             </ActionButton>
           </div>
         </header>
+        {demoState.isActive ? (
+          <div className={styles.bannerWrap}>
+            <Banner tone="warning">
+              <div className={styles.demoBanner}>
+                <div className={styles.demoBannerCopy}>
+                  <strong>{sampleGardenActiveLabel}</strong>
+                  <span>{demoRestoreHelp}</span>
+                </div>
+                <div className={styles.demoBannerActions}>
+                  <ActionButton
+                    className={styles.demoButton}
+                    data-testid="sample-garden-shell-restore"
+                    disabled={!demoState.canExit}
+                    onClick={() => void navigate(demoRestorePath)}
+                    priority="secondary"
+                    title={
+                      demoState.canExit
+                        ? sampleGardenRestoreTitle.available
+                        : sampleGardenRestoreTitle.unavailable
+                    }
+                    type="button"
+                  >
+                    {sampleGardenRestoreLabel}
+                  </ActionButton>
+                </div>
+              </div>
+            </Banner>
+          </div>
+        ) : null}
         {hasSyncConflict ? (
           <div className={styles.bannerWrap}>
             <Banner tone="warning">
@@ -166,105 +224,6 @@ export function AppFrame({
       </nav>
     </div>
   );
-}
-
-function ShellDemoControls({ userId }: { userId: string }) {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [demoState, setDemoState] = useState(() => readShellDemoState(userId));
-  const buildDemoCommandRoute = (action: 'enter' | 'exit' | 'reset') => {
-    const params = new URLSearchParams({ demo: action });
-    const returnTo = `${location.pathname}${location.search}`;
-
-    if (!returnTo.startsWith(routePaths.settings)) {
-      params.set('returnTo', returnTo);
-    }
-
-    return `${routePaths.settings}?${params.toString()}`;
-  };
-
-  useEffect(() => {
-    const refreshDemoState = () => {
-      setDemoState(readShellDemoState(userId));
-    };
-
-    refreshDemoState();
-    window.addEventListener('secret-faede:demo-mode-changed', refreshDemoState);
-
-    return () => {
-      window.removeEventListener(
-        'secret-faede:demo-mode-changed',
-        refreshDemoState,
-      );
-    };
-  }, [userId]);
-
-  if (demoState.isActive) {
-    return (
-      <div
-        aria-label="Demo controls"
-        className={styles.demoControls}
-        data-demo-state="demo"
-        key="demo"
-      >
-        <StatusBadge tone="warning">Demo mode</StatusBadge>
-        <ActionButton
-          className={styles.demoButton}
-          onClick={() => {
-            void navigate(buildDemoCommandRoute('reset'));
-          }}
-          priority="ghost"
-          type="button"
-        >
-          Reset seeded demo
-        </ActionButton>
-        <ActionButton
-          className={styles.demoButton}
-          disabled={!demoState.canExit}
-          onClick={() => {
-            void navigate(buildDemoCommandRoute('exit'));
-          }}
-          priority="secondary"
-          title={
-            demoState.canExit
-              ? 'Restore the garden saved before demo mode.'
-              : 'No real garden backup is available in this browser.'
-          }
-          type="button"
-        >
-          Exit demo
-        </ActionButton>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      aria-label="Demo controls"
-      className={styles.demoControls}
-      data-demo-state="real"
-      key="real"
-    >
-      <StatusBadge tone="success">Real garden</StatusBadge>
-      <ActionButton
-        className={styles.demoButton}
-        onClick={() => {
-          void navigate(buildDemoCommandRoute('enter'));
-        }}
-        priority="secondary"
-        type="button"
-      >
-        Enter demo
-      </ActionButton>
-    </div>
-  );
-}
-
-function readShellDemoState(userId: string) {
-  return {
-    canExit: Boolean(readDemoModeBackup(userId)),
-    isActive: hasDemoModeSession(userId),
-  };
 }
 
 function getSyncCopy({
