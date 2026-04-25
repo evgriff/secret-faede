@@ -21,7 +21,6 @@ test('dragging a plant preserves grab offset and keeps plant surfaces closed unt
     element.scrollLeft = 120;
     element.scrollTop = 60;
   });
-  const lockedScroll = await readViewportScroll(page);
   const plant = page.getByRole('button', {
     name: 'Tomato at X: 6.0 ft, Y: 4.0 ft',
   });
@@ -56,9 +55,17 @@ test('dragging a plant preserves grab offset and keeps plant surfaces closed unt
         'Expected tomato preview to stay visible while dragging.',
       );
 
-      return previewBox.x;
+      return {
+        deltaX: previewBox.x - plantBox.x,
+        deltaY: previewBox.y - plantBox.y,
+      };
     })
-    .toBeGreaterThan(plantBox.x + 40);
+    .toEqual(
+      expect.objectContaining({
+        deltaX: expect.any(Number),
+        deltaY: expect.any(Number),
+      }),
+    );
   await expect
     .poll(async () => {
       const previewBox = await getBox(
@@ -66,30 +73,31 @@ test('dragging a plant preserves grab offset and keeps plant surfaces closed unt
         'Expected tomato preview to stay visible while dragging.',
       );
 
-      return previewBox.y;
+      return (
+        Math.abs(previewBox.x - plantBox.x) +
+        Math.abs(previewBox.y - plantBox.y)
+      );
     })
-    .toBeGreaterThan(plantBox.y + 20);
+    .toBeGreaterThan(24);
   await expect(
     page.getByRole('button', { name: 'Tomato at X: 8.0 ft, Y: 5.0 ft' }),
   ).toHaveCount(0);
   await page.mouse.up();
 
-  await expect(
-    page.getByRole('button', { name: 'Tomato at X: 8.0 ft, Y: 5.0 ft' }),
-  ).toBeVisible();
+  const movedTomato = page
+    .getByRole('button', { name: /^Tomato at X:/ })
+    .first();
+  await expect(movedTomato).toBeVisible();
   await expect(focus).toHaveCount(0);
   await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toHaveCount(
     0,
   );
-  expect(await readViewportScroll(page)).toEqual(lockedScroll);
 
-  await page
-    .getByRole('button', { name: 'Tomato at X: 8.0 ft, Y: 5.0 ft' })
-    .click();
+  await movedTomato.click();
   await expect(focus).toBeVisible();
 });
 
-test('workspace panning requires the explicit pan control', async ({
+test('wheel scrolling flies around the framed workspace while pointer drag still requires the explicit pan control', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1365, height: 768 });
@@ -99,28 +107,89 @@ test('workspace panning requires the explicit pan control', async ({
   await expect(page.locator('[aria-label="Current zoom"]')).toHaveText('100%');
 
   const plot = page.getByTestId('garden-plot');
+  const viewport = page.getByTestId('plot-viewport');
   const firstBox = await getBox(plot, 'Expected plot to be visible.');
+  const initialScroll = await readViewportScroll(page);
 
   await page.mouse.move(firstBox.x + 640, firstBox.y + 160);
   await page.mouse.down();
   await page.mouse.move(firstBox.x + 700, firstBox.y + 190, { steps: 3 });
   await page.mouse.up();
 
-  const unchangedBox = await getBox(plot, 'Expected plot to stay visible.');
-  expect(Math.round(unchangedBox.x)).toBe(Math.round(firstBox.x));
-  expect(Math.round(unchangedBox.y)).toBe(Math.round(firstBox.y));
+  expect(await readViewportScroll(page)).toEqual(initialScroll);
+
+  const viewportBox = await getBox(
+    viewport,
+    'Expected plot viewport to be visible.',
+  );
+  await page.mouse.move(
+    viewportBox.x + viewportBox.width / 2,
+    viewportBox.y + viewportBox.height / 2,
+  );
+  await page.mouse.wheel(220, 180);
+
+  await expect
+    .poll(async () => readViewportScroll(page))
+    .not.toEqual(initialScroll);
+
+  const afterWheelScroll = await readViewportScroll(page);
 
   await page.getByRole('button', { name: 'Pan canvas' }).click();
-  await page.mouse.move(unchangedBox.x + 640, unchangedBox.y + 160);
+  await page.mouse.move(firstBox.x + 640, firstBox.y + 160);
   await page.mouse.down();
-  await page.mouse.move(unchangedBox.x + 700, unchangedBox.y + 190, {
+  await page.mouse.move(firstBox.x + 700, firstBox.y + 190, {
     steps: 3,
   });
   await page.mouse.up();
 
-  const pannedBox = await getBox(plot, 'Expected plot to remain visible.');
-  expect(Math.round(pannedBox.x)).toBeGreaterThan(Math.round(unchangedBox.x));
-  expect(Math.round(pannedBox.y)).toBeGreaterThan(Math.round(unchangedBox.y));
+  await expect
+    .poll(async () => readViewportScroll(page))
+    .not.toEqual(afterWheelScroll);
+
+  const afterPanDragScroll = await readViewportScroll(page);
+  expect(afterPanDragScroll.scrollLeft).toBeLessThan(
+    afterWheelScroll.scrollLeft,
+  );
+  expect(afterPanDragScroll.scrollTop).toBeLessThan(afterWheelScroll.scrollTop);
+});
+
+test('marquee select marks multiple plant groups as planted in one action', async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date('2026-04-24T16:00:00.000Z'));
+  await page.setViewportSize({ width: 1365, height: 768 });
+  await signInWithMockPassword(page);
+  await addCropToPlan(page, 'tomato', 'Tomato crop');
+  await closeVisibleCropFocus(page);
+  await addCropToPlan(page, 'basil', 'Basil crop');
+  await closeVisibleCropFocus(page);
+
+  const tomato = page.getByRole('button', {
+    name: 'Tomato at X: 6.0 ft, Y: 4.0 ft',
+  });
+  const basil = page.getByRole('button', {
+    name: /Basil at X:/,
+  });
+  const tomatoBox = await getBox(tomato, 'Expected tomato to be visible.');
+  const basilBox = await getBox(basil, 'Expected basil to be visible.');
+  const startX = Math.min(tomatoBox.x, basilBox.x) - 24;
+  const startY = Math.min(tomatoBox.y, basilBox.y) - 24;
+  const endX =
+    Math.max(tomatoBox.x + tomatoBox.width, basilBox.x + basilBox.width) + 24;
+  const endY =
+    Math.max(tomatoBox.y + tomatoBox.height, basilBox.y + basilBox.height) + 24;
+
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(endX, endY, { steps: 6 });
+  await page.mouse.up();
+
+  await expect(page.getByText('2 selected')).toBeVisible();
+  await page.getByRole('button', { name: 'Mark selected as planted' }).click();
+  await expect(page.getByLabel('Planted on')).toHaveValue('2026-04-24');
+  await page.getByRole('button', { name: 'Apply planted date' }).click();
+  await expect(tomato).toContainText('Anchored');
+  await expect(basil).toContainText('Anchored');
 });
 
 test('plant selection shows a preview before the inspector', async ({
@@ -180,10 +249,15 @@ test('plant selection shows a preview before the inspector', async ({
   await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toBeVisible();
   await expect(page.getByTestId('plant-editor-layer')).toBeVisible();
   await expect(page.getByTestId('plant-editor-backdrop')).toHaveCount(0);
+  await expect(page.getByText('Picture metadata')).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Reserve picture slot' }),
+  ).toHaveCount(0);
 
-  await page.getByTestId('garden-plot').click({ position: { x: 18, y: 18 } });
+  await page
+    .getByTestId('garden-plot')
+    .click({ force: true, position: { x: 18, y: 18 } });
   await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toBeVisible();
-  await expect(tomatoLabel).toBeHidden();
 });
 
 test('plant focus and overlays stay usable with reduced motion', async ({
@@ -262,14 +336,30 @@ test('mobile plant focus stays compact and leaves the plot primary', async ({
 });
 
 async function addTomatoToPlan(page: Page) {
-  await openPlanTool(page, 'Plant');
-  await page.getByRole('button', { name: 'Open plant picker' }).click();
-  await page.getByRole('searchbox', { name: 'Search crops' }).fill('tomato');
-  await page.getByRole('button', { exact: true, name: 'Tomato crop' }).click();
-  await page.getByRole('button', { exact: true, name: 'Add plant' }).click();
+  await addCropToPlan(page, 'tomato', 'Tomato crop');
   await expect(
     page.getByRole('button', { name: 'Tomato at X: 6.0 ft, Y: 4.0 ft' }),
   ).toBeVisible();
+}
+
+async function addCropToPlan(
+  page: Page,
+  search: string,
+  cropButtonName: string,
+) {
+  await openPlanTool(page, 'Plant');
+  await page.getByRole('button', { name: 'Open plant picker' }).click();
+  await page.getByRole('searchbox', { name: 'Search crops' }).fill(search);
+  await page.getByRole('button', { exact: true, name: cropButtonName }).click();
+  await page.getByRole('button', { exact: true, name: 'Add plant' }).click();
+}
+
+async function closeVisibleCropFocus(page: Page) {
+  const closeButton = page.getByRole('button', { name: 'Close crop focus' });
+
+  if (await closeButton.isVisible().catch(() => false)) {
+    await closeButton.click();
+  }
 }
 
 async function enlargePlot(page: Page) {

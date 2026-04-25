@@ -11,6 +11,12 @@ import type {
   AutoLayoutCandidate,
   AutoLayoutRunStatus,
 } from '../autoLayoutTypes';
+import {
+  getAutoLayoutButtonLabel,
+  getAutoLayoutStageState,
+  getVisibleAutoLayoutStages,
+  isAutoLayoutBusy,
+} from '../autoLayoutRunState';
 import { buildSeasonCropLayoutRequests } from '../seasonCropPlan';
 import { PlanOptimizeCandidates } from './PlanOptimizeCandidates';
 import styles from './PlanOperationsPanel.module.css';
@@ -22,6 +28,7 @@ export function PlanOperationsPanel({
   onApplyAutoLayoutCandidate,
   onDismissAutoLayoutSuggestion,
   onGenerateAutoLayoutSuggestion,
+  optimizerIncludesDraftSave,
   optimizerMessage,
   optimizerStatus,
   suggestion,
@@ -34,6 +41,7 @@ export function PlanOperationsPanel({
   onApplyAutoLayoutCandidate(): void;
   onDismissAutoLayoutSuggestion(): void;
   onGenerateAutoLayoutSuggestion(): void;
+  optimizerIncludesDraftSave: boolean;
   optimizerMessage: string | null;
   optimizerStatus: AutoLayoutRunStatus;
   suggestion: LayoutVariant | null;
@@ -46,8 +54,9 @@ export function PlanOperationsPanel({
     0,
   );
   const hasSuggestion = Boolean(autoLayoutSuggestion && suggestion);
-  const isOptimizing = optimizerStatus === 'running';
+  const isOptimizing = isAutoLayoutBusy(optimizerStatus);
   const layoutSectionRef = useRef<HTMLElement>(null);
+  const progressStages = getVisibleAutoLayoutStages(optimizerIncludesDraftSave);
 
   useEffect(() => {
     if (!hasSuggestion) {
@@ -79,11 +88,7 @@ export function PlanOperationsPanel({
             onClick={onGenerateAutoLayoutSuggestion}
             type="button"
           >
-            {isOptimizing
-              ? 'Checking...'
-              : hasSuggestion
-                ? 'Check again'
-                : 'Generate layout'}
+            {getAutoLayoutButtonLabel(optimizerStatus, hasSuggestion)}
           </button>
         </div>
         {optimizerMessage ? (
@@ -96,18 +101,52 @@ export function PlanOperationsPanel({
             {optimizerMessage}
           </p>
         ) : null}
+        {isOptimizing ? (
+          <div className={styles.progressCard} role="status">
+            <p className={styles.progressIntro}>
+              Saving and checking one whole-plot suggestion. The plot will stay
+              put while this runs.
+            </p>
+            <ol className={styles.progressList}>
+              {progressStages.map((stage) => (
+                <li
+                  className={styles.progressItem}
+                  data-state={getAutoLayoutStageState(
+                    optimizerStatus,
+                    stage.status,
+                  )}
+                  key={stage.status}
+                >
+                  <strong>{stage.label}</strong>
+                  <span>{stage.description}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
         {layoutRequests.length > 0 ? (
           <>
-            <p className={styles.helpText}>
-              {hasSuggestion
-                ? 'Review this suggestion, then apply it or keep the current layout.'
-                : `${layoutRequests.length} saved crop request${layoutRequests.length === 1 ? '' : 's'} still need room in the plan, covering ${requestedPlantCount} plant${requestedPlantCount === 1 ? '' : 's'} total.`}
-            </p>
-            {!hasSuggestion ? (
+            {!isOptimizing ? (
+              <p className={styles.helpText}>
+                {hasSuggestion
+                  ? 'Review this suggestion, then apply it or keep the current layout.'
+                  : `${layoutRequests.length} saved crop request${layoutRequests.length === 1 ? '' : 's'} still need room in the plan, covering ${requestedPlantCount} plant${requestedPlantCount === 1 ? '' : 's'} total.`}
+              </p>
+            ) : null}
+            {!hasSuggestion && !isOptimizing ? (
               <p className={styles.helpText}>
                 Generate one layout suggestion when you want a simpler full-plot
                 option.
               </p>
+            ) : null}
+            {optimizerStatus === 'noBetterLayout' ? (
+              <section className={styles.resultCard}>
+                <h4>Keep current plan</h4>
+                <p>
+                  No simpler checked arrangement looked better than the current
+                  draft.
+                </p>
+              </section>
             ) : null}
             {autoLayoutSuggestion && suggestion ? (
               <PlanOptimizeCandidates

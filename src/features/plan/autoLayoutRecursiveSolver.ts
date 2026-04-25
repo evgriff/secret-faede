@@ -307,7 +307,9 @@ function buildSearchReport({
 }): AutoLayoutSearchReport {
   const unresolvedIssues = [
     ...evaluation.candidate.hardConstraintViolations,
-    ...evaluation.activeWarnings.map((warning) => warning.title),
+    ...evaluation.activeWarnings
+      .filter((warning) => warning.kind !== 'pathway')
+      .map((warning) => warning.title),
     ...unplaced.map((item) => `${item.cropName}: ${item.reason}`),
   ];
   const status =

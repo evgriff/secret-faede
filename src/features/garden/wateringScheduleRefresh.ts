@@ -22,6 +22,7 @@ interface WateringRefreshOptions {
 }
 
 interface LiveWeatherRefreshOptions extends WateringRefreshOptions {
+  forceWeatherRefresh?: boolean;
   includeNotificationLogs?: boolean;
 }
 
@@ -83,6 +84,7 @@ export async function refreshGardenWateringFromWeather(
   const context = await loadWeatherWateringContext(
     weatherProvider,
     garden.plot.location,
+    options.forceWeatherRefresh ? { forceRefresh: true } : {},
   );
   const snapshot = createWeatherSnapshot(garden, context, now);
   const wateringSchedule = buildWateringSchedule(
@@ -116,10 +118,13 @@ export async function refreshGardenWateringFromWeather(
 }
 
 function getLatestWeatherSnapshot(garden: Garden): WeatherSnapshot | null {
-  return (
-    [...garden.weatherSnapshots].sort((left, right) =>
-      right.capturedAtIso.localeCompare(left.capturedAtIso),
-    )[0] ?? null
+  return garden.weatherSnapshots.reduce<WeatherSnapshot | null>(
+    (latestSnapshot, snapshot) =>
+      latestSnapshot === null ||
+      snapshot.capturedAtIso >= latestSnapshot.capturedAtIso
+        ? snapshot
+        : latestSnapshot,
+    null,
   );
 }
 
@@ -155,6 +160,14 @@ function createWeatherContextFromSnapshot(
     },
     forecast: {
       dailyHighF: snapshot.temperatureF,
+      days:
+        snapshot.forecastDays?.map((day) => ({
+          conditionSummary: day.conditionSummary,
+          date: day.date,
+          expectedRainIn: day.expectedRainIn,
+          highF: day.highF,
+          precipitationChancePercent: day.precipitationChancePercent ?? null,
+        })) ?? [],
       generatedAtIso: snapshot.capturedAtIso,
       next24hPrecipIn: snapshot.forecastRainNext24In ?? 0,
       next48hPrecipIn: snapshot.forecastRainNext48In ?? 0,

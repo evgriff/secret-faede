@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { formatDateForTimeZone } from '../planDates';
 import styles from './PlanSelectionToolbar.module.css';
 
 export function PlanSelectionToolbar({
@@ -12,6 +13,10 @@ export function PlanSelectionToolbar({
   onDelete,
   onDistributeHorizontal,
   onDuplicate,
+  onMarkSelectedPlanted,
+  selectedPlantCount,
+  selectedStructureCount,
+  timezone,
 }: {
   count: number;
   onAlignBottom(): void;
@@ -22,12 +27,21 @@ export function PlanSelectionToolbar({
   onDelete(): void;
   onDistributeHorizontal(): void;
   onDuplicate(): void;
+  onMarkSelectedPlanted(plantedOn: string): void;
+  selectedPlantCount: number;
+  selectedStructureCount: number;
+  timezone: string;
 }) {
   const [isArrangeOpen, setIsArrangeOpen] = useState(false);
+  const [isLifecycleOpen, setIsLifecycleOpen] = useState(false);
+  const [plantedOn, setPlantedOn] = useState(() =>
+    formatDateForTimeZone(new Date(), timezone),
+  );
   const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const canMarkSelectedPlanted = selectedPlantCount > 0;
 
   useEffect(() => {
-    if (!isArrangeOpen) {
+    if (!isArrangeOpen && !isLifecycleOpen) {
       return;
     }
 
@@ -37,12 +51,14 @@ export function PlanSelectionToolbar({
         !toolbarRef.current?.contains(event.target)
       ) {
         setIsArrangeOpen(false);
+        setIsLifecycleOpen(false);
       }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setIsArrangeOpen(false);
+        setIsLifecycleOpen(false);
       }
     }
 
@@ -53,11 +69,26 @@ export function PlanSelectionToolbar({
       window.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isArrangeOpen]);
+  }, [isArrangeOpen, isLifecycleOpen]);
+
+  useEffect(() => {
+    setPlantedOn(formatDateForTimeZone(new Date(), timezone));
+  }, [timezone, count, selectedPlantCount, selectedStructureCount]);
 
   if (count < 2) {
     return null;
   }
+
+  const lifecycleSummary =
+    selectedStructureCount > 0
+      ? `Applies one planted date to ${selectedPlantCount} selected plant ${
+          selectedPlantCount === 1 ? 'group' : 'groups'
+        }. ${selectedStructureCount} selected ${
+          selectedStructureCount === 1 ? 'structure stays' : 'structures stay'
+        } unchanged.`
+      : `Applies one planted date to all ${selectedPlantCount} selected plant ${
+          selectedPlantCount === 1 ? 'group' : 'groups'
+        }.`;
 
   return (
     <div
@@ -103,6 +134,41 @@ export function PlanSelectionToolbar({
           </div>
         ) : null}
       </div>
+      {canMarkSelectedPlanted ? (
+        <div className={styles.menuGroup}>
+          <button
+            aria-controls="group-selection-lifecycle"
+            aria-expanded={isLifecycleOpen}
+            onClick={() => setIsLifecycleOpen((value) => !value)}
+            type="button"
+          >
+            Mark selected as planted
+          </button>
+          {isLifecycleOpen ? (
+            <form
+              className={styles.menuPanel}
+              id="group-selection-lifecycle"
+              onSubmit={(event) => {
+                event.preventDefault();
+                onMarkSelectedPlanted(plantedOn);
+                setIsLifecycleOpen(false);
+              }}
+            >
+              <p className={styles.menuMessage}>{lifecycleSummary}</p>
+              <label className={styles.field}>
+                <span>Planted on</span>
+                <input
+                  onChange={(event) => setPlantedOn(event.currentTarget.value)}
+                  required
+                  type="date"
+                  value={plantedOn}
+                />
+              </label>
+              <button type="submit">Apply planted date</button>
+            </form>
+          ) : null}
+        </div>
+      ) : null}
       <button onClick={onDuplicate} type="button">
         Duplicate
       </button>

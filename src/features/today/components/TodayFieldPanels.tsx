@@ -7,71 +7,57 @@ import type {
 } from '../../../domain/gardens/GardenRepository';
 import { StatusBadge } from '../../shared/design/DesignPrimitives';
 import { formatTaskType } from '../todayFormatters';
-import type {
-  TodayFieldModel,
-  TodayHarvestReadyItem,
-} from '../todayFieldModel';
+import type { TodayFieldModel } from '../todayFieldModel';
 import { getTaskTargetLink } from '../todayTaskLinks';
 import { getCriticalCheckTasks } from '../todaySelectors';
 import type { TodayQuickActionState } from './TodayQuickActionRail';
-import { CropStageCard, IssueCard, WaterCard } from './TodayFieldCards';
+import {
+  CropStageCard,
+  IssueCard,
+  WaterGroupCard,
+  WateringOutlookCard,
+} from './TodayFieldCards';
 import { TodayHarvestCard } from './TodayHarvestCard';
 import styles from './TodayFieldPanels.module.css';
 
 export function TodayFieldPanels({
-  onAdjustWateringAmount,
   model,
   onCompleteTask,
   onDeferTask,
-  onDelayHarvest,
-  onLogHarvest,
   onOpenAction,
-  onPartialWatering,
-  onSkipWateringForRain,
-  onSnoozeWatering,
+  onOpenWateringGroup,
   onSnoozeTask,
   onUpdatePlantingStatus,
   onUpdateIssue,
-  onWaterDone,
+  onWaterDoneGroup,
   selectedTasks,
-  todayDate,
 }: {
-  onAdjustWateringAmount(recommendationId: string): void;
   model: TodayFieldModel;
   onCompleteTask(taskId: string): void;
   onDeferTask(taskId: string): void;
-  onDelayHarvest(
-    plantingId: string,
-    delayUntilDate: string,
-    reason: string,
-  ): void;
-  onLogHarvest(item: TodayHarvestReadyItem): void;
   onOpenAction(action: TodayQuickActionState): void;
-  onPartialWatering(recommendationId: string): void;
-  onSkipWateringForRain(recommendationId: string): void;
-  onSnoozeWatering(
-    recommendationId: string,
-    option: 'tonight' | 'tomorrow',
-  ): void;
+  onOpenWateringGroup(groupId: string): void;
   onSnoozeTask(taskId: string): void;
   onUpdatePlantingStatus(
     plantingId: string,
     status: PlantingLifecycleStatus,
   ): void;
   onUpdateIssue(entryId: string, status: IssueStatus): void;
-  onWaterDone(recommendationId: string): void;
+  onWaterDoneGroup(recommendationIds: string[]): void;
   selectedTasks: Task[];
-  todayDate: string;
 }) {
   const criticalTasks = getCriticalCheckTasks(selectedTasks);
-  const hasWatering = model.activeWatering.length > 0;
+  const hasWatering = model.wateringGroups.length > 0;
   const hasCriticalChecks =
     model.urgentAlerts.length > 0 ||
     model.cropStageActions.length > 0 ||
     model.unresolvedIssues.length > 0 ||
     criticalTasks.length > 0;
   const hasAnyFieldPanel =
-    hasWatering || hasCriticalChecks || model.harvestReady.length > 0;
+    hasWatering ||
+    model.wateringOutlook.length > 0 ||
+    hasCriticalChecks ||
+    model.harvestSchedule.length > 0;
 
   if (!hasAnyFieldPanel) {
     return null;
@@ -87,25 +73,36 @@ export function TodayFieldPanels({
               <h2>Watering work</h2>
             </div>
             <StatusBadge tone="warning">
-              {model.activeWatering.length}
+              {model.wateringGroups.length}
             </StatusBadge>
           </div>
           <div className={styles.compactList}>
-            {model.activeWatering.map((recommendation) => (
-              <WaterCard
-                key={recommendation.id}
-                onAdjustAmount={() => onAdjustWateringAmount(recommendation.id)}
-                onDone={() => onWaterDone(recommendation.id)}
-                onPartial={() => onPartialWatering(recommendation.id)}
-                onSkipForRain={() => onSkipWateringForRain(recommendation.id)}
-                onSnoozeToTonight={() =>
-                  onSnoozeWatering(recommendation.id, 'tonight')
-                }
-                onSnoozeToTomorrow={() =>
-                  onSnoozeWatering(recommendation.id, 'tomorrow')
-                }
-                recommendation={recommendation}
+            {model.wateringGroups.map((group) => (
+              <WaterGroupCard
+                group={group}
+                key={group.id}
+                onDone={() => onWaterDoneGroup(group.entryIds)}
+                onReview={() => onOpenWateringGroup(group.id)}
               />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {model.wateringOutlook.length > 0 ? (
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <div>
+              <p className={styles.kicker}>Ahead</p>
+              <h2>Next watering</h2>
+            </div>
+            <StatusBadge tone="neutral">
+              {model.wateringOutlook.length}
+            </StatusBadge>
+          </div>
+          <div className={styles.compactList}>
+            {model.wateringOutlook.slice(0, 3).map((item) => (
+              <WateringOutlookCard item={item} key={item.id} />
             ))}
           </div>
         </section>
@@ -159,24 +156,21 @@ export function TodayFieldPanels({
         </section>
       ) : null}
 
-      {model.harvestReady.length > 0 ? (
+      {model.harvestSchedule.length > 0 ? (
         <section className={styles.panel}>
           <div className={styles.panelHeader}>
             <div>
               <p className={styles.kicker}>Harvest</p>
-              <h2>Ready to pick</h2>
+              <h2>Harvest schedule</h2>
             </div>
-            <StatusBadge>{model.harvestReady.length}</StatusBadge>
+            <StatusBadge>{model.harvestSchedule.length}</StatusBadge>
           </div>
           <div className={styles.compactList}>
-            {model.harvestReady.map((item) => (
+            {model.harvestSchedule.map((item) => (
               <TodayHarvestCard
                 item={item}
                 key={item.planting.id}
-                onDelayHarvest={onDelayHarvest}
-                onLogHarvest={onLogHarvest}
-                onOpenAction={onOpenAction}
-                todayDate={todayDate}
+                onOpenAction={(action) => onOpenAction(action)}
               />
             ))}
           </div>

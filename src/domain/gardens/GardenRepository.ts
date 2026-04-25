@@ -1,6 +1,7 @@
 export * from './models';
 export * from './plantMaturity';
 export * from './plantingGeometry';
+export * from './plantingEvents';
 export * from './plantPlanning';
 export * from './plantingInstances';
 export * from './schemaMigrations';

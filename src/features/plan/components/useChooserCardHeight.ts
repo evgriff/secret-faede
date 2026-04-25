@@ -25,8 +25,8 @@ export function useChooserCardHeight(hasExpandedCard: boolean) {
   }, []);
 
   if (hasExpandedCard) {
-    return isMobileCard ? 500 : 390;
+    return isMobileCard ? 540 : 420;
   }
 
-  return isMobileCard ? 252 : 190;
+  return isMobileCard ? 292 : 224;
 }

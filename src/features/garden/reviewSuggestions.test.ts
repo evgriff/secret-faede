@@ -12,7 +12,7 @@ import {
 } from './reviewSuggestions';
 
 describe('reviewSuggestions', () => {
-  it('builds support and path suggestions that apply to the draft', () => {
+  it('builds practical support suggestions without access-path proposals', () => {
     const garden: Garden = {
       ...createDefaultGarden('user-a'),
       plantings: [
@@ -51,22 +51,15 @@ describe('reviewSuggestions', () => {
     const support = suggestions.find(
       (suggestion) => suggestion.type === 'addStakeCage',
     );
-    const widenPath = suggestions.find(
-      (suggestion) => suggestion.type === 'widenPath',
-    );
-
     expect(support).toBeDefined();
-    expect(widenPath).toBeDefined();
+    expect(
+      suggestions.some((suggestion) => suggestion.type === 'widenPath'),
+    ).toBe(false);
 
     const withSupport = applyReviewSuggestionActions(
       garden,
       support?.actions ?? [],
     );
-    const withPath = applyReviewSuggestionActions(
-      garden,
-      widenPath?.actions ?? [],
-    );
-
     expect(
       withSupport.plantings.some(
         (planting) =>
@@ -75,10 +68,6 @@ describe('reviewSuggestions', () => {
           planting.support.notes.includes('[review]'),
       ),
     ).toBe(true);
-    expect(
-      withPath.structures.find((structure) => structure.id === 'path-1')
-        ?.widthFt,
-    ).toBe(4);
   });
 
   it('adds trellises as reviewed grid structures instead of batch support', () => {
@@ -139,7 +128,7 @@ describe('reviewSuggestions', () => {
     ).toBe(false);
   });
 
-  it('widens the narrow side of horizontal paths instead of assuming width', () => {
+  it('does not suggest widening horizontal paths in review', () => {
     const garden: Garden = {
       ...createDefaultGarden('user-a'),
       structures: [
@@ -161,22 +150,9 @@ describe('reviewSuggestions', () => {
       sunLayer: null,
       warnings: findPlanWarnings(garden),
     });
-    const widenPath = suggestions.find(
-      (suggestion) => suggestion.type === 'widenPath',
-    );
-
-    expect(widenPath).toBeDefined();
-
-    const nextGarden = applyReviewSuggestionActions(
-      garden,
-      widenPath?.actions ?? [],
-    );
-    const path = nextGarden.structures.find(
-      (structure) => structure.id === 'path-horizontal',
-    );
-
-    expect(path?.widthFt).toBe(8);
-    expect(path?.depthFt).toBe(1.5);
+    expect(
+      suggestions.some((suggestion) => suggestion.type === 'widenPath'),
+    ).toBe(false);
   });
 
   it('moves shade-tolerant crops into intentional partial sun when legal', () => {

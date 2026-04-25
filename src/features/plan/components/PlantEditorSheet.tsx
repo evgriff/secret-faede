@@ -19,7 +19,6 @@ import {
 import { PlantEditorBasics } from './PlantEditorCareFields';
 import {
   PlantEditorArrangement,
-  PlantEditorPhotos,
   PlantEditorSupport,
 } from './PlantEditorSheetSections';
 import { formatSupportType } from './PlantEditorSheetShared';
@@ -117,6 +116,7 @@ export function PlantEditorSheet({
         onUpdatePlanting={onUpdatePlanting}
         plant={plant}
         plantStatus={plantStatus}
+        timezone={garden.plot.location.timezone}
       />
       <PlantEditorArrangement
         crop={crop ?? null}
@@ -132,11 +132,6 @@ export function PlantEditorSheet({
           quantity={quantity}
         />
       ) : null}
-      <PlantEditorPhotos
-        onUpdatePlanting={onUpdatePlanting}
-        plant={plant}
-        plantStatus={plantStatus}
-      />
       <PlantEditorContextDetails
         crop={crop ?? null}
         plant={plant}

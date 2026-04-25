@@ -7,6 +7,10 @@
   overflow: hidden;
 }
 
+.setupScreen {
+  min-height: calc(100dvh - 7.25rem);
+}
+
 .routeChrome {
   display: grid;
   gap: var(--space-3);
@@ -150,6 +154,19 @@
   box-shadow: var(--shadow-control);
 }
 
+.warningButton {
+  min-height: 2.35rem;
+  border-color: rgba(163, 52, 40, 0.34);
+  border-radius: var(--radius-control);
+  background: rgba(163, 52, 40, 0.1);
+  color: #8f2d23;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 720;
+  padding: 0 0.9rem;
+  box-shadow: var(--shadow-control);
+}
+
 .error {
   margin: 0;
   color: #a33428;
@@ -169,6 +186,10 @@
     height: auto;
     min-height: auto;
     overflow: visible;
+  }
+
+  .setupScreen {
+    min-height: auto;
   }
 
   .routeChrome {

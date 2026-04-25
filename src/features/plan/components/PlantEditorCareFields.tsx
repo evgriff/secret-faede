@@ -1,8 +1,14 @@
-import type {
-  GardenPlant,
-  PlantingLifecycleStatus,
-  PlantStatus,
+import { useEffect, useState } from 'react';
+
+import {
+  appendPlantingEvent,
+  formatPlantingEventLabel,
+  type GardenPlant,
+  type PlantingEventType,
+  type PlantingLifecycleStatus,
+  type PlantStatus,
 } from '../../../domain/gardens/GardenRepository';
+import { formatDateForTimeZone } from '../planDates';
 import { formatLifecycle, lifecycleStates } from './PlantEditorSheetShared';
 import styles from './PlantEditorSheet.module.css';
 
@@ -12,11 +18,21 @@ export function PlantEditorBasics({
   onUpdatePlanting,
   plant,
   plantStatus,
+  timezone,
 }: {
   onUpdatePlanting: UpdatePlanting;
   plant: GardenPlant;
   plantStatus: PlantStatus;
+  timezone: string;
 }) {
+  const [eventDate, setEventDate] = useState(() =>
+    formatDateForTimeZone(new Date(), timezone),
+  );
+
+  useEffect(() => {
+    setEventDate(formatDateForTimeZone(new Date(), timezone));
+  }, [plant.id, timezone]);
+
   function updateStatus(values: Partial<PlantStatus>) {
     onUpdatePlanting(plant.id, {
       plantStatus: {
@@ -46,6 +62,22 @@ export function PlantEditorBasics({
     });
   }
 
+  function recordEvent(type: PlantingEventType) {
+    const nextPlanting = appendPlantingEvent(plant, {
+      nowIso: new Date().toISOString(),
+      occurredOn: eventDate,
+      type,
+    });
+
+    onUpdatePlanting(plant.id, {
+      plannedFor: nextPlanting.plannedFor,
+      plantedOn: nextPlanting.plantedOn,
+      plantingEvents: nextPlanting.plantingEvents,
+      plantStatus: nextPlanting.plantStatus,
+      status: nextPlanting.status,
+    });
+  }
+
   return (
     <section className={styles.section} aria-labelledby="plant-basics">
       <h3 id="plant-basics">Care log</h3>
@@ -65,21 +97,53 @@ export function PlantEditorBasics({
           />
           Watered
         </label>
-        <label className={styles.checkbox}>
+      </div>
+      <div className={styles.eventPanel}>
+        <div className={styles.eventHeader}>
+          <strong>Planting events</strong>
+          <span>Record the actual date for work you finished.</span>
+        </div>
+        <label className={styles.field}>
+          <span>Event date</span>
           <input
-            checked={plantStatus.thinned}
-            onChange={(event) =>
-              updateStatus({
-                thinned: event.currentTarget.checked,
-                thinnedAtIso: event.currentTarget.checked
-                  ? (plantStatus.thinnedAtIso ?? new Date().toISOString())
-                  : null,
-              })
-            }
-            type="checkbox"
+            onChange={(event) => setEventDate(event.currentTarget.value)}
+            type="date"
+            value={eventDate}
           />
-          Thinned
         </label>
+        <div className={styles.eventButtons}>
+          {(
+            [
+              'startedInside',
+              'directSowed',
+              'plantedOut',
+              'thinned',
+            ] as const satisfies PlantingEventType[]
+          ).map((eventType) => (
+            <button
+              className={styles.secondaryButton}
+              key={eventType}
+              onClick={() => recordEvent(eventType)}
+              type="button"
+            >
+              {formatPlantingEventLabel(eventType)}
+            </button>
+          ))}
+        </div>
+        <ul aria-label="Recent planting events" className={styles.eventHistory}>
+          {plant.plantingEvents.length > 0 ? (
+            plant.plantingEvents.slice(0, 4).map((event) => (
+              <li key={event.id}>
+                <strong>{formatPlantingEventLabel(event.type)}</strong>
+                <span>{event.occurredOn}</span>
+              </li>
+            ))
+          ) : (
+            <li>
+              <span>No planting events recorded yet.</span>
+            </li>
+          )}
+        </ul>
       </div>
       <label className={styles.field}>
         <span>Notes</span>

@@ -3,18 +3,11 @@ import {
   createDefaultStructure,
   type Garden,
 } from '../../domain/gardens/GardenRepository';
-import {
-  findPlanWarnings,
-  getStructureFootprint,
-  rectsOverlap,
-} from './gardenPlanning';
-import {
-  applyReviewSuggestionActions,
-  buildReviewSuggestions,
-} from './reviewSuggestions';
+import { findPlanWarnings } from './gardenPlanning';
+import { buildReviewSuggestions } from './reviewSuggestions';
 
 describe('reviewAccessSuggestions', () => {
-  it('adds an access path proposal for a bed with no reachable route', () => {
+  it('does not add access path proposals in the gardener-facing review flow', () => {
     const garden: Garden = {
       ...createDefaultGarden('user-a'),
       structures: [
@@ -34,27 +27,12 @@ describe('reviewAccessSuggestions', () => {
       sunLayer: null,
       warnings: findPlanWarnings(garden),
     });
-    const addPath = suggestions.find(
-      (suggestion) => suggestion.type === 'addAccessPath',
-    );
-
-    expect(addPath).toBeDefined();
-
-    const nextGarden = applyReviewSuggestionActions(
-      garden,
-      addPath?.actions ?? [],
-    );
-
     expect(
-      nextGarden.structures.some(
-        (structure) =>
-          structure.type === 'pathway' &&
-          structure.id.includes('add-access-path-bed-1'),
-      ),
-    ).toBe(true);
+      suggestions.some((suggestion) => suggestion.type === 'addAccessPath'),
+    ).toBe(false);
   });
 
-  it('offers a concrete move when a trellis blocks a path', () => {
+  it('does not offer path-clearing suggestions in the gardener-facing review flow', () => {
     const garden: Garden = {
       ...createDefaultGarden('user-a'),
       structures: [
@@ -86,29 +64,8 @@ describe('reviewAccessSuggestions', () => {
       sunLayer: null,
       warnings: findPlanWarnings(garden),
     });
-    const clearPath = suggestions.find(
-      (suggestion) => suggestion.type === 'clearPathway',
-    );
-
-    expect(clearPath).toBeDefined();
-
-    const nextGarden = applyReviewSuggestionActions(
-      garden,
-      clearPath?.actions ?? [],
-    );
-    const path = nextGarden.structures.find(
-      (structure) => structure.id === 'path-main',
-    );
-    const trellis = nextGarden.structures.find(
-      (structure) => structure.id === 'pea-trellis',
-    );
-
-    if (!path || !trellis) {
-      throw new Error('Expected path and trellis after applying suggestion.');
-    }
-
     expect(
-      rectsOverlap(getStructureFootprint(path), getStructureFootprint(trellis)),
+      suggestions.some((suggestion) => suggestion.type === 'clearPathway'),
     ).toBe(false);
   });
 });

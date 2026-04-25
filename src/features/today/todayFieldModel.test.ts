@@ -1,45 +1,45 @@
 import {
+  appendPlantingEvent,
   createDefaultGarden,
   createDefaultPlanting,
+  createDefaultStructure,
+  type WeatherSnapshot,
   type WateringScheduleEntry,
-  type Task,
 } from '../../domain/gardens/GardenRepository';
 import { buildTodayFieldModel } from './todayFieldModel';
 
 describe('todayFieldModel', () => {
-  it('hides harvest-ready crops after a not-ready delay until the new due date', () => {
+  it('derives harvest timing from planting events instead of harvest tasks', () => {
     const garden = {
       ...createDefaultGarden('user-a'),
       plantings: [
-        {
-          ...createDefaultPlanting({
-            id: 'radish-1',
-            label: 'Radish row',
-            xFt: 2,
-            yFt: 2,
-          }),
-          cropId: 'radish',
-          status: 'growing' as const,
-        },
-      ],
-      tasks: [
-        createHarvestTask({
-          delayReason: 'Checked Radish row on 2026-06-21; not ready.',
-          deferredUntilDate: '2026-06-24',
-          dueDate: '2026-06-24',
-        }),
+        appendPlantingEvent(
+          {
+            ...createDefaultPlanting({
+              id: 'radish-1',
+              label: 'Radish row',
+              xFt: 2,
+              yFt: 2,
+            }),
+            cropId: 'radish',
+            status: 'growing' as const,
+          },
+          {
+            occurredOn: '2026-05-24',
+            type: 'directSowed',
+          },
+        ),
       ],
     };
 
     expect(
-      buildTodayFieldModel(garden, garden.tasks, '2026-06-21').harvestReady,
-    ).toEqual([]);
-    expect(
-      buildTodayFieldModel(garden, garden.tasks, '2026-06-24').harvestReady,
+      buildTodayFieldModel(garden, [], '2026-06-21', '2026-06-21')
+        .harvestSchedule,
     ).toEqual([
       expect.objectContaining({
-        delayReason: 'Checked Radish row on 2026-06-21; not ready.',
-        dueDate: '2026-06-24',
+        cropName: 'Radish',
+        expectedHarvestDate: '2026-06-21',
+        status: 'opening',
       }),
     ]);
   });
@@ -62,42 +62,183 @@ describe('todayFieldModel', () => {
         garden,
         [],
         '2026-06-21',
+        '2026-06-21',
         new Date('2026-06-21T14:00:00.000Z'),
-      ).activeWatering,
+      ).wateringGroups,
     ).toEqual([]);
     expect(
       buildTodayFieldModel(
         garden,
         [],
         '2026-06-21',
+        '2026-06-21',
         new Date('2026-06-21T19:00:00.000Z'),
-      ).activeWatering,
+      ).wateringGroups,
     ).toHaveLength(1);
   });
-});
 
-function createHarvestTask(overrides: Partial<Task> = {}): Task {
-  return {
-    bedLabel: 'Main bed',
-    completedAtIso: null,
-    createdAtIso: '2026-06-21T12:00:00.000Z',
-    deferredUntilDate: null,
-    dueDate: '2026-06-21',
-    gardenId: 'user-a',
-    id: 'planting-radish-1-harvest',
-    notes: 'Check roots.',
-    plantingId: 'radish-1',
-    priority: 'medium',
-    snoozedUntilDate: null,
-    source: 'generated',
-    sourceId: 'radish-1',
-    status: 'open',
-    structureId: null,
-    title: 'Harvest Radish row',
-    type: 'harvest',
-    ...overrides,
-  };
-}
+  it('groups multiple targets in the same watering zone into one watering run', () => {
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      plantings: [
+        {
+          ...createDefaultPlanting({
+            id: 'tomato-1',
+            label: 'Tomato',
+            xFt: 2,
+            yFt: 2,
+          }),
+          cropId: 'tomato',
+          status: 'growing' as const,
+        },
+        {
+          ...createDefaultPlanting({
+            id: 'basil-1',
+            label: 'Basil',
+            xFt: 3,
+            yFt: 2,
+          }),
+          cropId: 'basil',
+          status: 'growing' as const,
+        },
+      ],
+      structures: [
+        {
+          ...createDefaultStructure({
+            id: 'bed-1',
+            type: 'raisedBed',
+            xFt: 1,
+            yFt: 1,
+          }),
+          depthFt: 4,
+          label: 'Main bed',
+          widthFt: 6,
+        },
+      ],
+      wateringSchedule: [
+        createWateringScheduleEntry({
+          id: 'water-1',
+          targetId: 'bed-1',
+          targetLabel: 'Main bed',
+          wateringZoneId: 'zone-a',
+        }),
+        createWateringScheduleEntry({
+          id: 'water-2',
+          targetId: 'basil-1',
+          targetKind: 'planting',
+          targetLabel: 'Basil',
+          wateringZoneId: 'zone-a',
+        }),
+      ],
+    };
+
+    expect(
+      buildTodayFieldModel(garden, [], '2026-06-21', '2026-06-21')
+        .wateringGroups,
+    ).toEqual([
+      expect.objectContaining({
+        entryIds: ['water-1', 'water-2'],
+        label: 'Main bed',
+        memberLabels: ['Basil', 'Tomato'],
+        targetCount: 2,
+      }),
+    ]);
+  });
+
+  it('shows the next likely watering run when nothing is due right now', () => {
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      plantings: [
+        {
+          ...createDefaultPlanting({
+            id: 'basil-1',
+            label: 'Basil',
+            xFt: 3,
+            yFt: 3,
+          }),
+          cropId: 'basil',
+          status: 'growing' as const,
+          weeklyWaterNeedInches: 0.9,
+        },
+      ],
+      structures: [
+        {
+          ...createDefaultStructure({
+            id: 'bed-1',
+            type: 'raisedBed',
+            xFt: 1,
+            yFt: 1,
+          }),
+          label: 'Main bed',
+          mulched: true,
+        },
+      ],
+      weatherSnapshots: [createSnapshot()],
+    };
+
+    const model = buildTodayFieldModel(
+      garden,
+      [],
+      '2026-06-21',
+      '2026-06-21',
+      new Date('2026-06-21T11:00:00.000Z'),
+    );
+
+    expect(model.wateringGroups).toEqual([]);
+    expect(model.nextWateringRun).toMatchObject({
+      date: '2026-06-22',
+      label: 'Main bed',
+    });
+  });
+
+  it('uses observed weather today and selected-day forecast weather for future dates', () => {
+    const snapshot: WeatherSnapshot = {
+      ...createSnapshot(),
+      forecastDays: [
+        {
+          conditionSummary: 'Warm and dry',
+          date: '2026-06-21',
+          expectedRainIn: 0,
+          highF: 88,
+          precipitationChancePercent: 10,
+        },
+        {
+          conditionSummary: 'Mostly Cloudy',
+          date: '2026-06-22',
+          expectedRainIn: 0.25,
+          highF: 60,
+          precipitationChancePercent: 3,
+        },
+      ],
+    };
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      weatherSnapshots: [snapshot],
+    };
+
+    expect(
+      buildTodayFieldModel(garden, [], '2026-06-21', '2026-06-21')
+        .selectedWeather,
+    ).toMatchObject({
+      conditionSummary: 'Sunny and dry',
+      displayDateLabel: 'Observed',
+      mode: 'observed',
+      recentPrecipitation72hIn: 0.1,
+      temperatureF: 82,
+    });
+    expect(
+      buildTodayFieldModel(garden, [], '2026-06-22', '2026-06-21')
+        .selectedWeather,
+    ).toMatchObject({
+      conditionSummary: 'Mostly Cloudy',
+      displayDateLabel: 'Forecast for',
+      forecastRainIn: 0.25,
+      mode: 'forecast',
+      precipitationChancePercent: 3,
+      temperatureF: 60,
+    });
+  });
+});
 
 function createWateringScheduleEntry(
   overrides: Partial<WateringScheduleEntry> = {},
@@ -125,5 +266,37 @@ function createWateringScheduleEntry(
     wateringZoneId: 'bed-1',
     weatherSnapshotId: 'weather-1',
     ...overrides,
+  };
+}
+
+function createSnapshot(): WeatherSnapshot {
+  return {
+    alertSummaries: [],
+    capturedAtIso: '2026-06-21T11:00:00.000Z',
+    conditionSummary: 'Sunny and dry',
+    evapotranspirationIn: 0.08,
+    forecastDays: Array.from({ length: 14 }, (_, index) => ({
+      conditionSummary: 'Sunny and dry',
+      date: new Date(Date.UTC(2026, 5, 21 + index)).toISOString().slice(0, 10),
+      expectedRainIn: index === 3 ? 0.35 : 0,
+      highF: index < 2 ? 88 : 84,
+    })),
+    forecastRainNext24In: 0,
+    forecastRainNext48In: 0,
+    frostRisk: 'none',
+    gardenId: 'user-a',
+    heatRisk: 'watch',
+    humidityPercent: 42,
+    id: 'weather-1',
+    nextRainIso: null,
+    observedForDate: '2026-06-21',
+    overnightLowF: 60,
+    precipitationIn: 0,
+    providerDecision: null,
+    providerLabel: 'National Weather Service',
+    recentPrecipitation72hIn: 0.1,
+    source: 'nationalWeatherService',
+    temperatureF: 82,
+    windMph: 5,
   };
 }

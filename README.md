@@ -24,6 +24,8 @@ Included:
 - plant and planting-instance positions stored as `xFt` and `yFt`
 - quantity-first Add Plant and Choose Plants flows that create individual plant
   nodes inside arrangement-aware groups
+- date-aware crop fit guidance that answers what to plant now in the garden
+  timezone
 - problem inbox and one checked whole-plot layout suggestion with before/after
   diff overlays, explicit apply or keep-current actions, and no decorative
   scoring surface
@@ -36,6 +38,8 @@ Included:
   alerts
 - generated task timeline for planting, trellising, thinning, pruning,
   fertilizing, mulching, watering, harvest windows, and succession prompts
+- actual planting-event tracking for started-inside, direct-sow, planted-out,
+  and thinned work, with derived follow-up tasks
 - journal, issue tracking, photo attachments, harvest logging, and in-season
   summaries
 - one-tap Today field actions and contextual photo follow-up for harvest/photo
@@ -77,7 +81,9 @@ On the plot, clicking a plant group opens crop focus, and the wrench or
 **Open details** opens the plant editor. Detailed View keeps that editor
 available while moving between relevant items. Review Problems opens the
 problem inbox, Generate layout walks through one checked layout suggestion, and
-Sun shows modeled direct sun plus maturity-based shade sources.
+Sun shows modeled direct sun plus maturity-based shade sources. Crop fit and
+planting-window guidance use the current garden day in the saved timezone, and
+recorded planting events drive the next derived Today tasks and Feed history.
 
 ## Runtime modes
 

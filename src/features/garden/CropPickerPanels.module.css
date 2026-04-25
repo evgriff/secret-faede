@@ -4,18 +4,18 @@
   max-height: none;
   min-height: 0;
   overflow: auto;
-  padding-top: 0.15rem;
+  padding-top: 0.1rem;
   padding-right: 0.25rem;
-  padding-bottom: 0.25rem;
+  padding-bottom: 0.35rem;
 }
 
 .cropOption {
   display: grid;
   grid-template-columns: 2.35rem minmax(0, 1fr);
   align-items: start;
-  gap: 0.65rem;
-  height: 6.75rem;
-  min-height: 6.75rem;
+  gap: 0.55rem;
+  height: 5.9rem;
+  min-height: 5.9rem;
   width: 100%;
   border: 1px solid rgba(54, 48, 40, 0.14);
   border-radius: var(--radius-card);
@@ -23,13 +23,13 @@
   color: var(--color-text-strong);
   cursor: pointer;
   font: inherit;
-  padding: 0.55rem;
+  padding: 0.5rem;
   text-align: left;
 }
 
 .cropOptionBody {
   display: grid;
-  gap: 0.28rem;
+  gap: 0.22rem;
   min-width: 0;
   overflow: hidden;
 }
@@ -74,7 +74,7 @@
 
 .cropOption small {
   font-size: var(--font-size-caption);
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 .fitHeadline {
@@ -306,11 +306,16 @@
 
 .advancedFilters {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.55rem;
   border: 1px solid rgba(54, 48, 40, 0.12);
   border-radius: var(--radius-card);
   background: rgba(255, 253, 247, 0.72);
-  padding: 0.7rem;
+  padding: 0.65rem;
+}
+
+.advancedFiltersHeader {
+  display: grid;
+  gap: 0.2rem;
 }
 
 .advancedFiltersToggle {
@@ -327,6 +332,25 @@
   font: inherit;
   padding: 0;
   text-align: left;
+}
+
+.advancedFiltersHint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  line-height: 1.3;
+}
+
+.advancedFiltersBody {
+  max-block-size: min(9rem, 24vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.15rem;
+}
+
+.advancedFiltersGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
 }
 
 .advancedFiltersToggle:hover {
@@ -378,7 +402,7 @@
 
 .virtualItem {
   box-sizing: border-box;
-  padding-bottom: 0.5rem;
+  padding-bottom: 0.35rem;
 }
 
 .virtualItem > * {

@@ -317,7 +317,9 @@ export function formatTimingLabel(status: PlantTimingStatus) {
   const labels: Record<PlantTimingStatus, string> = {
     goodForFall: 'Good for fall',
     plantNow: 'Plant now',
+    possibleNowWithProtection: 'Possible now with protection',
     startIndoorsNow: 'Start indoors now',
+    tooLateForSpringWindow: 'Too late for this spring window',
     waitUntilAfterFrost: 'Wait until after frost',
   };
 
@@ -351,10 +353,12 @@ function getLocationBandRank(suitability: CropSuitabilityScore) {
 
 function getTimingRank(status: PlantTimingStatus) {
   const ranks: Record<PlantTimingStatus, number> = {
-    goodForFall: 2,
-    plantNow: 4,
-    startIndoorsNow: 3,
-    waitUntilAfterFrost: 1,
+    goodForFall: 3,
+    plantNow: 6,
+    possibleNowWithProtection: 4,
+    startIndoorsNow: 5,
+    tooLateForSpringWindow: 1,
+    waitUntilAfterFrost: 2,
   };
 
   return ranks[status];

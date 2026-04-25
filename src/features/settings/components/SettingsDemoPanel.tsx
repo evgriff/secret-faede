@@ -1,5 +1,11 @@
 import pageStyles from '../SettingsPage.module.css';
 import type { DemoModeStatus } from '../settingsDemoMode';
+import {
+  sampleGardenActiveLabel,
+  sampleGardenRestoreDisabledMessage,
+  sampleGardenRestoreLabel,
+  sampleGardenRestoreTitle,
+} from '../settingsDemoSession';
 import styles from './SettingsDemoPanel.module.css';
 
 export function SettingsDemoPanel({
@@ -25,8 +31,8 @@ export function SettingsDemoPanel({
 }) {
   const restoreHelpText = isActive
     ? canExit
-      ? 'Reset returns the sample to its seeded baseline. Back to my garden restores what was backed up on this device.'
-      : 'No saved garden backup is available on this device, so Back to my garden is unavailable.'
+      ? `Reset returns the sample to its seeded baseline. ${sampleGardenRestoreLabel} restores what was backed up on this device.`
+      : sampleGardenRestoreDisabledMessage
     : 'Open the sample only when you want a clean example to explore without touching your garden.';
 
   return (
@@ -46,7 +52,7 @@ export function SettingsDemoPanel({
       </div>
       <div className={styles.statusLine}>
         <strong>
-          {isActive ? 'Sample garden active.' : 'Your garden is active.'}
+          {isActive ? sampleGardenActiveLabel : 'Your garden is active.'}
         </strong>
         <span>{restoreHelpText}</span>
       </div>
@@ -75,20 +81,20 @@ export function SettingsDemoPanel({
           onClick={onExitDemo}
           title={
             canExit
-              ? 'Back to the garden saved before opening the sample.'
-              : 'No saved garden backup is available on this device.'
+              ? sampleGardenRestoreTitle.available
+              : sampleGardenRestoreTitle.unavailable
           }
           type="button"
         >
-          Back to my garden
+          {sampleGardenRestoreLabel}
         </button>
       </div>
       {message ? <p className={pageStyles.saved}>{message}</p> : null}
       {error ? <p className={pageStyles.error}>{error}</p> : null}
       {isActive && !canExit ? (
         <p className={styles.restoreWarning}>
-          Back to my garden stays disabled until this device has a saved garden
-          backup to restore.
+          {sampleGardenRestoreLabel} stays disabled until this device has a
+          saved garden backup to restore.
         </p>
       ) : null}
       {status === 'exited' ? (

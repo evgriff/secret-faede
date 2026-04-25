@@ -41,6 +41,7 @@ interface ChoosePlantsLibraryProps {
   onToggleCompare: (crop: CropProfile, quantity?: number) => void;
   selectedCropIds: Set<string>;
   sunExposureAtPlacement: SunExposure | null;
+  today: Date;
 }
 
 export function ChoosePlantsLibrary({
@@ -51,6 +52,7 @@ export function ChoosePlantsLibrary({
   onToggleCompare,
   selectedCropIds,
   sunExposureAtPlacement,
+  today,
 }: ChoosePlantsLibraryProps) {
   const [category, setCategory] = useState<CategoryFilter>('any');
   const [lifecycle, setLifecycle] = useState<LifecycleFilter>('any');
@@ -97,9 +99,16 @@ export function ChoosePlantsLibrary({
                 context: locationContext,
                 crop,
                 sunExposureAtPlacement,
+                today,
               }).band === locationMatch,
           ),
-    [catalogCrops, locationContext, locationMatch, sunExposureAtPlacement],
+    [
+      catalogCrops,
+      locationContext,
+      locationMatch,
+      sunExposureAtPlacement,
+      today,
+    ],
   );
 
   useEffect(() => {
@@ -232,6 +241,7 @@ export function ChoosePlantsLibrary({
             quantity={getQuantity(crop)}
             quantityValue={getQuantityValue(crop)}
             sunExposureAtPlacement={sunExposureAtPlacement}
+            today={today}
           />
         )}
       />

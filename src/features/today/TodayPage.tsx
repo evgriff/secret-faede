@@ -36,19 +36,22 @@ import {
   logPartialWatering,
   markWaterDone,
   reportFieldIssue,
-  skipWateringBecauseRainArrived,
-  snoozeWatering,
   updateIssueStatus,
 } from './todayActions';
+import {
+  markWateringGroupDone,
+  skipWateringGroupBecauseRainArrived,
+  snoozeWateringGroup,
+} from './todayWateringGroupActions';
 import { toLocalDate } from './todayFormatters';
 import { buildTodayFieldModel } from './todayFieldModel';
 import { markPlantingLifecycle } from './todayLifecycleActions';
-import { delayHarvestReminderWithLocalNotification } from './todayLocalNotifications';
 import {
   buildCalendarDays,
   buildTodayTargetOptions,
   getTasksForSelectedDate,
   getTodayTarget,
+  isLegacyGeneratedHarvestTask,
   isScheduledWateringTask,
 } from './todaySelectors';
 import { useTodayGarden } from './useTodayGarden';
@@ -91,12 +94,16 @@ export function TodayPage() {
     [openTasks, selectedDate, todayDate],
   );
   const selectedDayFieldTasks = useMemo(
-    () => selectedDayTasks.filter((task) => !isScheduledWateringTask(task)),
+    () =>
+      selectedDayTasks.filter(
+        (task) =>
+          !isScheduledWateringTask(task) && !isLegacyGeneratedHarvestTask(task),
+      ),
     [selectedDayTasks],
   );
   const calendarDays = useMemo(
-    () => buildCalendarDays(openTasks, todayDate),
-    [openTasks, todayDate],
+    () => (garden ? buildCalendarDays(garden, openTasks, todayDate) : []),
+    [garden, openTasks, todayDate],
   );
   const targetOptions = useMemo(
     () => (garden ? buildTodayTargetOptions(garden) : []),
@@ -105,9 +112,15 @@ export function TodayPage() {
   const fieldModel = useMemo(
     () =>
       garden
-        ? buildTodayFieldModel(garden, openTasks, selectedDate, today)
+        ? buildTodayFieldModel(
+            garden,
+            openTasks,
+            selectedDate,
+            todayDate,
+            today,
+          )
         : null,
-    [garden, openTasks, selectedDate, today],
+    [garden, openTasks, selectedDate, today, todayDate],
   );
 
   function openQuickAction(action: TodayQuickActionState) {
@@ -224,29 +237,12 @@ export function TodayPage() {
     );
 
     if (saved) {
-      showActionNotice(
-        'Harvest saved to Feed. Add a photo if it helps the memory.',
-      );
-      setActiveQuickAction({
-        kind: 'photo',
-        targetId: input.plantingId ? `planting:${input.plantingId}` : 'garden',
-      });
+      showActionNotice('Harvest saved to Feed.');
     }
 
     return saved;
   }
 
-  function handleLogHarvestDone(item: { planting: { id: string } }) {
-    void handleQuickHarvestSubmit({
-      amountText: 'Picked',
-      cropFinished: false,
-      harvestedOn: selectedDate,
-      notes: '',
-      plantingId: item.planting.id,
-      quantity: null,
-      unit: 'freeform',
-    });
-  }
   async function handleCapturePhoto() {
     try {
       return await mobileDeviceService.capturePhoto();
@@ -343,15 +339,15 @@ export function TodayPage() {
     });
   }
 
-  function handleWaterDone(recommendationId: string) {
+  function handleWaterDoneGroup(recommendationIds: string[]) {
     void applyGardenUpdate(
-      (current) => markWaterDone(current, recommendationId),
+      (current) => markWateringGroupDone(current, recommendationIds),
       'Unable to save watering.',
     ).then((saved) => {
       if (saved) {
         setActiveWateringAction(null);
         telemetryService.trackEvent('task_completed', {
-          source: 'watering_recommendation',
+          source: 'watering_schedule_group',
           task_type: 'water',
         });
         showActionNotice('Watering logged in Feed.');
@@ -377,9 +373,10 @@ export function TodayPage() {
     return saved;
   }
 
-  function handleSkipWateringForRain(recommendationId: string) {
+  function handleSkipWateringForRainGroup(recommendationIds: string[]) {
     void applyGardenUpdate(
-      (current) => skipWateringBecauseRainArrived(current, recommendationId),
+      (current) =>
+        skipWateringGroupBecauseRainArrived(current, recommendationIds),
       'Unable to skip watering.',
     ).then((saved) => {
       if (saved) {
@@ -389,12 +386,12 @@ export function TodayPage() {
     });
   }
 
-  function handleSnoozeWatering(
-    recommendationId: string,
+  function handleSnoozeWateringGroup(
+    recommendationIds: string[],
     option: 'tonight' | 'tomorrow',
   ) {
     void applyGardenUpdate(
-      (current) => snoozeWatering(current, recommendationId, option),
+      (current) => snoozeWateringGroup(current, recommendationIds, option),
       'Unable to move watering.',
     ).then((saved) => {
       if (saved) {
@@ -424,25 +421,6 @@ export function TodayPage() {
     }
 
     return saved;
-  }
-
-  function handleDelayHarvest(
-    plantingId: string,
-    delayUntilDate: string,
-    reason: string,
-  ) {
-    void delayHarvestReminderWithLocalNotification({
-      applyGardenUpdate,
-      delayUntilDate,
-      garden,
-      mobileDeviceService,
-      plantingId,
-      reason,
-    }).then((saved) => {
-      if (saved) {
-        showActionNotice('Harvest reminder rescheduled.');
-      }
-    });
   }
 
   const handleRefreshWeatherAndWatering = () =>
@@ -489,17 +467,19 @@ export function TodayPage() {
       />
       <TodayWateringSheet
         action={activeWateringAction}
-        onAdjustAmount={handleAdjustWateringAmount}
-        onClose={() => setActiveWateringAction(null)}
-        onSubmitPartial={handlePartialWatering}
-        recommendation={
+        group={
           activeWateringAction
-            ? (garden.wateringSchedule.find(
-                (candidate) =>
-                  candidate.id === activeWateringAction.recommendationId,
+            ? (fieldModel.wateringGroups.find(
+                (candidate) => candidate.id === activeWateringAction.groupId,
               ) ?? null)
             : null
         }
+        onAdjustAmount={handleAdjustWateringAmount}
+        onClose={() => setActiveWateringAction(null)}
+        onSkipGroupForRain={handleSkipWateringForRainGroup}
+        onSnoozeGroup={handleSnoozeWateringGroup}
+        onSubmitPartial={handlePartialWatering}
+        onWaterDoneGroup={handleWaterDoneGroup}
       />
 
       {actionNotice ? (
@@ -525,10 +505,9 @@ export function TodayPage() {
       <TodayDayOverview
         model={fieldModel}
         onCompleteTask={handleCompleteTask}
-        onLogHarvest={handleLogHarvestDone}
         onUpdateIssue={handleUpdateIssue}
         onUpdatePlantingStatus={handleUpdatePlantingStatus}
-        onWaterDone={handleWaterDone}
+        onWaterDoneGroup={handleWaterDoneGroup}
         selectedDate={selectedDate}
         selectedTasks={selectedDayFieldTasks}
       />
@@ -537,23 +516,13 @@ export function TodayPage() {
         model={fieldModel}
         onCompleteTask={handleCompleteTask}
         onDeferTask={handleDeferTask}
-        onDelayHarvest={handleDelayHarvest}
-        onLogHarvest={handleLogHarvestDone}
-        onAdjustWateringAmount={(recommendationId) =>
-          openWateringAction({ mode: 'adjust', recommendationId })
-        }
         onOpenAction={openQuickAction}
-        onPartialWatering={(recommendationId) =>
-          openWateringAction({ mode: 'partial', recommendationId })
-        }
-        onSkipWateringForRain={handleSkipWateringForRain}
-        onSnoozeWatering={handleSnoozeWatering}
+        onOpenWateringGroup={(groupId) => openWateringAction({ groupId })}
         onSnoozeTask={handleSnoozeTask}
         onUpdatePlantingStatus={handleUpdatePlantingStatus}
         onUpdateIssue={handleUpdateIssue}
-        onWaterDone={handleWaterDone}
+        onWaterDoneGroup={handleWaterDoneGroup}
         selectedTasks={selectedDayFieldTasks}
-        todayDate={selectedDate}
       />
 
       <div className={styles.layout}>
@@ -571,8 +540,8 @@ export function TodayPage() {
               <p className={styles.kicker}>Checks and other work</p>
               <h2>No dated tasks for this day</h2>
               <p>
-                Watering, harvests, and issue checks still appear above when
-                they matter.
+                Watering, harvest timing, and issue checks still appear above
+                when they matter.
               </p>
             </section>
           )}

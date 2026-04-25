@@ -1,4 +1,5 @@
 import {
+  appendPlantingEvent,
   createDefaultGarden,
   createDefaultPlanting,
   createDefaultStructure,
@@ -61,6 +62,40 @@ describe('wateringEngine', () => {
       status: 'suppressed',
       targetAmountInches: 0,
     });
+  });
+
+  it('preserves distinct provider forecast days in weather snapshots', () => {
+    const garden = createWateringGarden();
+    const context = createWeatherContext({
+      dailyHighF: 82,
+      next24hPrecipIn: 0.08,
+      recentRainIn: 0,
+    });
+
+    context.forecast.days = [
+      {
+        conditionSummary: 'Mostly Cloudy',
+        date: '2026-06-21',
+        expectedRainIn: 0.08,
+        highF: 82,
+        precipitationChancePercent: 40,
+      },
+      {
+        conditionSummary: 'Mostly Sunny',
+        date: '2026-06-22',
+        expectedRainIn: 0,
+        highF: 74,
+        precipitationChancePercent: 5,
+      },
+    ];
+
+    const snapshot = createWeatherSnapshot(
+      garden,
+      context,
+      new Date('2026-06-21T11:00:00.000Z'),
+    );
+
+    expect(snapshot.forecastDays).toEqual(context.forecast.days);
   });
 
   it('tracks partial watering from recent manual logs and leaves only the remainder due', () => {
@@ -171,6 +206,51 @@ describe('wateringEngine', () => {
       targetAmountInches: expect.any(Number),
     });
   });
+
+  it('keeps recent direct sowing in the establishing stage even after lifecycle advances', () => {
+    const now = new Date('2026-06-21T11:00:00.000Z');
+    const garden = createWateringGarden({
+      plantings: [
+        {
+          ...appendPlantingEvent(
+            {
+              ...createDefaultPlanting({
+                id: 'tomato-1',
+                label: 'Tomato',
+                xFt: 3,
+                yFt: 3,
+              }),
+              cropId: 'tomato',
+              status: 'growing',
+              weeklyWaterNeedInches: 1.3,
+            },
+            {
+              occurredOn: '2026-06-18',
+              type: 'directSowed',
+            },
+          ),
+          status: 'growing' as const,
+        },
+      ],
+    });
+    const context = createWeatherContext({
+      dailyHighF: 88,
+      next24hPrecipIn: 0,
+      recentRainIn: 0,
+    });
+    const snapshot = createWeatherSnapshot(garden, context, now);
+    const recommendations = buildWateringSchedule(
+      garden,
+      context,
+      snapshot,
+      now,
+    );
+
+    expect(recommendations[0]?.reasonDetails).toContain(
+      'New plantings need steadier moisture right now.',
+    );
+    expect(recommendations[0]?.targetAmountInches ?? 0).toBeGreaterThan(1.4);
+  });
 });
 
 function createWateringGarden(overrides: Partial<Garden> = {}): Garden {
@@ -250,6 +330,15 @@ function createWeatherContext({
     },
     forecast: {
       dailyHighF,
+      days: [
+        {
+          conditionSummary: 'Sunny',
+          date: '2026-06-21',
+          expectedRainIn: next24hPrecipIn,
+          highF: dailyHighF,
+          precipitationChancePercent: null,
+        },
+      ],
       generatedAtIso: '2026-06-21T11:00:00.000Z',
       next24hPrecipIn,
       next48hPrecipIn: next24hPrecipIn,

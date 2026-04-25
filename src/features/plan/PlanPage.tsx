@@ -1,5 +1,6 @@
 import {
   lazy,
+  startTransition,
   Suspense,
   useCallback,
   useEffect,
@@ -19,8 +20,8 @@ import type {
 } from '../../domain/gardens/GardenRepository';
 import {
   createGardenChangesetSummary,
-  hasGardenChanges,
   prepareGardenForUser,
+  type GardenChangesetSummary,
   type GardenPublishConflict,
 } from '../../domain/gardens/gardenWorkspace';
 import { LoadingState } from '../../shared/ui/LoadingState';
@@ -29,6 +30,7 @@ import { useAuth } from '../auth/auth-context';
 import {
   findPlanWarnings,
   isInspectorPlanWarning,
+  isUserFacingPlanWarning,
 } from '../garden/gardenPlanning';
 import { PlotSettingsModal } from '../garden/PlotSettingsModal';
 import {
@@ -54,6 +56,8 @@ import type {
   AutoLayoutCandidate,
   AutoLayoutRunStatus,
 } from './autoLayoutTypes';
+import { allowAutoLayoutStagePaint } from './autoLayoutRunState';
+import { runPlanAutoLayoutGeneration } from './planAutoLayoutGeneration';
 import { PlanActionRail } from './components/PlanActionRail';
 import { PlanCanvas } from './components/PlanCanvas';
 import { PlanCropFocusCard } from './components/PlanCropFocusCard';
@@ -61,6 +65,7 @@ import { PlanSelectionToolbar } from './components/PlanSelectionToolbar';
 import { PlanTopBar } from './components/PlanTopBar';
 import { usePlanKeyboardShortcuts } from './hooks/usePlanKeyboardShortcuts';
 import { buildCropFocusSummary } from './planCropFocus';
+import { formatDateForTimeZone } from './planDates';
 import { buildPlanInfluenceOverlay } from './planInfluenceOverlay';
 import { buildLayoutProblemResolutionModel } from './layoutProblemResolution';
 import { syncSetupProfile } from './planPageActions';
@@ -112,8 +117,10 @@ const PlanModeDrawer = lazy(() =>
     default: module.PlanModeDrawer,
   })),
 );
+const loadPlanOperationsPanel = () =>
+  import('./components/PlanOperationsPanel');
 const PlanOperationsPanel = lazy(() =>
-  import('./components/PlanOperationsPanel').then((module) => ({
+  loadPlanOperationsPanel().then((module) => ({
     default: module.PlanOperationsPanel,
   })),
 );
@@ -160,6 +167,7 @@ export function PlanPage() {
     hidePlantGroupLabel,
     hoveredPlantGroupId,
     labelVisibility,
+    markPlantingsPlanted,
     openDetailedViewForItem,
     openPlantGroupEditor,
     paintSunShadeCell,
@@ -172,6 +180,7 @@ export function PlanPage() {
     resizeStructure,
     resizeStructureRect,
     saveGarden,
+    saveDraftGarden,
     saveStatus,
     selectLayoutProblem,
     selectedItem,
@@ -209,6 +218,8 @@ export function PlanPage() {
   >(null);
   const [optimizerStatus, setOptimizerStatus] =
     useState<AutoLayoutRunStatus>('idle');
+  const [optimizerIncludesDraftSave, setOptimizerIncludesDraftSave] =
+    useState(false);
   const [optimizerMessage, setOptimizerMessage] = useState<string | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isPlotSettingsOpen, setIsPlotSettingsOpen] = useState(false);
@@ -265,7 +276,9 @@ export function PlanPage() {
   const activePlanWarnings = useMemo(
     () =>
       planWarnings.filter(
-        (warning) => !acknowledgedWarningIds.includes(warning.id),
+        (warning) =>
+          isUserFacingPlanWarning(warning) &&
+          !acknowledgedWarningIds.includes(warning.id),
       ),
     [acknowledgedWarningIds, planWarnings],
   );
@@ -330,7 +343,7 @@ export function PlanPage() {
     if (autoLayoutSuggestion) {
       return buildAutoLayoutProposalDiffOverlay({
         candidate: autoLayoutSuggestion,
-        currentWarnings: planWarnings,
+        currentWarnings: activePlanWarnings,
         garden,
         sunLayer: activeSunLayer,
         sunSeason,
@@ -342,9 +355,9 @@ export function PlanPage() {
     activeMode,
     activeReviewSuggestion,
     activeSunLayer,
+    activePlanWarnings,
     autoLayoutSuggestion,
     garden,
-    planWarnings,
     sunSeason,
   ]);
 
@@ -373,12 +386,16 @@ export function PlanPage() {
         : null,
     [garden, suggestionDecisions, workspace],
   );
-  const canPublish = Boolean(draftSummary && hasGardenChanges(draftSummary));
-  const workspaceState = workspace?.draftIsStale
-    ? 'stale'
-    : canPublish || dirty
-      ? 'draft'
-      : 'published';
+  const hasPlanChanges = Boolean(
+    draftSummary && hasPlanWorkspaceChanges(draftSummary),
+  );
+  const canPublish = hasPlanChanges;
+  const workspaceState =
+    workspace?.draftIsStale && hasPlanChanges
+      ? 'stale'
+      : hasPlanChanges || dirty
+        ? 'draft'
+        : 'published';
   const nextPlacementSunArea = useMemo(() => {
     if (!garden || !activeSunLayer) {
       return null;
@@ -506,6 +523,10 @@ export function PlanPage() {
             garden,
             selectedItem: cropFocusItem,
             sunLayer: activeSunLayer,
+            todayDate: formatDateForTimeZone(
+              new Date(),
+              garden.plot.location.timezone,
+            ),
             warnings: activePlanWarnings,
           })
         : null,
@@ -594,6 +615,7 @@ export function PlanPage() {
     ],
     [selectedItems],
   );
+  const selectedPlantCount = selectedPlantIds.length;
   const selectedStructureIds = useMemo(
     () =>
       selectedItems
@@ -601,6 +623,7 @@ export function PlanPage() {
         .map((item) => item.id),
     [selectedItems],
   );
+  const selectedStructureCount = selectedStructureIds.length;
   const visiblePlantLabelIds = useMemo(() => {
     if (!garden || labelVisibility.mode === 'hidden') {
       return [];
@@ -798,6 +821,17 @@ export function PlanPage() {
     setSelectedItem,
     syncTransientPlantInteraction,
   ]);
+
+  const handleMarkSelectedPlanted = useCallback(
+    (plantedOn: string) => {
+      if (selectedPlantIds.length === 0) {
+        return;
+      }
+
+      markPlantingsPlanted(selectedPlantIds, plantedOn);
+    },
+    [markPlantingsPlanted, selectedPlantIds],
+  );
 
   const handleNudgeSelection = useCallback(
     (deltaXFt: number, deltaYFt: number) => {
@@ -1055,7 +1089,7 @@ export function PlanPage() {
 
   if (setupRequired) {
     return (
-      <section className={styles.screen} data-route-shell="true">
+      <section className={styles.setupScreen} data-route-shell="true">
         <Suspense
           fallback={
             <LoadingState
@@ -1090,6 +1124,7 @@ export function PlanPage() {
   }
 
   function handleOpenOptimizeMode() {
+    void loadPlanOperationsPanel();
     setActiveMode('optimize');
     setIsContextPanelOpen(true);
 
@@ -1098,11 +1133,12 @@ export function PlanPage() {
       !autoLayoutSuggestion &&
       garden.seasonPlan.wantedCrops.length > 0
     ) {
-      void handleGenerateAutoLayouts(garden);
+      queueAutoLayoutGeneration(garden);
     }
   }
 
   function handleOpenReviewProblems() {
+    void loadPlanOperationsPanel();
     setActiveMode('optimize');
     setIsContextPanelOpen(true);
   }
@@ -1113,6 +1149,17 @@ export function PlanPage() {
     setIsContextPanelOpen(true);
   }
 
+  function queueAutoLayoutGeneration(sourceGarden = garden) {
+    if (typeof window === 'undefined') {
+      void handleGenerateAutoLayouts(sourceGarden);
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      void handleGenerateAutoLayouts(sourceGarden);
+    });
+  }
+
   async function handleGenerateAutoLayouts(sourceGarden = garden) {
     if (!sourceGarden) {
       setOptimizerStatus('error');
@@ -1120,36 +1167,38 @@ export function PlanPage() {
       return;
     }
 
-    setOptimizerStatus('running');
-    setOptimizerMessage('Checking for a simpler layout...');
     setAutoLayoutSuggestion(null);
     setActiveReviewSuggestionId(null);
 
     try {
-      const { generateAutoLayoutSuggestion } =
-        await import('./autoLayoutEngine');
-      const nextSuggestion = generateAutoLayoutSuggestion(sourceGarden, {
-        ignoredWarningIds: acknowledgedWarningIds,
+      const result = await runPlanAutoLayoutGeneration({
+        acknowledgedWarningIds,
+        currentGarden: garden,
+        dirty,
+        onStage: async (status, message) => {
+          setOptimizerStatus(status);
+          setOptimizerMessage(message);
+          await allowAutoLayoutStagePaint();
+        },
+        saveDraftGarden,
+        sourceGarden,
+        suggestionDecisions,
         sunLayer: activeSunLayer,
         sunSeason,
       });
-      setAutoLayoutSuggestion(nextSuggestion);
+      setOptimizerIncludesDraftSave(result.includesDraftSave);
 
-      if (!nextSuggestion) {
-        const hasLayoutRequests =
-          sourceGarden.seasonPlan.wantedCrops.length > 0;
-
-        setOptimizerStatus('empty');
-        setOptimizerMessage(
-          hasLayoutRequests
-            ? 'No better layout found right now. Keep the current layout or adjust the plan, then check again.'
-            : 'Add plants before generating a layout suggestion.',
-        );
+      if (!result.suggestion) {
+        setOptimizerStatus(result.status);
+        setOptimizerMessage(result.message);
         return;
       }
 
-      setOptimizerStatus('ready');
-      setOptimizerMessage('One checked layout suggestion is ready to review.');
+      startTransition(() => {
+        setAutoLayoutSuggestion(result.suggestion);
+        setOptimizerStatus(result.status);
+        setOptimizerMessage(result.message);
+      });
     } catch (generationError) {
       setAutoLayoutSuggestion(null);
       setOptimizerStatus('error');
@@ -1404,7 +1453,7 @@ export function PlanPage() {
       setOperationsError(
         discardFailure instanceof Error
           ? discardFailure.message
-          : 'Unable to sync from published.',
+          : 'Unable to abandon draft changes.',
       );
     }
   }
@@ -1463,7 +1512,10 @@ export function PlanPage() {
           dirty={dirty}
           garden={garden}
           isOffline={isOffline}
-          onAddPlants={() => setIsChoosePlantsOpen(true)}
+          onAddPlants={() => {
+            void loadPlanOperationsPanel();
+            setIsChoosePlantsOpen(true);
+          }}
           onOpenPlot={() => setIsPlotSettingsOpen(true)}
           onPublish={() => {
             setPublishConflict(
@@ -1484,15 +1536,13 @@ export function PlanPage() {
           saveStatus={saveStatus}
           workspaceState={workspaceState}
         />
-        {workspace?.hasDraft &&
-        showDraftChoice &&
-        (workspace.draftChanged || dirty) ? (
+        {workspace?.hasDraft && showDraftChoice && (hasPlanChanges || dirty) ? (
           <div className={styles.draftChoice}>
             <div>
-              <strong>Continue working draft?</strong>
+              <strong>Saved draft changes are waiting</strong>
               <p>
-                This draft is private until it is published. Syncing from
-                published discards local draft edits.
+                Keep editing this private draft, or abandon the saved local plan
+                changes and go back to the published plot.
               </p>
             </div>
             <div className={styles.draftChoiceActions}>
@@ -1504,11 +1554,11 @@ export function PlanPage() {
                 Continue draft
               </button>
               <button
-                className={styles.secondaryButton}
+                className={styles.warningButton}
                 onClick={() => void handleDiscardDraft()}
                 type="button"
               >
-                Sync from published
+                Abandon Changes
               </button>
             </div>
           </div>
@@ -1596,6 +1646,10 @@ export function PlanPage() {
             onDelete={handleDeleteSelection}
             onDistributeHorizontal={handleDistributeSelection}
             onDuplicate={handleDuplicateSelection}
+            onMarkSelectedPlanted={handleMarkSelectedPlanted}
+            selectedPlantCount={selectedPlantCount}
+            selectedStructureCount={selectedStructureCount}
+            timezone={garden.plot.location.timezone}
           />
         </div>
 
@@ -1663,6 +1717,7 @@ export function PlanPage() {
                       onGenerateAutoLayoutSuggestion={() =>
                         void handleGenerateAutoLayouts()
                       }
+                      optimizerIncludesDraftSave={optimizerIncludesDraftSave}
                       optimizerMessage={optimizerMessage}
                       optimizerStatus={optimizerStatus}
                       suggestion={layoutProblemResolutionModel.suggestion}
@@ -1778,14 +1833,22 @@ export function PlanPage() {
                 },
               };
 
+              void loadPlanOperationsPanel();
               updateSeasonCropSelections(wantedCrops);
               telemetryService.trackEvent('season_crop_list_updated', {
                 crop_count: wantedCrops.length,
               });
+              setOptimizerIncludesDraftSave(true);
+              setAutoLayoutSuggestion(null);
+              setActiveReviewSuggestionId(null);
+              setOptimizerStatus('savingDraft');
+              setOptimizerMessage(
+                'Saving the current draft before checking another arrangement.',
+              );
               setIsChoosePlantsOpen(false);
               setActiveMode('optimize');
               setIsContextPanelOpen(true);
-              void handleGenerateAutoLayouts(optimizedGarden);
+              queueAutoLayoutGeneration(optimizedGarden);
             }}
             sunExposureAtPlacement={null}
           />
@@ -1852,4 +1915,19 @@ function getWarningIdFromLayoutProblem(problem: LayoutProblem) {
   return problem.id.startsWith(warningPrefix)
     ? problem.id.slice(warningPrefix.length)
     : null;
+}
+
+function hasPlanWorkspaceChanges(summary: GardenChangesetSummary) {
+  return (
+    summary.plotChanged ||
+    summary.plantingsAdded > 0 ||
+    summary.plantingsChanged > 0 ||
+    summary.plantingsRemoved > 0 ||
+    summary.structuresAdded > 0 ||
+    summary.structuresChanged > 0 ||
+    summary.structuresRemoved > 0 ||
+    summary.wantedCropsAdded > 0 ||
+    summary.wantedCropsChanged > 0 ||
+    summary.wantedCropsRemoved > 0
+  );
 }

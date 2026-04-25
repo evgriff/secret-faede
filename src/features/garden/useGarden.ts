@@ -66,6 +66,8 @@ import {
   rebuildGardenWateringFromLatestSnapshot,
   refreshGardenWateringFromWeather,
 } from './wateringScheduleRefresh';
+import { markPlantingsPlantedInGarden } from './gardenPlantingLifecycle';
+import { applyPlantingEventEffects } from './plantingEventEffects';
 import {
   applyReviewSuggestionActions,
   describeSuggestionDecision,
@@ -105,6 +107,16 @@ export type SelectedGardenItem =
 export type GardenItemPositionUpdate = SelectedGardenItem & {
   xFt: number;
   yFt: number;
+};
+
+export interface GardenPositionUpdateOptions {
+  saveAfterCommit?: boolean;
+}
+
+type QueuedDraftSave = {
+  garden: Garden;
+  resolvers: Array<(saved: boolean) => void>;
+  revision: number;
 };
 
 const arrangementFields: Array<keyof GardenPlant> = [
@@ -167,6 +179,38 @@ export function useGarden(userId: string | null) {
   const gardenPlanningStorageSignature = gardenPlanningState
     ? getGardenPlanningStorageSignature(gardenPlanningState)
     : null;
+  const draftSaveContextRef = useRef({
+    gardenRepository,
+    suggestionDecisions,
+    userId,
+    workspace,
+  });
+  const gardenEditRevisionRef = useRef(0);
+  const isMountedRef = useRef(true);
+  const queuedDraftSaveRef = useRef<QueuedDraftSave | null>(null);
+  const scheduledDraftSaveRef = useRef<{
+    garden: Garden;
+    revision: number;
+  } | null>(null);
+  const saveTaskScheduledRef = useRef(false);
+  const saveInFlightRef = useRef(false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    draftSaveContextRef.current = {
+      gardenRepository,
+      suggestionDecisions,
+      userId,
+      workspace,
+    };
+  }, [gardenRepository, suggestionDecisions, userId, workspace]);
 
   useEffect(() => {
     if (!userId) {
@@ -193,6 +237,8 @@ export function useGarden(userId: string | null) {
         setGarden(loadedGarden);
         setGardenPlanningState(planningHydration.state);
         setDirty(false);
+        gardenEditRevisionRef.current = 0;
+        queuedDraftSaveRef.current = null;
         setRedoStack([]);
         setSaveStatus('idle');
         setSetupRequired(needsProfileSetup(loadedGarden));
@@ -287,38 +333,139 @@ export function useGarden(userId: string | null) {
     writeGardenPlanningState(userId, stateToPersist);
   }, [gardenPlanningStorageSignature, userId]);
 
+  const writeQueuedDraftSave = useCallback(async (job: QueuedDraftSave) => {
+    const {
+      gardenRepository: currentGardenRepository,
+      suggestionDecisions: currentSuggestionDecisions,
+      userId: currentUserId,
+      workspace: currentWorkspace,
+    } = draftSaveContextRef.current;
+
+    if (!currentUserId || !currentWorkspace) {
+      job.resolvers.forEach((resolve) => resolve(false));
+      return false;
+    }
+
+    if (isMountedRef.current) {
+      setSaveStatus('saving');
+      setError(null);
+    }
+
+    try {
+      const wasOffline = isBrowserOffline();
+      await currentGardenRepository.saveDraft({
+        ...currentWorkspace.draft,
+        garden: job.garden,
+        suggestionDecisions: currentSuggestionDecisions,
+        updatedAtIso: new Date().toISOString(),
+        userId: currentUserId,
+      });
+      const nextWorkspace =
+        await currentGardenRepository.getWorkspace(currentUserId);
+
+      if (isMountedRef.current) {
+        if (job.revision === gardenEditRevisionRef.current) {
+          setDirty(false);
+          setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
+          setSuggestionDecisions(nextWorkspace.draft.suggestionDecisions);
+          setWorkspace(nextWorkspace);
+        } else if (!queuedDraftSaveRef.current) {
+          setSaveStatus('idle');
+        }
+      }
+
+      job.resolvers.forEach((resolve) => resolve(true));
+      return true;
+    } catch (saveError) {
+      if (isMountedRef.current) {
+        setError(toErrorMessage(saveError, 'Unable to save your garden.'));
+        setSaveStatus('error');
+      }
+
+      job.resolvers.forEach((resolve) => resolve(false));
+      return false;
+    }
+  }, []);
+
+  const flushQueuedDraftSaves = useCallback(async () => {
+    if (saveInFlightRef.current) {
+      return;
+    }
+
+    saveInFlightRef.current = true;
+
+    try {
+      while (queuedDraftSaveRef.current) {
+        const nextSave = queuedDraftSaveRef.current;
+        queuedDraftSaveRef.current = null;
+        await writeQueuedDraftSave(nextSave);
+      }
+    } finally {
+      saveInFlightRef.current = false;
+    }
+  }, [writeQueuedDraftSave]);
+
+  const enqueueDraftSave = useCallback(
+    (draftGarden: Garden, revision = gardenEditRevisionRef.current) =>
+      new Promise<boolean>((resolve) => {
+        const queuedSave = queuedDraftSaveRef.current;
+
+        queuedDraftSaveRef.current = {
+          garden: draftGarden,
+          resolvers: queuedSave
+            ? [...queuedSave.resolvers, resolve]
+            : [resolve],
+          revision,
+        };
+
+        if (isMountedRef.current) {
+          setSaveStatus('saving');
+          setError(null);
+        }
+
+        void flushQueuedDraftSaves();
+      }),
+    [flushQueuedDraftSaves],
+  );
+
+  const scheduleDraftAutosave = useCallback(
+    (draftGarden: Garden, revision: number) => {
+      scheduledDraftSaveRef.current = {
+        garden: draftGarden,
+        revision,
+      };
+
+      if (saveTaskScheduledRef.current) {
+        return;
+      }
+
+      saveTaskScheduledRef.current = true;
+
+      const run = () => {
+        const nextSave = scheduledDraftSaveRef.current;
+
+        scheduledDraftSaveRef.current = null;
+        saveTaskScheduledRef.current = false;
+
+        if (nextSave) {
+          void enqueueDraftSave(nextSave.garden, nextSave.revision);
+        }
+      };
+
+      void Promise.resolve().then(run);
+    },
+    [enqueueDraftSave],
+  );
+
   const saveCurrentDraft = useCallback(
-    async (draftGarden: Garden) => {
+    async (draftGarden: Garden, revision = gardenEditRevisionRef.current) => {
       if (!userId || !workspace) {
         return false;
       }
 
-      setSaveStatus('saving');
-      setError(null);
-
-      try {
-        const wasOffline = isBrowserOffline();
-        await gardenRepository.saveDraft({
-          ...workspace.draft,
-          garden: draftGarden,
-          suggestionDecisions,
-          updatedAtIso: new Date().toISOString(),
-          userId,
-        });
-        const nextWorkspace = await gardenRepository.getWorkspace(userId);
-
-        setDirty(false);
-        setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
-        setSuggestionDecisions(nextWorkspace.draft.suggestionDecisions);
-        setWorkspace(nextWorkspace);
-        return true;
-      } catch (saveError) {
-        setError(toErrorMessage(saveError, 'Unable to save your garden.'));
-        setSaveStatus('error');
-        return false;
-      }
+      return enqueueDraftSave(draftGarden, revision);
     },
-    [gardenRepository, suggestionDecisions, userId, workspace],
+    [enqueueDraftSave, userId, workspace],
   );
 
   const commitGardenUpdate = useCallback(
@@ -327,6 +474,7 @@ export function useGarden(userId: string | null) {
       selection?: SelectedGardenItem | null,
       trackHistory = true,
       refreshWateringFromSnapshot = false,
+      afterCommit?: (updatedGarden: Garden, revision: number) => void,
     ) => {
       const now = new Date();
 
@@ -356,11 +504,14 @@ export function useGarden(userId: string | null) {
 
         setDirty(true);
         setSaveStatus('idle');
+        gardenEditRevisionRef.current += 1;
+        const revision = gardenEditRevisionRef.current;
 
         if (selection !== undefined) {
           setSelectedItem(selection);
         }
 
+        afterCommit?.(updatedGarden, revision);
         return updatedGarden;
       });
     },
@@ -377,6 +528,7 @@ export function useGarden(userId: string | null) {
       setRedoStack([]);
       setDirty(true);
       setSaveStatus('idle');
+      gardenEditRevisionRef.current += 1;
       return currentGarden;
     });
   }, []);
@@ -890,7 +1042,11 @@ export function useGarden(userId: string | null) {
   );
 
   const updateItemPositions = useCallback(
-    (updates: GardenItemPositionUpdate[], trackHistory = true) => {
+    (
+      updates: GardenItemPositionUpdate[],
+      trackHistory = true,
+      options: GardenPositionUpdateOptions = {},
+    ) => {
       if (updates.length === 0) {
         return;
       }
@@ -902,52 +1058,62 @@ export function useGarden(userId: string | null) {
           .map((update) => [update.id, update]),
       );
 
-      commitGardenUpdate(
-        (currentGarden) => ({
-          ...currentGarden,
-          plantings: currentGarden.plantings.map((planting) => {
-            const plantingUpdates = plantUpdatesById.get(planting.id);
+      const applyPositionUpdates = (currentGarden: Garden): Garden => ({
+        ...currentGarden,
+        plantings: currentGarden.plantings.map((planting) => {
+          const plantingUpdates = plantUpdatesById.get(planting.id);
 
-            if (!plantingUpdates || !canManuallyMovePlanting(planting)) {
-              return planting;
-            }
+          if (!plantingUpdates || !canManuallyMovePlanting(planting)) {
+            return planting;
+          }
 
-            return plantingUpdates.reduce((nextPlanting, update) => {
-              const point = normalizePointToPlot(
-                { xFt: update.xFt, yFt: update.yFt },
-                currentGarden.plot,
-                false,
-              );
-
-              return update.instanceId
-                ? movePlantingInstance(nextPlanting, update.instanceId, point)
-                : movePlantingWithInstances(nextPlanting, point);
-            }, planting);
-          }),
-          structures: currentGarden.structures.map((structure) => {
-            const update = structureUpdates.get(structure.id);
-
-            if (!update || structure.locked) {
-              return structure;
-            }
-
-            return clampStructureToPlot(
-              {
-                ...structure,
-                xFt: update.xFt,
-                yFt: update.yFt,
-              },
+          return plantingUpdates.reduce((nextPlanting, update) => {
+            const point = normalizePointToPlot(
+              { xFt: update.xFt, yFt: update.yFt },
               currentGarden.plot,
               false,
             );
-          }),
+
+            return update.instanceId
+              ? movePlantingInstance(nextPlanting, update.instanceId, point)
+              : movePlantingWithInstances(nextPlanting, point);
+          }, planting);
         }),
+        structures: currentGarden.structures.map((structure) => {
+          const update = structureUpdates.get(structure.id);
+
+          if (!update || structure.locked) {
+            return structure;
+          }
+
+          return clampStructureToPlot(
+            {
+              ...structure,
+              xFt: update.xFt,
+              yFt: update.yFt,
+            },
+            currentGarden.plot,
+            false,
+          );
+        }),
+      });
+      const autosaveRevision = gardenEditRevisionRef.current + 1;
+      const autosaveGarden =
+        options.saveAfterCommit && garden ? applyPositionUpdates(garden) : null;
+
+      commitGardenUpdate(
+        applyPositionUpdates,
         updates.at(0) ?? undefined,
         trackHistory,
-        true,
+        false,
+        options.saveAfterCommit ? scheduleDraftAutosave : undefined,
       );
+
+      if (autosaveGarden) {
+        scheduleDraftAutosave(autosaveGarden, autosaveRevision);
+      }
     },
-    [commitGardenUpdate],
+    [commitGardenUpdate, garden, scheduleDraftAutosave],
   );
 
   const resizeStructure = useCallback(
@@ -1095,6 +1261,11 @@ export function useGarden(userId: string | null) {
     await saveCurrentDraft(garden);
   }, [dirty, garden, saveCurrentDraft]);
 
+  const saveDraftGarden = useCallback(
+    async (draftGarden: Garden) => saveCurrentDraft(draftGarden),
+    [saveCurrentDraft],
+  );
+
   const publishDraft = useCallback(
     async (userEmail: string, force = false) => {
       if (!garden || !userId) {
@@ -1192,6 +1363,7 @@ export function useGarden(userId: string | null) {
         garden,
         weatherProvider,
         {
+          forceWeatherRefresh: true,
           profile: wateringProfile,
         },
       );
@@ -1314,9 +1486,8 @@ export function useGarden(userId: string | null) {
   const updatePlanting = useCallback(
     (plantingId: string, values: Partial<GardenPlant>) => {
       commitGardenUpdate(
-        (currentGarden) => ({
-          ...currentGarden,
-          plantings: currentGarden.plantings.map((planting) => {
+        (currentGarden) => {
+          const nextPlantings = currentGarden.plantings.map((planting) => {
             if (planting.id !== plantingId) {
               return planting;
             }
@@ -1365,8 +1536,14 @@ export function useGarden(userId: string | null) {
                   normalizedPlanting.instances.length,
               ),
             };
-          }),
-        }),
+          });
+
+          return applyPlantingEventEffects({
+            garden: currentGarden,
+            nextPlantings,
+            now: new Date(),
+          });
+        },
         { id: plantingId, type: 'planting' },
         true,
         true,
@@ -1426,6 +1603,30 @@ export function useGarden(userId: string | null) {
       });
     },
     [gardenPlanningState?.plantGroups, updatePlanting],
+  );
+
+  const markPlantingsPlanted = useCallback(
+    (plantingIds: string[], plantedOn: string) => {
+      const primaryPlantingId = plantingIds[0];
+
+      if (!primaryPlantingId) {
+        return;
+      }
+
+      commitGardenUpdate(
+        (currentGarden) =>
+          markPlantingsPlantedInGarden({
+            garden: currentGarden,
+            now: new Date(),
+            plantedOn,
+            plantingIds,
+          }),
+        { id: primaryPlantingId, type: 'planting' },
+        true,
+        true,
+      );
+    },
+    [commitGardenUpdate],
   );
 
   const updateStructure = useCallback(
@@ -1838,6 +2039,7 @@ export function useGarden(userId: string | null) {
       (garden ? createDefaultGardenPlanningState(garden).locationMatch : null),
     movePlant,
     moveStructure,
+    markPlantingsPlanted,
     openDetailedViewForItem,
     openPlantGroupEditor,
     paintSunShadeCell,
@@ -1854,6 +2056,7 @@ export function useGarden(userId: string | null) {
     rejectReviewSuggestion,
     revertToRevision,
     saveGarden,
+    saveDraftGarden,
     saveStatus,
     selectLayoutProblem,
     selectedItem,

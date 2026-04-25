@@ -105,7 +105,9 @@ export function CropPickerFilters({
               [
                 'plantNow',
                 'startIndoorsNow',
+                'possibleNowWithProtection',
                 'waitUntilAfterFrost',
+                'tooLateForSpringWindow',
                 'goodForFall',
               ] as const
             ).map((option) => (
@@ -171,53 +173,66 @@ export function CropPickerFilters({
       </div>
 
       <div className={cropStyles.advancedFilters}>
-        <button
-          aria-expanded={showAdvancedFilters}
-          className={cropStyles.advancedFiltersToggle}
-          onClick={() => setShowAdvancedFilters((current) => !current)}
-          type="button"
-        >
-          Advanced filters
-        </button>
+        <div className={cropStyles.advancedFiltersHeader}>
+          <button
+            aria-controls="add-plant-advanced-filters"
+            aria-expanded={showAdvancedFilters}
+            className={cropStyles.advancedFiltersToggle}
+            onClick={() => setShowAdvancedFilters((current) => !current)}
+            type="button"
+          >
+            Advanced filters
+          </button>
+          <p className={cropStyles.advancedFiltersHint}>
+            Growth form and sow method stay tucked away unless you need them.
+          </p>
+        </div>
         {showAdvancedFilters ? (
-          <div className={styles.filterGrid}>
-            <label className={styles.field}>
-              <span>Growth form</span>
-              <select
-                onChange={(event) =>
-                  onGrowthFormChange(
-                    event.currentTarget.value as GrowthFormFilter,
-                  )
-                }
-                value={growthForm}
-              >
-                <option value="any">Any</option>
-                {cropCatalogFilterOptions.growthForms.map((option) => (
-                  <option key={option} value={option}>
-                    {formatLabel(option)}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <div
+            className={cropStyles.advancedFiltersBody}
+            id="add-plant-advanced-filters"
+          >
+            <div
+              className={`${styles.filterGrid} ${cropStyles.advancedFiltersGrid}`}
+            >
+              <label className={styles.field}>
+                <span>Growth form</span>
+                <select
+                  onChange={(event) =>
+                    onGrowthFormChange(
+                      event.currentTarget.value as GrowthFormFilter,
+                    )
+                  }
+                  value={growthForm}
+                >
+                  <option value="any">Any</option>
+                  {cropCatalogFilterOptions.growthForms.map((option) => (
+                    <option key={option} value={option}>
+                      {formatLabel(option)}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-            <label className={styles.field}>
-              <span>Sow method</span>
-              <select
-                onChange={(event) =>
-                  onSowMethodChange(
-                    event.currentTarget.value as SowMethodFilter,
-                  )
-                }
-                value={sowMethod}
-              >
-                <option value="any">Any</option>
-                {cropCatalogFilterOptions.sowMethods.map((option) => (
-                  <option key={option} value={option}>
-                    {formatSowMethod(option)}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <label className={styles.field}>
+                <span>Sow method</span>
+                <select
+                  onChange={(event) =>
+                    onSowMethodChange(
+                      event.currentTarget.value as SowMethodFilter,
+                    )
+                  }
+                  value={sowMethod}
+                >
+                  <option value="any">Any</option>
+                  {cropCatalogFilterOptions.sowMethods.map((option) => (
+                    <option key={option} value={option}>
+                      {formatSowMethod(option)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
         ) : null}
       </div>

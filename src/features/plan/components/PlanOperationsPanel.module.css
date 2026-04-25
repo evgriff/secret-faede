@@ -120,6 +120,71 @@
   font-size: var(--font-size-small);
 }
 
+.progressCard,
+.resultCard {
+  display: grid;
+  gap: 0.65rem;
+  border: 1px solid rgba(54, 48, 40, 0.12);
+  border-radius: var(--radius-card);
+  background: #fffdf7;
+  padding: 0.85rem;
+}
+
+.progressIntro,
+.resultCard p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  line-height: 1.4;
+}
+
+.progressList {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.progressItem {
+  display: grid;
+  gap: 0.1rem;
+  border-left: 3px solid rgba(54, 48, 40, 0.15);
+  padding-left: 0.7rem;
+}
+
+.progressItem strong,
+.resultCard h4 {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-small);
+}
+
+.progressItem span {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.progressItem[data-state='active'] {
+  border-left-color: #8a5a00;
+}
+
+.progressItem[data-state='active'] strong {
+  color: #7b4b00;
+}
+
+.progressItem[data-state='complete'] {
+  border-left-color: rgba(56, 120, 76, 0.5);
+}
+
+.progressItem[data-state='complete'] strong {
+  color: #2f6941;
+}
+
+.resultCard h4 {
+  margin: 0;
+}
+
 .inAppNotifications {
   display: grid;
   gap: 0.35rem;

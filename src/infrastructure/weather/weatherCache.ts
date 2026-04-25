@@ -7,9 +7,10 @@ import type {
   WeatherLocation,
   WeatherProvider,
   WeatherProviderId,
+  WeatherRequestOptions,
 } from '../../domain/weather/WeatherProvider';
 
-const cachePrefix = 'secret-faede.weather.v1:';
+const cachePrefix = 'secret-faede.weather.v3:';
 
 export class CachedWeatherProvider implements WeatherProvider {
   readonly id: WeatherProviderId;
@@ -22,48 +23,62 @@ export class CachedWeatherProvider implements WeatherProvider {
 
   getCurrentConditions(
     location: WeatherLocation,
+    options: WeatherRequestOptions = {},
   ): Promise<WeatherCurrentConditions> {
     return readThroughCache(
       this.cacheKey('current', location),
       minutes(15),
-      () => this.provider.getCurrentConditions(location),
+      () => this.provider.getCurrentConditions(location, options),
+      options,
     );
   }
 
-  getForecast(location: WeatherLocation): Promise<WeatherForecast> {
+  getForecast(
+    location: WeatherLocation,
+    options: WeatherRequestOptions = {},
+  ): Promise<WeatherForecast> {
     return readThroughCache(
       this.cacheKey('forecast', location),
       minutes(30),
-      () => this.provider.getForecast(location),
+      () => this.provider.getForecast(location, options),
+      options,
     );
   }
 
-  getWeatherAlerts(location: WeatherLocation): Promise<WeatherAlert[]> {
+  getWeatherAlerts(
+    location: WeatherLocation,
+    options: WeatherRequestOptions = {},
+  ): Promise<WeatherAlert[]> {
     return readThroughCache(
       this.cacheKey('alerts', location),
       minutes(10),
-      () => this.provider.getWeatherAlerts(location),
+      () => this.provider.getWeatherAlerts(location, options),
+      options,
     );
   }
 
   getRecentPrecipitation(
     location: WeatherLocation,
     hours: number,
+    options: WeatherRequestOptions = {},
   ): Promise<RecentPrecipitation> {
     return readThroughCache(
       this.cacheKey(`precip-${hours}`, location),
       minutes(60),
-      () => this.provider.getRecentPrecipitation(location, hours),
+      () => this.provider.getRecentPrecipitation(location, hours, options),
+      options,
     );
   }
 
   getOptionalAgricultureMetrics(
     location: WeatherLocation,
+    options: WeatherRequestOptions = {},
   ): Promise<OptionalAgricultureMetrics> {
     return readThroughCache(
       this.cacheKey('agriculture', location),
       minutes(60),
-      () => this.provider.getOptionalAgricultureMetrics(location),
+      () => this.provider.getOptionalAgricultureMetrics(location, options),
+      options,
     );
   }
 
@@ -81,13 +96,18 @@ async function readThroughCache<T>(
   key: string,
   ttlMs: number,
   loadValue: () => Promise<T>,
+  options: WeatherRequestOptions = {},
 ): Promise<T> {
   const storage = getStorage();
   const storageKey = `${cachePrefix}${key}`;
 
   const cached = storage ? readCachedValue<T>(storage, storageKey) : null;
 
-  if (cached && Date.now() - cached.cachedAtMs < ttlMs) {
+  if (
+    !options.forceRefresh &&
+    cached &&
+    Date.now() - cached.cachedAtMs < ttlMs
+  ) {
     return cached.value;
   }
 
@@ -100,7 +120,7 @@ async function readThroughCache<T>(
 
     return value;
   } catch (error) {
-    if (cached) {
+    if (!options.forceRefresh && cached) {
       console.warn('Using stale cached weather after provider failure.', {
         error,
         key,

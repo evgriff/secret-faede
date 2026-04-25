@@ -7,6 +7,10 @@ export interface WeatherLocation {
   timezone: string;
 }
 
+export interface WeatherRequestOptions {
+  forceRefresh?: boolean;
+}
+
 export interface WeatherCurrentConditions {
   capturedAtIso: string;
   conditionSummary: string;
@@ -30,8 +34,17 @@ export interface WeatherForecastPeriod {
   temperatureF: number | null;
 }
 
+export interface WeatherForecastDay {
+  conditionSummary: string;
+  date: string;
+  expectedRainIn: number;
+  highF: number | null;
+  precipitationChancePercent: number | null;
+}
+
 export interface WeatherForecast {
   dailyHighF: number | null;
+  days: WeatherForecastDay[];
   generatedAtIso: string;
   next24hPrecipIn: number;
   next48hPrecipIn: number;
@@ -81,16 +94,25 @@ export interface OptionalAgricultureMetrics {
 export interface WeatherProvider {
   getCurrentConditions(
     location: WeatherLocation,
+    options?: WeatherRequestOptions,
   ): Promise<WeatherCurrentConditions>;
-  getForecast(location: WeatherLocation): Promise<WeatherForecast>;
+  getForecast(
+    location: WeatherLocation,
+    options?: WeatherRequestOptions,
+  ): Promise<WeatherForecast>;
   getOptionalAgricultureMetrics(
     location: WeatherLocation,
+    options?: WeatherRequestOptions,
   ): Promise<OptionalAgricultureMetrics>;
   getRecentPrecipitation(
     location: WeatherLocation,
     hours: number,
+    options?: WeatherRequestOptions,
   ): Promise<RecentPrecipitation>;
-  getWeatherAlerts(location: WeatherLocation): Promise<WeatherAlert[]>;
+  getWeatherAlerts(
+    location: WeatherLocation,
+    options?: WeatherRequestOptions,
+  ): Promise<WeatherAlert[]>;
   id: WeatherProviderId;
   label: string;
 }

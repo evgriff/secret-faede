@@ -1,6 +1,21 @@
-import type { Garden, Task } from '../../domain/gardens/GardenRepository';
+import type {
+  Garden,
+  Task,
+  WeatherSnapshot,
+} from '../../domain/gardens/GardenRepository';
+import { getPlantingHarvestSchedule } from '../garden/harvestSchedule';
+import { buildWateringOutlook } from '../garden/wateringOutlook';
 import type { TodayTarget } from './todayActions';
 import { addDays } from './todayFormatters';
+import { buildTodayWateringGroups } from './todayWateringGroups';
+
+export type TodayCalendarMarker = 'alert' | 'plant' | 'watering';
+
+export interface TodayCalendarDay {
+  count: number;
+  date: string;
+  markers: TodayCalendarMarker[];
+}
 
 export function buildTodayTargetOptions(garden: Garden): TodayTarget[] {
   return [
@@ -50,11 +65,16 @@ export const todayTaskGroups: Array<{
 
 export function groupTasks(tasks: Task[], today: string) {
   const weekEnd = addDays(today, 7);
+  const visibleTasks = tasks.filter(
+    (task) => !isLegacyGeneratedHarvestTask(task),
+  );
 
   return {
-    later: tasks.filter((task) => !task.dueDate || task.dueDate > weekEnd),
-    today: tasks.filter((task) => task.dueDate && task.dueDate <= today),
-    week: tasks.filter(
+    later: visibleTasks.filter(
+      (task) => !task.dueDate || task.dueDate > weekEnd,
+    ),
+    today: visibleTasks.filter((task) => task.dueDate && task.dueDate <= today),
+    week: visibleTasks.filter(
       (task) => task.dueDate && task.dueDate > today && task.dueDate <= weekEnd,
     ),
   };
@@ -65,37 +85,92 @@ export function getTasksForSelectedDate(
   selectedDate: string,
   today: string,
 ) {
-  return tasks.filter((task) =>
-    selectedDate === today
-      ? Boolean(task.dueDate && task.dueDate <= today)
-      : task.dueDate === selectedDate,
+  return tasks.filter(
+    (task) =>
+      !isLegacyGeneratedHarvestTask(task) &&
+      (selectedDate === today
+        ? Boolean(task.dueDate && task.dueDate <= today)
+        : task.dueDate === selectedDate),
   );
 }
 
 export function countTasksByBed(tasks: Task[]) {
   const counts = new Map<string, number>();
 
-  tasks.forEach((task) => {
-    const label = task.bedLabel ?? 'Open plot';
-    counts.set(label, (counts.get(label) ?? 0) + 1);
-  });
+  tasks
+    .filter((task) => !isLegacyGeneratedHarvestTask(task))
+    .forEach((task) => {
+      const label = task.bedLabel ?? 'Open plot';
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    });
 
   return [...counts.entries()]
     .map(([label, count]) => ({ count, label }))
     .sort((left, right) => right.count - left.count);
 }
 
-export function buildCalendarDays(tasks: Task[], today: string) {
+export function buildCalendarDays(
+  garden: Garden,
+  tasks: Task[],
+  today: string,
+): TodayCalendarDay[] {
+  const latestWeather = garden.weatherSnapshots.reduce<WeatherSnapshot | null>(
+    (latestSnapshot, snapshot) =>
+      latestSnapshot === null ||
+      snapshot.capturedAtIso >= latestSnapshot.capturedAtIso
+        ? snapshot
+        : latestSnapshot,
+    null,
+  );
+  const wateringOutlook = buildWateringOutlook(
+    garden,
+    latestWeather,
+    new Date(`${today}T12:00:00.000Z`),
+  );
+
   return Array.from({ length: 14 }, (_, index) => {
     const date = addDays(today, index);
+    const nonWaterTasks = tasks.filter((task) =>
+      isScheduledWateringTask(task)
+        ? false
+        : isLegacyGeneratedHarvestTask(task)
+          ? false
+          : date === today
+            ? Boolean(task.dueDate && task.dueDate <= today)
+            : task.dueDate === date,
+    );
+    const wateringGroupCount = buildTodayWateringGroups(
+      garden,
+      date,
+      today,
+      new Date(`${today}T12:00:00.000Z`),
+    ).length;
+    const wateringOutlookCount = wateringOutlook.filter(
+      (item) => item.date === date,
+    ).length;
+    const wateringCount = Math.max(wateringGroupCount, wateringOutlookCount);
+    const markers = new Set<TodayCalendarMarker>();
+    const hasHarvestWindow = garden.plantings.some((planting) => {
+      const schedule = getPlantingHarvestSchedule(garden, planting, today);
+      return schedule?.expectedHarvestDate === date;
+    });
+
+    if (wateringCount > 0) {
+      markers.add('watering');
+    }
+
+    if (nonWaterTasks.length > 0 || hasHarvestWindow) {
+      markers.add('plant');
+    }
+
+    if (nonWaterTasks.some((task) => task.priority === 'high')) {
+      markers.add('alert');
+    }
 
     return {
-      count: tasks.filter((task) =>
-        date === today
-          ? Boolean(task.dueDate && task.dueDate <= today)
-          : task.dueDate === date,
-      ).length,
+      count: nonWaterTasks.length + wateringCount,
       date,
+      markers: [...markers],
     };
   });
 }
@@ -116,4 +191,8 @@ export function getCriticalCheckTasks(tasks: Task[]) {
 
 export function isScheduledWateringTask(task: Task) {
   return task.type === 'water' && task.source === 'wateringSchedule';
+}
+
+export function isLegacyGeneratedHarvestTask(task: Task) {
+  return task.type === 'harvest' && task.source === 'generated';
 }

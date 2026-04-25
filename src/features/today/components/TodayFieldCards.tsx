@@ -2,7 +2,6 @@ import type {
   IssueStatus,
   JournalEntry,
   PlantingLifecycleStatus,
-  WateringScheduleEntry,
   WeatherSnapshot,
 } from '../../../domain/gardens/GardenRepository';
 import {
@@ -13,18 +12,29 @@ import { formatLongDate } from '../todayFormatters';
 import type {
   TodayCropStageAction,
   TodayRecentActivity,
+  TodaySelectedWeather,
+  TodayWateringOutlookItem,
 } from '../todayFieldModel';
+import type { TodayWateringGroup } from '../todayWateringGroups';
 import styles from './TodayFieldPanels.module.css';
 
 export function WeatherPanel({
-  activeWatering = [],
   latestWeather,
+  nextWateringRun,
+  selectedWeather,
+  wateringGroups = [],
 }: {
-  activeWatering?: WateringScheduleEntry[];
   latestWeather: WeatherSnapshot | null;
+  nextWateringRun?: TodayWateringOutlookItem | null;
+  selectedWeather: TodaySelectedWeather | null;
+  wateringGroups?: TodayWateringGroup[];
 }) {
-  const waterTotalIn = activeWatering.reduce(
-    (total, recommendation) => total + recommendation.targetAmountInches,
+  const waterTotalIn = wateringGroups.reduce(
+    (total, group) => total + group.totalTargetAmountInches,
+    0,
+  );
+  const waterTargetCount = wateringGroups.reduce(
+    (total, group) => total + group.targetCount,
     0,
   );
 
@@ -36,44 +46,58 @@ export function WeatherPanel({
           <h2>Field weather</h2>
         </div>
         <StatusBadge tone={getWeatherTone(latestWeather)}>
-          {latestWeather?.providerLabel ?? latestWeather?.source ?? 'Manual'}
+          {selectedWeather?.providerLabel ?? 'Manual'}
         </StatusBadge>
       </div>
-      {latestWeather ? (
+      {selectedWeather ? (
         <div className={styles.weatherBody}>
           <div className={styles.weatherHero}>
-            <strong>{latestWeather.conditionSummary}</strong>
-            <span>{formatNullableNumber(latestWeather.temperatureF, 'F')}</span>
+            <strong>{selectedWeather.conditionSummary}</strong>
+            <span>
+              {formatNullableNumber(selectedWeather.temperatureF, 'F')}
+            </span>
           </div>
           <div className={styles.weatherFacts}>
             <span>
-              <strong>Recent rain</strong>
+              <strong>
+                {selectedWeather.mode === 'observed'
+                  ? 'Recent rain'
+                  : 'Expected rain'}
+              </strong>
               {formatNullableNumber(
-                latestWeather.recentPrecipitation72hIn,
+                selectedWeather.mode === 'observed'
+                  ? selectedWeather.recentPrecipitation72hIn
+                  : selectedWeather.forecastRainIn,
                 'in',
               )}
             </span>
             <span className={styles.weatherNextDay}>
-              <strong>Next 24h</strong>
-              {formatNullableNumber(latestWeather.forecastRainNext24In, 'in')}
+              <strong>
+                {selectedWeather.mode === 'observed' ? 'Next 24h' : 'Chance'}
+              </strong>
+              {selectedWeather.mode === 'observed'
+                ? formatNullableNumber(selectedWeather.forecastRainIn, 'in')
+                : formatPercent(selectedWeather.precipitationChancePercent)}
             </span>
             <span>
               <strong>Next rain</strong>
-              {formatNextRain(latestWeather.nextRainIso)}
+              {formatNextRain(selectedWeather.nextRainIso)}
             </span>
             <span className={styles.weatherRisk}>
               <strong>Risk</strong>
-              {formatWeatherRisk(latestWeather)}
+              {formatWeatherRisk(selectedWeather)}
             </span>
             <span className={styles.weatherWatering}>
               <strong>Watering</strong>
-              {activeWatering.length > 0
-                ? `${activeWatering.length} target${activeWatering.length === 1 ? '' : 's'}, ${waterTotalIn.toFixed(2)} in`
-                : 'No saved water need'}
+              {wateringGroups.length > 0
+                ? `${wateringGroups.length} run${wateringGroups.length === 1 ? '' : 's'}, ${waterTargetCount} target${waterTargetCount === 1 ? '' : 's'}, ${waterTotalIn.toFixed(2)} in`
+                : nextWateringRun
+                  ? formatNextWatering(nextWateringRun)
+                  : 'Check again tomorrow after the next weather refresh.'}
             </span>
             <span className={styles.weatherObserved}>
-              <strong>Observed</strong>
-              {formatLongDate(latestWeather.observedForDate)}
+              <strong>{selectedWeather.displayDateLabel}</strong>
+              {formatLongDate(selectedWeather.date)}
             </span>
           </div>
         </div>
@@ -86,76 +110,87 @@ export function WeatherPanel({
   );
 }
 
-export function WaterCard({
-  onAdjustAmount,
+export function WaterGroupCard({
+  group,
   onDone,
-  onPartial,
-  onSkipForRain,
-  onSnoozeToTonight,
-  onSnoozeToTomorrow,
-  recommendation,
+  onReview,
 }: {
-  onAdjustAmount(): void;
+  group: TodayWateringGroup;
   onDone(): void;
-  onPartial(): void;
-  onSkipForRain(): void;
-  onSnoozeToTonight(): void;
-  onSnoozeToTomorrow(): void;
-  recommendation: WateringScheduleEntry;
+  onReview(): void;
 }) {
-  const detailLines = recommendation.reasonDetails
-    .filter((detail) => detail !== recommendation.reasonSummary)
-    .slice(0, 2);
-  const remainingAmount = formatWaterAmount(recommendation.targetAmountInches);
-  const urgencyTone =
-    recommendation.urgency === 'high'
-      ? 'warning'
-      : recommendation.status === 'partial'
-        ? 'success'
-        : 'neutral';
-
   return (
     <article className={`${styles.miniCard} ${styles.waterCard}`}>
       <div className={styles.waterCardCopy}>
         <div className={styles.waterCardHeader}>
-          <h3>{recommendation.targetLabel}</h3>
-          <StatusBadge tone={urgencyTone}>
-            {recommendation.status === 'partial'
-              ? 'Remaining'
-              : recommendation.urgency}
+          <h3>{group.label}</h3>
+          <StatusBadge tone={group.urgency === 'high' ? 'warning' : 'neutral'}>
+            {group.urgency}
           </StatusBadge>
         </div>
         <p className={styles.waterMeta}>
-          {remainingAmount} in{' '}
-          {recommendation.status === 'partial' ? 'still due' : 'due now'}
+          {formatWaterAmount(group.totalTargetAmountInches)} in still due across{' '}
+          {group.targetCount} target{group.targetCount === 1 ? '' : 's'}
         </p>
-        <small>{recommendation.reasonSummary}</small>
-        {detailLines.map((detail) => (
-          <small key={detail}>{detail}</small>
-        ))}
-        <small>
-          Refreshed {formatRefreshTime(recommendation.updatedAtIso)}
-        </small>
+        <small>{group.reasonSummary}</small>
+        {group.statusSummary ? <small>{group.statusSummary}</small> : null}
+        <div className={styles.waterMemberList}>
+          {group.visibleMemberLabels.map((label) => (
+            <span className={styles.waterMemberChip} key={label}>
+              {label}
+            </span>
+          ))}
+          {group.hiddenMemberCount > 0 ? (
+            <span className={styles.waterMemberChip}>
+              +{group.hiddenMemberCount} more
+            </span>
+          ) : null}
+        </div>
       </div>
       <div className={`${styles.cardActions} ${styles.waterCardActions}`}>
         <ActionButton intent="success" onClick={onDone} priority="primary">
-          Water done
+          Water all done
         </ActionButton>
-        <ActionButton onClick={onPartial} priority="secondary">
-          Partial watering
+        <ActionButton onClick={onReview} priority="secondary">
+          Review watering
         </ActionButton>
-        <ActionButton onClick={onAdjustAmount} priority="secondary">
-          Adjust amount
-        </ActionButton>
-        <ActionButton intent="warning" onClick={onSkipForRain} priority="ghost">
-          Skip for rain
-        </ActionButton>
-        <ActionButton onClick={onSnoozeToTonight} priority="ghost">
-          Snooze to tonight
-        </ActionButton>
-        <ActionButton onClick={onSnoozeToTomorrow} priority="ghost">
-          Snooze to tomorrow
-        </ActionButton>
+      </div>
+    </article>
+  );
+}
+
+export function WateringOutlookCard({
+  item,
+}: {
+  item: TodayWateringOutlookItem;
+}) {
+  return (
+    <article className={`${styles.miniCard} ${styles.waterCard}`}>
+      <div className={styles.waterCardCopy}>
+        <div className={styles.waterCardHeader}>
+          <h3>{item.label}</h3>
+          <StatusBadge tone={item.urgency === 'high' ? 'warning' : 'neutral'}>
+            {formatLongDate(item.date)}
+          </StatusBadge>
+        </div>
+        <p className={styles.waterMeta}>
+          {formatWaterAmount(item.expectedAmountInches)} in likely due across{' '}
+          {item.targetCount} target{item.targetCount === 1 ? '' : 's'}
+        </p>
+        <small>{item.summary}</small>
+        <small>{item.reason}</small>
+        <div className={styles.waterMemberList}>
+          {item.memberLabels.slice(0, 3).map((label) => (
+            <span className={styles.waterMemberChip} key={label}>
+              {label}
+            </span>
+          ))}
+          {item.memberLabels.length > 3 ? (
+            <span className={styles.waterMemberChip}>
+              +{item.memberLabels.length - 3} more
+            </span>
+          ) : null}
+        </div>
       </div>
     </article>
   );
@@ -266,6 +301,16 @@ function formatNullableNumber(value: number | null, unit: string) {
   return value === null ? 'unknown' : `${value}${unit}`;
 }
 
+function formatPercent(value: number | null) {
+  return value === null ? 'unknown' : `${value}%`;
+}
+
+function formatNextWatering(item: TodayWateringOutlookItem) {
+  return `Next likely ${formatLongDate(item.date)}, ${formatWaterAmount(
+    item.expectedAmountInches,
+  )} in for ${item.label}`;
+}
+
 function formatNextRain(value: string | null) {
   if (!value) {
     return 'Not saved';
@@ -284,7 +329,11 @@ function formatNextRain(value: string | null) {
   });
 }
 
-function formatWeatherRisk(weather: WeatherSnapshot) {
+function formatWaterAmount(value: number) {
+  return Number.isInteger(value) ? `${value}` : value.toFixed(2);
+}
+
+function formatWeatherRisk(weather: TodaySelectedWeather) {
   const risks = [
     weather.frostRisk !== 'none' ? `frost ${weather.frostRisk}` : null,
     weather.heatRisk !== 'none' ? `heat ${weather.heatRisk}` : null,
@@ -292,25 +341,6 @@ function formatWeatherRisk(weather: WeatherSnapshot) {
   ].filter(Boolean);
 
   return risks.length > 0 ? risks.join(', ') : 'None flagged';
-}
-
-function formatRefreshTime(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return 'unknown';
-  }
-
-  return date.toLocaleString(undefined, {
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    month: 'short',
-  });
-}
-
-function formatWaterAmount(value: number) {
-  return Number.isInteger(value) ? `${value}` : value.toFixed(2);
 }
 
 function getLifecycleActionLabel(status: PlantingLifecycleStatus) {

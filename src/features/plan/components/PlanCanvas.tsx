@@ -22,8 +22,14 @@ import {
   type PlanWarning,
 } from '../../garden/gardenPlanning';
 import type { SunSeason } from '../../garden/sunShadeEngine';
-import type { SelectedGardenItem } from '../../garden/useGarden';
-import { usePlanCanvasView } from '../hooks/usePlanCanvasView';
+import type {
+  GardenPositionUpdateOptions,
+  SelectedGardenItem,
+} from '../../garden/useGarden';
+import {
+  usePlanCanvasView,
+  type CanvasFitBounds,
+} from '../hooks/usePlanCanvasView';
 import {
   usePlanPointerInteractions,
   type PlanPointerInteractionState,
@@ -112,6 +118,7 @@ export const PlanCanvas = memo(function PlanCanvas({
   updateItemPositions(
     updates: PlanItemPositionUpdate[],
     trackHistory?: boolean,
+    options?: GardenPositionUpdateOptions,
   ): void;
   visiblePlantLabelIds: string[];
 }) {
@@ -137,15 +144,15 @@ export const PlanCanvas = memo(function PlanCanvas({
     handlePanPointerDown,
     handlePanPointerEnd,
     handlePanPointerMove,
+    handleViewportWheel,
     isPanning,
-    pan,
     resetView,
+    scrollportRef,
     zoom,
     zoomIn,
     zoomOut,
     zoomState,
   } = usePlanCanvasView({ isPanMode });
-  const scrollportRef = useRef<HTMLDivElement | null>(null);
   const didFitInitialView = useRef(false);
   const immediateWarnings = useMemo(
     () => planWarnings.filter(isCanvasPlanWarning),
@@ -154,46 +161,66 @@ export const PlanCanvas = memo(function PlanCanvas({
   const isPointerInteractionActive = Boolean(
     pointerInteractions.interactionState !== 'idle' || isPanning,
   );
-  const fitContentSize = useMemo(
+  const plotHeightPx = garden.plot.depthFt * pixelsPerFoot;
+  const plotWidthPx = garden.plot.widthFt * pixelsPerFoot;
+  const framePadding = useMemo(
     () => ({
-      height: garden.plot.depthFt * pixelsPerFoot + 48,
-      width: garden.plot.widthFt * pixelsPerFoot + 48,
+      x: Math.max(560, plotWidthPx * 0.8),
+      y: Math.max(360, plotHeightPx * 0.8),
     }),
-    [garden.plot.depthFt, garden.plot.widthFt],
+    [plotHeightPx, plotWidthPx],
   );
-  const getFitBounds = useCallback(() => {
-    const viewportRect = scrollportRef.current?.getBoundingClientRect();
-
-    if (!viewportRect) {
-      return null;
-    }
-
-    return {
-      contentHeight: fitContentSize.height,
-      contentWidth: fitContentSize.width,
-      viewportHeight: viewportRect.height,
-      viewportWidth: viewportRect.width,
-    };
-  }, [fitContentSize.height, fitContentSize.width]);
-  const handleFitView = useCallback(() => {
+  const handleFitView = () => {
     didFitInitialView.current = true;
-    fitView(getFitBounds());
-  }, [fitView, getFitBounds]);
-  const plotStyle = useMemo(
+    fitView(
+      readCanvasFitBounds(
+        scrollportRef.current,
+        pointerInteractions.plotRef.current,
+      ),
+    );
+  };
+  const handleResetView = () => {
+    resetView(
+      readCanvasFitBounds(
+        scrollportRef.current,
+        pointerInteractions.plotRef.current,
+      ),
+    );
+  };
+  const handleZoomIn = () => {
+    zoomIn(
+      readCanvasFitBounds(
+        scrollportRef.current,
+        pointerInteractions.plotRef.current,
+      ),
+    );
+  };
+  const handleZoomOut = () => {
+    zoomOut(
+      readCanvasFitBounds(
+        scrollportRef.current,
+        pointerInteractions.plotRef.current,
+      ),
+    );
+  };
+  const workbenchStyle = useMemo(
     () =>
       ({
         '--cell-size': `${pixelsPerFoot}px`,
-        '--plot-height': `${garden.plot.depthFt * pixelsPerFoot}px`,
-        '--plot-width': `${garden.plot.widthFt * pixelsPerFoot}px`,
+        '--canvas-zoom': String(zoom),
+        '--frame-padding-x': `${framePadding.x}px`,
+        '--frame-padding-y': `${framePadding.y}px`,
+        '--plot-height': `${plotHeightPx}px`,
+        '--plot-width': `${plotWidthPx}px`,
       }) as CSSProperties,
-    [garden.plot.depthFt, garden.plot.widthFt],
+    [framePadding.x, framePadding.y, plotHeightPx, plotWidthPx, zoom],
   );
   const sceneStyle = useMemo(
     () =>
       ({
-        transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+        transform: `scale(${zoom})`,
       }) as CSSProperties,
-    [pan.x, pan.y, zoom],
+    [zoom],
   );
   const viewportClassName = useMemo(
     () =>
@@ -216,9 +243,22 @@ export const PlanCanvas = memo(function PlanCanvas({
 
   useEffect(() => {
     if (!didFitInitialView.current || zoomState === 'fit') {
-      handleFitView();
+      didFitInitialView.current = true;
+      fitView(
+        readCanvasFitBounds(
+          scrollportRef.current,
+          pointerInteractions.plotRef.current,
+        ),
+      );
     }
-  }, [handleFitView, zoomState]);
+  }, [
+    fitView,
+    garden.plot.depthFt,
+    garden.plot.widthFt,
+    pointerInteractions.plotRef,
+    scrollportRef,
+    zoomState,
+  ]);
 
   useEffect(() => {
     const viewport = scrollportRef.current;
@@ -232,13 +272,25 @@ export const PlanCanvas = memo(function PlanCanvas({
     }
 
     const observer = new ResizeObserver(() => {
-      fitView(getFitBounds());
+      fitView(
+        readCanvasFitBounds(
+          scrollportRef.current,
+          pointerInteractions.plotRef.current,
+        ),
+      );
     });
 
     observer.observe(viewport);
 
     return () => observer.disconnect();
-  }, [fitView, getFitBounds, zoomState]);
+  }, [
+    fitView,
+    garden.plot.depthFt,
+    garden.plot.widthFt,
+    pointerInteractions.plotRef,
+    scrollportRef,
+    zoomState,
+  ]);
 
   useEffect(() => {
     setLayers((current) =>
@@ -370,9 +422,9 @@ export const PlanCanvas = memo(function PlanCanvas({
         onFitView={handleFitView}
         onLayersChange={updateLayers}
         onPanModeChange={setIsPanMode}
-        onResetView={resetView}
-        onZoomIn={zoomIn}
-        onZoomOut={zoomOut}
+        onResetView={handleResetView}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
         zoom={zoom}
         zoomState={zoomState}
       />
@@ -390,7 +442,10 @@ export const PlanCanvas = memo(function PlanCanvas({
           if (isPointerInteractionActive) {
             event.preventDefault();
             event.stopPropagation();
+            return;
           }
+
+          handleViewportWheel(event);
         }}
         ref={scrollportRef}
       >
@@ -429,7 +484,7 @@ export const PlanCanvas = memo(function PlanCanvas({
           }
           plantingPreview={plantingPreview}
           plotRef={pointerInteractions.plotRef}
-          plotStyle={plotStyle}
+          plotStyle={workbenchStyle}
           proposalDiffOverlay={proposalDiffOverlay}
           resizePreview={pointerInteractions.resizePreview}
           resizingStructureId={pointerInteractions.resizingStructureId}
@@ -441,6 +496,7 @@ export const PlanCanvas = memo(function PlanCanvas({
           sunSeason={sunSeason}
           visibleWarnings={immediateWarnings}
           visiblePlantLabelIds={visiblePlantLabelIds}
+          workbenchStyle={workbenchStyle}
         />
       </div>
       {layers.miniMap ? (
@@ -452,3 +508,40 @@ export const PlanCanvas = memo(function PlanCanvas({
     </div>
   );
 });
+
+function getElementOffsetWithinAncestor(
+  element: HTMLElement,
+  ancestor: HTMLElement,
+) {
+  let left = 0;
+  let top = 0;
+  let current: HTMLElement | null = element;
+
+  while (current && current !== ancestor) {
+    left += current.offsetLeft;
+    top += current.offsetTop;
+    current = current.offsetParent as HTMLElement | null;
+  }
+
+  return { left, top };
+}
+
+function readCanvasFitBounds(
+  viewport: HTMLDivElement | null,
+  plot: HTMLDivElement | null,
+): CanvasFitBounds | null {
+  if (!viewport || !plot) {
+    return null;
+  }
+
+  const plotOffset = getElementOffsetWithinAncestor(plot, viewport);
+
+  return {
+    framePaddingX: plotOffset.left,
+    framePaddingY: plotOffset.top,
+    plotHeight: plot.clientHeight,
+    plotWidth: plot.clientWidth,
+    viewportHeight: viewport.clientHeight,
+    viewportWidth: viewport.clientWidth,
+  };
+}

@@ -39,6 +39,7 @@ export function CropLibraryResult({
   quantity,
   quantityValue,
   sunExposureAtPlacement,
+  today,
 }: {
   compareDisabled: boolean;
   crop: CropProfile;
@@ -57,6 +58,7 @@ export function CropLibraryResult({
   quantity: number;
   quantityValue: string;
   sunExposureAtPlacement: SunExposure | null;
+  today: Date;
 }) {
   const detailsId = useId();
   const footprintPreview = buildPlantFootprintPreview({
@@ -69,13 +71,17 @@ export function CropLibraryResult({
     garden,
     mode,
     sunExposureAtPlacement,
+    today,
   });
   const locationReasonLines = getLocationReasonLines(facts);
   const supportLabel =
     facts.supportShortLabel === 'No support' ? null : facts.supportShortLabel;
 
   return (
-    <article className={compactStyles.libraryCard}>
+    <article
+      className={compactStyles.libraryCard}
+      data-selected={isSelected ? 'true' : undefined}
+    >
       <span
         className={compactStyles.plantGlyph}
         data-crop-tone={getCropIconTone(crop)}
@@ -134,6 +140,9 @@ export function CropLibraryResult({
             </span>
           </ReasonTooltip>
         </div>
+        <p className={compactStyles.description}>
+          <strong>Today:</strong> {facts.timingLabel}. {facts.timingDetail}
+        </p>
         {isExpanded ? (
           <LibraryExpandedDetails
             crop={crop}
@@ -178,14 +187,15 @@ export function CropLibraryResult({
         </button>
         <button
           aria-label={
-            isSelected ? `${crop.commonName} added` : `Add ${crop.commonName}`
+            isSelected
+              ? `Add more ${crop.commonName}`
+              : `Add ${crop.commonName}`
           }
           className={`${sharedStyles.primaryButton} ${compactStyles.cardButton}`}
-          disabled={isSelected}
           onClick={onAdd}
           type="button"
         >
-          {isSelected ? 'Added' : 'Add'}
+          {isSelected ? 'Add more' : 'Add'}
         </button>
       </div>
     </article>

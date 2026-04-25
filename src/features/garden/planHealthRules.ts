@@ -113,7 +113,6 @@ export function buildPlanHealthReport({
   const issues = [
     ...buildWarningIssues(warnings, dismissedWarnings),
     ...buildSupportIssues(garden),
-    ...buildPathAndIrrigationIssues(garden),
     ...buildRotationIssues(garden, now),
     ...buildBedCapacityIssues(garden),
     ...buildMulchIssues(garden),
@@ -269,7 +268,9 @@ function buildSupportIssues(garden: Garden): PlanHealthIssue[] {
   });
 }
 
-function buildPathAndIrrigationIssues(garden: Garden): PlanHealthIssue[] {
+export function buildPathAndIrrigationIssues(
+  garden: Garden,
+): PlanHealthIssue[] {
   const paths = garden.structures.filter(isPathStructure);
   const beds = garden.structures.filter(isBedLikeStructure);
   const accessPaths = paths.filter((path) =>

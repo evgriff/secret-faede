@@ -69,6 +69,15 @@ const weatherProvider = {
   getForecast: () =>
     Promise.resolve({
       dailyHighF: 92,
+      days: [
+        {
+          conditionSummary: 'Hot',
+          date: '2026-06-21',
+          expectedRainIn: 0,
+          highF: 92,
+          precipitationChancePercent: null,
+        },
+      ],
       generatedAtIso: now.toISOString(),
       next24hPrecipIn: 0,
       next48hPrecipIn: 0,

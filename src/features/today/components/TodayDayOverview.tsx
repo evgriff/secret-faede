@@ -12,10 +12,7 @@ import {
   formatPriority,
   formatTaskType,
 } from '../todayFormatters';
-import type {
-  TodayFieldModel,
-  TodayHarvestReadyItem,
-} from '../todayFieldModel';
+import type { TodayFieldModel } from '../todayFieldModel';
 import { WeatherPanel } from './TodayFieldCards';
 import styles from '../TodayPage.module.css';
 
@@ -33,40 +30,39 @@ interface PriorityAction {
 export function TodayDayOverview({
   model,
   onCompleteTask,
-  onLogHarvest,
   onUpdateIssue,
   onUpdatePlantingStatus,
-  onWaterDone,
+  onWaterDoneGroup,
   selectedDate,
   selectedTasks,
 }: {
   model: TodayFieldModel;
   onCompleteTask(taskId: string): void;
-  onLogHarvest(item: TodayHarvestReadyItem): void;
   onUpdateIssue(entryId: string, status: IssueStatus): void;
   onUpdatePlantingStatus(
     plantingId: string,
     status: PlantingLifecycleStatus,
   ): void;
-  onWaterDone(recommendationId: string): void;
+  onWaterDoneGroup(recommendationIds: string[]): void;
   selectedDate: string;
   selectedTasks: Task[];
 }) {
   const priorityActions = buildPriorityActions({
     model,
     onCompleteTask,
-    onLogHarvest,
     onUpdateIssue,
     onUpdatePlantingStatus,
-    onWaterDone,
+    onWaterDoneGroup,
     selectedTasks,
   });
 
   return (
     <section className={styles.overviewGrid}>
       <WeatherPanel
-        activeWatering={model.activeWatering}
         latestWeather={model.latestWeather}
+        nextWateringRun={model.nextWateringRun}
+        selectedWeather={model.selectedWeather}
+        wateringGroups={model.wateringGroups}
       />
       <section className={styles.priorityPanel}>
         <div className={styles.priorityHeader}>
@@ -113,33 +109,31 @@ export function TodayDayOverview({
 function buildPriorityActions({
   model,
   onCompleteTask,
-  onLogHarvest,
   onUpdateIssue,
   onUpdatePlantingStatus,
-  onWaterDone,
+  onWaterDoneGroup,
   selectedTasks,
 }: {
   model: TodayFieldModel;
   onCompleteTask(taskId: string): void;
-  onLogHarvest(item: TodayHarvestReadyItem): void;
   onUpdateIssue(entryId: string, status: IssueStatus): void;
   onUpdatePlantingStatus(
     plantingId: string,
     status: PlantingLifecycleStatus,
   ): void;
-  onWaterDone(recommendationId: string): void;
+  onWaterDoneGroup(recommendationIds: string[]): void;
   selectedTasks: Task[];
 }): PriorityAction[] {
-  const waterActions = model.activeWatering
-    .filter((recommendation) => recommendation.urgency !== 'low')
+  const waterActions = model.wateringGroups
+    .filter((group) => group.urgency !== 'low')
     .slice(0, 2)
-    .map((recommendation) => ({
-      id: `water-${recommendation.id}`,
-      label: recommendation.targetLabel,
-      meta: `${formatWaterAmount(recommendation.targetAmountInches)} in still due. ${recommendation.reasonSummary}`,
-      onSelect: () => onWaterDone(recommendation.id),
+    .map((group) => ({
+      id: `water-${group.id}`,
+      label: group.label,
+      meta: `${formatWaterAmount(group.totalTargetAmountInches)} in across ${group.targetCount} target${group.targetCount === 1 ? '' : 's'}. ${group.reasonSummary}`,
+      onSelect: () => onWaterDoneGroup(group.entryIds),
       intent: 'success' as const,
-      verb: 'Water done',
+      verb: 'Water all done',
     }));
   const issueActions = model.unresolvedIssues
     .filter((issue) => issue.issueSeverity === 'high')
@@ -152,14 +146,6 @@ function buildPriorityActions({
       intent: 'warning' as const,
       verb: 'Start check',
     }));
-  const harvestActions = model.harvestReady.slice(0, 1).map((item) => ({
-    id: `harvest-${item.planting.id}`,
-    label: item.planting.label,
-    meta: `${item.cropName}${item.dueDate ? ` due ${formatMonthDay(item.dueDate)}` : ''}`,
-    onSelect: () => onLogHarvest(item),
-    intent: 'success' as const,
-    verb: 'Log harvest',
-  }));
   const cropStageActions = model.cropStageActions.slice(0, 1).map((action) => ({
     id: `stage-${action.planting.id}`,
     label: action.planting.label,
@@ -184,7 +170,6 @@ function buildPriorityActions({
   return [
     ...waterActions,
     ...issueActions,
-    ...harvestActions,
     ...cropStageActions,
     ...taskActions,
   ].slice(0, 4);

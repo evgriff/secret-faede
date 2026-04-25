@@ -1,6 +1,6 @@
 import { isPageStructureType } from './structureTypes';
 
-export const CURRENT_GARDEN_SCHEMA_VERSION = 6;
+export const CURRENT_GARDEN_SCHEMA_VERSION = 7;
 export const LEGACY_GARDEN_SCHEMA_VERSION = 0;
 
 export interface GardenMigrationResult {
@@ -37,6 +37,10 @@ export function migrateGardenRecord(value: unknown): GardenMigrationResult {
 
   if (fromVersion < 6) {
     migrateWateringSchedule(record, applied);
+  }
+
+  if (fromVersion < 7) {
+    migratePlantingEvents(record, applied);
   }
 
   record.schemaVersion = CURRENT_GARDEN_SCHEMA_VERSION;
@@ -116,6 +120,67 @@ function migrateWateringSchedule(
 
   if (hadLegacyRecommendations || needsScheduleArray) {
     applied.push('watering schedule normalized');
+  }
+}
+
+function migratePlantingEvents(
+  record: Record<string, unknown>,
+  applied: string[],
+) {
+  if (!Array.isArray(record.plantings)) {
+    return;
+  }
+
+  let changed = false;
+  record.plantings = record.plantings.map((planting): unknown => {
+    if (!isPlainRecord(planting)) {
+      return planting as unknown;
+    }
+
+    const nextPlanting = { ...planting };
+    const rawPlantingEvents = nextPlanting.plantingEvents;
+    const existingEvents: unknown[] = Array.isArray(rawPlantingEvents)
+      ? rawPlantingEvents.map((event): unknown => event)
+      : [];
+
+    if (!Array.isArray(nextPlanting.plantingEvents)) {
+      nextPlanting.plantingEvents = [];
+      changed = true;
+    }
+
+    const plantStatus = isPlainRecord(nextPlanting.plantStatus)
+      ? nextPlanting.plantStatus
+      : null;
+    const thinnedAtIso =
+      plantStatus && typeof plantStatus.thinnedAtIso === 'string'
+        ? plantStatus.thinnedAtIso
+        : null;
+
+    if (
+      thinnedAtIso &&
+      !existingEvents.some(
+        (event) =>
+          isPlainRecord(event) &&
+          event.type === 'thinned' &&
+          event.occurredOn === thinnedAtIso.slice(0, 10),
+      )
+    ) {
+      nextPlanting.plantingEvents = [
+        ...existingEvents,
+        {
+          id: `planting-event:thinned:${thinnedAtIso.slice(0, 10)}`,
+          occurredOn: thinnedAtIso.slice(0, 10),
+          type: 'thinned',
+        },
+      ];
+      changed = true;
+    }
+
+    return nextPlanting;
+  });
+
+  if (changed) {
+    applied.push('planting events normalized');
   }
 }
 

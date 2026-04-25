@@ -154,6 +154,19 @@
   font-size: 1rem;
 }
 
+.calendarMarkers {
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+  min-height: 1rem;
+}
+
+.calendarMarkerIcon {
+  width: 0.82rem;
+  height: 0.82rem;
+  color: var(--color-text-muted);
+}
+
 .today {
   border-color: var(--color-accent-strong);
   background: var(--color-accent-soft);

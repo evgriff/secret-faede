@@ -1,0 +1,41 @@
+export interface TimeZoneDateParts {
+  day: number;
+  month: number;
+  year: number;
+}
+
+export function getDatePartsInTimeZone(
+  date: Date,
+  timezone: string | null | undefined,
+): TimeZoneDateParts {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      day: '2-digit',
+      month: '2-digit',
+      timeZone: timezone || 'UTC',
+      year: 'numeric',
+    });
+    const parts = formatter.formatToParts(date);
+
+    return {
+      day: Number(parts.find((part) => part.type === 'day')?.value ?? '1'),
+      month: Number(parts.find((part) => part.type === 'month')?.value ?? '1'),
+      year: Number(parts.find((part) => part.type === 'year')?.value ?? '1970'),
+    };
+  } catch {
+    return {
+      day: date.getDate(),
+      month: date.getMonth() + 1,
+      year: date.getFullYear(),
+    };
+  }
+}
+
+export function getCalendarDateInTimeZone(
+  date: Date,
+  timezone: string | null | undefined,
+) {
+  const { day, month, year } = getDatePartsInTimeZone(date, timezone);
+
+  return new Date(Date.UTC(year, Math.max(month - 1, 0), Math.max(day, 1), 12));
+}

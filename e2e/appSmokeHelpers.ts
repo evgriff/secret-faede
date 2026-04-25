@@ -1,10 +1,16 @@
 import { expect, type Page } from '@playwright/test';
 
-export async function signInWithMockPassword(
+export async function signInToFirstRunSetup(
   page: Page,
   email = 'primary.gardener@example.com',
 ) {
   await page.goto('/');
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.context().clearCookies();
+  await page.goto('/sign-in');
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password', { exact: true }).fill('password');
@@ -17,6 +23,13 @@ export async function signInWithMockPassword(
   await expect(
     page.getByRole('heading', { name: 'Set up your garden' }),
   ).toBeVisible();
+}
+
+export async function signInWithMockPassword(
+  page: Page,
+  email = 'primary.gardener@example.com',
+) {
+  await signInToFirstRunSetup(page, email);
   await page.getByLabel(/Blank plan/).check();
   await page.getByRole('button', { name: 'Create plan' }).click();
   await expect(
@@ -45,7 +58,7 @@ export async function enterDemoFromShell(page: Page) {
   await expect(page.getByText('20 ft by 16 ft')).toBeVisible();
 }
 
-export async function expectSampleSettings(page: Page) {
+export async function expectSampleGardenSettings(page: Page) {
   await expect(
     page.getByRole('region', { name: 'Sample garden' }),
   ).toContainText('Sample garden active.');
@@ -67,7 +80,7 @@ export async function expectSampleSettings(page: Page) {
   ).toBeVisible();
 }
 
-export async function resetAndExitSample(page: Page) {
+export async function resetAndExitSampleGarden(page: Page) {
   await openSampleGardenDisclosure(page);
   const demoPanel = page.getByRole('region', { name: 'Sample garden' });
 
@@ -106,6 +119,7 @@ export async function addTomatoToSeasonList(page: Page) {
   ).toBeVisible();
   await page.getByRole('searchbox', { name: 'Search plants' }).fill('tomato');
   await page.getByRole('button', { name: 'Add Tomato' }).click();
+  await expandPickedPlants(page);
   await expect(
     page.getByRole('region', { name: 'Season crop board' }),
   ).toContainText('Tomato');
@@ -113,6 +127,22 @@ export async function addTomatoToSeasonList(page: Page) {
   await expect(page.getByRole('dialog', { name: 'Choose Plants' })).toHaveCount(
     0,
   );
+}
+
+export async function expandPickedPlants(page: Page) {
+  const expandButton = page.getByRole('button', {
+    name: 'Expand picked plants',
+  });
+  const seasonBoardTab = page.getByRole('tab', { name: 'Picked' });
+
+  if (await expandButton.isVisible().catch(() => false)) {
+    await expandButton.click();
+    return;
+  }
+
+  if (await seasonBoardTab.isVisible().catch(() => false)) {
+    await seasonBoardTab.click();
+  }
 }
 
 export async function generateAndApplyFirstLayout(page: Page) {

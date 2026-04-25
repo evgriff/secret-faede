@@ -3,10 +3,10 @@ import { expect, test } from '@playwright/test';
 import {
   addTomatoToSeasonList,
   enterDemoFromShell,
-  expectSampleSettings,
+  expectSampleGardenSettings,
   generateAndApplyFirstLayout,
   openPlanTool,
-  resetAndExitSample,
+  resetAndExitSampleGarden,
   savePlan,
   signInWithMockPassword,
 } from './appSmokeHelpers';
@@ -292,7 +292,7 @@ test('sample garden loads populated Plan, Today, Feed, and Settings', async ({
   ).toBeVisible();
   await expect(
     page.getByRole('listitem').filter({ hasText: 'Path too narrow' }).first(),
-  ).toBeVisible();
+  ).toHaveCount(0);
   const preview = page.getByRole('region', {
     name: 'Before and after preview',
   });
@@ -333,13 +333,10 @@ test('sample garden loads populated Plan, Today, Feed, and Settings', async ({
     wateringPanel.getByText('roots and salad bed', { exact: false }).first(),
   ).toBeVisible();
   await expect(
-    wateringPanel.getByRole('button', { name: 'Water done' }).first(),
+    wateringPanel.getByRole('button', { name: 'Water all done' }).first(),
   ).toBeVisible();
   await expect(
-    wateringPanel.getByRole('button', { name: 'Partial watering' }).first(),
-  ).toBeVisible();
-  await expect(
-    wateringPanel.getByRole('button', { name: 'Adjust amount' }).first(),
+    wateringPanel.getByRole('button', { name: 'Review watering' }).first(),
   ).toBeVisible();
   await expect(
     page.getByRole('heading', {
@@ -376,11 +373,11 @@ test('sample garden loads populated Plan, Today, Feed, and Settings', async ({
   ).toBeVisible();
 
   await page.getByRole('link', { name: 'Settings' }).click();
-  await expectSampleSettings(page);
+  await expectSampleGardenSettings(page);
   await page.getByLabel('Watering check time').fill('08:45');
   await page.getByRole('button', { name: 'Save settings' }).click();
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
-  await resetAndExitSample(page);
+  await resetAndExitSampleGarden(page);
   await page.getByRole('link', { exact: true, name: 'Plan' }).click();
   await expect(page.getByText('12 ft by 8 ft')).toBeVisible();
 });

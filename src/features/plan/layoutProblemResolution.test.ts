@@ -227,7 +227,7 @@ function makeWarning(overrides: Partial<PlanWarning> = {}): PlanWarning {
     fix: 'Use a concrete layout change.',
     id: 'warning-1',
     itemIds: ['tomato-1'],
-    kind: 'pathway',
+    kind: 'spacing',
     message: 'A saved layout problem needs resolution.',
     severity: 'warning',
     title: 'Layout problem',

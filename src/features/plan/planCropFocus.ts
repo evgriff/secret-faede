@@ -7,6 +7,10 @@ import type {
   SunShadeLayer,
   Task,
 } from '../../domain/gardens/GardenRepository';
+import {
+  formatPlantingEventLabel,
+  sortPlantingEvents,
+} from '../../domain/gardens/GardenRepository';
 import { getPlantingInstances } from '../../domain/gardens/plantingInstances';
 import { formatFeet } from '../garden/gardenMath';
 import {
@@ -14,6 +18,7 @@ import {
   getPlanWarningDecisionCategoryMeta,
   type PlanWarning,
 } from '../garden/gardenPlanning';
+import { getPlantingHarvestSchedule } from '../garden/harvestSchedule';
 import { getCropSupportNeed } from '../garden/gardenStructureRules';
 import { getSunAreaAtPoint } from '../garden/sunShadeEngine';
 import { describeCropSunFit } from '../garden/sunShadeFit';
@@ -31,6 +36,7 @@ export interface CropFocusSummary {
   cropId: string | null;
   focusKey: string;
   needs: {
+    harvest: string | null;
     sun: string | null;
     support: string | null;
     tasks: string[];
@@ -38,6 +44,7 @@ export interface CropFocusSummary {
   };
   selected: {
     label: string;
+    lastWork: string | null;
     plantingLabel: string;
     position: string;
     status: string;
@@ -49,11 +56,13 @@ export function buildCropFocusSummary({
   garden,
   selectedItem,
   sunLayer,
+  todayDate,
   warnings,
 }: {
   garden: Garden;
   selectedItem: SelectedGardenItem | null;
   sunLayer: SunShadeLayer;
+  todayDate: string;
   warnings: PlanWarning[];
 }): CropFocusSummary | null {
   if (selectedItem?.type !== 'planting') {
@@ -106,13 +115,15 @@ export function buildCropFocusSummary({
     cropId: selectedPlanting.cropId,
     focusKey,
     needs: {
+      harvest: formatHarvestNeed(garden, selectedPlanting, todayDate),
       sun: formatSunNeed(selectedPlanting, sunLayer),
       support: formatSupportNeed(crop),
-      tasks: formatTaskSummaries(matchingTasks),
+      tasks: formatTaskSummaries(matchingTasks, todayDate),
       warnings: formatWarningSummaries(matchingWarnings),
     },
     selected: {
       label: selectedInstance.label || selectedPlanting.label,
+      lastWork: formatLatestWorkSummary(selectedPlanting),
       plantingLabel: selectedPlanting.label,
       position: `X ${formatFeet(selectedInstance.xFt)} ft, Y ${formatFeet(
         selectedInstance.yFt,
@@ -181,7 +192,7 @@ function formatWarningSummaries(warnings: PlanWarning[]) {
   });
 }
 
-function formatTaskSummaries(tasks: Task[]) {
+function formatTaskSummaries(tasks: Task[], todayDate: string) {
   return [...tasks]
     .sort((left, right) =>
       (left.dueDate ?? '9999-12-31').localeCompare(
@@ -190,8 +201,52 @@ function formatTaskSummaries(tasks: Task[]) {
     )
     .slice(0, 3)
     .map((task) =>
-      task.dueDate ? `${task.title} (${task.dueDate})` : task.title,
+      task.dueDate
+        ? `${task.title} ${task.dueDate <= todayDate ? 'due' : 'coming'} ${task.dueDate}`
+        : task.title,
     );
+}
+
+function formatHarvestNeed(
+  garden: Garden,
+  planting: Planting,
+  todayDate: string,
+) {
+  const schedule = getPlantingHarvestSchedule(garden, planting, todayDate);
+
+  if (!schedule) {
+    return null;
+  }
+
+  const expectedLabel = formatMonthDay(schedule.expectedHarvestDate);
+
+  if (schedule.status === 'ready') {
+    return `Harvest can start now. Expected window opened around ${expectedLabel}.`;
+  }
+
+  if (schedule.status === 'late') {
+    return `Harvest window likely opened around ${expectedLabel}. Check ripeness in the field.`;
+  }
+
+  if (schedule.isIndoorEstimate) {
+    return `If this indoor start stays on track, harvest should start around ${expectedLabel}.`;
+  }
+
+  if (schedule.status === 'opening') {
+    return `Harvest window should open around ${expectedLabel}.`;
+  }
+
+  return `Expected harvest starts around ${expectedLabel}.`;
+}
+
+function formatLatestWorkSummary(planting: Planting) {
+  const latestEvent = sortPlantingEvents(planting.plantingEvents)[0] ?? null;
+
+  if (!latestEvent) {
+    return planting.plantedOn ? `Planted on ${planting.plantedOn}` : null;
+  }
+
+  return `${formatPlantingEventLabel(latestEvent.type)} on ${latestEvent.occurredOn}`;
 }
 
 function formatSupportNeed(crop: ReturnType<typeof getCropById>) {
@@ -261,4 +316,18 @@ function formatLabel(value: string) {
   return value
     .replace(/([A-Z])/g, ' $1')
     .replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function formatMonthDay(date: string) {
+  return new Intl.DateTimeFormat('en-US', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(parseLocalDate(date));
+}
+
+function parseLocalDate(date: string) {
+  const [year = '1970', month = '1', day = '1'] = date.split('-');
+
+  return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
 }

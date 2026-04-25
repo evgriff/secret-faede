@@ -18,7 +18,10 @@ import {
   type PlotClientRect,
   type PlotPoint,
 } from '../../garden/gardenMath';
-import type { SelectedGardenItem } from '../../garden/useGarden';
+import type {
+  GardenPositionUpdateOptions,
+  SelectedGardenItem,
+} from '../../garden/useGarden';
 import type { PlanMode } from '../planModes';
 import {
   areSamePlanItem,
@@ -88,6 +91,7 @@ type ItemPressState = {
 
 type ScrollLock = {
   element: HTMLElement;
+  release(): void;
   scrollLeft: number;
   scrollTop: number;
 };
@@ -107,6 +111,7 @@ type PlanPointerInteractionContext = {
   updateItemPositions(
     updates: PlanItemPositionUpdate[],
     trackHistory?: boolean,
+    options?: GardenPositionUpdateOptions,
   ): void;
 };
 
@@ -210,6 +215,7 @@ export function usePlanPointerInteractions({
   updateItemPositions(
     updates: PlanItemPositionUpdate[],
     trackHistory?: boolean,
+    options?: GardenPositionUpdateOptions,
   ): void;
 }) {
   const [draggingPlantId, setDraggingPlantId] = useState<string | null>(null);
@@ -518,6 +524,7 @@ export function usePlanPointerInteractions({
     );
 
     if (originalPoints.length === 0) {
+      releaseScrollLock(scrollLock);
       return;
     }
 
@@ -618,7 +625,7 @@ export function usePlanPointerInteractions({
 
       if (preview.hasChanged) {
         checkpointDrag(dragState, onCheckpoint);
-        updateItemPositions(preview.updates, false);
+        updateItemPositions(preview.updates, false, { saveAfterCommit: true });
       }
 
       if (dragState.selection.length === 1) {
@@ -629,6 +636,8 @@ export function usePlanPointerInteractions({
     }
 
     restoreScrollLock(dragState?.scrollLock ?? null);
+    restoreScrollLockAfterPaint(dragState?.scrollLock ?? null);
+    releaseScrollLock(dragState?.scrollLock ?? null);
     releasePointerCapture(event);
     dragStateRef.current = null;
     setDraggingPlantId(null);
@@ -748,6 +757,8 @@ export function usePlanPointerInteractions({
     }
 
     restoreScrollLock(resizeStateRef.current.scrollLock);
+    restoreScrollLockAfterPaint(resizeStateRef.current.scrollLock);
+    releaseScrollLock(resizeStateRef.current.scrollLock);
     releasePointerCapture(event);
     resizeStateRef.current = null;
     setResizingStructureId(null);
@@ -837,6 +848,8 @@ export function usePlanPointerInteractions({
     const state = marqueeStateRef.current;
 
     restoreScrollLock(state.scrollLock);
+    restoreScrollLockAfterPaint(state.scrollLock);
+    releaseScrollLock(state.scrollLock);
 
     if (!canceled && state.moved) {
       const selectionRect = rectFromPoints(
@@ -1008,11 +1021,31 @@ function captureScrollLock(element: HTMLElement): ScrollLock | null {
     return null;
   }
 
-  return {
+  let restoring = false;
+  const scrollLock: ScrollLock = {
     element: scrollport,
+    release() {
+      scrollport.removeEventListener('scroll', handleScrollLockChange);
+    },
     scrollLeft: scrollport.scrollLeft,
     scrollTop: scrollport.scrollTop,
   };
+
+  function handleScrollLockChange() {
+    if (restoring) {
+      return;
+    }
+
+    restoring = true;
+    restoreScrollLock(scrollLock);
+    restoring = false;
+  }
+
+  scrollport.addEventListener('scroll', handleScrollLockChange, {
+    passive: true,
+  });
+
+  return scrollLock;
 }
 
 function restoreScrollLock(scrollLock: ScrollLock | null) {
@@ -1027,6 +1060,20 @@ function restoreScrollLock(scrollLock: ScrollLock | null) {
   if (scrollLock.element.scrollTop !== scrollLock.scrollTop) {
     scrollLock.element.scrollTop = scrollLock.scrollTop;
   }
+}
+
+function restoreScrollLockAfterPaint(scrollLock: ScrollLock | null) {
+  if (!scrollLock || typeof requestAnimationFrame !== 'function') {
+    return;
+  }
+
+  requestAnimationFrame(() => {
+    restoreScrollLock(scrollLock);
+  });
+}
+
+function releaseScrollLock(scrollLock: ScrollLock | null) {
+  scrollLock?.release();
 }
 
 function releasePointerCapture(event: PointerEvent<HTMLElement>) {

@@ -40,9 +40,14 @@ export function formatStructureType(type: StructureType) {
 }
 
 export function getLatestWeatherSnapshot(snapshots: WeatherSnapshot[]) {
-  return [...snapshots].sort((left, right) =>
-    right.capturedAtIso.localeCompare(left.capturedAtIso),
-  )[0];
+  return snapshots.reduce<WeatherSnapshot | undefined>(
+    (latestSnapshot, snapshot) =>
+      latestSnapshot === undefined ||
+      snapshot.capturedAtIso >= latestSnapshot.capturedAtIso
+        ? snapshot
+        : latestSnapshot,
+    undefined,
+  );
 }
 
 export function formatWeatherSummary(snapshot: WeatherSnapshot | undefined) {

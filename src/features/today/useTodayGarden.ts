@@ -179,6 +179,7 @@ export function useTodayGarden(today: Date, isOffline: boolean) {
         garden,
         weatherProvider,
         {
+          forceWeatherRefresh: true,
           now,
           profile,
         },

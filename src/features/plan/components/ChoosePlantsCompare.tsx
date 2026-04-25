@@ -14,6 +14,7 @@ export function CropComparePanel({
   layoutRequests,
   onClearCompare,
   sunExposureAtPlacement,
+  today,
 }: {
   explicitCompareCount: number;
   garden: Garden;
@@ -21,6 +22,7 @@ export function CropComparePanel({
   layoutRequests: SeasonCropLayoutRequest[];
   onClearCompare(): void;
   sunExposureAtPlacement: SunExposure | null;
+  today: Date;
 }) {
   return (
     <section
@@ -51,6 +53,7 @@ export function CropComparePanel({
               garden,
               mode: request.plantingForm,
               sunExposureAtPlacement,
+              today,
             });
 
             return (
@@ -78,6 +81,7 @@ export function CropComparePanel({
                     label="Support"
                     value={facts.supportShortLabel}
                   />
+                  <CompareFact label="Today" value={facts.timingLabel} />
                   <CompareFact label="Harvest" value={facts.harvestLabel} />
                 </dl>
               </li>

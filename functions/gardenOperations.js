@@ -130,6 +130,7 @@ function defaultCurrent(provider, nowIso) {
 function defaultForecast(provider, nowIso) {
   return {
     dailyHighF: null,
+    days: [],
     generatedAtIso: nowIso,
     next24hPrecipIn: 0,
     next48hPrecipIn: 0,

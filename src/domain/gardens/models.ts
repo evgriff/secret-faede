@@ -123,6 +123,11 @@ export type CropLifecycle = 'annual' | 'biennial' | 'perennial';
 export type CropProfileCompleteness = 'complete' | 'needsReview' | 'partial';
 export type CropSowMethod = 'both' | 'directSow' | 'transplant';
 export type CropWaterNeed = 'high' | 'low' | 'medium';
+export type PlantingEventType =
+  | 'directSowed'
+  | 'plantedOut'
+  | 'startedInside'
+  | 'thinned';
 export type PlantingLifecycleStatus =
   | 'growing'
   | 'harvest-ready'
@@ -284,6 +289,12 @@ export interface CropProfile {
   waterNeeds: CropWaterNeed;
 }
 
+export interface PlantingEvent {
+  id: string;
+  occurredOn: LocalDateString;
+  type: PlantingEventType;
+}
+
 export interface Planting {
   allowRelocation: boolean;
   blockDepthFt: number | null;
@@ -299,6 +310,7 @@ export interface Planting {
   mulched: boolean;
   notes: string;
   plantCount: number | null;
+  plantingEvents: PlantingEvent[];
   plantStatus: PlantStatus;
   plantedOn: LocalDateString | null;
   plannedFor: LocalDateString | null;
@@ -398,6 +410,7 @@ export interface WeatherSnapshot {
   conditionSummary: string;
   dataQuality?: GardenDataQuality;
   evapotranspirationIn: number | null;
+  forecastDays?: WeatherSnapshotForecastDay[];
   forecastRainNext24In: number | null;
   forecastRainNext48In: number | null;
   frostRisk: 'none' | 'warning' | 'watch';
@@ -415,6 +428,14 @@ export interface WeatherSnapshot {
   source: 'manual' | 'nationalWeatherService' | 'tomorrowIo';
   temperatureF: number | null;
   windMph: number | null;
+}
+
+export interface WeatherSnapshotForecastDay {
+  conditionSummary: string;
+  date: LocalDateString;
+  expectedRainIn: number;
+  highF: number | null;
+  precipitationChancePercent?: number | null;
 }
 
 export interface WateringScheduleEntry {
@@ -674,6 +695,7 @@ export function createDefaultPlanting({
     mulched: false,
     notes: '',
     plantCount: 1,
+    plantingEvents: [],
     plantStatus: createDefaultPlantStatus(),
     plantedOn: null,
     plannedFor: null,

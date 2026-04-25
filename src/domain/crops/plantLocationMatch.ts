@@ -251,8 +251,16 @@ function getLocationMatchHeadline({
       return 'Possible, but late for direct sow in this climate window';
     }
 
+    if (/protection/i.test(warningText)) {
+      return 'Possible now with season protection';
+    }
+
     if (/wait until|Warm-season/i.test(warningText)) {
       return `Possible, but wait for the ${season} window`;
+    }
+
+    if (/spring planting has passed|fall window/i.test(warningText)) {
+      return 'Better saved for the next fall window';
     }
 
     if (/Sun has not been estimated/i.test(warningText)) {
@@ -296,7 +304,11 @@ function scoreHarvestWindow(
     return 0;
   }
 
-  const daysUntilFrost = daysUntilMonthDay(today, context.averageFirstFrost);
+  const daysUntilFrost = daysUntilMonthDay(
+    today,
+    context.averageFirstFrost,
+    context.location.timezone,
+  );
 
   if (daysUntilFrost < plant.timing.daysToMaturity) {
     warnings.push('Days to maturity may run past the first frost window.');
@@ -358,7 +370,13 @@ function getSeasonTimingAssessment(
   kind: 'reason' | 'warning';
   scoreDelta: number;
 } {
-  const current = dateToMonthDayNumber(today);
+  const timezone = context.location.timezone;
+  const current = dateToMonthDayNumber(today, timezone);
+  const daysUntilLastFrost = daysUntilMonthDay(
+    today,
+    context.averageLastFrost,
+    timezone,
+  );
 
   if (plant.timing.preferredSeason === 'perennial') {
     const tenderPerennial = /tender|protected|indoors/i.test(
@@ -374,8 +392,18 @@ function getSeasonTimingAssessment(
       current <= monthDayToNumber(fall.end);
 
     if (tenderPerennial) {
+      if (daysUntilLastFrost <= 10) {
+        return {
+          detail: `${plant.commonName} can go out soon with cover, but it still needs protection in ${context.hardinessZone}.`,
+          kind: 'warning',
+          label: 'Possible now with protection',
+          scoreDelta: -10,
+          status: 'possibleNowWithProtection',
+        };
+      }
+
       return {
-        detail: `${plant.commonName} is perennial only with protection in ${context.hardinessZone}.`,
+        detail: `${plant.commonName} is perennial only with protection in ${context.hardinessZone}; wait until hard frost risk passes.`,
         kind: 'warning',
         label: 'Wait until after frost',
         scoreDelta: -12,
@@ -393,9 +421,25 @@ function getSeasonTimingAssessment(
       };
     }
 
+    if (
+      current > monthDayToNumber(spring.end) &&
+      current < monthDayToNumber(fall.start)
+    ) {
+      return {
+        detail: `Spring planting has passed; plan for the fall window around ${formatMonthDay(
+          fall.start,
+        )}.`,
+        kind: 'warning',
+        label: 'Too late for this spring window',
+        scoreDelta: -8,
+        status: 'tooLateForSpringWindow',
+      };
+    }
+
     return {
-      detail:
-        'Perennials settle in best during the spring or fall planting windows.',
+      detail: `Perennials settle in best during the spring or fall planting windows, with the next fall window starting around ${formatMonthDay(
+        fall.start,
+      )}.`,
       kind: 'warning',
       label: 'Good for fall',
       scoreDelta: -4,
@@ -407,6 +451,18 @@ function getSeasonTimingAssessment(
     const warmStart = monthDayToNumber(context.seasonWindows.warmSeason.start);
 
     if (current < warmStart) {
+      if (daysUntilLastFrost <= 10) {
+        return {
+          detail: `Warm-season crop is close to the outdoor window; plant only with protection until around ${formatMonthDay(
+            context.averageLastFrost,
+          )}.`,
+          kind: 'warning',
+          label: 'Possible now with protection',
+          scoreDelta: -10,
+          status: 'possibleNowWithProtection',
+        };
+      }
+
       if (
         plant.timing.transplantCompatible &&
         !plant.timing.directSowCompatible
@@ -462,8 +518,52 @@ function getSeasonTimingAssessment(
       };
     }
 
+    if (current < monthDayToNumber(spring.start)) {
+      if (
+        plant.timing.transplantCompatible &&
+        !plant.timing.directSowCompatible
+      ) {
+        return {
+          detail: `Cool-season crop can be started indoors now for planting around ${formatMonthDay(
+            spring.start,
+          )}.`,
+          kind: 'reason',
+          label: 'Start indoors now',
+          scoreDelta: 4,
+          status: 'startIndoorsNow',
+        };
+      }
+
+      if (daysUntilLastFrost <= 10) {
+        return {
+          detail: `Cool-season crop can start now with row cover or another light protection layer.`,
+          kind: 'warning',
+          label: 'Possible now with protection',
+          scoreDelta: -4,
+          status: 'possibleNowWithProtection',
+        };
+      }
+    }
+
+    if (
+      current > monthDayToNumber(spring.end) &&
+      current < monthDayToNumber(fall.start)
+    ) {
+      return {
+        detail: `Spring planting has passed; save this for the fall window starting around ${formatMonthDay(
+          fall.start,
+        )}.`,
+        kind: 'warning',
+        label: 'Too late for this spring window',
+        scoreDelta: -12,
+        status: 'tooLateForSpringWindow',
+      };
+    }
+
     return {
-      detail: 'Cool-season crop; use spring or fall windows for best fit.',
+      detail: `Cool-season crop; the next reliable window is the fall planting window around ${formatMonthDay(
+        fall.start,
+      )}.`,
       kind: 'warning',
       label: 'Good for fall',
       scoreDelta: -10,

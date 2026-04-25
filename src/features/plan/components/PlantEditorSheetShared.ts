@@ -1,6 +1,5 @@
 import type {
   PlantingLifecycleStatus,
-  PlantStatusPhoto,
   PlantSupportType,
 } from '../../../domain/gardens/GardenRepository';
 
@@ -22,21 +21,6 @@ export const supportTypes: PlantSupportType[] = [
   'rowCover',
   'custom',
 ];
-
-export function createPictureSlot(
-  plantId: string,
-  index: number,
-): PlantStatusPhoto {
-  return {
-    contentType: 'image/*',
-    downloadUrl: null,
-    fileName: `Picture slot ${index}`,
-    id: `${plantId}:photo-slot-${index}`,
-    sizeBytes: null,
-    storagePath: null,
-    uploadedAtIso: null,
-  };
-}
 
 export function formatLifecycle(status: PlantingLifecycleStatus) {
   const labels: Record<PlantingLifecycleStatus, string> = {

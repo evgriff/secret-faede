@@ -1,17 +1,31 @@
 import {
+  appendPlantingEvent,
   createDefaultGarden,
   createDefaultPlanting,
   createDefaultUserProfile,
   createDefaultStructure,
   type Garden,
 } from '../../domain/gardens/GardenRepository';
+import type {
+  OptionalAgricultureMetrics,
+  RecentPrecipitation,
+  WeatherAlert,
+  WeatherCurrentConditions,
+  WeatherForecast,
+  WeatherLocation,
+  WeatherProvider,
+  WeatherRequestOptions,
+} from '../../domain/weather/WeatherProvider';
 import { synchronizeGardenTasks } from '../tasks/taskEngine';
 import {
   buildWateringSchedule,
   createWeatherSnapshot,
   type WeatherWateringContext,
 } from './wateringEngine';
-import { rebuildGardenWateringFromLatestSnapshot } from './wateringScheduleRefresh';
+import {
+  rebuildGardenWateringFromLatestSnapshot,
+  refreshGardenWateringFromWeather,
+} from './wateringScheduleRefresh';
 
 describe('wateringScheduleRefresh', () => {
   it('refreshes the watering schedule after a Plan planting change adds demand', () => {
@@ -161,6 +175,110 @@ describe('wateringScheduleRefresh', () => {
       dueWindowStartIso: '2026-06-21T13:30:00.000Z',
     });
   });
+
+  it('rebuilds the saved schedule after a direct-sow event makes a planned crop active', () => {
+    const now = new Date('2026-06-21T11:00:00.000Z');
+    const plannedPlanting = {
+      ...createDefaultPlanting({
+        id: 'tomato-1',
+        label: 'Tomato',
+        xFt: 3,
+        yFt: 3,
+      }),
+      cropId: 'tomato',
+      status: 'planned' as const,
+      weeklyWaterNeedInches: 1.1,
+    };
+    const context = createWeatherContext();
+    const baseGarden = {
+      ...createDefaultGarden('user-a'),
+      plantings: [plannedPlanting],
+      structures: [
+        {
+          ...createDefaultStructure({
+            id: 'bed-1',
+            type: 'raisedBed',
+            xFt: 1,
+            yFt: 1,
+          }),
+          label: 'Main bed',
+        },
+      ],
+    };
+    const snapshot = createWeatherSnapshot(baseGarden, context, now);
+    const directSowedGarden = {
+      ...baseGarden,
+      plantings: [
+        appendPlantingEvent(plannedPlanting, {
+          occurredOn: '2026-06-20',
+          type: 'directSowed',
+        }),
+      ],
+      weatherSnapshots: [snapshot],
+    };
+    const rebuiltGarden = rebuildGardenWateringFromLatestSnapshot(
+      directSowedGarden,
+      { now },
+    );
+
+    expect(rebuiltGarden.wateringSchedule).toHaveLength(1);
+    expect(rebuiltGarden.wateringSchedule[0]?.status).toBe('due');
+    expect(rebuiltGarden.wateringSchedule[0]?.reasonDetails).toContain(
+      'New plantings need steadier moisture right now.',
+    );
+    expect(
+      rebuiltGarden.tasks.find((task) => task.source === 'wateringSchedule'),
+    ).toMatchObject({
+      status: 'open',
+      title: expect.stringContaining('Water main bed'),
+    });
+  });
+
+  it('treats sanitized null recent rain as zero when rebuilding from a saved snapshot', () => {
+    const now = new Date('2026-06-21T11:00:00.000Z');
+    const garden = createGardenWithWeather();
+    const context = createWeatherContext();
+    const snapshot = {
+      ...createWeatherSnapshot(garden, context, now),
+      precipitationIn: null,
+      recentPrecipitation72hIn: null,
+    };
+    const rebuiltGarden = rebuildGardenWateringFromLatestSnapshot(
+      {
+        ...garden,
+        weatherSnapshots: [snapshot],
+      },
+      { now },
+    );
+
+    expect(rebuiltGarden.wateringSchedule).toHaveLength(1);
+    expect(rebuiltGarden.wateringSchedule[0]).toMatchObject({
+      status: 'due',
+      targetAmountInches: expect.any(Number),
+    });
+  });
+
+  it('passes force refresh through live weather refreshes', async () => {
+    const now = new Date('2026-06-21T11:00:00.000Z');
+    const provider = new RecordingWeatherProvider(createWeatherContext());
+
+    await refreshGardenWateringFromWeather(
+      createGardenWithWeather(),
+      provider,
+      {
+        forceWeatherRefresh: true,
+        now,
+      },
+    );
+
+    expect(provider.forceRefreshCalls).toEqual([
+      'current',
+      'forecast',
+      'alerts',
+      'precipitation',
+      'agriculture',
+    ]);
+  });
 });
 
 function createGardenWithWeather(overrides: Partial<Garden> = {}): Garden {
@@ -218,6 +336,15 @@ function createWeatherContext(): WeatherWateringContext {
     },
     forecast: {
       dailyHighF: 85,
+      days: [
+        {
+          conditionSummary: 'Sunny',
+          date: '2026-06-21',
+          expectedRainIn: 0,
+          highF: 85,
+          precipitationChancePercent: null,
+        },
+      ],
       generatedAtIso: '2026-06-21T11:00:00.000Z',
       next24hPrecipIn: 0,
       next48hPrecipIn: 0,
@@ -237,4 +364,59 @@ function createWeatherContext(): WeatherWateringContext {
       totalIn: 0,
     },
   };
+}
+
+class RecordingWeatherProvider implements WeatherProvider {
+  readonly id = 'nationalWeatherService';
+  readonly label = 'Recording National Weather Service';
+  readonly forceRefreshCalls: string[] = [];
+
+  constructor(private readonly context: WeatherWateringContext) {}
+
+  getCurrentConditions(
+    _location: WeatherLocation,
+    options?: WeatherRequestOptions,
+  ): Promise<WeatherCurrentConditions> {
+    this.recordForceRefresh('current', options);
+    return Promise.resolve(this.context.currentConditions);
+  }
+
+  getForecast(
+    _location: WeatherLocation,
+    options?: WeatherRequestOptions,
+  ): Promise<WeatherForecast> {
+    this.recordForceRefresh('forecast', options);
+    return Promise.resolve(this.context.forecast);
+  }
+
+  getWeatherAlerts(
+    _location: WeatherLocation,
+    options?: WeatherRequestOptions,
+  ): Promise<WeatherAlert[]> {
+    this.recordForceRefresh('alerts', options);
+    return Promise.resolve(this.context.alerts);
+  }
+
+  getRecentPrecipitation(
+    _location: WeatherLocation,
+    _hours: number,
+    options?: WeatherRequestOptions,
+  ): Promise<RecentPrecipitation> {
+    this.recordForceRefresh('precipitation', options);
+    return Promise.resolve(this.context.recentPrecipitation);
+  }
+
+  getOptionalAgricultureMetrics(
+    _location: WeatherLocation,
+    options?: WeatherRequestOptions,
+  ): Promise<OptionalAgricultureMetrics> {
+    this.recordForceRefresh('agriculture', options);
+    return Promise.resolve(this.context.agricultureMetrics);
+  }
+
+  private recordForceRefresh(kind: string, options?: WeatherRequestOptions) {
+    if (options?.forceRefresh) {
+      this.forceRefreshCalls.push(kind);
+    }
+  }
 }

@@ -125,10 +125,12 @@ Route map:
    shows a slim first-run setup for garden name, plot type, plot size, and
    starter template selection. Location, timezone, coordinates, and climate
    defaults use editable Detroit-derived values and sit behind optional setup
-   details or later Settings edits.
+   details or later Settings edits, and the route scrolls instead of clipping
+   at normal desktop zoom.
 10. Add Plant searches the local crop catalog, asks for quantity first, applies
-    the recommended arrangement form, and creates individual plant instances
-    with crop spacing, sun, and water defaults.
+    the recommended arrangement form, creates individual plant instances with
+    crop spacing, sun, and water defaults, and phrases fit guidance against the
+    current garden day in the saved timezone.
 11. User edits mark the garden dirty; Save writes plot dimensions and plant
     positions. Offline saves are accepted locally and surfaced as queued/saved
     locally in the shell.
@@ -138,11 +140,13 @@ Route map:
     visible in the garden operations panel.
 14. Settings lets the user manage alert types, push delivery, quiet hours,
     daily check time, location/timezone, web/native push registration, local
-    notification support, and founder demo enter/reset/exit controls.
+    notification support, and sample-garden enter/reset/restore controls.
 15. `/app/today` syncs generated work from the saved garden plan, watering
-    schedule entries, editable frost dates, and crop catalog defaults.
+    schedule entries, editable frost dates, crop catalog defaults, and actual
+    planting events recorded from Plan or Today.
 16. `/app/feed` records notes, structured issues, photo attachments, harvests,
-    and compact season summaries from the same garden aggregate.
+    compact season summaries, actual watering events, and planting-event
+    memories from the same garden aggregate.
 17. The authenticated shell shows online/offline state and uses mobile bottom
     navigation for field use.
 18. In the Capacitor shell, native network state feeds the same sync indicator,
@@ -213,6 +217,12 @@ the planting support plan; trellises and raised beds remain structure documents.
 `plannedFor` stores an optional future date for approved succession plantings;
 older saved plantings default to `null`.
 
+Actual planting work is stored on each planting as a small event history.
+Supported event types are `startedInside`, `directSowed`, `plantedOut`, and
+`thinned`, each with a real event date. Plan, Today, and Feed use those events
+to keep fit guidance, follow-up tasks, and memory entries grounded in what
+actually happened instead of only relying on planned dates.
+
 Structure planning supports raised beds, in-ground beds, containers, access
 paths, and trellises in the primary flow. Plant-level supports such as cages and
 stakes live on the planting support plan instead of becoming global structure
@@ -260,7 +270,9 @@ geometry warnings are not persisted as dismissed state.
 Weather snapshots and the watering schedule are currently embedded on
 `gardens/{uid}`. The watering engine combines crop weekly water targets, bed or
 container multipliers, mulch flags, recent rain, near-term forecast rain, heat
-stress, optional evapotranspiration, and journal water logs when present.
+stress, optional evapotranspiration, journal water logs when present, and
+planting lifecycle or recent planting-event state when demand changes after a
+direct sow or transplant.
 
 Notification preferences are stored on `users/{uid}`. They include push
 delivery, per-alert-type toggles, quiet hours, daily watering check time,
@@ -274,10 +286,11 @@ ids so completed/skipped work does not reappear. Task records include due date,
 type, source, source id, bed label, priority, snooze/defer state, and completion
 time. The task engine generates work from crop defaults, planting date or
 editable frost dates, sow method, trellis needs, thinning, pruning,
-fertilizing, mulching, watering schedule entries, and harvest windows.
-Completing a sow/plant/transplant task updates the planting to growing and
-refreshes downstream generated tasks from the completion date; completing a
-water task marks its schedule entry completed.
+fertilizing, mulching, watering schedule entries, harvest windows, and recorded
+planting events. Completing a sow/plant/transplant task updates the planting to
+growing, records the matching planting event, and refreshes downstream
+generated tasks from the real completion date; completing a water task marks
+its schedule entry completed.
 
 Journal entries are stored at `gardens/{uid}/journal/{entryId}`. Entries can
 target the whole garden, a structure/bed, or an individual planting. Issue
@@ -352,8 +365,9 @@ generated tasks on load, then persists user actions through `GardenRepository`.
   follow-on crop. Approving a suggestion creates a normal future planting with
   `plannedFor`, then generated tasks sync from that planting.
 - Snooze moves a task to tomorrow; defer moves it one week later.
-- Water done and task done are direct field actions. Harvest logging can offer
-  an optional photo follow-up because harvests are useful garden memories.
+- Water done and task done are direct field actions. Harvest timing is shown as
+  schedule context, and harvest logging stays an intentional memory entry
+  instead of a generated task or automatic photo follow-up.
 
 ## Feed
 

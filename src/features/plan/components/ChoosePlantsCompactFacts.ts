@@ -2,6 +2,7 @@ import { getPlantCatalogEntry } from '../../../domain/crops/plantCatalog';
 import {
   createPlantLocationContext,
   explainPlantLocationMatch,
+  getPlantTimingGuidance,
   scorePlantLocationMatch,
 } from '../../../domain/crops/plantLocationMatch';
 import type {
@@ -35,6 +36,8 @@ export interface CompactPlantFacts {
   spacingLabel: string;
   supportLabel: string;
   supportShortLabel: string;
+  timingDetail: string;
+  timingLabel: string;
   sunShortLabel: string;
   sunLabel: string;
   waterShortLabel: string;
@@ -46,11 +49,13 @@ export function getCompactPlantFacts({
   garden,
   mode,
   sunExposureAtPlacement,
+  today = new Date(),
 }: {
   crop: CropProfile;
   garden: Garden;
   mode: PlantingMode;
   sunExposureAtPlacement: SunExposure | null;
+  today?: Date;
 }): CompactPlantFacts {
   const plant = getPlantCatalogEntry(crop.id);
   const locationContext = createPlantLocationContext({
@@ -61,11 +66,18 @@ export function getCompactPlantFacts({
     context: locationContext,
     crop,
     sunExposureAtPlacement,
+    today,
   });
   const locationRationale = explainPlantLocationMatch({
     context: locationContext,
     crop,
     match: locationMatch,
+    today,
+  });
+  const timing = getPlantTimingGuidance({
+    context: locationContext,
+    crop,
+    today,
   });
   const harvest = plant?.harvest;
   const lifecycle = plant?.lifecycle ?? crop.lifecycle;
@@ -104,6 +116,8 @@ export function getCompactPlantFacts({
           crop.trellisRequired || crop.trellisRecommended ? 'perPlant' : 'none',
           crop.trellisRequired || crop.trellisRecommended ? 'stake' : 'none',
         ),
+    timingDetail: timing.detail,
+    timingLabel: timing.label,
     sunShortLabel: formatShortSun(crop.sunRequirement),
     sunLabel: formatSun(crop.sunRequirement),
     waterShortLabel: formatLabel(crop.waterNeeds),

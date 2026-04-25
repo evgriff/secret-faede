@@ -63,6 +63,7 @@ export interface SeasonCropLayoutRequest {
 export function buildSeasonCropLayoutRequests(
   garden: Garden,
   sunExposureAtPlacement: SunExposure | null = null,
+  today = new Date(),
 ): SeasonCropLayoutRequest[] {
   const totalEstimatedAreaSqFt = estimateTotalWantedAreaSqFt(garden);
 
@@ -85,6 +86,7 @@ export function buildSeasonCropLayoutRequests(
             selection,
             sunExposureAtPlacement,
             totalEstimatedAreaSqFt,
+            today,
           }),
           plantingForm: selection.plantingForm,
           notes: selection.notes,
@@ -104,12 +106,14 @@ export function getSeasonCropFitSignal({
   selection,
   sunExposureAtPlacement = null,
   totalEstimatedAreaSqFt = estimateTotalWantedAreaSqFt(garden),
+  today = new Date(),
 }: {
   crop: CropProfile;
   garden: Garden;
   selection: SeasonCropSelection;
   sunExposureAtPlacement?: SunExposure | null;
   totalEstimatedAreaSqFt?: number;
+  today?: Date;
 }): SeasonCropFitSignal {
   const estimatedAreaSqFt = estimateSelectionAreaSqFt(selection, crop);
   const plotAreaSqFt = garden.plot.widthFt * garden.plot.depthFt;
@@ -123,6 +127,7 @@ export function getSeasonCropFitSignal({
     plotType: inferPlotType(garden),
     requestedAreaSqFt: estimatedAreaSqFt,
     sunExposureAtPlacement,
+    today,
   });
 
   if (
@@ -168,7 +173,7 @@ export function getSeasonCropFitSignal({
   ) {
     groupedReasons.push({
       group: 'climateSeason',
-      label: 'Season timing may need protection or adjusted dates',
+      label: suitability.timing.label,
       severity: 'watch',
     });
   }

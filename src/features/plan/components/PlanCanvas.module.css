@@ -46,21 +46,37 @@
 }
 
 .workbench {
+  --ruler-size: 2.4rem;
   display: grid;
-  justify-content: center;
+  justify-content: start;
   align-content: start;
   min-width: max-content;
   min-height: 100%;
-  padding: calc(var(--space-6) + 1rem) var(--space-4) var(--space-4);
+  width: max-content;
+  padding: calc(var(--frame-padding-y, 22rem) + var(--space-6))
+    var(--frame-padding-x, 35rem) var(--frame-padding-y, 22rem)
+    var(--frame-padding-x, 35rem);
+}
+
+.sceneBounds {
+  position: relative;
+  width: calc(
+    (var(--plot-width) + var(--ruler-size, 2.4rem)) * var(--canvas-zoom, 1)
+  );
+  height: calc(
+    (var(--plot-height) + var(--ruler-size, 2.4rem)) * var(--canvas-zoom, 1)
+  );
 }
 
 .sceneTransform {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: max-content;
   transform-origin: top left;
 }
 
 .plotShell {
-  --ruler-size: 2.4rem;
   display: grid;
   grid-template-columns: var(--ruler-size) var(--plot-width);
   grid-template-rows: var(--ruler-size) var(--plot-height);
@@ -332,12 +348,11 @@
   }
 
   .workbench {
-    justify-content: start;
-    padding: 3.6rem 0.65rem 6.4rem;
-  }
-
-  .plotShell {
     --ruler-size: 1.8rem;
+    padding: calc(min(var(--frame-padding-y, 14rem), 14rem) + 3.6rem)
+      max(0.9rem, min(var(--frame-padding-x, 16rem), 16rem))
+      max(6.4rem, min(var(--frame-padding-y, 14rem), 14rem))
+      max(0.9rem, min(var(--frame-padding-x, 16rem), 16rem));
   }
 
   .plotMeta {

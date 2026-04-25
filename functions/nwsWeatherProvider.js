@@ -4,6 +4,7 @@ const {
   addHours,
   asArray,
   asRecord,
+  buildForecastDays,
   cachedJson,
   celsiusToFahrenheit,
   findNextGridRainIso,
@@ -11,11 +12,11 @@ const {
   hours,
   kilometersPerHourToMph,
   maxTemperature,
-  metersToOptionalInches,
   minutes,
   overnightLow,
   parseGridValues,
   parseHourlyPeriods,
+  readPrecipitationQuantityInches,
   readNumberOrNull,
   readQuantity,
   readString,
@@ -54,8 +55,9 @@ class NationalWeatherServiceProvider {
       feelsLikeF: celsiusToFahrenheit(readQuantity(properties, 'heatIndex')),
       humidityPercent: readQuantity(properties, 'relativeHumidity'),
       observationTimeIso: readStringOrNull(properties?.timestamp),
-      precipitationLastHourIn: metersToOptionalInches(
-        readQuantity(properties, 'precipitationLastHour'),
+      precipitationLastHourIn: readPrecipitationQuantityInches(
+        properties,
+        'precipitationLastHour',
       ),
       providerId: this.id,
       sourceLabel: this.label,
@@ -67,7 +69,8 @@ class NationalWeatherServiceProvider {
 
   async getForecast(location) {
     const point = await this.getPointMetadata(location);
-    const [hourly, grid] = await Promise.all([
+    const [forecast, hourly, grid] = await Promise.all([
+      point.forecast ? this.requestJson(point.forecast, minutes(30)) : null,
       point.forecastHourly
         ? this.requestJson(point.forecastHourly, minutes(30))
         : null,
@@ -75,6 +78,7 @@ class NationalWeatherServiceProvider {
         ? this.requestJson(point.forecastGridData, minutes(30))
         : null,
     ]);
+    const dailyPeriods = parseHourlyPeriods(forecast);
     const periods = parseHourlyPeriods(hourly);
     const qpfValues = parseGridValues(grid, 'quantitativePrecipitation');
     const now = new Date();
@@ -83,6 +87,11 @@ class NationalWeatherServiceProvider {
 
     return {
       dailyHighF: maxTemperature(periods, now, in24h),
+      days: buildForecastDays(
+        dailyPeriods.length ? dailyPeriods : periods,
+        qpfValues,
+        location.timezone,
+      ),
       generatedAtIso: now.toISOString(),
       next24hPrecipIn: roundTo(sumGridPrecip(qpfValues, now, in24h), 2),
       next48hPrecipIn: roundTo(sumGridPrecip(qpfValues, now, in48h), 2),
@@ -186,6 +195,7 @@ class NationalWeatherServiceProvider {
     ).then((payload) => {
       const properties = asRecord(asRecord(payload)?.properties);
       return {
+        forecast: readStringOrNull(properties?.forecast),
         forecastGridData: readStringOrNull(properties?.forecastGridData),
         forecastHourly: readStringOrNull(properties?.forecastHourly),
         observationStations: readStringOrNull(properties?.observationStations),
@@ -199,17 +209,22 @@ class NationalWeatherServiceProvider {
     url.searchParams.set('end', end.toISOString());
     const payload = await this.requestJson(url.toString(), minutes(60));
 
-    return asArray(asRecord(payload)?.features).flatMap((feature) => {
-      const properties = asRecord(asRecord(feature)?.properties);
-      const observedAtIso = readStringOrNull(properties?.timestamp);
-      const precipitationIn = metersToOptionalInches(
-        readQuantity(properties, 'precipitationLastHour'),
-      );
+    const observations = asArray(asRecord(payload)?.features).flatMap(
+      (feature) => {
+        const properties = asRecord(asRecord(feature)?.properties);
+        const observedAtIso = readStringOrNull(properties?.timestamp);
+        const precipitationIn = readPrecipitationQuantityInches(
+          properties,
+          'precipitationLastHour',
+        );
 
-      return observedAtIso && precipitationIn && precipitationIn > 0
-        ? [{ observedAtIso, precipitationIn }]
-        : [];
-    });
+        return observedAtIso && precipitationIn && precipitationIn > 0
+          ? [{ observedAtIso, precipitationIn }]
+          : [];
+      },
+    );
+
+    return coalesceHourlyPrecipitationObservations(observations);
   }
 
   requestJson(url, ttlMs) {
@@ -224,6 +239,27 @@ class NationalWeatherServiceProvider {
       url,
     });
   }
+}
+
+function coalesceHourlyPrecipitationObservations(observations) {
+  const observationsByHour = new Map();
+
+  observations.forEach((observation) => {
+    const observedAt = new Date(observation.observedAtIso);
+
+    if (Number.isNaN(observedAt.getTime())) {
+      return;
+    }
+
+    const hourKey = observedAt.toISOString().slice(0, 13);
+    const current = observationsByHour.get(hourKey);
+
+    if (!current || observation.precipitationIn > current.precipitationIn) {
+      observationsByHour.set(hourKey, observation);
+    }
+  });
+
+  return [...observationsByHour.values()];
 }
 
 module.exports = {

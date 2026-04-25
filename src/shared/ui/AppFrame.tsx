@@ -5,6 +5,10 @@ import type { AuthUser } from '../../domain/auth/types';
 import {
   buildSettingsDemoCommandPath,
   readSettingsDemoState,
+  sampleGardenActiveLabel,
+  sampleGardenRestoreDisabledMessage,
+  sampleGardenRestoreLabel,
+  sampleGardenRestoreTitle,
 } from '../../features/settings/settingsDemoSession';
 import type { AppEnvironment } from '../config/env';
 import { routePaths } from '../lib/routes';
@@ -70,7 +74,7 @@ export function AppFrame({
   );
   const demoRestoreHelp = demoState.canExit
     ? 'Back to my garden restores the garden saved before the sample was opened on this device.'
-    : 'No saved garden backup is available on this device, so Back to my garden is unavailable.';
+    : sampleGardenRestoreDisabledMessage;
 
   useEffect(() => {
     const syncDemoState = () => {
@@ -148,7 +152,7 @@ export function AppFrame({
             <Banner tone="warning">
               <div className={styles.demoBanner}>
                 <div className={styles.demoBannerCopy}>
-                  <strong>Sample garden active.</strong>
+                  <strong>{sampleGardenActiveLabel}</strong>
                   <span>{demoRestoreHelp}</span>
                 </div>
                 <div className={styles.demoBannerActions}>
@@ -160,12 +164,12 @@ export function AppFrame({
                     priority="secondary"
                     title={
                       demoState.canExit
-                        ? 'Back to the garden saved before opening the sample.'
-                        : 'No saved garden backup is available on this device.'
+                        ? sampleGardenRestoreTitle.available
+                        : sampleGardenRestoreTitle.unavailable
                     }
                     type="button"
                   >
-                    Back to my garden
+                    {sampleGardenRestoreLabel}
                   </ActionButton>
                 </div>
               </div>

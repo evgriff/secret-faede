@@ -22,6 +22,13 @@ function createWeatherSnapshot(garden, context, now) {
     dataQuality: context.dataQuality,
     evapotranspirationIn:
       context.agricultureMetrics.evapotranspirationNext24hIn,
+    forecastDays: (context.forecast.days || []).slice(0, 14).map((day) => ({
+      conditionSummary: day.conditionSummary,
+      date: day.date,
+      expectedRainIn: roundTo(day.expectedRainIn || 0, 2),
+      highF: day.highF ?? null,
+      precipitationChancePercent: day.precipitationChancePercent ?? null,
+    })),
     forecastRainNext24In: context.forecast.next24hPrecipIn,
     forecastRainNext48In: context.forecast.next48hPrecipIn,
     frostRisk: getFrostRisk(context.forecast.overnightLowF),

@@ -6,7 +6,10 @@ import type {
   LayoutResolutionOption,
   LayoutVariant,
 } from '../../domain/gardens/GardenRepository';
-import type { PlanWarning } from '../garden/gardenPlanning';
+import {
+  isUserFacingPlanWarning,
+  type PlanWarning,
+} from '../garden/gardenPlanning';
 import type { ReviewSuggestion } from '../garden/reviewSuggestions';
 import type { AutoLayoutCandidate } from './autoLayoutTypes';
 import {
@@ -61,8 +64,9 @@ export function buildLayoutProblemResolutionModel({
     }),
   );
   const optionIdsByProblemId = groupOptionIdsByProblem(resolutionOptions);
+  const visibleWarnings = warnings.filter(isUserFacingPlanWarning);
   const seeds = [
-    ...warnings.map((warning) =>
+    ...visibleWarnings.map((warning) =>
       buildProblemSeedFromWarning({
         targets: buildTargets(garden, warning.itemIds),
         warning,

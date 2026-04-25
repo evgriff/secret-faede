@@ -17,7 +17,6 @@ import {
   updateIssueStatus,
   type TodayTarget,
 } from './todayActions';
-import { delayHarvestReminder } from './todayHarvestActions';
 import { markPlantingLifecycle } from './todayLifecycleActions';
 
 describe('todayActions', () => {
@@ -383,44 +382,8 @@ describe('todayActions', () => {
       amountText: '2 lb',
       cropId: 'tomato',
     });
-  });
-
-  it('reschedules harvest reminders when a crop is not ready', () => {
-    const updated = delayHarvestReminder(
-      {
-        ...createFieldGarden(),
-        plantings: [
-          {
-            ...createFieldGarden().plantings[0]!,
-            status: 'harvest-ready',
-          },
-        ],
-        tasks: [createHarvestTask()],
-      },
-      {
-        delayUntilDate: '2026-06-24',
-        plantingId: 'tomato-1',
-        reason: 'Checked Tomato on 2026-06-21; not ready. Recheck 3 days.',
-      },
-      new Date('2026-06-21T12:00:00.000Z'),
-    );
-    const harvestTasks = updated.tasks.filter(
-      (task) => task.type === 'harvest',
-    );
-
-    expect(updated.plantings[0]).toMatchObject({
-      status: 'growing',
-    });
-    expect(harvestTasks).toHaveLength(1);
-    expect(harvestTasks[0]).toMatchObject({
-      delayReason: 'Checked Tomato on 2026-06-21; not ready. Recheck 3 days.',
-      delaySetAtIso: '2026-06-21T12:00:00.000Z',
-      deferredUntilDate: '2026-06-24',
-      dueDate: '2026-06-24',
-      notes: expect.stringContaining('Not ready: Checked Tomato'),
-      snoozedUntilDate: null,
-      status: 'open',
-    });
+    expect(partial.journalEntries).toEqual([]);
+    expect(finished.journalEntries).toEqual([]);
   });
 
   it('marks crop lifecycle changes from the field dashboard', () => {
@@ -448,6 +411,12 @@ describe('todayActions', () => {
     );
 
     expect(updated.plantings[0]).toMatchObject({
+      plantingEvents: [
+        expect.objectContaining({
+          occurredOn: '2026-06-21',
+          type: 'plantedOut',
+        }),
+      ],
       plantedOn: '2026-06-21',
       status: 'planted',
     });
@@ -460,7 +429,7 @@ describe('todayActions', () => {
     expect(updated.journalEntries[0]).toMatchObject({
       plantingId: 'tomato-1',
       targetType: 'planting',
-      title: 'Marked Tomato planted',
+      title: 'Planted out Tomato',
       type: 'note',
     });
   });

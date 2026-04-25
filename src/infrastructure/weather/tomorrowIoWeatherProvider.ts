@@ -4,9 +4,11 @@ import type {
   WeatherAlert,
   WeatherCurrentConditions,
   WeatherForecast,
+  WeatherForecastDay,
   WeatherForecastPeriod,
   WeatherLocation,
   WeatherProvider,
+  WeatherRequestOptions,
 } from '../../domain/weather/WeatherProvider';
 
 export class TomorrowIoWeatherProvider implements WeatherProvider {
@@ -20,11 +22,12 @@ export class TomorrowIoWeatherProvider implements WeatherProvider {
 
   async getCurrentConditions(
     location: WeatherLocation,
+    options: WeatherRequestOptions = {},
   ): Promise<WeatherCurrentConditions> {
     const payload = await this.getForecastPayloadWithFallback(
       location,
       'current conditions',
-      () => this.fallbackProvider.getCurrentConditions(location),
+      () => this.fallbackProvider.getCurrentConditions(location, options),
     );
     if (asRecord(payload)?.conditionSummary) {
       return payload as WeatherCurrentConditions;
@@ -50,11 +53,14 @@ export class TomorrowIoWeatherProvider implements WeatherProvider {
     };
   }
 
-  async getForecast(location: WeatherLocation): Promise<WeatherForecast> {
+  async getForecast(
+    location: WeatherLocation,
+    options: WeatherRequestOptions = {},
+  ): Promise<WeatherForecast> {
     const payload = await this.getForecastPayloadWithFallback(
       location,
       'forecast',
-      () => this.fallbackProvider.getForecast(location),
+      () => this.fallbackProvider.getForecast(location, options),
     );
     if (Array.isArray(asRecord(payload)?.periods)) {
       return payload as WeatherForecast;
@@ -92,6 +98,7 @@ export class TomorrowIoWeatherProvider implements WeatherProvider {
 
     return {
       dailyHighF: maxTemperature(periods, now, in24h),
+      days: buildForecastDays(periods, location.timezone),
       generatedAtIso: now.toISOString(),
       next24hPrecipIn: roundTo(sumForecastPrecip(periods, now, in24h), 2),
       next48hPrecipIn: roundTo(sumForecastPrecip(periods, now, in48h), 2),
@@ -103,24 +110,34 @@ export class TomorrowIoWeatherProvider implements WeatherProvider {
     };
   }
 
-  getWeatherAlerts(location: WeatherLocation): Promise<WeatherAlert[]> {
-    return this.fallbackProvider.getWeatherAlerts(location);
+  getWeatherAlerts(
+    location: WeatherLocation,
+    options: WeatherRequestOptions = {},
+  ): Promise<WeatherAlert[]> {
+    return this.fallbackProvider.getWeatherAlerts(location, options);
   }
 
   getRecentPrecipitation(
     location: WeatherLocation,
     hours: number,
+    options: WeatherRequestOptions = {},
   ): Promise<RecentPrecipitation> {
-    return this.fallbackProvider.getRecentPrecipitation(location, hours);
+    return this.fallbackProvider.getRecentPrecipitation(
+      location,
+      hours,
+      options,
+    );
   }
 
   async getOptionalAgricultureMetrics(
     location: WeatherLocation,
+    options: WeatherRequestOptions = {},
   ): Promise<OptionalAgricultureMetrics> {
     const payload = await this.getForecastPayloadWithFallback(
       location,
       'agriculture metrics',
-      () => this.fallbackProvider.getOptionalAgricultureMetrics(location),
+      () =>
+        this.fallbackProvider.getOptionalAgricultureMetrics(location, options),
     );
     if (Array.isArray(asRecord(payload)?.notes)) {
       return payload as OptionalAgricultureMetrics;
@@ -248,6 +265,67 @@ function findNextRainIso(periods: WeatherForecastPeriod[], now: Date) {
   );
 }
 
+function buildForecastDays(
+  periods: WeatherForecastPeriod[],
+  timezone: string,
+): WeatherForecastDay[] {
+  const days = new Map<
+    string,
+    {
+      conditionSummary: string | null;
+      expectedRainIn: number;
+      highF: number | null;
+      precipitationChancePercent: number | null;
+    }
+  >();
+
+  periods.forEach((period) => {
+    const start = new Date(period.startIso);
+
+    if (Number.isNaN(start.getTime())) {
+      return;
+    }
+
+    const date = formatLocalDate(start, timezone);
+    const current = days.get(date) ?? {
+      conditionSummary: null,
+      expectedRainIn: 0,
+      highF: null,
+      precipitationChancePercent: null,
+    };
+
+    current.conditionSummary ??= period.shortForecast;
+    current.expectedRainIn += period.precipitationAmountIn ?? 0;
+    current.highF =
+      period.temperatureF === null
+        ? current.highF
+        : current.highF === null
+          ? period.temperatureF
+          : Math.max(current.highF, period.temperatureF);
+    current.precipitationChancePercent =
+      current.precipitationChancePercent === null
+        ? period.precipitationChancePercent
+        : period.precipitationChancePercent === null
+          ? current.precipitationChancePercent
+          : Math.max(
+              current.precipitationChancePercent,
+              period.precipitationChancePercent,
+            );
+    days.set(date, current);
+  });
+
+  return [...days.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .slice(0, 14)
+    .map(([date, day]) => ({
+      conditionSummary: day.conditionSummary ?? 'Tomorrow.io forecast',
+      date,
+      expectedRainIn: roundTo(day.expectedRainIn, 2),
+      highF: day.highF,
+      precipitationChancePercent: day.precipitationChancePercent,
+    }));
+}
+
 function maxTemperature(
   periods: WeatherForecastPeriod[],
   start: Date,
@@ -306,6 +384,20 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function addHours(date: Date, hours: number) {
   return new Date(date.getTime() + hours * 60 * 60 * 1000);
+}
+
+function formatLocalDate(date: Date, timezone: string) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: timezone,
+    year: 'numeric',
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value ?? '0000';
+  const month = parts.find((part) => part.type === 'month')?.value ?? '01';
+  const day = parts.find((part) => part.type === 'day')?.value ?? '01';
+
+  return `${year}-${month}-${day}`;
 }
 
 function roundTo(value: number, decimals: number) {

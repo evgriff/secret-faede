@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { getCropById } from '../../../domain/crops/cropCatalog';
 import type {
@@ -8,15 +8,20 @@ import type {
   SeasonCropSelection,
   SunExposure,
 } from '../../../domain/gardens/GardenRepository';
+import { getCalendarDateInTimeZone } from '../../../shared/lib/timezoneDate';
 import { Button, Modal } from '../../shared/design/DesignPrimitives';
 import { buildSeasonCropLayoutRequests } from '../seasonCropPlan';
-import { SeasonCropBoard } from './ChoosePlantsBoard';
+import {
+  SeasonCropBoard,
+  type CurrentPlanCropOption,
+} from './ChoosePlantsBoard';
 import { CropComparePanel } from './ChoosePlantsCompare';
 import { ChoosePlantsLibrary } from './ChoosePlantsLibrary';
 import styles from './ChoosePlantsModal.module.css';
 import {
   createSeasonCropSelection,
   normalizeSeasonCropSelections,
+  normalizeSeasonPlantingForm,
 } from './choosePlantsSelection';
 
 type MobileTab = 'board' | 'library';
@@ -41,8 +46,20 @@ export function ChoosePlantsModal({
   sunExposureAtPlacement: SunExposure | null;
 }) {
   const [activeTab, setActiveTab] = useState<MobileTab>('library');
-  const [selections, setSelections] = useState<SeasonCropSelection[]>(
-    () => garden.seasonPlan.wantedCrops,
+  const [isPickedPanelExpanded, setIsPickedPanelExpanded] = useState(false);
+  const [analysisDate] = useState(() =>
+    getCalendarDateInTimeZone(new Date(), garden.plot.location.timezone),
+  );
+  const currentPlanCropOptions = useMemo(
+    () => buildCurrentPlanCropOptions(garden),
+    [garden],
+  );
+  const currentPlanCropIds = useMemo(
+    () => new Set(currentPlanCropOptions.map((option) => option.cropId)),
+    [currentPlanCropOptions],
+  );
+  const [selections, setSelections] = useState<SeasonCropSelection[]>(() =>
+    getInitialSelections(garden.seasonPlan.wantedCrops, currentPlanCropIds),
   );
   const [compareSelections, setCompareSelections] = useState<
     CompareCropSelection[]
@@ -61,6 +78,7 @@ export function ChoosePlantsModal({
   const layoutRequests = buildSeasonCropLayoutRequests(
     draftGarden,
     sunExposureAtPlacement,
+    analysisDate,
   );
   const compareRequests = buildSeasonCropLayoutRequests(
     {
@@ -71,22 +89,48 @@ export function ChoosePlantsModal({
       },
     },
     sunExposureAtPlacement,
+    analysisDate,
   );
   const hasSelections = selections.length > 0;
+  const pickedPanelState = isPickedPanelExpanded ? 'expanded' : 'collapsed';
 
   function addCrop(
     crop: CropProfile,
     quantity = 1,
     plantingForm?: PlantingMode,
   ) {
-    if (selectedCropIds.has(crop.id)) {
-      return;
-    }
+    setSelections((currentSelections) => {
+      const existingSelection = currentSelections.find(
+        (selection) => selection.cropId === crop.id,
+      );
 
-    setSelections((currentSelections) => [
-      ...currentSelections,
-      createSeasonCropSelection(crop, quantity, plantingForm),
-    ]);
+      if (!existingSelection) {
+        return normalizeSeasonCropSelections([
+          ...currentSelections,
+          createSeasonCropSelection(crop, quantity, plantingForm),
+        ]);
+      }
+
+      const nextQuantity = coerceTargetQuantity(
+        existingSelection.quantity + quantity,
+      );
+
+      return normalizeSeasonCropSelections(
+        currentSelections.map((selection) =>
+          selection.cropId === crop.id
+            ? {
+                ...selection,
+                plantingForm: normalizeSeasonPlantingForm(
+                  crop,
+                  nextQuantity,
+                  selection.plantingForm,
+                ),
+                quantity: nextQuantity,
+              }
+            : selection,
+        ),
+      );
+    });
   }
 
   function toggleCompareCrop(crop: CropProfile, quantity = 1) {
@@ -233,7 +277,11 @@ export function ChoosePlantsModal({
         </TabButton>
       </div>
 
-      <div className={styles.layout} data-active-tab={activeTab}>
+      <div
+        className={styles.layout}
+        data-active-tab={activeTab}
+        data-board-state={pickedPanelState}
+      >
         <div
           aria-labelledby="choose-plants-library-tab"
           className={`${styles.panelSlot} ${styles.librarySlot}`}
@@ -248,6 +296,7 @@ export function ChoosePlantsModal({
             onToggleCompare={toggleCompareCrop}
             selectedCropIds={selectedCropIds}
             sunExposureAtPlacement={sunExposureAtPlacement}
+            today={analysisDate}
           />
         </div>
 
@@ -257,8 +306,37 @@ export function ChoosePlantsModal({
           id="choose-plants-board-panel"
           role="tabpanel"
         >
-          <div className={styles.boardStack}>
+          <button
+            aria-label="Expand picked plants"
+            aria-controls="choose-plants-board-content"
+            aria-expanded={isPickedPanelExpanded}
+            className={styles.collapsedBoard}
+            onClick={() => setIsPickedPanelExpanded(true)}
+            type="button"
+          >
+            <span className={styles.collapsedKicker}>Picked</span>
+            <strong>{selections.length}</strong>
+            <span>
+              {plantCountLabel(selections)}
+              {compareCropIds.length > 0
+                ? ` · ${compareCropIds.length} compare`
+                : ''}
+            </span>
+          </button>
+          <div className={styles.boardStack} id="choose-plants-board-content">
+            <div className={styles.boardPanelToolbar}>
+              <button
+                aria-controls="choose-plants-board-content"
+                aria-expanded={isPickedPanelExpanded}
+                className={styles.collapseBoardButton}
+                onClick={() => setIsPickedPanelExpanded(false)}
+                type="button"
+              >
+                Collapse picked side
+              </button>
+            </div>
             <SeasonCropBoard
+              currentPlanCropOptions={currentPlanCropOptions}
               garden={garden}
               layoutRequests={layoutRequests}
               onMoveSelection={moveSelection}
@@ -274,6 +352,7 @@ export function ChoosePlantsModal({
               onUpdateSelection={updateSelection}
               selections={selections}
               sunExposureAtPlacement={sunExposureAtPlacement}
+              today={analysisDate}
             />
             {compareCropIds.length > 0 ? (
               <CropComparePanel
@@ -283,6 +362,7 @@ export function ChoosePlantsModal({
                 layoutRequests={compareRequests}
                 onClearCompare={() => setCompareSelections([])}
                 sunExposureAtPlacement={sunExposureAtPlacement}
+                today={analysisDate}
               />
             ) : null}
           </div>
@@ -325,10 +405,64 @@ function coerceTargetQuantity(value: number) {
   return Math.max(1, Math.min(999, Math.round(value || 1)));
 }
 
+function plantCountLabel(selections: SeasonCropSelection[]) {
+  const count = selections.reduce(
+    (total, selection) => total + coerceTargetQuantity(selection.quantity),
+    0,
+  );
+
+  return `${count} ${count === 1 ? 'plant' : 'plants'}`;
+}
+
 function buildCompareSelections(compareSelections: CompareCropSelection[]) {
   return compareSelections.flatMap((selection): SeasonCropSelection[] => {
     const crop = getCropById(selection.cropId);
 
     return crop ? [createSeasonCropSelection(crop, selection.quantity)] : [];
   });
+}
+
+function getInitialSelections(
+  wantedCrops: SeasonCropSelection[],
+  currentPlanCropIds: Set<string>,
+) {
+  return wantedCrops.filter(
+    (selection) => !currentPlanCropIds.has(selection.cropId),
+  );
+}
+
+function buildCurrentPlanCropOptions(garden: Garden): CurrentPlanCropOption[] {
+  const optionsByCropId = new Map<
+    string,
+    Omit<CurrentPlanCropOption, 'label'>
+  >();
+
+  for (const planting of garden.plantings) {
+    if (!planting.cropId) {
+      continue;
+    }
+
+    const plantedQuantity = Math.max(
+      planting.plantCount ?? planting.instances.length,
+      1,
+    );
+    const existingOption = optionsByCropId.get(planting.cropId);
+    const cropName =
+      getCropById(planting.cropId)?.commonName ??
+      planting.label ??
+      'Unknown crop';
+
+    optionsByCropId.set(planting.cropId, {
+      cropId: planting.cropId,
+      cropName,
+      plantedQuantity: (existingOption?.plantedQuantity ?? 0) + plantedQuantity,
+    });
+  }
+
+  return [...optionsByCropId.values()]
+    .sort((left, right) => left.cropName.localeCompare(right.cropName))
+    .map((option) => ({
+      ...option,
+      label: `${option.cropName} · ${option.plantedQuantity} on plot`,
+    }));
 }

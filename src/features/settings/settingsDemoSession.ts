@@ -15,6 +15,15 @@ export interface SettingsDemoState {
   status: 'idle' | 'loading' | 'loaded' | 'reset' | 'exited';
 }
 
+export const sampleGardenRestoreLabel = 'Back to my garden';
+export const sampleGardenActiveLabel = 'Sample garden active.';
+export const sampleGardenRestoreDisabledMessage =
+  'No saved garden backup is available on this device, so Back to my garden is unavailable.';
+export const sampleGardenRestoreTitle = {
+  available: 'Back to the garden saved before opening the sample.',
+  unavailable: 'No saved garden backup is available on this device.',
+} as const;
+
 export function readSettingsDemoState(
   uid: string | null | undefined,
   overrides: Partial<SettingsDemoState> = {},

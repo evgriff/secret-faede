@@ -81,6 +81,7 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   sunSeason,
   visibleWarnings,
   visiblePlantLabelIds,
+  workbenchStyle,
 }: {
   activeSunLayer: { areas: SunShadeArea[] };
   dragPreviewOffsetsByItemKey: Record<string, PlanPreviewOffset>;
@@ -166,6 +167,7 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   sunSeason: SunSeason;
   visibleWarnings: PlanWarning[];
   visiblePlantLabelIds: string[];
+  workbenchStyle: CSSProperties;
 }) {
   const visiblePlantLabelIdSet = useMemo(
     () => new Set(visiblePlantLabelIds),
@@ -198,197 +200,200 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   }, [visibleWarnings]);
 
   return (
-    <div className={styles.workbench}>
-      <div className={styles.sceneTransform} style={sceneStyle}>
-        <div
-          className={styles.plotShell}
-          data-testid="plot-shell"
-          style={plotStyle}
-        >
-          <div className={styles.rulerCorner} aria-hidden="true">
-            ft
-          </div>
-          <PlanRuler axis="top" sizeFt={garden.plot.widthFt} />
-          <PlanRuler axis="left" sizeFt={garden.plot.depthFt} />
+    <div className={styles.workbench} style={workbenchStyle}>
+      <div className={styles.sceneBounds}>
+        <div className={styles.sceneTransform} style={sceneStyle}>
           <div
-            aria-label={`${garden.plot.widthFt} by ${garden.plot.depthFt} foot garden plot`}
-            className={styles.plot}
-            data-marquee-surface="true"
-            data-testid="garden-plot"
-            onPointerCancel={onMarqueePointerEnd}
-            onPointerDown={onMarqueePointerDown}
-            onPointerMove={onMarqueePointerMove}
-            onPointerUp={onMarqueePointerEnd}
-            ref={plotRef}
-            role="group"
+            className={styles.plotShell}
+            data-testid="plot-shell"
+            style={plotStyle}
           >
-            {garden.plantings.length === 0 && garden.structures.length === 0 ? (
-              <div className={styles.emptyHint}>
-                <strong>Start with the parts you really need.</strong>
-                <ol>
-                  <li>Set the plot, beds, and paths you actually use</li>
-                  <li>Add plants or save a crop list</li>
-                  <li>Review problems if something feels tight</li>
-                  <li>
-                    Generate a layout suggestion only when you want another
-                    arrangement
-                  </li>
-                </ol>
-              </div>
-            ) : null}
+            <div className={styles.rulerCorner} aria-hidden="true">
+              ft
+            </div>
+            <PlanRuler axis="top" sizeFt={garden.plot.widthFt} />
+            <PlanRuler axis="left" sizeFt={garden.plot.depthFt} />
             <div
-              aria-label="Plot scale and dimensions"
-              className={styles.plotMeta}
+              aria-label={`${garden.plot.widthFt} by ${garden.plot.depthFt} foot garden plot`}
+              className={styles.plot}
+              data-marquee-surface="true"
+              data-testid="garden-plot"
+              onPointerCancel={onMarqueePointerEnd}
+              onPointerDown={onMarqueePointerDown}
+              onPointerMove={onMarqueePointerMove}
+              onPointerUp={onMarqueePointerEnd}
+              ref={plotRef}
+              role="group"
             >
-              <span>Scale: 1 square = 1 ft</span>
-              <span>
-                {garden.plot.widthFt} x {garden.plot.depthFt} ft
-              </span>
-              <span className={styles.northArrow}>
+              {garden.plantings.length === 0 &&
+              garden.structures.length === 0 ? (
+                <div className={styles.emptyHint}>
+                  <strong>Start with the parts you really need.</strong>
+                  <ol>
+                    <li>Set the plot, beds, and paths you actually use</li>
+                    <li>Add plants or save a crop list</li>
+                    <li>Review problems if something feels tight</li>
+                    <li>
+                      Generate a layout suggestion only when you want another
+                      arrangement
+                    </li>
+                  </ol>
+                </div>
+              ) : null}
+              <div
+                aria-label="Plot scale and dimensions"
+                className={styles.plotMeta}
+              >
+                <span>Scale: 1 square = 1 ft</span>
+                <span>
+                  {garden.plot.widthFt} x {garden.plot.depthFt} ft
+                </span>
+                <span className={styles.northArrow}>
+                  <span
+                    style={{
+                      transform: `rotate(${garden.plot.orientationDegrees}deg)`,
+                    }}
+                  >
+                    N
+                  </span>
+                </span>
+              </div>
+              <div className={styles.orientationBadge} aria-hidden="true">
                 <span
                   style={{
                     transform: `rotate(${garden.plot.orientationDegrees}deg)`,
                   }}
                 >
-                  N
+                  ↑
                 </span>
-              </span>
-            </div>
-            <div className={styles.orientationBadge} aria-hidden="true">
-              <span
-                style={{
-                  transform: `rotate(${garden.plot.orientationDegrees}deg)`,
-                }}
-              >
-                ↑
-              </span>
-              <small>North</small>
-            </div>
+                <small>North</small>
+              </div>
 
-            {showSunLayer ? (
-              <PlanSunOverlay
-                activeSunLayer={activeSunLayer}
-                manualSunEdit={manualSunEdit}
-                manualSunExposure={manualSunExposure}
-                onPaintSunShadeCell={onPaintSunShadeCell}
-                sunSeason={sunSeason}
-              />
-            ) : null}
-
-            {influenceOverlay ? (
-              <PlanInfluenceOverlay overlay={influenceOverlay} />
-            ) : null}
-
-            {proposalDiffOverlay ? (
-              <PlanProposalDiffOverlay
-                overlay={proposalDiffOverlay}
-                plotDepthFt={garden.plot.depthFt}
-                plotWidthFt={garden.plot.widthFt}
-              />
-            ) : null}
-
-            {snapGuides.map((guide) => (
-              <div
-                aria-hidden="true"
-                className={`${styles.snapGuide} ${
-                  guide.axis === 'x' ? styles.snapGuideX : styles.snapGuideY
-                }`}
-                key={`${guide.axis}-${guide.label}-${guide.valueFt}`}
-                style={snapGuideStyle(guide)}
-              />
-            ))}
-
-            {marqueeRect ? (
-              <div
-                aria-hidden="true"
-                className={styles.marquee}
-                style={footprintStyle({
-                  depthFt: marqueeRect.depthFt,
-                  id: 'marquee',
-                  itemType: 'structure',
-                  label: 'Selection',
-                  widthFt: marqueeRect.widthFt,
-                  xFt: marqueeRect.xFt,
-                  yFt: marqueeRect.yFt,
-                })}
-              />
-            ) : null}
-
-            {pageStructures.map((structure) => {
-              const structurePreviewOffset =
-                dragPreviewOffsetsByItemKey[
-                  getPlanItemKey({ id: structure.id, type: 'structure' })
-                ] ?? null;
-
-              return (
-                <PlanStructureBox
-                  isDragging={Boolean(
-                    draggingStructureId === structure.id ||
-                    structurePreviewOffset,
-                  )}
-                  isResizing={resizingStructureId === structure.id}
-                  key={structure.id}
-                  onResizePointerDown={onResizePointerDown}
-                  onResizePointerEnd={onResizePointerEnd}
-                  onResizePointerMove={onResizePointerMove}
-                  onSelectItem={onSelectItem}
-                  onStructurePointerDown={onStructurePointerDown}
-                  onStructurePointerEnd={onStructurePointerEnd}
-                  onStructurePointerMove={onStructurePointerMove}
-                  planWarnings={visibleWarnings}
-                  previewOffset={structurePreviewOffset}
-                  previewRect={
-                    resizePreview?.structureId === structure.id
-                      ? resizePreview.rect
-                      : null
-                  }
-                  selectedStructureIds={selectedStructureIds}
-                  structure={structure}
+              {showSunLayer ? (
+                <PlanSunOverlay
+                  activeSunLayer={activeSunLayer}
+                  manualSunEdit={manualSunEdit}
+                  manualSunExposure={manualSunExposure}
+                  onPaintSunShadeCell={onPaintSunShadeCell}
+                  sunSeason={sunSeason}
                 />
-              );
-            })}
+              ) : null}
 
-            {plantingPreview ? (
-              <PlanPlantingPreview plant={plantingPreview} />
-            ) : null}
+              {influenceOverlay ? (
+                <PlanInfluenceOverlay overlay={influenceOverlay} />
+              ) : null}
 
-            {garden.plantings.map((plant, index) => {
-              const plantFocusKey = getPlantingFocusKey(plant);
-              const plantPreviewOffset =
-                dragPreviewOffsetsByItemKey[
-                  getPlanItemKey({ id: plant.id, type: 'planting' })
-                ] ?? null;
-
-              return (
-                <PlanPlantGroup
-                  index={index}
-                  isCropFocused={plantFocusKey === focusedCropKey}
-                  isFocusDimmed={Boolean(
-                    focusedCropKey && plantFocusKey !== focusedCropKey,
-                  )}
-                  isHoverLabelVisible={hoveredPlantGroupId === plant.id}
-                  isLabelVisible={visiblePlantLabelIdSet.has(plant.id)}
-                  isDragging={Boolean(
-                    draggingPlantId === plant.id || plantPreviewOffset,
-                  )}
-                  isSelected={selectedPlantIds.includes(plant.id)}
-                  key={plant.id}
-                  onHideLabel={onPlantLabelHide}
-                  onOpenEditor={onPlantEditorOpen}
-                  onPlantPointerDown={onPlantPointerDown}
-                  onPlantPointerEnd={onPlantPointerEnd}
-                  onPlantPointerMove={onPlantPointerMove}
-                  onPlantHoverChange={onPlantHoverChange}
-                  onSelectItem={onSelectItem}
-                  plant={plant}
-                  previewOffset={plantPreviewOffset}
-                  structures={garden.structures}
-                  warnings={
-                    warningsByPlantId.get(plant.id) ?? emptyPlanWarnings
-                  }
+              {proposalDiffOverlay ? (
+                <PlanProposalDiffOverlay
+                  overlay={proposalDiffOverlay}
+                  plotDepthFt={garden.plot.depthFt}
+                  plotWidthFt={garden.plot.widthFt}
                 />
-              );
-            })}
+              ) : null}
+
+              {snapGuides.map((guide) => (
+                <div
+                  aria-hidden="true"
+                  className={`${styles.snapGuide} ${
+                    guide.axis === 'x' ? styles.snapGuideX : styles.snapGuideY
+                  }`}
+                  key={`${guide.axis}-${guide.label}-${guide.valueFt}`}
+                  style={snapGuideStyle(guide)}
+                />
+              ))}
+
+              {marqueeRect ? (
+                <div
+                  aria-hidden="true"
+                  className={styles.marquee}
+                  style={footprintStyle({
+                    depthFt: marqueeRect.depthFt,
+                    id: 'marquee',
+                    itemType: 'structure',
+                    label: 'Selection',
+                    widthFt: marqueeRect.widthFt,
+                    xFt: marqueeRect.xFt,
+                    yFt: marqueeRect.yFt,
+                  })}
+                />
+              ) : null}
+
+              {pageStructures.map((structure) => {
+                const structurePreviewOffset =
+                  dragPreviewOffsetsByItemKey[
+                    getPlanItemKey({ id: structure.id, type: 'structure' })
+                  ] ?? null;
+
+                return (
+                  <PlanStructureBox
+                    isDragging={Boolean(
+                      draggingStructureId === structure.id ||
+                      structurePreviewOffset,
+                    )}
+                    isResizing={resizingStructureId === structure.id}
+                    key={structure.id}
+                    onResizePointerDown={onResizePointerDown}
+                    onResizePointerEnd={onResizePointerEnd}
+                    onResizePointerMove={onResizePointerMove}
+                    onSelectItem={onSelectItem}
+                    onStructurePointerDown={onStructurePointerDown}
+                    onStructurePointerEnd={onStructurePointerEnd}
+                    onStructurePointerMove={onStructurePointerMove}
+                    planWarnings={visibleWarnings}
+                    previewOffset={structurePreviewOffset}
+                    previewRect={
+                      resizePreview?.structureId === structure.id
+                        ? resizePreview.rect
+                        : null
+                    }
+                    selectedStructureIds={selectedStructureIds}
+                    structure={structure}
+                  />
+                );
+              })}
+
+              {plantingPreview ? (
+                <PlanPlantingPreview plant={plantingPreview} />
+              ) : null}
+
+              {garden.plantings.map((plant, index) => {
+                const plantFocusKey = getPlantingFocusKey(plant);
+                const plantPreviewOffset =
+                  dragPreviewOffsetsByItemKey[
+                    getPlanItemKey({ id: plant.id, type: 'planting' })
+                  ] ?? null;
+
+                return (
+                  <PlanPlantGroup
+                    index={index}
+                    isCropFocused={plantFocusKey === focusedCropKey}
+                    isFocusDimmed={Boolean(
+                      focusedCropKey && plantFocusKey !== focusedCropKey,
+                    )}
+                    isHoverLabelVisible={hoveredPlantGroupId === plant.id}
+                    isLabelVisible={visiblePlantLabelIdSet.has(plant.id)}
+                    isDragging={Boolean(
+                      draggingPlantId === plant.id || plantPreviewOffset,
+                    )}
+                    isSelected={selectedPlantIds.includes(plant.id)}
+                    key={plant.id}
+                    onHideLabel={onPlantLabelHide}
+                    onOpenEditor={onPlantEditorOpen}
+                    onPlantPointerDown={onPlantPointerDown}
+                    onPlantPointerEnd={onPlantPointerEnd}
+                    onPlantPointerMove={onPlantPointerMove}
+                    onPlantHoverChange={onPlantHoverChange}
+                    onSelectItem={onSelectItem}
+                    plant={plant}
+                    previewOffset={plantPreviewOffset}
+                    structures={garden.structures}
+                    warnings={
+                      warningsByPlantId.get(plant.id) ?? emptyPlanWarnings
+                    }
+                  />
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
