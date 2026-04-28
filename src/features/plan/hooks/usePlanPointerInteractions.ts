@@ -62,13 +62,13 @@ type DragState = {
 type ResizeState = {
   checkpointed: boolean;
   handle: ResizeHandle;
+  item: PlanItemRef;
   moved: boolean;
   originalRect: ItemRect;
   plotRect: PlotClientRect;
   scrollLock: ScrollLock | null;
   startClientX: number;
   startClientY: number;
-  structureId: string;
 };
 
 type MarqueeState = {
@@ -106,6 +106,7 @@ type PlanPointerInteractionContext = {
     additive: boolean,
     options?: { openSurface?: boolean },
   ): void;
+  resizePlantingRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
   resizeStructureRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
   selectedItems: PlanItemRef[];
   updateItemPositions(
@@ -133,6 +134,11 @@ type PlanPointerInteractionHandlers = {
     event: PointerEvent<HTMLButtonElement>,
     plantId: string,
     instanceId?: string,
+  ): void;
+  handlePlantResizePointerDown(
+    event: PointerEvent<HTMLSpanElement>,
+    plantId: string,
+    handle: ResizeHandle,
   ): void;
   handleResizePointerDown(
     event: PointerEvent<HTMLSpanElement>,
@@ -172,8 +178,8 @@ type ResizePreview = {
 type InteractionPreviewState = {
   dragOffsetsByItemKey: Record<string, PlanPreviewOffset>;
   resizePreview: {
+    item: PlanItemRef;
     rect: ItemRect;
-    structureId: string;
   } | null;
   snapGuides: SnapGuide[];
 };
@@ -197,6 +203,7 @@ export function usePlanPointerInteractions({
   onCheckpoint,
   onMarqueeSelect,
   onSelectItem,
+  resizePlantingRect,
   resizeStructureRect,
   selectedItems,
   updateItemPositions,
@@ -210,6 +217,7 @@ export function usePlanPointerInteractions({
     additive: boolean,
     options?: { openSurface?: boolean },
   ): void;
+  resizePlantingRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
   resizeStructureRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
   selectedItems: PlanItemRef[];
   updateItemPositions(
@@ -228,6 +236,7 @@ export function usePlanPointerInteractions({
   const [resizingStructureId, setResizingStructureId] = useState<string | null>(
     null,
   );
+  const [resizingPlantId, setResizingPlantId] = useState<string | null>(null);
   const [interactionState, setInteractionState] =
     useState<PlanPointerInteractionState>('idle');
   const [interactionPreviewState, setInteractionPreviewState] =
@@ -249,6 +258,7 @@ export function usePlanPointerInteractions({
     onCheckpoint,
     onMarqueeSelect,
     onSelectItem,
+    resizePlantingRect,
     resizeStructureRect,
     selectedItems,
     updateItemPositions,
@@ -273,6 +283,7 @@ export function usePlanPointerInteractions({
       onCheckpoint,
       onMarqueeSelect,
       onSelectItem,
+      resizePlantingRect,
       resizeStructureRect,
       selectedItems,
       updateItemPositions,
@@ -283,6 +294,7 @@ export function usePlanPointerInteractions({
     onCheckpoint,
     onMarqueeSelect,
     onSelectItem,
+    resizePlantingRect,
     resizeStructureRect,
     selectedItems,
     updateItemPositions,
@@ -331,13 +343,13 @@ export function usePlanPointerInteractions({
     });
   }
 
-  function syncResizePreviewState(preview: ResizePreview, structureId: string) {
+  function syncResizePreviewState(preview: ResizePreview, item: PlanItemRef) {
     queueInteractionPreview({
       dragOffsetsByItemKey: {},
       resizePreview: preview.hasChanged
         ? {
+            item,
             rect: preview.rect,
-            structureId,
           }
         : null,
       snapGuides: preview.hasChanged ? preview.guides : [],
@@ -454,7 +466,7 @@ export function usePlanPointerInteractions({
       garden: currentGarden,
       handle: resizeState.handle,
       rect: baseRect,
-      snapExclusions: [{ id: resizeState.structureId, type: 'structure' }],
+      snapExclusions: [resizeState.item],
     });
 
     return {
@@ -463,8 +475,8 @@ export function usePlanPointerInteractions({
       rect: snapResult.rect,
       update: {
         depthFt: snapResult.rect.depthFt,
-        id: resizeState.structureId,
-        type: 'structure',
+        id: resizeState.item.id,
+        type: resizeState.item.type,
         widthFt: snapResult.rect.widthFt,
         xFt: snapResult.rect.xFt,
         yFt: snapResult.rect.yFt,
@@ -648,7 +660,7 @@ export function usePlanPointerInteractions({
 
   function beginResize(
     event: PointerEvent<HTMLSpanElement>,
-    structureId: string,
+    item: PlanItemRef,
     handle: ResizeHandle,
   ) {
     const { garden } = contextRef.current;
@@ -657,18 +669,12 @@ export function usePlanPointerInteractions({
     event.stopPropagation();
     setInteractionState('press');
 
-    if (
-      !garden ||
-      isItemLocked(garden, { id: structureId, type: 'structure' })
-    ) {
+    if (!garden || !canItemBeResized(garden, item)) {
       return;
     }
 
     const plotRect = getFrozenPlotRect(plotRef.current);
-    const originalRect = getItemRect(garden, {
-      id: structureId,
-      type: 'structure',
-    });
+    const originalRect = getItemRect(garden, item);
 
     if (!plotRect || !originalRect) {
       return;
@@ -679,13 +685,13 @@ export function usePlanPointerInteractions({
     resizeStateRef.current = {
       checkpointed: false,
       handle,
+      item,
       moved: false,
       originalRect,
       plotRect,
       scrollLock,
       startClientX: event.clientX,
       startClientY: event.clientY,
-      structureId,
     };
   }
 
@@ -708,14 +714,18 @@ export function usePlanPointerInteractions({
 
     if (!wasMoved) {
       setInteractionState('resize');
-      setResizingStructureId(resizeStateRef.current.structureId);
+      if (resizeStateRef.current.item.type === 'planting') {
+        setResizingPlantId(resizeStateRef.current.item.id);
+      } else {
+        setResizingStructureId(resizeStateRef.current.item.id);
+      }
     }
 
     const preview = buildResizePreview(event, resizeStateRef.current, garden);
 
     resizePreviewRef.current = preview;
     restoreScrollLock(resizeStateRef.current.scrollLock);
-    syncResizePreviewState(preview, resizeStateRef.current.structureId);
+    syncResizePreviewState(preview, resizeStateRef.current.item);
 
     if (preview.hasChanged && !resizeStateRef.current.checkpointed) {
       onCheckpoint();
@@ -724,8 +734,13 @@ export function usePlanPointerInteractions({
   }
 
   function endResize(event: PointerEvent<HTMLSpanElement>) {
-    const { garden, onCheckpoint, onSelectItem, resizeStructureRect } =
-      contextRef.current;
+    const {
+      garden,
+      onCheckpoint,
+      onSelectItem,
+      resizePlantingRect,
+      resizeStructureRect,
+    } = contextRef.current;
 
     if (!garden || !resizeStateRef.current) {
       return;
@@ -745,15 +760,15 @@ export function usePlanPointerInteractions({
         resizeStateRef.current.checkpointed = true;
       }
 
-      resizeStructureRect(preview.update, false);
+      if (resizeStateRef.current.item.type === 'planting') {
+        resizePlantingRect(preview.update, false);
+      } else {
+        resizeStructureRect(preview.update, false);
+      }
     }
 
     if (!canceled) {
-      onSelectItem(
-        { id: resizeStateRef.current.structureId, type: 'structure' },
-        false,
-        { openSurface: false },
-      );
+      onSelectItem(resizeStateRef.current.item, false, { openSurface: false });
     }
 
     restoreScrollLock(resizeStateRef.current.scrollLock);
@@ -761,6 +776,7 @@ export function usePlanPointerInteractions({
     releaseScrollLock(resizeStateRef.current.scrollLock);
     releasePointerCapture(event);
     resizeStateRef.current = null;
+    setResizingPlantId(null);
     setResizingStructureId(null);
     setInteractionState('idle');
     clearInteractionPreview();
@@ -888,8 +904,11 @@ export function usePlanPointerInteractions({
       handlePlantPointerMove(event, plantId, instanceId) {
         continueItemDrag(event, createPlantingRef(plantId, instanceId));
       },
+      handlePlantResizePointerDown(event, plantId, handle) {
+        beginResize(event, createPlantingRef(plantId), handle);
+      },
       handleResizePointerDown(event, structureId, handle) {
-        beginResize(event, structureId, handle);
+        beginResize(event, { id: structureId, type: 'structure' }, handle);
       },
       handleResizePointerEnd(event) {
         endResize(event);
@@ -920,6 +939,7 @@ export function usePlanPointerInteractions({
     marqueeRect,
     plotRef,
     resizePreview: interactionPreviewState.resizePreview,
+    resizingPlantId,
     resizingStructureId,
     snapGuides: interactionPreviewState.snapGuides,
   };
@@ -965,6 +985,18 @@ function isItemLocked(garden: Garden, item: PlanItemRef) {
   return item.type === 'planting'
     ? !canPlantingBeMoved(garden, item.id)
     : !canStructureBeMoved(garden, item.id);
+}
+
+function canItemBeResized(garden: Garden, item: PlanItemRef) {
+  if (item.type === 'planting') {
+    const planting = garden.plantings.find(
+      (candidate) => candidate.id === item.id,
+    );
+
+    return planting ? !planting.locked : false;
+  }
+
+  return canStructureBeMoved(garden, item.id);
 }
 
 function canPlantingBeMoved(garden: Garden, plantingId: string) {

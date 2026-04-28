@@ -167,7 +167,18 @@ test('Today refreshes Detroit NWS weather without stale impossible rain totals',
   await expect(page.getByText('500in')).toHaveCount(0);
   await expect(
     page.getByRole('heading', { name: 'Watering work' }),
-  ).toBeVisible();
+  ).toHaveCount(0);
+  const weatherPanel = page
+    .getByRole('heading', { name: 'Field weather' })
+    .locator('xpath=ancestor::section[1]');
+  await expect(weatherPanel).toContainText(
+    /No watering today|Next water window|Rain likely covers this week/,
+  );
+  await expect(weatherPanel).toContainText('Week rain');
+  await expect(weatherPanel).toContainText(
+    '78% rain chance; amount not published by NWS.',
+  );
+  await expect(weatherPanel).not.toContainText('Next likely');
 
   weatherRun = 'second';
   await page
@@ -339,6 +350,15 @@ async function routeAnnArborNwsWeather(
                 2,
                 'Mostly Sunny',
               ),
+              createNwsForecastPeriod(
+                'Tuesday',
+                '2026-04-28T06:00:00-04:00',
+                '2026-04-28T18:00:00-04:00',
+                true,
+                72,
+                78,
+                'Rain Showers Likely',
+              ),
             ],
           },
         },
@@ -370,6 +390,14 @@ async function routeAnnArborNwsWeather(
       await route.fulfill({
         json: {
           properties: {
+            probabilityOfPrecipitation: {
+              values: [
+                {
+                  validTime: '2026-04-28T06:00:00+00:00/PT6H',
+                  value: 78,
+                },
+              ],
+            },
             quantitativePrecipitation: {
               values: [
                 {

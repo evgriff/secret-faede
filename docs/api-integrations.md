@@ -36,6 +36,12 @@ Date: 2026-04-21
   request fails and a stale value exists, the stale value is used and logged.
   If there is no cached value, the failed signal falls back to a conservative
   empty weather signal so operations can still generate with limited quality.
+- NWS rain handling uses `quantitativePrecipitation` only for inch totals.
+  When NWS publishes precipitation probability or rain wording without QPF,
+  the app stores that as qualitative rain metadata (`rainLikely`, rain window,
+  chance, and provider copy) instead of inventing inches or displaying `0in` as
+  "no rain." Qualitative rain can delay a watering check until the NWS window
+  passes, but only QPF or observed rain counts as water credit.
 
 Official references:
 
@@ -94,8 +100,12 @@ Watering recommendations now record:
 - `generatedBy`: `backend`, `client`, or `manualRefresh`
 - `refreshedAtIso`
 - `dataQuality`: `complete`, `partial`, or `limited`
+- optional `waterBalance` metadata with model version, baseline date/source,
+  daily need, root-zone capacity, allowed depletion threshold, current
+  depletion, actionable amount, observed/manual/forecast credits, and the
+  plain-language next-check reason
 
-Backend recommendation inputs:
+Backend and client-fallback recommendation inputs:
 
 - crop or planting weekly water target
 - recent rainfall
@@ -108,10 +118,25 @@ Backend recommendation inputs:
 - drainage profile
 - manual watering logs from journal notes
 - irrigation zone label when assigned
+- planting lifecycle events, where same-day direct sowing and planting out count
+  as the starting watering baseline instead of creating immediate watering work
 
+The lifecycle model calculates a capped root-zone depletion bucket from a
+baseline date instead of treating the whole weekly water target as immediately
+due. Observed rain and logged watering reduce depletion, daily crop demand
+raises it, and extra water above the estimated root-zone capacity is ignored.
+Forecast rain can suppress or delay watering, but does not mark a target
+complete. NWS probability/text rain may delay a recommendation, but it does not
+reduce the water-balance deficit until actual/QPF rain is available.
 Recommendations preserve history and stable ids. Old active/new
 recommendations from prior dates are suppressed rather than deleted so Today
 does not keep showing stale work.
+
+Today presents the same model as watering windows instead of daily deficit
+math. Future outlook rows collapse into one decision per bed, zone, or planting:
+water today, water on one specific day, or water during a short date range. The
+UI keeps inches as secondary "deep soak" guidance and does not show tiny daily
+watering recommendations as separate cards.
 
 ## Task Automation
 
@@ -128,9 +153,9 @@ generated tasks only when they are not snoozed or deferred.
 
 ## Client Fallbacks
 
-- The Plan "Update weather" action first attempts the backend callable in
-  Firebase mode. If the callable is unavailable, it falls back to the existing
-  client-side weather/watering path.
+- Plan and Today weather refresh actions first attempt the backend callable in
+  Firebase mode and reload the saved garden after success. If the callable is
+  unavailable, they fall back to the client-side weather/watering path.
 - Mock mode keeps the client-side generator.
 - The browser weather cache can now return stale cached data if a refresh
   request fails.

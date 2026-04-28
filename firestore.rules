@@ -6,8 +6,8 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.token.keys().hasAny(['gardenAccess'])
         && request.auth.token.gardenAccess == true
-        && request.auth.token.keys().hasAny(['secretFaedeMember'])
-        && request.auth.token.secretFaedeMember == true;
+        && request.auth.token.keys().hasAny(['secretFaeriesMember'])
+        && request.auth.token.secretFaeriesMember == true;
     }
 
     function isOwner(userId) {
@@ -62,6 +62,30 @@ service cloud.firestore {
       match /revisions/{revisionId} {
         allow read: if hasGardenAccess();
         allow write: if hasGardenAccess();
+      }
+
+      match /journal/{entryId} {
+        allow read, write: if hasGardenAccess();
+      }
+
+      match /harvests/{harvestId} {
+        allow read, write: if hasGardenAccess();
+      }
+
+      match /tasks/{taskId} {
+        allow read, write: if hasGardenAccess();
+      }
+
+      match /wateringSchedule/{entryId} {
+        allow read, write: if hasGardenAccess();
+      }
+
+      match /weatherSnapshots/{snapshotId} {
+        allow read, write: if hasGardenAccess();
+      }
+
+      match /notifications/{notificationId} {
+        allow read, write: if hasGardenAccess();
       }
     }
 

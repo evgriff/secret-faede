@@ -94,7 +94,7 @@ export function TodayFieldPanels({
           <div className={styles.panelHeader}>
             <div>
               <p className={styles.kicker}>Ahead</p>
-              <h2>Next watering</h2>
+              <h2>Watering plan</h2>
             </div>
             <StatusBadge tone="neutral">
               {model.wateringOutlook.length}

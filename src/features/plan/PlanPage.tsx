@@ -177,6 +177,7 @@ export function PlanPage() {
     recordSuggestionDecision,
     redoGardenChange,
     revertToRevision,
+    resizePlantingRect,
     resizeStructure,
     resizeStructureRect,
     saveGarden,
@@ -650,6 +651,7 @@ export function PlanPage() {
     ) => {
       const shouldOpenSurface =
         Boolean(options?.openSurface) && nextSelection.length === 1;
+      const effectiveMode = shouldOpenSurface ? 'select' : activeMode;
       const nextPrimaryKey = primaryItem ? getPlanItemKey(primaryItem) : null;
       const nextPrimaryPlantId =
         primaryItem?.type === 'planting' ? primaryItem.id : null;
@@ -667,7 +669,7 @@ export function PlanPage() {
           closePlantGroupEditor();
         }
 
-        if (activeMode === 'select') {
+        if (effectiveMode === 'select') {
           setIsContextPanelOpen(false);
         }
 
@@ -705,7 +707,7 @@ export function PlanPage() {
         return;
       }
 
-      if (activeMode === 'select') {
+      if (effectiveMode === 'select') {
         setIsContextPanelOpen(false);
       }
     },
@@ -738,6 +740,10 @@ export function PlanPage() {
           Boolean(options?.openSurface) &&
           !additive &&
           nextSelection.length === 1;
+
+        if (shouldOpenSurface) {
+          setActiveMode('select');
+        }
 
         setSelectedItem(primaryItem);
         syncTransientPlantInteraction(nextSelection, primaryItem, {
@@ -1614,9 +1620,11 @@ export function PlanPage() {
             onPlantLabelHide={hidePlantGroupLabel}
             onSelectItem={handleSelectItem}
             onShowSunOverlayChange={setShowSunOverlay}
+            onUpdatePlanting={updatePlanting}
             plantingPreview={addPlantPreview}
             planWarnings={activePlanWarnings}
             proposalDiffOverlay={proposalDiffOverlay}
+            resizePlantingRect={resizePlantingRect}
             resizeStructureRect={resizeStructureRect}
             selectedItems={selectedItems}
             selectedPlantIds={selectedPlantIds}

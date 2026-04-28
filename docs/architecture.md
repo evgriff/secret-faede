@@ -2,7 +2,7 @@
 
 ## Summary
 
-Secret Faede ships a small authenticated garden workspace. It proves routing,
+Secret Faeries ships a small authenticated garden workspace. It proves routing,
 runtime selection, Firebase email/password auth, app-level access gating,
 Firestore garden persistence, emulator support, and Hosting deployment while
 keeping the plot editor as the product center.
@@ -53,6 +53,10 @@ Route map:
   Firebase mode
 - Firebase mode enables Firestore persistent local cache and queues a pending
   garden aggregate save in localStorage when the browser is offline
+- Feed and Today operations are stored in shared workspace collections under
+  `gardenWorkspaces/main` and overlaid onto each user's private draft so notes,
+  issues, photos, harvests, watering, tasks, weather snapshots, and in-app logs
+  stay visible to both provisioned users without publishing a Plan draft
 - queued Firebase saves carry draft base revision metadata; reconnect checks
   that base before cloud sync and marks a visible conflict instead of allowing
   a stale offline draft to overwrite a newer published revision
@@ -92,7 +96,7 @@ Route map:
 - implemented by `MockMediaStorageService` and `FirebaseMediaStorageService`
 - mock mode stores data URLs in the journal photo metadata
 - Firebase mode uploads image binaries to Storage under
-  `users/{uid}/journal/{entryId}/...`
+  `gardenWorkspaces/main/journal/{entryId}/...`
 
 `MobileDeviceService`
 
@@ -157,7 +161,7 @@ Important note:
 
 - the app shell still uses the configured email allowlist as a user-facing gate
 - Firestore and Storage rules enforce the production authorization boundary with
-  Firebase Auth `gardenAccess: true` and `secretFaedeMember: true` custom claims
+  Firebase Auth `gardenAccess: true` and `secretFaeriesMember: true` custom claims
 - the browser app exposes no account creation route; production accounts are
   seeded through the admin script
 - Identity Platform blocking triggers are the next step if pre-auth membership
@@ -169,10 +173,17 @@ Core Firestore shape:
 
 - `users/{uid}`
 - `users/{uid}/pushTokens/{tokenId}`
-- Firebase Storage path `users/{uid}/journal/{entryId}/{photoId}-{fileName}`
+- Firebase Storage path
+  `gardenWorkspaces/main/journal/{entryId}/{photoId}-{fileName}`
 - `gardenWorkspaces/main`
 - `gardenWorkspaces/main/drafts/{uid}`
 - `gardenWorkspaces/main/revisions/{revisionId}`
+- `gardenWorkspaces/main/journal/{entryId}`
+- `gardenWorkspaces/main/harvests/{harvestId}`
+- `gardenWorkspaces/main/tasks/{taskId}`
+- `gardenWorkspaces/main/wateringSchedule/{entryId}`
+- `gardenWorkspaces/main/weatherSnapshots/{snapshotId}`
+- `gardenWorkspaces/main/notifications/{notificationId}`
 - `gardens/{uid}`
 - `gardens/{uid}/structures/{structureId}`
 - `gardens/{uid}/plantings/{plantingId}`
@@ -355,10 +366,10 @@ functions/
 Today is the field operations view over the saved garden. It auto-syncs
 generated tasks on load, then persists user actions through `GardenRepository`.
 
-- The calendar strip shows task counts across the next 14 days.
+- The calendar strip shows task counts across the next 7 days.
 - Field cards lead with the next action, while metadata stays passive.
-- The task list groups open work into selected-day action clusters and later
-  work.
+- The task list groups open work into selected-day action clusters, with
+  generated/predictive work capped to the one-week field window.
 - Context panels group open work by bed or plot area only when useful.
 - Succession recommendations use estimated harvest dates, remaining days before
   first frost, saved sun/shade exposure, and dated bed occupancy to suggest a
@@ -372,7 +383,8 @@ generated tasks on load, then persists user actions through `GardenRepository`.
 ## Feed
 
 Feed is the active-season memory layer. It persists through `GardenRepository`
-and uses `MediaStorageService` only for attached photo binaries.
+as shared workspace operations and uses `MediaStorageService` only for attached
+photo binaries.
 
 - Notes can attach to the whole garden, a bed/structure, or a planting.
 - Issues are structured as pest, disease, nutrient, weather damage, irrigation,

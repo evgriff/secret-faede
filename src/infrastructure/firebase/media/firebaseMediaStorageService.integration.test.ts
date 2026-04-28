@@ -71,7 +71,7 @@ describe('FirebaseMediaStorageService integration seam', () => {
     expect(ref).toHaveBeenCalledWith(
       mocks.storageClient,
       expect.stringMatching(
-        /^users\/uid-evan\/journal\/entry-a\/.+-field-photo-.jpg$/,
+        /^gardenWorkspaces\/main\/journal\/entry-a\/.+-field-photo-.jpg$/,
       ),
     );
     expect(uploadBytes).toHaveBeenCalledWith(mocks.storageRef, file, {
@@ -88,7 +88,9 @@ describe('FirebaseMediaStorageService integration seam', () => {
       downloadUrl: 'https://storage.example/photo.jpg',
       fileName: 'field-photo-.jpg',
       sizeBytes: file.size,
-      storagePath: expect.stringContaining('users/uid-evan/journal/entry-a/'),
+      storagePath: expect.stringContaining(
+        'gardenWorkspaces/main/journal/entry-a/',
+      ),
     });
   });
 });

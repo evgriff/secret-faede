@@ -11,6 +11,7 @@ import {
   getCriticalCheckTasks,
   getTasksForSelectedDate,
 } from './todaySelectors';
+import { buildWateringOutlook } from '../garden/wateringOutlook';
 
 describe('todaySelectors', () => {
   it('keeps overdue work on today while future selections show only that day', () => {
@@ -44,11 +45,44 @@ describe('todaySelectors', () => {
       '2026-06-21',
     );
 
+    expect(days).toHaveLength(7);
     expect(days[0]).toMatchObject({ count: 2, date: '2026-06-21' });
     expect(days[1]).toMatchObject({ count: 1, date: '2026-06-22' });
   });
 
-  it('marks future watering days in the calendar strip when weather data supports an outlook', () => {
+  it('does not surface manual or generated work outside the one-week field window', () => {
+    const tasks = [
+      createTask({
+        dueDate: '2026-06-27',
+        id: 'inside-manual',
+        source: 'manual',
+      }),
+      createTask({
+        dueDate: '2026-06-28',
+        id: 'outside-manual',
+        source: 'manual',
+      }),
+      createTask({
+        dueDate: '2026-06-28',
+        id: 'outside-generated',
+        source: 'generated',
+      }),
+    ];
+
+    expect(
+      getTasksForSelectedDate(tasks, '2026-06-27', '2026-06-21').map(
+        (task) => task.id,
+      ),
+    ).toEqual(['inside-manual']);
+    expect(getTasksForSelectedDate(tasks, '2026-06-28', '2026-06-21')).toEqual(
+      [],
+    );
+    expect(
+      buildCalendarDays(createDefaultGarden('user-a'), tasks, '2026-06-21'),
+    ).toHaveLength(7);
+  });
+
+  it('marks the best future watering day once in the calendar strip', () => {
     const garden: Garden = {
       ...createDefaultGarden('user-a'),
       plantings: [
@@ -80,10 +114,18 @@ describe('todaySelectors', () => {
     };
 
     const days = buildCalendarDays(garden, [], '2026-06-21');
+    const outlook = buildWateringOutlook(
+      garden,
+      garden.weatherSnapshots[0] ?? null,
+      new Date('2026-06-21T12:00:00.000Z'),
+    );
+    const bestDates = outlook.map((item) => item.bestDate);
+    const wateringDays = days.filter((day) => day.markers.includes('watering'));
 
-    expect(days[1]).toMatchObject({
+    expect(wateringDays).toHaveLength(outlook.length);
+    expect(wateringDays.map((day) => day.date)).toEqual(bestDates);
+    expect(wateringDays[0]).toMatchObject({
       count: 1,
-      date: '2026-06-22',
       markers: expect.arrayContaining(['watering']),
     });
   });

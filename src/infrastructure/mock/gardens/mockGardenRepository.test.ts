@@ -1,6 +1,7 @@
 import {
   createDefaultGarden,
   createDefaultPlanting,
+  type JournalEntry,
 } from '../../../domain/gardens/GardenRepository';
 import { MockGardenRepository } from './mockGardenRepository';
 
@@ -57,6 +58,77 @@ describe('MockGardenRepository', () => {
     expect(result.revision?.changesetSummary.plantingsAdded).toBe(1);
     expect(workspaceB.published.id).toBe(result.revision?.id);
     expect(workspaceB.draft.garden.plantings).toHaveLength(1);
+  });
+
+  it('shares feed operations immediately while keeping plan drafts private', async () => {
+    const repository = new MockGardenRepository();
+    const evanWorkspace = await repository.getWorkspace('user-evan');
+    const emmaWorkspace = await repository.getWorkspace('user-emma');
+    const issue: JournalEntry = {
+      body: 'Aphids under the leaves.',
+      createdAtIso: '2026-07-01T12:00:00.000Z',
+      gardenId: emmaWorkspace.draft.garden.id,
+      id: 'issue-emma',
+      issueCategory: 'pest',
+      issueSeverity: 'medium',
+      issueStatus: 'open',
+      occurredOn: '2026-07-01',
+      photos: [],
+      plantingId: null,
+      structureId: null,
+      targetLabel: 'Whole garden',
+      targetType: 'garden',
+      title: 'Aphids',
+      type: 'issue',
+      weatherSnapshotId: null,
+    };
+
+    await repository.saveDraft({
+      ...evanWorkspace.draft,
+      garden: {
+        ...evanWorkspace.draft.garden,
+        plantings: [
+          createDefaultPlanting({
+            id: 'evan-private-tomato',
+            label: 'Private tomato',
+            xFt: 2,
+            yFt: 2,
+          }),
+        ],
+      },
+    });
+    await repository.saveSharedOperations({
+      actor: {
+        displayName: 'Partner Gardener',
+        email: 'partner.gardener@example.com',
+        userId: 'user-emma',
+      },
+      baseGarden: emmaWorkspace.draft.garden,
+      updatedGarden: {
+        ...emmaWorkspace.draft.garden,
+        journalEntries: [issue],
+      },
+      userId: 'user-emma',
+    });
+
+    const evanAfterIssue = await repository.getWorkspace('user-evan');
+    const emmaAfterIssue = await repository.getWorkspace('user-emma');
+
+    expect(evanAfterIssue.draft.garden.journalEntries).toMatchObject([
+      {
+        createdByDisplayName: 'Partner Gardener',
+        id: 'issue-emma',
+        title: 'Aphids',
+      },
+    ]);
+    expect(emmaAfterIssue.draft.garden.journalEntries).toMatchObject([
+      {
+        createdByDisplayName: 'Partner Gardener',
+        id: 'issue-emma',
+      },
+    ]);
+    expect(emmaAfterIssue.draft.garden.plantings).toHaveLength(0);
+    expect(evanAfterIssue.draft.garden.plantings).toHaveLength(1);
   });
 
   it('returns a stale-base conflict when published changed after draft start', async () => {

@@ -136,6 +136,13 @@ export function adjustWateringAmount(
             status: nextStatus,
             targetAmountInches: nextAmountInches,
             updatedAtIso: nowIso,
+            waterBalance: candidate.waterBalance
+              ? {
+                  ...candidate.waterBalance,
+                  effectiveDeficitInches: nextAmountInches,
+                  nextCheckReason: summary,
+                }
+              : undefined,
           }
         : candidate,
     ),
@@ -182,6 +189,18 @@ export function skipWateringBecauseRainArrived(
             status: 'skipped' as const,
             targetAmountInches: 0,
             updatedAtIso: nowIso,
+            waterBalance: candidate.waterBalance
+              ? {
+                  ...candidate.waterBalance,
+                  effectiveDeficitInches: 0,
+                  nextCheckReason: summary,
+                  recentRainCreditInches: roundTo(
+                    candidate.waterBalance.recentRainCreditInches +
+                      candidate.deficitInches,
+                    2,
+                  ),
+                }
+              : undefined,
           }
         : candidate,
     ),
@@ -503,6 +522,18 @@ function applyWateringAmount(
                 : ('completed' as const),
             targetAmountInches: remainingInches,
             updatedAtIso: nowIso,
+            waterBalance: candidate.waterBalance
+              ? {
+                  ...candidate.waterBalance,
+                  effectiveDeficitInches: remainingInches,
+                  manualWaterCreditInches: roundTo(
+                    candidate.waterBalance.manualWaterCreditInches +
+                      appliedAmountInches,
+                    2,
+                  ),
+                  nextCheckReason: summary,
+                }
+              : undefined,
           }
         : candidate,
     ),

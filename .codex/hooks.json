@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/bash \"$(git rev-parse --show-toplevel)/plugins/serena/scripts/ensure-project-mcp.sh\"",
+            "timeout": 30,
+            "statusMessage": "Ensuring project Serena MCP"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -8,9 +8,9 @@ This protocol applies to agentic workflows in this repository.
 
 - Run `git status --short --branch`.
 - Confirm the active branch before editing.
-- Use a `codex/` branch for agent work unless the user requests another branch
-  strategy.
-- Do not continue substantial edits directly on `main`.
+- Keep agent work on `main` unless the user requests another branch strategy.
+- If the active branch is not `main`, stop and confirm whether to switch back
+  before substantial edits.
 
 ## Dirty Worktree Rules
 

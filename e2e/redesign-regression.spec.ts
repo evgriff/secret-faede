@@ -210,14 +210,14 @@ test('save and improve plan shows truthful layout-generation stages', async ({
   await page.addInitScript((delayMs) => {
     const browserGlobal = globalThis as typeof globalThis & {
       localStorage: Storage;
-      __secretFaedeAutoLayoutStageDelayMs?: number;
+      __secretFaeriesAutoLayoutStageDelayMs?: number;
     };
 
     Object.assign(browserGlobal, {
-      __secretFaedeAutoLayoutStageDelayMs: delayMs,
+      __secretFaeriesAutoLayoutStageDelayMs: delayMs,
     });
     browserGlobal.localStorage.setItem(
-      'secret-faede:auto-layout-stage-delay-ms',
+      'secret-faeries:auto-layout-stage-delay-ms',
       String(delayMs),
     );
   }, 700);

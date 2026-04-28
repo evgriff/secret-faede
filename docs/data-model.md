@@ -4,7 +4,7 @@ Date: 2026-04-21
 
 ## Garden Workspace
 
-Secret Faede now treats the garden plan as one shared published plan with
+Secret Faeries now treats the garden plan as one shared published plan with
 private per-user drafts.
 
 Canonical Firebase paths:
@@ -12,6 +12,15 @@ Canonical Firebase paths:
 - `gardenWorkspaces/main`: the current published garden revision.
 - `gardenWorkspaces/main/drafts/{uid}`: one private working draft per user.
 - `gardenWorkspaces/main/revisions/{revisionId}`: published revision history.
+- `gardenWorkspaces/main/journal/{entryId}`: shared notes, issues, watering
+  logs, photo updates, and other Feed entries.
+- `gardenWorkspaces/main/harvests/{harvestId}`: shared harvest records.
+- `gardenWorkspaces/main/tasks/{taskId}`: shared generated/manual task state.
+- `gardenWorkspaces/main/wateringSchedule/{entryId}` and
+  `gardenWorkspaces/main/weatherSnapshots/{snapshotId}`: shared operations
+  schedule and weather context.
+- `gardenWorkspaces/main/notifications/{notificationId}`: shared in-app alert
+  history.
 - `users/{uid}`: user profile, alert preferences, and push tokens.
 
 Legacy path:
@@ -92,12 +101,16 @@ A draft stores:
   editing, including the same impact class used during publish review.
 
 Draft saves do not change `gardenWorkspaces/main`. Publishing is the only path
-that replaces the shared published plan.
+that replaces the shared published plan. Feed and Today operations are not
+draft-owned; they save immediately to the shared operation collections and are
+overlaid onto each user's draft on read. New activity records include nullable
+`createdByUserId`, `createdByDisplayName`, and `createdByEmail` fields so legacy
+records remain readable while new posts show the poster clearly.
 
 ## Offline Queue And Conflict State
 
 Firebase draft saves that fail while offline or while Firestore is temporarily
-unavailable are stored locally under `secret-faede.pending-garden-save.v1:{uid}`.
+unavailable are stored locally under `secret-faeries.pending-garden-save.v1:{uid}`.
 The pending record stores:
 
 - the garden aggregate
@@ -211,6 +224,42 @@ Runtime implications:
 - draft save, publish, revert, offline queue, and revision history persist the
   full garden aggregate, including `instances[]`
 
+## Weather And Watering Balance
+
+`garden.wateringSchedule[]` remains the canonical saved watering work list.
+Entries may include optional `waterBalance` metadata from the lifecycle model:
+
+- `modelVersion`: current engine version, starting with `water-balance-v1`.
+- `baselineDate` and `baselineSource`: the date/source used to start the water
+  balance, including planting events, planted-on records, manual watering, or
+  the fallback recent-weather window.
+- `dailyNeedInches`, `rootZoneCapacityInches`,
+  `allowedDepletionInches`/`thresholdInches`, `currentDepletionInches`, and
+  `effectiveDeficitInches`: the root-zone bucket state that decides whether
+  Today should show watering.
+- `actionableDeficitInches`: the amount still worth applying after forecast
+  rain is considered; forecast credit may delay work but does not complete it.
+- `recentRainCreditInches`, `manualWaterCreditInches`,
+  `plantingWaterCreditInches`, and `forecastCreditInches`: weather and field
+  credits counted by the engine.
+- `observedRainCreditInches` and `rootZoneCapacitySource`: compatibility-safe
+  metadata for explaining how much real rain was credited and whether the
+  storage capacity was estimated from garden context.
+- `nextCheckReason`: short user-facing explanation used by Today and weather
+  panels.
+
+Same-day `directSowed`, `plantedOut`, and `plantedOn` records are treated as
+watering baselines, so a newly planted crop does not immediately create a
+watering task unless later partial/override state leaves a real deficit.
+Forecast rain can suppress or delay work, but completion still comes from an
+actual watering log or explicit Today action.
+
+`buildWateringOutlook()` derives transient Today watering windows from the
+latest weather snapshot and saved schedule. These windows are not persisted;
+they provide the user-facing plan fields `startDate`, `endDate`, `bestDate`,
+`headline`, `details`, and `amountInches` so Today can say when to water without
+showing repeated daily deficit math.
+
 ## Plant Planning Redesign Model
 
 The redesign-facing plant planning model lives in
@@ -231,7 +280,7 @@ terms without creating a second persistence schema:
 - `PlantEditorModalState` and `DetailedViewState` reserve one shared state
   shape for the future plant editor modal and Detailed View toggle.
 - Browser-local Plan UI state is versioned separately under
-  `secret-faede.plan-state.v2:{uid}`. It stores selected/hovered plant group
+  `secret-faeries.plan-state.v2:{uid}`. It stores selected/hovered plant group
   ids, label visibility, editor/Detailed View state, typed problem-resolution
   state, and location-match defaults, but always rebuilds `PlantGroup[]` from
   the garden aggregate instead of persisting duplicate crop geometry.
@@ -358,6 +407,6 @@ trellis, sowing, and water-management fields.
 
 ## Authorization
 
-Firestore rules require `gardenAccess: true` and `secretFaedeMember: true`.
+Firestore rules require `gardenAccess: true` and `secretFaeriesMember: true`.
 Members can read the shared published plan and revision history. Users can only
 read and write their own draft document.

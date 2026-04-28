@@ -86,22 +86,30 @@ function createOperationRunner({ admin, db, dispatchNotification, logger }) {
 async function loadGardenAggregate(db, uid) {
   const draftRef = getDraftRef(db, uid);
   const workspaceRef = getWorkspaceRef(db);
+  const sharedOperations = await loadSharedOperations(db);
   const draftSnapshot = await draftRef.get();
   const draftData = draftSnapshot.exists ? draftSnapshot.data() : null;
 
   if (isRecord(draftData?.garden)) {
+    const garden = overlaySharedOperations(
+      normalizeGardenForUser(draftData.garden, uid),
+      sharedOperations,
+      uid,
+    );
+
     return {
       baseRevisionId:
         typeof draftData.baseRevisionId === 'string'
           ? draftData.baseRevisionId
           : 'revision-initial',
       draftExists: true,
-      garden: normalizeGardenForUser(draftData.garden, uid),
+      garden,
       operationsLastGeneratedLocalDate:
         typeof draftData.operationsLastGeneratedLocalDate === 'string'
           ? draftData.operationsLastGeneratedLocalDate
           : null,
       source: 'draft',
+      sharedOperations,
       suggestionDecisions: Array.isArray(draftData.suggestionDecisions)
         ? draftData.suggestionDecisions
         : [],
@@ -114,20 +122,110 @@ async function loadGardenAggregate(db, uid) {
     : null;
 
   if (isRecord(workspaceData?.garden)) {
+    const garden = overlaySharedOperations(
+      normalizeGardenForUser(workspaceData.garden, uid),
+      sharedOperations,
+      uid,
+    );
+
     return {
       baseRevisionId:
         typeof workspaceData.id === 'string'
           ? workspaceData.id
           : 'revision-initial',
       draftExists: false,
-      garden: normalizeGardenForUser(workspaceData.garden, uid),
+      garden,
       operationsLastGeneratedLocalDate: null,
       source: 'published',
+      sharedOperations,
       suggestionDecisions: [],
     };
   }
 
-  return loadLegacyGardenAggregate(db, uid);
+  const legacyGardenState = await loadLegacyGardenAggregate(db, uid);
+
+  return legacyGardenState
+    ? {
+        ...legacyGardenState,
+        garden: overlaySharedOperations(
+          legacyGardenState.garden,
+          sharedOperations,
+          uid,
+        ),
+        sharedOperations,
+      }
+    : null;
+}
+
+async function loadSharedOperations(db) {
+  const [
+    journalEntries,
+    harvestEvents,
+    notificationLogs,
+    tasks,
+    wateringSchedule,
+    weatherSnapshots,
+  ] = await Promise.all([
+    readSharedCollection(db, 'journal'),
+    readSharedCollection(db, 'harvests'),
+    readSharedCollection(db, 'notifications'),
+    readSharedCollection(db, 'tasks'),
+    readSharedCollection(db, 'wateringSchedule'),
+    readSharedCollection(db, 'weatherSnapshots'),
+  ]);
+
+  return {
+    harvestEvents,
+    journalEntries,
+    notificationLogs,
+    tasks,
+    wateringSchedule,
+    weatherSnapshots,
+  };
+}
+
+async function readSharedCollection(db, collectionName) {
+  const snapshot = await getWorkspaceRef(db).collection(collectionName).get();
+
+  return snapshot.docs.map((document) => ({
+    id: document.id,
+    ...document.data(),
+  }));
+}
+
+function overlaySharedOperations(garden, operations, uid) {
+  if (!hasSharedOperations(operations)) {
+    return garden;
+  }
+
+  return {
+    ...garden,
+    harvestEvents: withGardenId(operations.harvestEvents, uid),
+    journalEntries: withGardenId(operations.journalEntries, uid),
+    notificationLogs: asArray(operations.notificationLogs).map((log) => ({
+      ...log,
+      gardenId: uid,
+      userId: log?.userId || uid,
+    })),
+    tasks: withGardenId(operations.tasks, uid),
+    wateringSchedule: withGardenId(operations.wateringSchedule, uid),
+    weatherSnapshots: withGardenId(operations.weatherSnapshots, uid),
+  };
+}
+
+function hasSharedOperations(operations) {
+  return Object.values(operations).some((items) => asArray(items).length > 0);
+}
+
+function gardenFromSharedOperations(operations = {}) {
+  return {
+    harvestEvents: operations.harvestEvents || [],
+    journalEntries: operations.journalEntries || [],
+    notificationLogs: operations.notificationLogs || [],
+    tasks: operations.tasks || [],
+    wateringSchedule: operations.wateringSchedule || [],
+    weatherSnapshots: operations.weatherSnapshots || [],
+  };
 }
 
 async function loadLegacyGardenAggregate(db, uid) {
@@ -259,26 +357,22 @@ async function commitGardenOperations({
     userId: uid,
   };
 
-  if (gardenState.draftExists) {
-    await draftRef.set(
-      {
-        ...operationsMetadata,
-        garden: {
-          tasks: updatedGarden.tasks,
-          updatedAtIso: updatedGarden.updatedAtIso,
-          wateringSchedule: updatedGarden.wateringSchedule,
-          weatherSnapshots: updatedGarden.weatherSnapshots,
-        },
-      },
-      { merge: true },
-    );
-  } else {
+  await commitSharedOperationCollections({
+    admin,
+    baseGarden: gardenFromSharedOperations(gardenState.sharedOperations),
+    db,
+    updatedGarden,
+  });
+
+  if (!gardenState.draftExists) {
     await draftRef.set({
       ...operationsMetadata,
       baseRevisionId: gardenState.baseRevisionId || 'revision-initial',
-      garden: updatedGarden,
+      garden: stripSharedOperations(updatedGarden),
       suggestionDecisions: gardenState.suggestionDecisions,
     });
+  } else {
+    await draftRef.set(operationsMetadata, { merge: true });
   }
 
   gardenState.draftExists = true;
@@ -286,6 +380,79 @@ async function commitGardenOperations({
   gardenState.operationsLastGeneratedLocalDate =
     operationsMetadata.operationsLastGeneratedLocalDate;
   gardenState.source = 'draft';
+}
+
+async function commitSharedOperationCollections({
+  admin,
+  baseGarden,
+  db,
+  updatedGarden,
+}) {
+  const batch = db.batch();
+
+  writeSharedCollectionPatch({
+    batch,
+    base: baseGarden.tasks || [],
+    collectionName: 'tasks',
+    db,
+    next: updatedGarden.tasks || [],
+  });
+  writeSharedCollectionPatch({
+    batch,
+    base: baseGarden.wateringSchedule || [],
+    collectionName: 'wateringSchedule',
+    db,
+    next: updatedGarden.wateringSchedule || [],
+  });
+  writeSharedCollectionPatch({
+    batch,
+    base: baseGarden.weatherSnapshots || [],
+    collectionName: 'weatherSnapshots',
+    db,
+    next: updatedGarden.weatherSnapshots || [],
+  });
+  batch.set(
+    getWorkspaceRef(db),
+    {
+      sharedOperationsUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      sharedOperationsUpdatedAtIso: updatedGarden.updatedAtIso,
+    },
+    { merge: true },
+  );
+
+  await batch.commit();
+}
+
+function writeSharedCollectionPatch({ batch, base, collectionName, db, next }) {
+  const baseById = new Map(asArray(base).map((item) => [item.id, item]));
+  const nextById = new Map(asArray(next).map((item) => [item.id, item]));
+  const collectionRef = getWorkspaceRef(db).collection(collectionName);
+
+  for (const item of asArray(next)) {
+    const baseItem = baseById.get(item.id);
+
+    if (!baseItem || JSON.stringify(baseItem) !== JSON.stringify(item)) {
+      batch.set(collectionRef.doc(item.id), item);
+    }
+  }
+
+  for (const item of asArray(base)) {
+    if (!nextById.has(item.id)) {
+      batch.delete(collectionRef.doc(item.id));
+    }
+  }
+}
+
+function stripSharedOperations(garden) {
+  return {
+    ...garden,
+    harvestEvents: [],
+    journalEntries: [],
+    notificationLogs: [],
+    tasks: [],
+    wateringSchedule: [],
+    weatherSnapshots: [],
+  };
 }
 
 async function dispatchWateringRecommendations({

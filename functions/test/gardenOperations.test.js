@@ -46,6 +46,22 @@ const garden = {
       xFt: 2,
       yFt: 2,
     },
+    {
+      id: 'radish-inside',
+      label: 'Radish inside window',
+      plannedFor: '2026-06-27',
+      status: 'planned',
+      xFt: 3,
+      yFt: 2,
+    },
+    {
+      id: 'radish-outside',
+      label: 'Radish outside window',
+      plannedFor: '2026-06-28',
+      status: 'planned',
+      xFt: 4,
+      yFt: 2,
+    },
   ],
   plot: {
     location: {
@@ -149,9 +165,26 @@ const weatherProvider = {
   assert.equal(result.recommendations[0].status, 'partial');
   assert.equal(result.recommendations[0].targetId, 'bed-a');
   assert.equal(result.recommendations[0].targetKind, 'bed');
+  assert.equal(
+    result.recommendations[0].waterBalance.rootZoneCapacitySource,
+    'estimated',
+  );
+  assert.equal(
+    result.recommendations[0].waterBalance.currentDepletionInches,
+    result.recommendations[0].waterBalance.effectiveDeficitInches,
+  );
+  assert.ok(
+    result.recommendations[0].waterBalance.actionableDeficitInches >= 0,
+  );
   assert.match(result.recommendations[0].reasonDetails.join(' '), /Zone 1/);
   assert.ok(result.tasks.some((task) => task.type === 'water'));
   assert.ok(result.tasks.some((task) => task.id === 'weather-heat-2026-06-21'));
+  assert.ok(
+    result.tasks.some((task) => task.id === 'planting-radish-inside-plant'),
+  );
+  assert.ok(
+    !result.tasks.some((task) => task.id === 'planting-radish-outside-plant'),
+  );
   assert.ok(
     result.tasks.some((task) =>
       task.id.startsWith('succession-review-tomato-1'),
@@ -182,6 +215,37 @@ const weatherProvider = {
     Date.parse(scheduledResult.recommendations[0].dueWindowStartIso),
     Date.parse('2026-06-21T11:30:00.000Z'),
   );
+  assert.equal(
+    scheduledResult.recommendations[0].waterBalance.modelVersion,
+    'water-balance-v1',
+  );
+
+  const plantingDayResult = await generateGardenOperations({
+    garden: {
+      ...garden,
+      journalEntries: [],
+      plantings: [
+        {
+          ...garden.plantings[0],
+          plantedOn: '2026-06-21',
+          plantingEvents: [
+            {
+              id: 'planting-event:plantedOut:2026-06-21',
+              occurredOn: '2026-06-21',
+              type: 'plantedOut',
+            },
+          ],
+          status: 'planted',
+        },
+      ],
+    },
+    logger: { warn() {} },
+    now,
+    profile,
+    weatherProvider,
+  });
+
+  assert.equal(plantingDayResult.recommendations.length, 0);
 
   const snoozed = mergeWaterRecommendations(
     [{ ...scheduledResult.recommendations[0], status: 'snoozed' }],

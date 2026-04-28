@@ -40,6 +40,11 @@ interface PlotPoint {
   y: number;
 }
 
+interface ViewportAnchor {
+  clientX: number;
+  clientY: number;
+}
+
 export function usePlanCanvasView({ isPanMode }: { isPanMode: boolean }) {
   const [isPanning, setIsPanning] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -180,8 +185,43 @@ export function usePlanCanvasView({ isPanMode }: { isPanMode: boolean }) {
     [applyAbsoluteScroll, resetView, zoom],
   );
 
+  const zoomToPoint = useCallback(
+    (
+      bounds: CanvasFitBounds | null,
+      nextZoomValue: number,
+      anchor: ViewportAnchor | null,
+    ) => {
+      const nextZoom = clampZoom(nextZoomValue);
+
+      if (nextZoom === zoom) {
+        return;
+      }
+
+      pendingCenteringRef.current = anchor
+        ? getPreservedAnchorCentering(
+            bounds,
+            zoom,
+            nextZoom,
+            scrollportRef.current,
+            anchor,
+          )
+        : getPreservedViewportCentering(
+            bounds,
+            zoom,
+            nextZoom,
+            scrollportRef.current,
+          );
+      setZoom(nextZoom);
+      setZoomState('custom');
+    },
+    [zoom],
+  );
+
   const handleViewportWheel = useCallback(
-    (event: WheelEvent<HTMLDivElement>) => {
+    (
+      event: WheelEvent<HTMLDivElement>,
+      bounds: CanvasFitBounds | null = null,
+    ) => {
       const scrollport = scrollportRef.current;
 
       if (!scrollport || isPanning) {
@@ -190,10 +230,21 @@ export function usePlanCanvasView({ isPanMode }: { isPanMode: boolean }) {
 
       event.preventDefault();
       event.stopPropagation();
+
+      if (event.ctrlKey || event.metaKey) {
+        const zoomFactor = Math.exp(-event.deltaY * 0.002);
+
+        zoomToPoint(bounds, zoom * zoomFactor, {
+          clientX: event.clientX,
+          clientY: event.clientY,
+        });
+        return;
+      }
+
       scrollport.scrollLeft += event.deltaX;
       scrollport.scrollTop += event.deltaY;
     },
-    [isPanning],
+    [isPanning, zoom, zoomToPoint],
   );
 
   function handlePanPointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -299,6 +350,7 @@ export function usePlanCanvasView({ isPanMode }: { isPanMode: boolean }) {
     zoomIn,
     zoomOut,
     zoomState,
+    zoomToPoint,
   };
 }
 
@@ -351,6 +403,35 @@ function getPreservedViewportCentering(
       bounds.framePaddingY +
       plotPoint.y * nextZoom -
       scrollport.clientHeight / 2,
+  };
+}
+
+function getPreservedAnchorCentering(
+  bounds: CanvasFitBounds | null,
+  currentZoom: number,
+  nextZoom: number,
+  scrollport: HTMLDivElement | null,
+  anchor: ViewportAnchor,
+) {
+  if (!bounds || !scrollport) {
+    return null;
+  }
+
+  const viewportRect = scrollport.getBoundingClientRect();
+  const anchorX = anchor.clientX - viewportRect.left;
+  const anchorY = anchor.clientY - viewportRect.top;
+  const contentX = scrollport.scrollLeft + anchorX;
+  const contentY = scrollport.scrollTop + anchorY;
+  const plotPoint = getPlotPointFromViewportCenter(
+    bounds,
+    contentX,
+    contentY,
+    currentZoom,
+  );
+
+  return {
+    left: bounds.framePaddingX + plotPoint.x * nextZoom - anchorX,
+    top: bounds.framePaddingY + plotPoint.y * nextZoom - anchorY,
   };
 }
 

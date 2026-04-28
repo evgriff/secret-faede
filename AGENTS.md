@@ -24,7 +24,7 @@ Serena:
 
 Repo intent:
 
-- keep Secret Faede as a small, functionality-first garden plot planner and
+- keep Secret Faeries as a small, functionality-first garden plot planner and
   garden operations app
 - preserve password auth for the two provisioned accounts and one shared
   published garden workspace with private drafts
@@ -69,9 +69,10 @@ Source control protocol:
 
 - start every agentic workflow with `git status --short --branch` and confirm
   the current branch before editing
-- use a `codex/` branch for agent work unless the user explicitly asks for a
-  different branch strategy
-- never continue substantial edits directly on `main`
+- keep agent work on `main` unless the user explicitly asks for a different
+  branch strategy
+- if the current branch is not `main`, stop and confirm whether to switch back
+  before substantial edits
 - treat all pre-existing dirty files as user-owned; do not revert, reset,
   checkout, overwrite, or reformat unrelated changes
 - before editing, identify the intended file set and keep the change scoped to

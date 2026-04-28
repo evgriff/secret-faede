@@ -140,7 +140,7 @@ function toCropProfile(override: CatalogCropRecord): CropProfile {
     scientificName: override.scientificName,
     source: override.source ?? 'unknown',
     sowMethod: override.sowMethod,
-    sourceTags: override.sourceTags ?? ['curated', 'secret-faede-v1'],
+    sourceTags: override.sourceTags ?? ['curated', 'secret-faeries-v1'],
     spacingInches: override.spacingInches,
     synonyms: override.synonyms ?? [],
     sunExposure: override.sunRequirement,

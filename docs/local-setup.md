@@ -25,7 +25,7 @@ truth.
 4. Open the native project:
    - iOS: `npm run mobile:ios`
    - Android: `npm run mobile:android`
-5. Use bundle/package id `com.secretfaede.app` unless the Apple or Google
+5. Use bundle/package id `com.secretfaeries.app` unless the Apple or Google
    account requires a different final id. If it changes, update
    `capacitor.config.ts`, `ios/App/App.xcodeproj/project.pbxproj`, and
    `android/app/build.gradle` together, then run `npm run mobile:sync`.

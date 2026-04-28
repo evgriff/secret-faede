@@ -126,4 +126,29 @@ describe('plantingGeometry', () => {
       cluster.dimensions,
     );
   });
+
+  it('uses spacing override as the effective planning diameter before mature spread', () => {
+    const tightPlan = derivePlantingGeometry({
+      matureSpreadInches: 36,
+      mode: 'block',
+      quantity: 4,
+      spacingInches: 12,
+      xFt: 4,
+      yFt: 4,
+    });
+    const catalogPlan = derivePlantingGeometry({
+      matureSpreadInches: 36,
+      mode: 'block',
+      quantity: 4,
+      spacingInches: null,
+      xFt: 4,
+      yFt: 4,
+    });
+
+    expect(tightPlan.plantDiameterFt).toBe(1);
+    expect(tightPlan.footprint.widthFt).toBeLessThan(
+      catalogPlan.footprint.widthFt,
+    );
+    expect(catalogPlan.plantDiameterFt).toBe(3);
+  });
 });

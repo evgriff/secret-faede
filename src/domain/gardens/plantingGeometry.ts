@@ -158,7 +158,9 @@ export function toPlantingGeometryMode(
 
 function getSpacingFt(input: PlantingGeometryInput) {
   return Math.max(
-    normalizeInches(input.spacingInches ?? fallbackSpacingInches) / 12,
+    normalizeInches(
+      input.spacingInches ?? input.matureSpreadInches ?? fallbackSpacingInches,
+    ) / 12,
     minimumCenterSpacingFt,
   );
 }
@@ -183,7 +185,7 @@ function getRowSpacingFt(
 function getPlantDiameterFt(input: PlantingGeometryInput) {
   return Math.max(
     normalizeInches(
-      input.matureSpreadInches ?? input.spacingInches ?? fallbackSpacingInches,
+      input.spacingInches ?? input.matureSpreadInches ?? fallbackSpacingInches,
     ) / 12,
     minimumFootprintDimensionFt,
   );

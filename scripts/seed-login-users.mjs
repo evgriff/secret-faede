@@ -85,7 +85,7 @@ async function seedUser(user) {
   const claims = {
     ...(firebaseUser.customClaims ?? {}),
     gardenAccess: true,
-    secretFaedeMember: true,
+    secretFaeriesMember: true,
   };
 
   await auth.setCustomUserClaims(firebaseUser.uid, claims);
@@ -105,7 +105,7 @@ function dryRunUser(user) {
     action: 'dry-run',
     claims: {
       gardenAccess: true,
-      secretFaedeMember: true,
+      secretFaeriesMember: true,
     },
     displayName: user.displayName,
     email: user.email,

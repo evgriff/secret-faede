@@ -368,6 +368,7 @@ export function SettingsPage() {
           <summary>Sample garden</summary>
           <SettingsDemoPanel
             canExit={demoMode.state.canExit}
+            canUseDemo={demoMode.canUseDemo}
             error={demoMode.state.error}
             isActive={demoMode.state.isActive}
             isBusy={demoMode.state.isBusy}

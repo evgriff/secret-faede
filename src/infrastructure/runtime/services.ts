@@ -11,13 +11,6 @@ import type { AppEnvironment } from '../../shared/config/env';
 import { resolveAppEnvironment } from '../../shared/config/env';
 import { configureNetworkStatusAdapter } from '../../shared/network/networkStatus';
 import { createLazyMobileDeviceService } from '../capacitor/lazyMobileDeviceService';
-import { MockAuthService } from '../mock/auth/mockAuthService';
-import { MockGardenOperationsService } from '../mock/gardens/mockGardenOperationsService';
-import { MockGardenRepository } from '../mock/gardens/mockGardenRepository';
-import { MockMediaStorageService } from '../mock/media/mockMediaStorageService';
-import { MockNotificationService } from '../mock/notifications/mockNotificationService';
-import { MockTelemetryService } from '../mock/telemetry/mockTelemetryService';
-import { MockUserProfileRepository } from '../mock/users/mockUserProfileRepository';
 import { createWeatherProvider } from '../weather/createWeatherProvider';
 
 export interface AppServices {
@@ -74,16 +67,11 @@ export async function createRuntimeServices(
     };
   }
 
-  return {
-    authService: new MockAuthService(),
+  const { createMockRuntimeServices } = await import('./mockServices');
+
+  return createMockRuntimeServices({
     environment,
-    gardenOperationsService: new MockGardenOperationsService(),
-    gardenRepository: new MockGardenRepository(),
-    mediaStorageService: new MockMediaStorageService(),
     mobileDeviceService,
-    notificationService: new MockNotificationService(),
-    telemetryService: new MockTelemetryService(),
-    userProfileRepository: new MockUserProfileRepository(),
     weatherProvider,
-  };
+  });
 }

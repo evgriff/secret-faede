@@ -16,7 +16,7 @@ export class MockMediaStorageService implements MediaStorageService {
       fileName,
       id: photoId,
       sizeBytes: request.file.size,
-      storagePath: `mock/users/${request.userId}/journal/${request.entryId}/${photoId}-${fileName}`,
+      storagePath: `mock/gardenWorkspaces/main/journal/${request.entryId}/${photoId}-${fileName}`,
       uploadedAtIso,
     };
   }

@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Secret Faede</string>
+        <string>Secret Faeries</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -25,11 +25,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Secret Faede uses the camera so you can attach garden photos to field notes and issue reports.</string>
+	<string>Secret Faeries uses the camera so you can attach garden photos to field notes and issue reports.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Secret Faede can save garden photos you capture from field entries when you choose to keep them.</string>
+	<string>Secret Faeries can save garden photos you capture from field entries when you choose to keep them.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Secret Faede uses selected photos so you can attach them to garden notes, issues, and harvest records.</string>
+	<string>Secret Faeries uses selected photos so you can attach them to garden notes, issues, and harvest records.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

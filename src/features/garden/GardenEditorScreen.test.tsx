@@ -612,6 +612,163 @@ describe('PlanPage', () => {
     });
   });
 
+  it('resizes a plant group area and auto-fits the plant count', async () => {
+    const user = userEvent.setup();
+    const services = await createTestServices({
+      signedInEmail: 'primary.gardener@example.com',
+    });
+    const currentUser = services.authService.getCurrentUser();
+
+    if (!currentUser) {
+      throw new Error('Expected signed-in test user.');
+    }
+
+    await services.gardenRepository.saveGarden({
+      ...createDefaultGarden(currentUser.uid),
+      climateProfile: {
+        ...annArborClimateProfile,
+        source: 'user',
+      },
+      plantings: [
+        {
+          ...createDefaultPlanting({
+            id: 'planting-lettuce',
+            label: 'Saved lettuce',
+            xFt: 2,
+            yFt: 3,
+          }),
+          matureSpreadInches: 12,
+          spacingInches: 12,
+        },
+      ],
+    });
+
+    renderRoute('/app/plan', services);
+
+    const plot = await screen.findByTestId('garden-plot');
+    const plant = await screen.findByRole('button', {
+      name: 'Saved lettuce at X: 2.0 ft, Y: 3.0 ft',
+    });
+
+    mockElementRect(plot, { height: 256, width: 384 });
+    await user.click(plant);
+
+    const resizeHandle = await screen.findByRole('button', {
+      name: 'Resize Saved lettuce planting area southeast handle',
+    });
+    const plantGroup = plant.closest<HTMLElement>('[data-plant-group-id]');
+
+    if (!plantGroup) {
+      throw new Error('Expected plant group wrapper.');
+    }
+
+    const initialWidth = Number.parseFloat(plantGroup.style.width);
+
+    fireEvent.pointerDown(resizeHandle, {
+      button: 0,
+      buttons: 1,
+      clientX: 80,
+      clientY: 96,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerMove(resizeHandle, {
+      buttons: 1,
+      clientX: 160,
+      clientY: 160,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
+
+    await waitFor(() => {
+      expect(Number.parseFloat(plantGroup.style.width)).toBeGreaterThan(
+        initialWidth,
+      );
+    });
+
+    fireEvent.pointerUp(resizeHandle, {
+      button: 0,
+      clientX: 160,
+      clientY: 160,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
+
+    expect(
+      await screen.findByRole('button', {
+        name: /Saved lettuce group, [2-9][0-9]* plants at X:/,
+      }),
+    ).toBeVisible();
+  });
+
+  it('edits selected plant spacing on the grid and refits the planned count', async () => {
+    const user = userEvent.setup();
+    const services = await createTestServices({
+      signedInEmail: 'primary.gardener@example.com',
+    });
+    const currentUser = services.authService.getCurrentUser();
+
+    if (!currentUser) {
+      throw new Error('Expected signed-in test user.');
+    }
+
+    await services.gardenRepository.saveGarden({
+      ...createDefaultGarden(currentUser.uid),
+      climateProfile: {
+        ...annArborClimateProfile,
+        source: 'user',
+      },
+      plantings: [
+        {
+          ...createDefaultPlanting({
+            id: 'planting-pepper',
+            label: 'Saved pepper',
+            xFt: 4,
+            yFt: 4,
+          }),
+          blockDepthFt: 4,
+          blockWidthFt: 4,
+          cropId: 'tomato-beefsteak',
+          matureSpreadInches: 36,
+          mode: 'block',
+          spacingInches: null,
+        },
+      ],
+    });
+
+    renderRoute('/app/plan', services);
+
+    const plant = await screen.findByRole('button', {
+      name: 'Saved pepper at X: 4.0 ft, Y: 4.0 ft',
+    });
+
+    await user.click(plant);
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Adjust Saved pepper spacing',
+      }),
+    );
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Saved pepper spacing controls',
+    });
+    const spacingInput = within(dialog).getByLabelText(
+      'Saved pepper spacing in inches',
+    );
+
+    await user.clear(spacingInput);
+    await user.type(spacingInput, '12');
+
+    expect(
+      await screen.findByRole('button', {
+        name: /Saved pepper group, [1-9][0-9]* plants at X:/,
+      }),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByText('Tighter than catalog spacing.'),
+    ).toBeVisible();
+  });
+
   it('keeps plant surfaces closed during drag and reopens them only on click release', async () => {
     const user = userEvent.setup();
     const services = await createTestServices({
@@ -1482,6 +1639,42 @@ describe('PlanPage', () => {
     ).toBeVisible();
     expect(await screen.findByText('4 ft by 8 ft')).toBeVisible();
     expect(await screen.findByText('Accessible')).toBeVisible();
+  });
+
+  it('opens the access path inspector instead of the layout generator when a path is clicked', async () => {
+    const user = userEvent.setup();
+    const services = await createConfiguredPlanServices();
+
+    renderRoute('/app/plan', services);
+
+    await clickMode(user, 'Structure');
+    await user.selectOptions(
+      await screen.findByRole('combobox', { name: 'Plot structure type' }),
+      'pathway',
+    );
+    await user.click(screen.getByRole('button', { name: 'Place on plan' }));
+
+    const accessPath = await screen.findByRole('button', {
+      name: /Pathway, walkable width/,
+    });
+
+    await clickMode(user, 'Generate layout');
+    expect(
+      await screen.findByText(
+        'Add plants before generating a layout suggestion.',
+      ),
+    ).toBeVisible();
+
+    await user.click(accessPath);
+
+    const inspector = await screen.findByRole('complementary', {
+      name: 'Selected item inspector',
+    });
+    expect(inspector).toHaveTextContent('Pathway');
+    expect(inspector).toHaveTextContent('Path standard');
+    expect(
+      screen.queryByText('Add plants before generating a layout suggestion.'),
+    ).not.toBeInTheDocument();
   });
 
   it('warns when planting spacing is unrealistic', async () => {

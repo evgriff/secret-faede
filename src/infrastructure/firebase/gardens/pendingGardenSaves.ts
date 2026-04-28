@@ -15,18 +15,22 @@ interface PendingGardenSave {
   draftUpdatedAtIso?: string | null;
   garden: unknown;
   gardenUpdatedAtIso: string | null;
+  kind?: PendingGardenSaveKind;
   publishedRevisionId?: string | null;
   queuedAtIso: string;
   schemaVersion?: number;
 }
 
-const pendingGardenSavePrefix = 'secret-faede.pending-garden-save.v1:';
-const pendingGardenSaveEvent = 'secret-faede:pending-garden-save';
+const pendingGardenSavePrefix = 'secret-faeries.pending-garden-save.v1:';
+const pendingGardenSaveEvent = 'secret-faeries:pending-garden-save';
 
 export interface PendingGardenSaveOptions {
   draftBaseRevisionId?: string | null;
   draftUpdatedAtIso?: string | null;
+  kind?: PendingGardenSaveKind;
 }
+
+export type PendingGardenSaveKind = 'draft' | 'sharedOperations';
 
 export function queuePendingGardenSave(
   garden: Garden,
@@ -38,6 +42,7 @@ export function queuePendingGardenSave(
     draftUpdatedAtIso: options.draftUpdatedAtIso ?? null,
     garden,
     gardenUpdatedAtIso: garden.updatedAtIso,
+    kind: options.kind ?? 'draft',
     publishedRevisionId: null,
     queuedAtIso: new Date().toISOString(),
     schemaVersion: CURRENT_GARDEN_SCHEMA_VERSION,
@@ -75,6 +80,7 @@ export interface PendingGardenSaveMetadata {
   publishedRevisionId: string | null;
   queuedAtIso: string;
   schemaVersion: number;
+  kind: PendingGardenSaveKind;
   userId: string;
 }
 
@@ -103,6 +109,7 @@ export function readPendingGardenSaveMetadata(
         ? stored.draftUpdatedAtIso
         : null,
     gardenUpdatedAtIso: stored.gardenUpdatedAtIso ?? null,
+    kind: stored.kind === 'sharedOperations' ? 'sharedOperations' : 'draft',
     publishedRevisionId:
       typeof stored.publishedRevisionId === 'string'
         ? stored.publishedRevisionId

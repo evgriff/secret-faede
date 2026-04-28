@@ -5,6 +5,10 @@ import type {
 } from '../../domain/gardens/GardenRepository';
 import { getPlantingHarvestSchedule } from '../garden/harvestSchedule';
 import { buildWateringOutlook } from '../garden/wateringOutlook';
+import {
+  getTaskLookaheadEndDate,
+  TASK_LOOKAHEAD_DAYS,
+} from '../tasks/taskScope';
 import type { TodayTarget } from './todayActions';
 import { addDays } from './todayFormatters';
 import { buildTodayWateringGroups } from './todayWateringGroups';
@@ -64,9 +68,9 @@ export const todayTaskGroups: Array<{
 ];
 
 export function groupTasks(tasks: Task[], today: string) {
-  const weekEnd = addDays(today, 7);
+  const weekEnd = getTaskLookaheadEndDate(today);
   const visibleTasks = tasks.filter(
-    (task) => !isLegacyGeneratedHarvestTask(task),
+    (task) => !isLegacyGeneratedHarvestTask(task) && isTaskInScope(task, today),
   );
 
   return {
@@ -85,9 +89,14 @@ export function getTasksForSelectedDate(
   selectedDate: string,
   today: string,
 ) {
+  if (selectedDate > getTaskLookaheadEndDate(today)) {
+    return [];
+  }
+
   return tasks.filter(
     (task) =>
       !isLegacyGeneratedHarvestTask(task) &&
+      isTaskInScope(task, today) &&
       (selectedDate === today
         ? Boolean(task.dueDate && task.dueDate <= today)
         : task.dueDate === selectedDate),
@@ -128,16 +137,18 @@ export function buildCalendarDays(
     new Date(`${today}T12:00:00.000Z`),
   );
 
-  return Array.from({ length: 14 }, (_, index) => {
+  return Array.from({ length: TASK_LOOKAHEAD_DAYS }, (_, index) => {
     const date = addDays(today, index);
     const nonWaterTasks = tasks.filter((task) =>
       isScheduledWateringTask(task)
         ? false
         : isLegacyGeneratedHarvestTask(task)
           ? false
-          : date === today
-            ? Boolean(task.dueDate && task.dueDate <= today)
-            : task.dueDate === date,
+          : !isTaskInScope(task, today)
+            ? false
+            : date === today
+              ? Boolean(task.dueDate && task.dueDate <= today)
+              : task.dueDate === date,
     );
     const wateringGroupCount = buildTodayWateringGroups(
       garden,
@@ -146,7 +157,7 @@ export function buildCalendarDays(
       new Date(`${today}T12:00:00.000Z`),
     ).length;
     const wateringOutlookCount = wateringOutlook.filter(
-      (item) => item.date === date,
+      (item) => item.bestDate === date,
     ).length;
     const wateringCount = Math.max(wateringGroupCount, wateringOutlookCount);
     const markers = new Set<TodayCalendarMarker>();
@@ -195,4 +206,10 @@ export function isScheduledWateringTask(task: Task) {
 
 export function isLegacyGeneratedHarvestTask(task: Task) {
   return task.type === 'harvest' && task.source === 'generated';
+}
+
+function isTaskInScope(task: Task, today: string) {
+  return Boolean(
+    task.dueDate && task.dueDate <= getTaskLookaheadEndDate(today),
+  );
 }

@@ -13,7 +13,7 @@ import {
   writeJsonStorageValue,
 } from '../../shared/lib/storage';
 
-const sessionHintKey = 'secret-faede.mobile.session-hint.v1';
+const sessionHintKey = 'secret-faeries.mobile.session-hint.v1';
 
 interface CapacitorGlobal {
   getPlatform?(): string;

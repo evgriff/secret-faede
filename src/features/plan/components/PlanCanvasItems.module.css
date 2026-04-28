@@ -507,13 +507,13 @@
 
 .plantGroupWrench {
   position: absolute;
-  top: -0.8rem;
-  right: -0.8rem;
+  top: var(--plant-wrench-offset, -0.8rem);
+  right: var(--plant-wrench-offset, -0.8rem);
   z-index: 9;
   display: grid;
   place-items: center;
-  width: 2.4rem;
-  height: 2.4rem;
+  width: var(--plant-wrench-size, 2.4rem);
+  height: var(--plant-wrench-size, 2.4rem);
   border: 1px solid rgba(31, 27, 24, 0.24);
   border-radius: var(--radius-pill);
   background: rgba(255, 253, 247, 0.94);
@@ -521,15 +521,16 @@
   cursor: pointer;
   opacity: 0.72;
   padding: 0;
-  box-shadow: 0 5px 12px rgba(31, 27, 24, 0.18);
+  box-shadow: 0 var(--plant-wrench-shadow-y, 5px)
+    var(--plant-wrench-shadow-blur, 12px) rgba(31, 27, 24, 0.18);
   transition:
     opacity var(--motion-micro) var(--ease-standard),
     transform var(--motion-micro) var(--ease-emphasis);
 }
 
 .plantGroupWrench svg {
-  width: 1.05rem;
-  height: 1.05rem;
+  width: var(--plant-wrench-icon-size, 1.05rem);
+  height: var(--plant-wrench-icon-size, 1.05rem);
 }
 
 .plantGroup:hover .plantGroupWrench,
@@ -540,6 +541,66 @@
 
 .plantGroupWrench:hover {
   transform: scale(1.06);
+}
+
+.plantGroupSpacingDisclosure {
+  display: contents;
+}
+
+.plantGroupSpacingButton {
+  right: calc(var(--plant-wrench-size, 2.4rem) + 0.2rem);
+  width: auto;
+  height: auto;
+  font-size: 0.62rem;
+  font-weight: 940;
+  padding: 0.34rem 0.52rem;
+}
+
+.plantGroupSpacingButton::marker,
+.plantGroupSpacingButton::-webkit-details-marker {
+  display: none;
+}
+
+.plantGroupSpacingPanel {
+  position: absolute;
+  top: calc(var(--plant-wrench-size, 2.4rem) + 0.18rem);
+  right: -0.2rem;
+  z-index: 12;
+  display: grid;
+  gap: 0.48rem;
+  width: min(16rem, 82vw);
+  border: 1px solid rgba(31, 27, 24, 0.16);
+  border-radius: 18px;
+  background: rgba(255, 253, 247, 0.98);
+  padding: 0.8rem;
+  box-shadow: 0 18px 38px rgba(31, 27, 24, 0.24);
+}
+
+.plantGroupSpacingPanel p {
+  margin: 0;
+  font-size: 0.74rem;
+}
+
+.plantGroupSpacingPanel label {
+  display: grid;
+  gap: 0.22rem;
+  font-weight: 850;
+}
+
+.plantGroupSpacingPanel input {
+  width: 100%;
+  font: inherit;
+}
+
+.plantGroupSpacingWarning {
+  color: #7a3517 !important;
+  font-weight: 850;
+}
+
+.plantGroupSpacingReset {
+  justify-self: end;
+  cursor: pointer;
+  font-weight: 900;
 }
 
 .plantingPreview {
@@ -818,6 +879,15 @@
 
 .draggingPlantGroup .plantGroupSurface {
   cursor: grabbing;
+}
+
+.resizingPlantGroup {
+  z-index: 7;
+  transition: none;
+}
+
+.resizingPlantGroup .plantGroupSurface {
+  cursor: default;
 }
 
 .warningItem {

@@ -37,7 +37,7 @@ export function SignInPage() {
           <p className={styles.kicker}>Trusted device</p>
           <h1 className="pageTitle">Checking session</h1>
           <p className={styles.lead}>
-            Looking for an active Secret Faede session on this device.
+            Looking for an active Secret Faeries session on this device.
           </p>
         </div>
       </section>
@@ -120,7 +120,7 @@ export function SignInPage() {
     }
 
     if (!isEmailAllowed(environment.allowedEmails, normalizedEmail)) {
-      setError('This email is not allowed for Secret Faede.');
+      setError('This email is not allowed for Secret Faeries.');
       return false;
     }
 
@@ -133,8 +133,8 @@ export function SignInPage() {
         <p className={styles.kicker}>Garden workspace</p>
         <h1 className="pageTitle">Sign in</h1>
         <p className={styles.lead}>
-          Use your Secret Faede password. Trusted devices stay signed in so you
-          can get back to the garden quickly.
+          Use your Secret Faeries password. Trusted devices stay signed in so
+          you can get back to the garden quickly.
         </p>
 
         {environment.allowlistError ? (
@@ -210,7 +210,7 @@ export function SignInPage() {
 
           <p className={styles.sessionHint}>
             This stores a Firebase/mock session token through the auth provider.
-            Secret Faede never stores your raw password.
+            Secret Faeries never stores your raw password.
           </p>
 
           {error ? (

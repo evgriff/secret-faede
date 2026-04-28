@@ -154,15 +154,44 @@ function isRecord(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function createMockDb({ drafts = {}, legacy = {}, workspace = null } = {}) {
+function createMockDb({
+  drafts = {},
+  legacy = {},
+  shared = {},
+  workspace = null,
+} = {}) {
   const state = {
     drafts: { ...drafts },
     legacy: { ...legacy },
+    shared: {
+      harvests: [],
+      journal: [],
+      notifications: [],
+      tasks: [],
+      wateringSchedule: [],
+      weatherSnapshots: [],
+      ...shared,
+    },
     workspace,
   };
 
   return {
     state,
+    batch() {
+      const operations = [];
+
+      return {
+        delete(ref) {
+          operations.push(() => ref.delete());
+        },
+        set(ref, value, options) {
+          operations.push(() => ref.set(value, options));
+        },
+        async commit() {
+          await Promise.all(operations.map((operation) => operation()));
+        },
+      };
+    },
     collection(name) {
       if (name === 'gardenWorkspaces') {
         return {
@@ -170,7 +199,26 @@ function createMockDb({ drafts = {}, legacy = {}, workspace = null } = {}) {
             assert.equal(id, 'main');
             return {
               collection(child) {
-                assert.equal(child, 'drafts');
+                if (child !== 'drafts') {
+                  return {
+                    doc(docId) {
+                      return createSharedDocRef(state, child, docId);
+                    },
+                    async get() {
+                      const items = Array.isArray(state.shared[child])
+                        ? state.shared[child]
+                        : [];
+
+                      return {
+                        docs: items.map((item) => ({
+                          data: () => item,
+                          id: item.id,
+                        })),
+                      };
+                    },
+                  };
+                }
+
                 return {
                   doc(docId) {
                     return {
@@ -190,6 +238,12 @@ function createMockDb({ drafts = {}, legacy = {}, workspace = null } = {}) {
               },
               async get() {
                 return createSnapshot(state.workspace);
+              },
+              async set(value, options = {}) {
+                state.workspace =
+                  options.merge && state.workspace
+                    ? deepMerge(state.workspace, value)
+                    : value;
               },
             };
           },
@@ -226,6 +280,25 @@ function createMockDb({ drafts = {}, legacy = {}, workspace = null } = {}) {
       }
 
       throw new Error(`Unsupported collection ${name}`);
+    },
+  };
+}
+
+function createSharedDocRef(state, collectionName, docId) {
+  return {
+    async delete() {
+      state.shared[collectionName] = (
+        state.shared[collectionName] || []
+      ).filter((item) => item.id !== docId);
+    },
+    async set(value) {
+      const items = state.shared[collectionName] || [];
+      const nextValue = { id: docId, ...value };
+
+      state.shared[collectionName] = [
+        nextValue,
+        ...items.filter((item) => item.id !== docId),
+      ];
     },
   };
 }
@@ -274,8 +347,9 @@ function createRunner(db, dispatchNotification) {
   assert.equal(publishedDraft.baseRevisionId, 'revision-1');
   assert.equal(publishedDraft.garden.id, uid);
   assert.equal(publishedDraft.garden.userId, uid);
-  assert.equal(publishedDraft.garden.wateringSchedule.length, 1);
-  assert.equal(publishedDraft.garden.wateringSchedule[0].status, 'due');
+  assert.equal(publishedDraft.garden.wateringSchedule.length, 0);
+  assert.equal(publishedDb.state.shared.wateringSchedule.length, 1);
+  assert.equal(publishedDb.state.shared.wateringSchedule[0].status, 'due');
   assert.equal(publishedAlerts.length, 1);
 
   const scheduledDb = createMockDb({
@@ -303,7 +377,7 @@ function createRunner(db, dispatchNotification) {
   });
 
   assert.equal(
-    scheduledDb.state.drafts[uid].garden.wateringSchedule[0].status,
+    scheduledDb.state.shared.wateringSchedule[0].status,
     'scheduled',
   );
   assert.equal(scheduledAlerts.length, 0);
@@ -359,10 +433,7 @@ function createRunner(db, dispatchNotification) {
     weatherProvider,
   });
 
-  assert.equal(
-    snoozedDb.state.drafts[uid].garden.wateringSchedule[0].status,
-    'snoozed',
-  );
+  assert.equal(snoozedDb.state.shared.wateringSchedule[0].status, 'snoozed');
   assert.equal(snoozedAlerts.length, 0);
 
   console.log('operationRunner tests passed');

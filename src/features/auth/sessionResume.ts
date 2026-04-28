@@ -1,7 +1,7 @@
 import { routePaths } from '../../shared/lib/routes';
 import { readStorageValue, writeStorageValue } from '../../shared/lib/storage';
 
-const lastAppRouteKey = 'secret-faede.auth.last-app-route.v1';
+const lastAppRouteKey = 'secret-faeries.auth.last-app-route.v1';
 
 type ReturnState = {
   returnTo?: unknown;

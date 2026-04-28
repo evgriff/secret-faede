@@ -54,10 +54,10 @@ const environment: AppEnvironment = {
   firebaseConfig: {
     apiKey: 'api-key',
     appId: 'app-id',
-    authDomain: 'secret-faede.firebaseapp.com',
+    authDomain: 'your-project-id.firebaseapp.com',
     messagingSenderId: 'sender-id',
-    projectId: 'secret-faede',
-    storageBucket: 'secret-faede.appspot.com',
+    projectId: 'secret-faeries',
+    storageBucket: 'example-garden-app.appspot.com',
   },
   firestoreEmulatorPort: 8080,
   functionsEmulatorPort: 5001,

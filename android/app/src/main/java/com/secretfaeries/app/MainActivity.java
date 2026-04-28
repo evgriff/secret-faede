@@ -1,4 +1,4 @@
-package com.secretfaede.app;
+package com.secretfaeries.app;
 
 import com.getcapacitor.BridgeActivity;
 

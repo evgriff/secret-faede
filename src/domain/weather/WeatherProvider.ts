@@ -40,6 +40,17 @@ export interface WeatherForecastDay {
   expectedRainIn: number;
   highF: number | null;
   precipitationChancePercent: number | null;
+  rainAmountSource?: 'none' | 'quantitativePrecipitation' | undefined;
+  rainLikely?: boolean | undefined;
+  rainSignalSource?:
+    | 'forecastText'
+    | 'probabilityOfPrecipitation'
+    | 'quantitativePrecipitation'
+    | null
+    | undefined;
+  rainSummary?: string | null | undefined;
+  rainWindowEndIso?: string | null | undefined;
+  rainWindowStartIso?: string | null | undefined;
 }
 
 export interface WeatherForecast {

@@ -875,7 +875,13 @@ export function parseTask(value: unknown): Task | null {
 
   return {
     bedLabel: readNullableString(value.bedLabel),
+    completedByDisplayName: readNullableString(value.completedByDisplayName),
+    completedByEmail: readNullableString(value.completedByEmail),
+    completedByUserId: readNullableString(value.completedByUserId),
     completedAtIso: readNullableString(value.completedAtIso),
+    createdByDisplayName: readNullableString(value.createdByDisplayName),
+    createdByEmail: readNullableString(value.createdByEmail),
+    createdByUserId: readNullableString(value.createdByUserId),
     createdAtIso: readString(value.createdAtIso, ''),
     ...(delayReason ? { delayReason } : {}),
     ...(delaySetAtIso ? { delaySetAtIso } : {}),
@@ -936,6 +942,9 @@ export function parseJournalEntry(value: unknown): JournalEntry | null {
 
   return {
     body: readString(value.body),
+    createdByDisplayName: readNullableString(value.createdByDisplayName),
+    createdByEmail: readNullableString(value.createdByEmail),
+    createdByUserId: readNullableString(value.createdByUserId),
     createdAtIso: readString(value.createdAtIso, ''),
     gardenId: readString(value.gardenId),
     id: value.id,
@@ -1004,6 +1013,9 @@ export function parseHarvestEvent(value: unknown): HarvestEvent | null {
   return {
     amountText: readString(value.amountText),
     cropId: readNullableString(value.cropId),
+    createdByDisplayName: readNullableString(value.createdByDisplayName),
+    createdByEmail: readNullableString(value.createdByEmail),
+    createdByUserId: readNullableString(value.createdByUserId),
     gardenId: readString(value.gardenId),
     harvestedOn: readString(value.harvestedOn),
     id: value.id,
@@ -1526,6 +1538,21 @@ function parseWeatherSnapshotForecastDay(
     precipitationChancePercent: readNullableNumber(
       value.precipitationChancePercent,
     ),
+    rainAmountSource: readStringUnion(
+      value.rainAmountSource,
+      ['none', 'quantitativePrecipitation'] as const,
+      'none',
+    ),
+    rainLikely:
+      typeof value.rainLikely === 'boolean' ? value.rainLikely : false,
+    rainSignalSource: readNullableStringUnion(value.rainSignalSource, [
+      'forecastText',
+      'probabilityOfPrecipitation',
+      'quantitativePrecipitation',
+    ] as const),
+    rainSummary: readNullableString(value.rainSummary),
+    rainWindowEndIso: readNullableString(value.rainWindowEndIso),
+    rainWindowStartIso: readNullableString(value.rainWindowStartIso),
   };
 }
 
@@ -1671,8 +1698,83 @@ export function parseWateringScheduleEntry(
       ['high', 'low', 'medium', 'none'] as const,
       'none',
     ),
+    waterBalance: parseWaterBalanceMetadata(value.waterBalance),
     wateringZoneId,
     weatherSnapshotId: readNullableString(value.weatherSnapshotId),
+  };
+}
+
+function parseWaterBalanceMetadata(
+  value: unknown,
+): WateringScheduleEntry['waterBalance'] {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    actionableDeficitInches: Math.max(
+      readNumber(value.actionableDeficitInches, 0),
+      0,
+    ),
+    allowedDepletionInches: Math.max(
+      readNumber(value.allowedDepletionInches, 0),
+      0,
+    ),
+    baselineDate: readString(value.baselineDate),
+    baselineSource: readStringUnion(
+      value.baselineSource,
+      [
+        'fallbackWeatherWindow',
+        'manualWatering',
+        'plantingEvent',
+        'plantingRecord',
+      ] as const,
+      'fallbackWeatherWindow',
+    ),
+    currentDepletionInches: Math.max(
+      readNumber(value.currentDepletionInches, 0),
+      0,
+    ),
+    dailyNeedInches: Math.max(readNumber(value.dailyNeedInches, 0), 0),
+    effectiveDeficitInches: Math.max(
+      readNumber(value.effectiveDeficitInches, 0),
+      0,
+    ),
+    forecastCreditInches: Math.max(
+      readNumber(value.forecastCreditInches, 0),
+      0,
+    ),
+    manualWaterCreditInches: Math.max(
+      readNumber(value.manualWaterCreditInches, 0),
+      0,
+    ),
+    modelVersion: readString(value.modelVersion, 'water-balance-v1'),
+    nextCheckReason: readString(value.nextCheckReason),
+    observedRainCreditInches: Math.max(
+      readNumber(
+        value.observedRainCreditInches,
+        readNumber(value.recentRainCreditInches, 0),
+      ),
+      0,
+    ),
+    plantingWaterCreditInches: Math.max(
+      readNumber(value.plantingWaterCreditInches, 0),
+      0,
+    ),
+    recentRainCreditInches: Math.max(
+      readNumber(value.recentRainCreditInches, 0),
+      0,
+    ),
+    rootZoneCapacityInches: Math.max(
+      readNumber(value.rootZoneCapacityInches, 0),
+      0,
+    ),
+    rootZoneCapacitySource: readStringUnion(
+      value.rootZoneCapacitySource,
+      ['estimated', 'fallback'] as const,
+      'fallback',
+    ),
+    thresholdInches: Math.max(readNumber(value.thresholdInches, 0), 0),
   };
 }
 

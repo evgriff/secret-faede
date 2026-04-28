@@ -100,6 +100,22 @@ export function useLogController() {
     setLoadStatus('loading');
     setError(null);
 
+    const applyWorkspace = (
+      workspace: Awaited<ReturnType<typeof gardenRepository.getWorkspace>>,
+    ) => {
+      if (!active) {
+        return;
+      }
+
+      setGarden(workspace.draft.garden ?? createDefaultGarden(userId));
+      setRevisions(workspace.revisions);
+      setLoadStatus('ready');
+    };
+    const unsubscribe = gardenRepository.subscribeWorkspace(
+      userId,
+      applyWorkspace,
+    );
+
     void gardenRepository
       .getWorkspace(userId)
       .then((workspace) => {
@@ -107,9 +123,7 @@ export function useLogController() {
           return;
         }
 
-        setGarden(workspace.draft.garden ?? createDefaultGarden(userId));
-        setRevisions(workspace.revisions);
-        setLoadStatus('ready');
+        applyWorkspace(workspace);
       })
       .catch((loadError: unknown) => {
         if (!active) {
@@ -122,6 +136,7 @@ export function useLogController() {
 
     return () => {
       active = false;
+      unsubscribe();
     };
   }, [gardenRepository, state.user?.uid]);
 
@@ -156,6 +171,12 @@ export function useLogController() {
     let gardenToSave = updatedGarden;
     const authUser = state.user;
 
+    if (!garden || !authUser?.email) {
+      setError('Sign in before saving feed activity.');
+      setSaveStatus('error');
+      return false;
+    }
+
     if (options.refreshWateringFromSnapshot && authUser?.email) {
       const profile = await userProfileRepository
         .getUserProfile(authUser.uid, authUser.email)
@@ -172,7 +193,17 @@ export function useLogController() {
 
     try {
       const wasOffline = isBrowserOffline();
-      await gardenRepository.saveGarden(gardenToSave);
+      const savedGarden = await gardenRepository.saveSharedOperations({
+        actor: {
+          displayName: authUser.displayName,
+          email: authUser.email,
+          userId: authUser.uid,
+        },
+        baseGarden: garden,
+        updatedGarden: gardenToSave,
+        userId: authUser.uid,
+      });
+      setGarden(savedGarden);
       setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
       return true;
     } catch (saveError) {
@@ -226,7 +257,7 @@ export function useLogController() {
                 entryId,
                 file,
                 gardenId: garden.id,
-                userId: garden.userId,
+                userId: state.user?.uid ?? garden.userId,
               }),
             ),
           )

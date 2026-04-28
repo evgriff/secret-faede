@@ -9,7 +9,7 @@ export function NotFoundPage() {
         <p className="pageLead">Not found</p>
         <h1 className="pageTitle">That route does not exist.</h1>
         <p className="pageLead">
-          Secret Faede only has sign-in, access denied, and the authenticated
+          Secret Faeries only has sign-in, access denied, and the authenticated
           garden workspace.
         </p>
         <Link className="inkLink" to={routePaths.root}>

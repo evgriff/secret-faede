@@ -20,8 +20,8 @@ export default defineConfig(({ mode }) => {
                 'mask-icon.svg',
               ],
               manifest: {
-                name: 'Secret Faede',
-                short_name: 'Faede',
+                name: 'Secret Faeries',
+                short_name: 'Faeries',
                 description:
                   'A field-ready garden planner for plot edits, tasks, journal notes, and harvest logs.',
                 theme_color: '#fffdf7',
@@ -97,7 +97,7 @@ export default defineConfig(({ mode }) => {
                     urlPattern: /\.(?:ico|png|svg)$/,
                     handler: 'CacheFirst',
                     options: {
-                      cacheName: 'secret-faede-app-assets',
+                      cacheName: 'secret-faeries-app-assets',
                       expiration: {
                         maxAgeSeconds: 60 * 60 * 24 * 30,
                         maxEntries: 48,

@@ -31,6 +31,7 @@ describe('logFeedItems', () => {
       ]),
     );
     expect(items.find((item) => item.type === 'issue')).toMatchObject({
+      authorLabel: 'Partner Gardener',
       cropId: 'tomato',
       targetLabel: 'Tomato',
     });
@@ -96,6 +97,9 @@ function createFeedGarden(): Garden {
     journalEntries: [
       {
         body: 'Aphids on tomato leaves.',
+        createdByDisplayName: 'Partner Gardener',
+        createdByEmail: 'partner.gardener@example.com',
+        createdByUserId: 'user-emma',
         createdAtIso: '2026-07-01T12:00:00.000Z',
         gardenId: 'user-a',
         id: 'issue-1',

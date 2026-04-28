@@ -6,8 +6,8 @@ service firebase.storage {
       return request.auth != null
         && request.auth.token.keys().hasAny(['gardenAccess'])
         && request.auth.token.gardenAccess == true
-        && request.auth.token.keys().hasAny(['secretFaedeMember'])
-        && request.auth.token.secretFaedeMember == true;
+        && request.auth.token.keys().hasAny(['secretFaeriesMember'])
+        && request.auth.token.secretFaeriesMember == true;
     }
 
     function isOwner(userId) {
@@ -19,6 +19,14 @@ service firebase.storage {
       allow read: if isOwner(userId);
 
       allow write: if isOwner(userId)
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    match /gardenWorkspaces/main/journal/{allPaths=**} {
+      allow read: if hasGardenAccess();
+
+      allow write: if hasGardenAccess()
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }

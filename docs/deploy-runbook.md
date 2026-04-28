@@ -39,7 +39,7 @@ Functions, FCM web/native push, and optional Capacitor shells.
    - `<project>.web.app`
    - the final custom domain
    - any preview domain intentionally used with live Firebase
-5. Do not enable or link a public sign-up surface in Secret Faede.
+5. Do not enable or link a public sign-up surface in Secret Faeries.
 
 The client allowlist is a UX gate only. Firestore, Storage, and callable
 Functions require custom claims:
@@ -47,7 +47,7 @@ Functions require custom claims:
 ```json
 {
   "gardenAccess": true,
-  "secretFaedeMember": true
+  "secretFaeriesMember": true
 }
 ```
 
@@ -136,14 +136,14 @@ The web/PWA release does not require native stores. If using the Capacitor shell
 
 1. Run `npm run mobile:sync` after the final web build.
 2. iOS:
-   - Register bundle id `com.secretfaede.app` or the final replacement.
+   - Register bundle id `com.secretfaeries.app` or the final replacement.
    - Enable Push Notifications.
    - Upload an APNs auth key to Firebase Cloud Messaging.
    - Add `GoogleService-Info.plist` to `ios/App/App/` and the Xcode target.
    - Confirm `ios/App/PrivacyInfo.xcprivacy` is in the target before App Store
      submission.
 3. Android:
-   - Create the Google Play app/package `com.secretfaede.app` or final
+   - Create the Google Play app/package `com.secretfaeries.app` or final
      replacement.
    - Configure Play App Signing or a release keystore outside the repo.
    - Add `android/app/google-services.json`.

@@ -20,10 +20,10 @@ admin.initializeApp();
 const db = admin.firestore();
 const messaging = admin.messaging();
 
-function hasSecretFaedeAccess(auth) {
+function hasSecretFaeriesAccess(auth) {
   return (
     auth?.token?.gardenAccess === true &&
-    auth?.token?.secretFaedeMember === true
+    auth?.token?.secretFaeriesMember === true
   );
 }
 
@@ -70,10 +70,10 @@ exports.refreshGardenOperations = onCall(async (request) => {
     );
   }
 
-  if (!hasSecretFaedeAccess(request.auth)) {
+  if (!hasSecretFaeriesAccess(request.auth)) {
     throw new HttpsError(
       'permission-denied',
-      'This account is not provisioned for Secret Faede.',
+      'This account is not provisioned for Secret Faeries.',
     );
   }
 
@@ -417,20 +417,16 @@ async function writeNotificationLog(log, uid, garden, extra = {}) {
   await db
     .collection('gardenWorkspaces')
     .doc('main')
-    .collection('drafts')
-    .doc(uid)
-    .set(
-      {
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAtIso: payload.createdAtIso,
-        userId: uid,
-        garden: {
-          notificationLogs: nextLogs,
-          updatedAtIso: payload.createdAtIso,
-        },
-      },
-      { merge: true },
-    );
+    .collection('notifications')
+    .doc(payload.id)
+    .set(payload);
+  await db.collection('gardenWorkspaces').doc('main').set(
+    {
+      sharedOperationsUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      sharedOperationsUpdatedAtIso: payload.createdAtIso,
+    },
+    { merge: true },
+  );
 }
 
 function wasRecentlyLogged({ body, dedupeKey = null, garden, now, type }) {

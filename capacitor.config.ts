@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.secretfaede.app',
-  appName: 'Secret Faede',
+  appId: 'com.secretfaeries.app',
+  appName: 'Secret Faeries',
   webDir: 'dist',
   plugins: {
     PushNotifications: {

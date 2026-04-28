@@ -11,7 +11,7 @@ import './styles/utilities.css';
 const root = createRoot(document.getElementById('root')!);
 
 void bootstrap().catch((error: unknown) => {
-  console.error('Unable to start Secret Faede', error);
+  console.error('Unable to start Secret Faeries', error);
   root.render(
     <div className="pageShell" role="alert">
       <h1 className="pageTitle">Unable to start the app.</h1>

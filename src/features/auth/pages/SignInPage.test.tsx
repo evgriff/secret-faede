@@ -85,7 +85,7 @@ describe('SignInPage', () => {
     await user.click(screen.getByRole('button', { name: 'Reset password' }));
 
     expect(
-      await screen.findByText('This email is not allowed for Secret Faede.'),
+      await screen.findByText('This email is not allowed for Secret Faeries.'),
     ).toBeVisible();
 
     await user.clear(screen.getByLabelText('Email'));

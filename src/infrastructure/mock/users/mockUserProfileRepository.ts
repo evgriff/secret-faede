@@ -26,5 +26,5 @@ export class MockUserProfileRepository implements UserProfileRepository {
 }
 
 function getUserProfileStorageKey(uid: string) {
-  return `secret-faede.user-profile.v1:${encodeURIComponent(uid)}`;
+  return `secret-faeries.user-profile.v1:${encodeURIComponent(uid)}`;
 }

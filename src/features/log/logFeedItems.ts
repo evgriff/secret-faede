@@ -20,6 +20,7 @@ export type LogFeedItemType =
   | 'watering';
 
 export interface LogFeedItem {
+  authorLabel: string | null;
   bedId: string | null;
   body: string;
   cropId: string | null;
@@ -104,6 +105,7 @@ export function filterLogFeedItems(
           item.body,
           item.meta.join(' '),
           item.targetLabel,
+          item.authorLabel ?? '',
           item.title,
           item.type,
         ].join(' '),
@@ -163,6 +165,7 @@ function createJournalFeedItem(
 
   return {
     bedId: planting ? getPlantingBedId(garden, planting.id) : entry.structureId,
+    authorLabel: getAuthorLabel(entry),
     body: entry.body,
     cropId: planting?.cropId ?? null,
     date: entry.occurredOn,
@@ -196,6 +199,7 @@ function createHarvestFeedItem(
 
   return {
     bedId: planting ? getPlantingBedId(garden, planting.id) : null,
+    authorLabel: getAuthorLabel(harvest),
     body: harvest.notes,
     cropId: harvest.cropId,
     date: harvest.harvestedOn,
@@ -222,6 +226,7 @@ function createTaskFeedItem(garden: Garden, task: Task): LogFeedItem {
     bedId:
       task.structureId ??
       (planting ? getPlantingBedId(garden, planting.id) : null),
+    authorLabel: getTaskAuthorLabel(task),
     body: task.notes,
     cropId: planting?.cropId ?? null,
     date:
@@ -248,6 +253,7 @@ function createTaskFeedItem(garden: Garden, task: Task): LogFeedItem {
 function createPublishFeedItem(revision: PublishedGardenRevision): LogFeedItem {
   return {
     bedId: null,
+    authorLabel: getEmailLabel(revision.publishedByEmail),
     body: revision.changesetSummary.summaryItems.join(', '),
     cropId: null,
     date: revision.publishedAtIso.slice(0, 10),
@@ -262,6 +268,30 @@ function createPublishFeedItem(revision: PublishedGardenRevision): LogFeedItem {
     title: revision.action === 'revert' ? 'Published revert' : 'Published plan',
     type: 'publish',
   };
+}
+
+function getAuthorLabel(value: {
+  createdByDisplayName?: string | null;
+  createdByEmail?: string | null;
+}) {
+  return value.createdByDisplayName || getEmailLabel(value.createdByEmail);
+}
+
+function getTaskAuthorLabel(task: Task) {
+  return (
+    task.completedByDisplayName ||
+    getEmailLabel(task.completedByEmail) ||
+    task.createdByDisplayName ||
+    getEmailLabel(task.createdByEmail)
+  );
+}
+
+function getEmailLabel(email: string | null | undefined) {
+  if (!email) {
+    return null;
+  }
+
+  return email.split('@')[0] || email;
 }
 
 function getJournalFeedType(entry: JournalEntry): LogFeedItemType {

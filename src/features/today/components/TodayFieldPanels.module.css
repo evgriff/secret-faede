@@ -127,9 +127,14 @@
 
 .weatherNextDay,
 .weatherRisk,
+.weatherWeekRain,
 .weatherWatering,
 .weatherObserved {
   min-width: 0;
+}
+
+.weatherWeekRain {
+  grid-column: 1 / -1;
 }
 
 .miniCard small,

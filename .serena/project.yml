@@ -1,6 +1,6 @@
 # Project configuration for Serena.
 # See https://oraios.github.io/serena/02-usage/040_workflow.html
-project_name: 'secret-faede'
+project_name: 'secret-faeries'
 
 languages: ['typescript']
 encoding: 'utf-8'
@@ -28,7 +28,7 @@ base_modes:
 default_modes:
 
 initial_prompt: |
-  Secret Faede is a small, functionality-first garden plot planner and garden operations app.
+  Secret Faeries is a small, functionality-first garden plot planner and garden operations app.
   Preserve password auth for the two provisioned accounts, one shared published garden workspace, and private per-user drafts.
   Keep product scope centered on the real plot editor and practical operations; do not add dashboards, charts, maps, collaboration, lore, AI, carrier messaging, or onboarding flows.
   Keep seams explicit: AuthService owns auth, GardenRepository owns garden persistence, and UserProfileRepository owns profile preferences.

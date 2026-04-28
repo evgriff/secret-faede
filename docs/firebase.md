@@ -142,6 +142,12 @@ users/{uid}/pushTokens/{tokenId}
 gardenWorkspaces/main
 gardenWorkspaces/main/drafts/{uid}
 gardenWorkspaces/main/revisions/{revisionId}
+gardenWorkspaces/main/journal/{entryId}
+gardenWorkspaces/main/harvests/{harvestId}
+gardenWorkspaces/main/tasks/{taskId}
+gardenWorkspaces/main/wateringSchedule/{entryId}
+gardenWorkspaces/main/weatherSnapshots/{snapshotId}
+gardenWorkspaces/main/notifications/{notificationId}
 gardens/{uid}
 gardens/{uid}/structures/{structureId}
 gardens/{uid}/plantings/{plantingId}
@@ -155,8 +161,10 @@ catalog/{cropId}
 `gardenWorkspaces/main` is the current published revision.
 `gardenWorkspaces/main/drafts/{uid}` is the user's private draft with
 `baseRevisionId`. `gardenWorkspaces/main/revisions/{revisionId}` stores
-published history for revert. `gardens/{uid}` remains a migration source for
-older saved gardens and seed data.
+published history for revert. Feed and Today operations live in the shared
+workspace subcollections so both provisioned users see activity immediately
+without publishing private Plan drafts. `gardens/{uid}` remains a migration
+source for older saved gardens and seed data.
 
 Garden document shape:
 
@@ -192,10 +200,16 @@ Sun/shade layers are stored on the garden document under `sunShadeLayers`.
 Generated and manually overridden cells use feet-based `xFt`, `yFt`, `widthFt`,
 and `depthFt` values; raw pixels are never persisted.
 
-Weather snapshots and water recommendations are currently stored on the garden
-document under `weatherSnapshots` and `waterRecommendations`. Recommendations
-store target entity, deficit, recommended watering amount, urgency, rationale,
-suppress-until time, and status.
+Weather snapshots and watering schedule entries are stored on the garden
+document under `weatherSnapshots` and `wateringSchedule`. Schedule entries
+store target entity, current root-zone depletion, actionable watering amount,
+urgency, rationale, suppress-until time, status, and optional `waterBalance`
+metadata. Legacy `waterRecommendations` records still parse into
+`wateringSchedule` for compatibility. Snapshot forecast days may also include
+optional direct NWS rain metadata (`rainLikely`, `rainSignalSource`,
+`rainSummary`, `rainWindowStartIso`, `rainWindowEndIso`, and
+`rainAmountSource`). `expectedRainIn` remains quantitative QPF only; probability
+and text signals are qualitative context, not stored rain credit.
 
 Tasks are stored in `gardens/{uid}/tasks/{taskId}`. Generated task ids are
 stable and source-linked, so completed/skipped work is not duplicated on the next
@@ -203,10 +217,11 @@ schedule sync. Task records include bed label, due date, type, source, source
 id, priority, snoozed/deferred dates, completion timestamp, and related planting
 or structure ids.
 
-Journal entries are stored in `gardens/{uid}/journal/{entryId}`. Entries can
-target the whole garden, one structure/bed, or one planting. Issue entries add
-category, severity, and status fields. Photo attachments store metadata on the
-journal entry while the image binary is stored in Firebase Storage.
+Journal entries are stored in `gardenWorkspaces/main/journal/{entryId}`.
+Entries can target the whole garden, one structure/bed, or one planting. Issue
+entries add category, severity, status, and poster metadata. Photo attachments
+store metadata on the journal entry while the image binary is stored in Firebase
+Storage under `gardenWorkspaces/main/journal/...`.
 
 Harvest events are stored in `gardens/{uid}/harvests/{harvestId}`. Harvests can
 attach to plantings and support count, pounds, ounces, bunches, or freeform
@@ -247,7 +262,7 @@ Offline behavior:
   collections. Firebase Storage photo uploads still require network access.
 
 Rules require the signed-in user to carry Firebase Auth custom claims
-`gardenAccess: true` and `secretFaedeMember: true`. Members can read and write
+`gardenAccess: true` and `secretFaeriesMember: true`. Members can read and write
 the shared published workspace and revision history. Users can only read and
 write their own draft document, their own `users/{uid}` profile paths, and
 legacy `gardens/{uid}` paths. Authenticated garden members can read
@@ -258,13 +273,14 @@ legacy `gardens/{uid}` paths. Authenticated garden members can read
 Journal photos use Firebase Storage path:
 
 ```text
-users/{uid}/journal/{entryId}/{photoId}-{fileName}
+gardenWorkspaces/main/journal/{entryId}/{photoId}-{fileName}
 ```
 
-`storage.rules` allows only the matching authenticated user with
-`gardenAccess: true` and `secretFaedeMember: true` to read or write under their
-own `users/{uid}/journal/...` prefix. Writes are limited to image content types
-under 10 MB.
+`storage.rules` allows any authenticated member with `gardenAccess: true` and
+`secretFaeriesMember: true` to read or write shared journal images under
+`gardenWorkspaces/main/journal/...`. Writes are limited to image content types
+under 10 MB. The legacy `users/{uid}/journal/...` prefix remains readable and
+writable only by the owning user for old attachments.
 
 In mock mode, `MockMediaStorageService` stores photo attachments as data URLs in
 the saved journal entry metadata. In Firebase emulator mode, Storage connects to
@@ -309,7 +325,7 @@ environment variables:
 - `APP_LOGIN_PARTNER_TEMP_PASSWORD`
 
 It assigns display names `Primary Gardener` and `Partner Gardener`, verifies email, enables the
-accounts, and sets `gardenAccess: true` plus `secretFaedeMember: true`. Existing
+accounts, and sets `gardenAccess: true` plus `secretFaeriesMember: true`. Existing
 user passwords are not overwritten unless `-- --reset-passwords` is passed. Use
 `npm run auth:seed-users -- --dry-run` before writing to a live project.
 

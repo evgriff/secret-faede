@@ -23,6 +23,12 @@ interface GridPrecipitationValue {
   valueIn: number;
 }
 
+interface GridProbabilityValue {
+  end: Date;
+  start: Date;
+  valuePercent: number;
+}
+
 interface NwsPointMetadata {
   forecast: string | null;
   forecastGridData: string | null;
@@ -83,6 +89,10 @@ export class NationalWeatherServiceProvider implements WeatherProvider {
     const dailyPeriods = parseForecastPeriods(forecast);
     const periods = parseHourlyForecastPeriods(hourly);
     const qpfValues = parseGridValues(grid, 'quantitativePrecipitation');
+    const probabilityValues = parseGridProbabilityValues(
+      grid,
+      'probabilityOfPrecipitation',
+    );
     const now = new Date();
     const in24h = addHours(now, 24);
     const in48h = addHours(now, 48);
@@ -91,10 +101,12 @@ export class NationalWeatherServiceProvider implements WeatherProvider {
     const days = buildForecastDays(
       dailyPeriods.length > 0 ? dailyPeriods : periods,
       qpfValues,
+      probabilityValues,
       location.timezone,
     );
     const nextRainIso =
       findNextGridRainIso(qpfValues, now) ??
+      findNextProbabilityRainIso(probabilityValues, now) ??
       findNextLikelyRainIso(periods, now);
 
     return {
@@ -342,6 +354,35 @@ function parseGridValues(
   });
 }
 
+function parseGridProbabilityValues(
+  payload: unknown,
+  propertyName: string,
+): GridProbabilityValue[] {
+  const property = asRecord(
+    asRecord(asRecord(payload)?.properties)?.[propertyName],
+  );
+  const values = asArray(property?.values);
+
+  return values.flatMap((entry): GridProbabilityValue[] => {
+    const record = asRecord(entry);
+    const validTime = readStringOrNull(record?.validTime);
+    const valuePercent = readNumberOrNull(record?.value);
+    const interval = validTime ? parseValidTime(validTime) : null;
+
+    if (!interval || valuePercent === null) {
+      return [];
+    }
+
+    return [
+      {
+        end: interval.end,
+        start: interval.start,
+        valuePercent: Math.max(Math.min(valuePercent, 100), 0),
+      },
+    ];
+  });
+}
+
 function sumGridPrecipitation(
   values: GridPrecipitationValue[],
   start: Date,
@@ -362,15 +403,23 @@ function sumGridPrecipitation(
 function buildForecastDays(
   periods: WeatherForecastPeriod[],
   qpfValues: GridPrecipitationValue[],
+  probabilityValues: GridProbabilityValue[],
   timezone: string,
 ): WeatherForecastDay[] {
   const rainByDate = allocateGridPrecipitationByLocalDate(qpfValues, timezone);
+  const probabilityByDate = allocateGridProbabilityByLocalDate(
+    probabilityValues,
+    timezone,
+  );
   const days = new Map<
     string,
     {
       firstSummary: string | null;
       highF: number | null;
       precipitationChancePercent: number | null;
+      rainPeriodEndIso: string | null;
+      rainPeriodStartIso: string | null;
+      rainTextLikely: boolean;
       preferredSummary: string | null;
     }
   >();
@@ -387,6 +436,9 @@ function buildForecastDays(
       firstSummary: null,
       highF: null,
       precipitationChancePercent: null,
+      rainPeriodEndIso: null,
+      rainPeriodStartIso: null,
+      rainTextLikely: false,
       preferredSummary: null,
     };
 
@@ -414,31 +466,87 @@ function buildForecastDays(
               current.precipitationChancePercent,
               period.precipitationChancePercent,
             );
+    if (isRainForecast(period.shortForecast)) {
+      current.rainTextLikely = true;
+      current.rainPeriodStartIso ??= period.startIso;
+      current.rainPeriodEndIso = period.endIso;
+    }
     days.set(date, current);
   });
 
-  rainByDate.forEach((_rain, date) => {
-    if (!days.has(date)) {
-      days.set(date, {
-        firstSummary: null,
-        highF: null,
-        precipitationChancePercent: null,
-        preferredSummary: null,
-      });
-    }
-  });
+  new Set([...rainByDate.keys(), ...probabilityByDate.keys()]).forEach(
+    (date) => {
+      if (!days.has(date)) {
+        days.set(date, {
+          firstSummary: null,
+          highF: null,
+          precipitationChancePercent: null,
+          rainPeriodEndIso: null,
+          rainPeriodStartIso: null,
+          rainTextLikely: false,
+          preferredSummary: null,
+        });
+      }
+    },
+  );
 
   return [...days.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
     .slice(0, 14)
-    .map(([date, day]) => ({
-      conditionSummary:
-        day.preferredSummary ?? day.firstSummary ?? 'NWS forecast',
-      date,
-      expectedRainIn: roundTo(rainByDate.get(date) ?? 0, 2),
-      highF: day.highF,
-      precipitationChancePercent: day.precipitationChancePercent,
-    }));
+    .map(([date, day]) => {
+      const expectedRainIn = roundTo(rainByDate.get(date) ?? 0, 2);
+      const probabilitySignal = probabilityByDate.get(date);
+      const maxChance =
+        probabilitySignal?.maxChancePercent ??
+        day.precipitationChancePercent ??
+        null;
+      const rainFromProbability =
+        (probabilitySignal?.maxChancePercent ?? 0) >= 50;
+      const rainFromText =
+        day.rainTextLikely && (day.precipitationChancePercent ?? 0) >= 30;
+      const hasQuantitativeRain = expectedRainIn >= 0.01;
+      const rainLikely =
+        hasQuantitativeRain || rainFromProbability || rainFromText;
+      const signalSource: WeatherForecastDay['rainSignalSource'] =
+        hasQuantitativeRain
+          ? 'quantitativePrecipitation'
+          : rainFromProbability
+            ? 'probabilityOfPrecipitation'
+            : rainFromText
+              ? 'forecastText'
+              : null;
+      const quantitativeWindow = hasQuantitativeRain
+        ? findFirstGridRainWindowIso(qpfValues, date, timezone)
+        : null;
+      const rainWindowStartIso = hasQuantitativeRain
+        ? quantitativeWindow?.startIso
+        : (probabilitySignal?.startIso ?? day.rainPeriodStartIso);
+      const rainWindowEndIso = hasQuantitativeRain
+        ? quantitativeWindow?.endIso
+        : (probabilitySignal?.endIso ?? day.rainPeriodEndIso);
+
+      return {
+        conditionSummary:
+          day.preferredSummary ?? day.firstSummary ?? 'NWS forecast',
+        date,
+        expectedRainIn,
+        highF: day.highF,
+        precipitationChancePercent: maxChance,
+        rainAmountSource: hasQuantitativeRain
+          ? ('quantitativePrecipitation' as const)
+          : ('none' as const),
+        rainLikely,
+        rainSignalSource: signalSource,
+        rainSummary: buildRainSignalSummary({
+          expectedRainIn,
+          maxChance,
+          rainLikely,
+          signalSource,
+        }),
+        rainWindowEndIso,
+        rainWindowStartIso,
+      };
+    });
 }
 
 function allocateGridPrecipitationByLocalDate(
@@ -472,25 +580,123 @@ function allocateGridPrecipitationByLocalDate(
   );
 }
 
+function allocateGridProbabilityByLocalDate(
+  values: GridProbabilityValue[],
+  timezone: string,
+) {
+  const signals = new Map<
+    string,
+    { endIso: string; maxChancePercent: number; startIso: string }
+  >();
+
+  values.forEach((value) => {
+    if (value.valuePercent < 1 || value.end <= value.start) {
+      return;
+    }
+
+    let cursor = value.start;
+
+    while (cursor < value.end) {
+      const date = formatLocalDate(cursor, timezone);
+      const segmentEnd = findNextLocalDateBoundary(cursor, value.end, timezone);
+      const current = signals.get(date);
+
+      if (!current || value.valuePercent > current.maxChancePercent) {
+        signals.set(date, {
+          endIso: segmentEnd.toISOString(),
+          maxChancePercent: Math.round(value.valuePercent),
+          startIso: cursor.toISOString(),
+        });
+      }
+
+      cursor = segmentEnd;
+    }
+  });
+
+  return signals;
+}
+
 function findNextGridRainIso(values: GridPrecipitationValue[], now: Date) {
-  return (
-    values
-      .find((value) => value.start >= now && value.valueIn >= 0.01)
-      ?.start.toISOString() ?? null
+  const next = values.find((value) => value.end > now && value.valueIn >= 0.01);
+
+  return next
+    ? new Date(Math.max(next.start.getTime(), now.getTime())).toISOString()
+    : null;
+}
+
+function findNextProbabilityRainIso(values: GridProbabilityValue[], now: Date) {
+  const next = values.find(
+    (value) => value.end > now && value.valuePercent >= 50,
   );
+
+  return next
+    ? new Date(Math.max(next.start.getTime(), now.getTime())).toISOString()
+    : null;
 }
 
 function findNextLikelyRainIso(periods: WeatherForecastPeriod[], now: Date) {
-  return (
-    periods.find((period) => {
-      const start = new Date(period.startIso);
-      return (
-        start >= now &&
-        (period.precipitationChancePercent ?? 0) >= 50 &&
-        isRainForecast(period.shortForecast)
-      );
-    })?.startIso ?? null
+  const next = periods.find((period) => {
+    const end = new Date(period.endIso);
+    return (
+      end > now &&
+      (period.precipitationChancePercent ?? 0) >= 50 &&
+      isRainForecast(period.shortForecast)
+    );
+  });
+
+  if (!next) {
+    return null;
+  }
+
+  const start = new Date(next.startIso);
+  return new Date(Math.max(start.getTime(), now.getTime())).toISOString();
+}
+
+function findFirstGridRainWindowIso(
+  values: GridPrecipitationValue[],
+  date: string,
+  timezone: string,
+) {
+  const value = values.find(
+    (entry) =>
+      entry.valueIn >= 0.01 &&
+      (formatLocalDate(entry.start, timezone) === date ||
+        formatLocalDate(new Date(entry.end.getTime() - 1), timezone) === date),
   );
+
+  return value
+    ? { endIso: value.end.toISOString(), startIso: value.start.toISOString() }
+    : null;
+}
+
+function buildRainSignalSummary({
+  expectedRainIn,
+  maxChance,
+  rainLikely,
+  signalSource,
+}: {
+  expectedRainIn: number;
+  maxChance: number | null;
+  rainLikely: boolean;
+  signalSource:
+    | 'forecastText'
+    | 'probabilityOfPrecipitation'
+    | 'quantitativePrecipitation'
+    | null;
+}) {
+  if (!rainLikely) {
+    return null;
+  }
+
+  if (signalSource === 'quantitativePrecipitation') {
+    return `NWS QPF shows ${expectedRainIn.toFixed(2)} in expected rain.`;
+  }
+
+  if (maxChance !== null) {
+    return `${maxChance}% rain chance; amount not published by NWS.`;
+  }
+
+  return 'Rain mentioned by NWS; amount not published.';
 }
 
 function maxTemperature(

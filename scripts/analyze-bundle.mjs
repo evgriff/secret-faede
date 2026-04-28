@@ -74,7 +74,7 @@ async function collectAssets(directory) {
 }
 
 async function getGzipSize(path) {
-  const tempPath = join(tmpdir(), `secret-faede-${randomUUID()}.gz`);
+  const tempPath = join(tmpdir(), `secret-faeries-${randomUUID()}.gz`);
 
   try {
     await pipeline(

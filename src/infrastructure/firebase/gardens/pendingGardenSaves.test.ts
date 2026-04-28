@@ -40,6 +40,7 @@ describe('pendingGardenSaves', () => {
       conflictDetectedAtIso: null,
       draftBaseRevisionId: 'revision-a',
       draftUpdatedAtIso: '2026-04-21T12:00:00.000Z',
+      kind: 'draft',
       publishedRevisionId: null,
       schemaVersion: CURRENT_GARDEN_SCHEMA_VERSION,
       userId: 'user-a',

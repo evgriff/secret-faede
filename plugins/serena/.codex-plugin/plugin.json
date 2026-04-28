@@ -1,13 +1,13 @@
 {
   "name": "serena",
-  "version": "0.2.0",
-  "description": "Expose Serena's symbol-aware navigation, targeted read-only discovery, dashboard access, and refactors to Codex for Secret Faede.",
+  "version": "0.2.1",
+  "description": "Expose the project-scoped Serena MCP singleton for symbol-aware navigation, targeted read-only discovery, on-demand dashboard access, and refactors in Secret Faeries.",
   "author": {
-    "name": "Secret Faede",
-    "url": "https://github.com/evgriff/secret-faede"
+    "name": "Secret Faeries",
+    "url": "https://github.com/evgriff/secret-faeries"
   },
   "homepage": "https://oraios.github.io/serena/",
-  "repository": "https://github.com/evgriff/secret-faede.git",
+  "repository": "https://github.com/evgriff/secret-faeries.git",
   "license": "UNLICENSED",
   "keywords": [
     "serena",
@@ -20,9 +20,9 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Serena",
-    "shortDescription": "Use Serena for symbol-aware navigation, targeted reads, dashboard access, and refactors in Secret Faede",
-    "longDescription": "Launch Serena as a repo-local Codex plugin so Codex can use symbol overview, symbol lookup, reference search, read-only project discovery helpers, dashboard access, and symbol-safe refactors while working in Secret Faede.",
-    "developerName": "Secret Faede",
+    "shortDescription": "Use the shared Secret Faeries Serena MCP for symbol-aware navigation, targeted reads, and refactors",
+    "longDescription": "Connect Codex to the project-scoped Secret Faeries Serena MCP singleton so chats in this repo reuse one local Streamable HTTP server for symbol overview, symbol lookup, reference search, read-only discovery helpers, on-demand dashboard access, and symbol-safe refactors.",
+    "developerName": "Secret Faeries",
     "category": "Coding",
     "capabilities": ["Interactive", "Read", "Write"],
     "websiteURL": "https://oraios.github.io/serena/",
@@ -31,8 +31,7 @@
     "defaultPrompt": [
       "Use Serena to map the symbols involved in this feature",
       "Find references for this symbol before editing it",
-      "Use Serena refactors when renaming or rewriting a symbol",
-      "Use Serena's read-only discovery helpers before broad manual file reads"
+      "Use Serena refactors when renaming or rewriting a symbol"
     ],
     "brandColor": "#2563EB",
     "screenshots": []

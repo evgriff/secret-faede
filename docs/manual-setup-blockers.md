@@ -30,7 +30,7 @@ Required:
 
 Only Primary Gardener and Partner Gardener should be provisioned for production. Firestore, Storage, and
 callable Functions require both `gardenAccess: true` and
-`secretFaedeMember: true`. The browser allowlist does not grant data access by
+`secretFaeriesMember: true`. The browser allowlist does not grant data access by
 itself.
 
 Preferred seed flow:
@@ -71,11 +71,11 @@ admin
     admin.auth().setCustomUserClaims(user.uid, {
       ...(user.customClaims || {}),
       gardenAccess: true,
-      secretFaedeMember: true,
+      secretFaeriesMember: true,
     }),
   )
   .then(() => {
-    console.log(`Secret Faede access granted to ${email}`);
+    console.log(`Secret Faeries access granted to ${email}`);
   })
   .finally(() => process.exit());
 NODE
@@ -114,14 +114,14 @@ Required for real FCM registration:
 Required before TestFlight, Google Play testing, or real native push:
 
 1. Apple Developer access:
-   - Register bundle id `com.secretfaede.app` or choose the final replacement.
+   - Register bundle id `com.secretfaeries.app` or choose the final replacement.
    - Enable Push Notifications for the app id.
    - Create or reuse an APNs auth key and upload it in Firebase Cloud Messaging.
    - Add `GoogleService-Info.plist` to `ios/App/App/` and the Xcode app target.
    - Confirm `ios/App/PrivacyInfo.xcprivacy` is included in the target before
      App Store submission.
 2. Google Play / Android access:
-   - Create the Android app with package `com.secretfaede.app` or choose the
+   - Create the Android app with package `com.secretfaeries.app` or choose the
      final replacement.
    - Configure app signing or a release keystore outside the repository.
    - Download `google-services.json` and place it at
@@ -159,7 +159,7 @@ carrier-message code should be treated as scope regression.
 - Live password auth on the production domain with the seeded Primary Gardener and Partner Gardener
   accounts.
 - Live Firestore and Storage access with an allowlisted user who has
-  `gardenAccess: true` and `secretFaedeMember: true`.
+  `gardenAccess: true` and `secretFaeriesMember: true`.
 - Live FCM registration and delivery.
 - Live NWS/Tomorrow weather refresh from a saved garden location.
 - Offline save flush after reconnect in Firebase mode.

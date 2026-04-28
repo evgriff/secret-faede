@@ -1,0 +1,8 @@
+[features]
+codex_hooks = true
+
+[mcp_servers.serena]
+url = "http://127.0.0.1:9127/mcp"
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+enabled = true

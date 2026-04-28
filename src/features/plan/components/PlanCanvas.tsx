@@ -2,6 +2,7 @@ import {
   memo,
   type CSSProperties,
   type PointerEvent,
+  type TouchEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -12,6 +13,7 @@ import { flushSync } from 'react-dom';
 
 import type {
   Garden,
+  GardenPlant,
   Planting,
   SunExposure,
   SunShadeArea,
@@ -65,12 +67,14 @@ export const PlanCanvas = memo(function PlanCanvas({
   onPlantHoverChange,
   onPlantLabelHide,
   onPlantEditorOpen,
+  onUpdatePlanting,
   onInteractionStateChange,
   onSelectItem,
   onShowSunOverlayChange,
   plantingPreview,
   planWarnings,
   proposalDiffOverlay,
+  resizePlantingRect,
   resizeStructureRect,
   selectedItems,
   selectedPlantIds,
@@ -99,6 +103,7 @@ export const PlanCanvas = memo(function PlanCanvas({
   onPlantHoverChange(plantId: string | null): void;
   onPlantLabelHide(plantId: string): void;
   onPlantEditorOpen(plantId: string): void;
+  onUpdatePlanting(id: string, values: Partial<GardenPlant>): void;
   onInteractionStateChange(state: PlanPointerInteractionState | 'pan'): void;
   onSelectItem(
     item: SelectedGardenItem,
@@ -109,6 +114,7 @@ export const PlanCanvas = memo(function PlanCanvas({
   plantingPreview: Planting | null;
   planWarnings: PlanWarning[];
   proposalDiffOverlay: ProposalDiffOverlayModel | null;
+  resizePlantingRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
   resizeStructureRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
   selectedItems: PlanItemRef[];
   selectedPlantIds: string[];
@@ -135,6 +141,7 @@ export const PlanCanvas = memo(function PlanCanvas({
     onCheckpoint,
     onMarqueeSelect,
     onSelectItem,
+    resizePlantingRect,
     resizeStructureRect,
     selectedItems,
     updateItemPositions,
@@ -152,8 +159,13 @@ export const PlanCanvas = memo(function PlanCanvas({
     zoomIn,
     zoomOut,
     zoomState,
+    zoomToPoint,
   } = usePlanCanvasView({ isPanMode });
   const didFitInitialView = useRef(false);
+  const pinchGestureRef = useRef<{
+    distance: number;
+    zoom: number;
+  } | null>(null);
   const immediateWarnings = useMemo(
     () => planWarnings.filter(isCanvasPlanWarning),
     [planWarnings],
@@ -203,6 +215,44 @@ export const PlanCanvas = memo(function PlanCanvas({
       ),
     );
   };
+  function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
+    if (event.touches.length !== 2 || isPointerInteractionActive) {
+      pinchGestureRef.current = null;
+      return;
+    }
+
+    pinchGestureRef.current = {
+      distance: getTouchDistance(event.touches),
+      zoom,
+    };
+  }
+  function handleTouchMove(event: TouchEvent<HTMLDivElement>) {
+    const gesture = pinchGestureRef.current;
+
+    if (!gesture || event.touches.length !== 2) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const distance = getTouchDistance(event.touches);
+    const center = getTouchCenter(event.touches);
+
+    zoomToPoint(
+      readCanvasFitBounds(
+        scrollportRef.current,
+        pointerInteractions.plotRef.current,
+      ),
+      gesture.zoom * (distance / gesture.distance),
+      center,
+    );
+  }
+  function handleTouchEnd(event: TouchEvent<HTMLDivElement>) {
+    if (event.touches.length < 2) {
+      pinchGestureRef.current = null;
+    }
+  }
   const workbenchStyle = useMemo(
     () =>
       ({
@@ -323,6 +373,7 @@ export const PlanCanvas = memo(function PlanCanvas({
     handleMarqueePointerEnd: handleMarqueePointerEndInternal,
     handlePlantPointerDown: handlePlantPointerDownInternal,
     handlePlantPointerEnd: handlePlantPointerEndInternal,
+    handlePlantResizePointerDown: handlePlantResizePointerDownInternal,
     handleResizePointerDown: handleResizePointerDownInternal,
     handleResizePointerEnd: handleResizePointerEndInternal,
     handleStructurePointerDown: handleStructurePointerDownInternal,
@@ -392,6 +443,17 @@ export const PlanCanvas = memo(function PlanCanvas({
     },
     [handleResizePointerDownInternal, syncInteractionState],
   );
+  const handlePlantResizePointerDown = useCallback(
+    (
+      event: PointerEvent<HTMLSpanElement>,
+      plantId: string,
+      handle: Parameters<typeof handlePlantResizePointerDownInternal>[2],
+    ) => {
+      syncInteractionState('press');
+      handlePlantResizePointerDownInternal(event, plantId, handle);
+    },
+    [handlePlantResizePointerDownInternal, syncInteractionState],
+  );
   const handleResizePointerEnd = useCallback(
     (event: PointerEvent<HTMLSpanElement>) => {
       handleResizePointerEndInternal(event);
@@ -438,6 +500,10 @@ export const PlanCanvas = memo(function PlanCanvas({
         onPointerDownCapture={handlePanPointerDownCapture}
         onPointerMove={handlePanPointerMove}
         onPointerUp={handlePanPointerEndCapture}
+        onTouchCancel={handleTouchEnd}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchMove}
+        onTouchStart={handleTouchStart}
         onWheel={(event) => {
           if (isPointerInteractionActive) {
             event.preventDefault();
@@ -445,7 +511,13 @@ export const PlanCanvas = memo(function PlanCanvas({
             return;
           }
 
-          handleViewportWheel(event);
+          handleViewportWheel(
+            event,
+            readCanvasFitBounds(
+              scrollportRef.current,
+              pointerInteractions.plotRef.current,
+            ),
+          );
         }}
         ref={scrollportRef}
       >
@@ -473,6 +545,8 @@ export const PlanCanvas = memo(function PlanCanvas({
           onPlantPointerDown={handlePlantPointerDown}
           onPlantPointerEnd={handlePlantPointerEnd}
           onPlantPointerMove={pointerInteractions.handlePlantPointerMove}
+          onPlantResizePointerDown={handlePlantResizePointerDown}
+          onUpdatePlanting={onUpdatePlanting}
           onResizePointerDown={handleResizePointerDown}
           onResizePointerEnd={handleResizePointerEnd}
           onResizePointerMove={pointerInteractions.handleResizePointerMove}
@@ -487,6 +561,7 @@ export const PlanCanvas = memo(function PlanCanvas({
           plotStyle={workbenchStyle}
           proposalDiffOverlay={proposalDiffOverlay}
           resizePreview={pointerInteractions.resizePreview}
+          resizingPlantId={pointerInteractions.resizingPlantId}
           resizingStructureId={pointerInteractions.resizingStructureId}
           sceneStyle={sceneStyle}
           selectedPlantIds={selectedPlantIds}
@@ -543,5 +618,33 @@ function readCanvasFitBounds(
     plotWidth: plot.clientWidth,
     viewportHeight: viewport.clientHeight,
     viewportWidth: viewport.clientWidth,
+  };
+}
+
+function getTouchDistance(touches: TouchEvent<HTMLDivElement>['touches']) {
+  const first = touches.item(0);
+  const second = touches.item(1);
+
+  if (!first || !second) {
+    return 1;
+  }
+
+  return Math.hypot(
+    first.clientX - second.clientX,
+    first.clientY - second.clientY,
+  );
+}
+
+function getTouchCenter(touches: TouchEvent<HTMLDivElement>['touches']) {
+  const first = touches.item(0);
+  const second = touches.item(1);
+
+  if (!first || !second) {
+    return { clientX: 0, clientY: 0 };
+  }
+
+  return {
+    clientX: (first.clientX + second.clientX) / 2,
+    clientY: (first.clientY + second.clientY) / 2,
   };
 }

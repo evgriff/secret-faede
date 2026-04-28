@@ -67,7 +67,7 @@ npm run deploy:all
 - live Firebase mode needs Hosting, Firestore rules/indexes, Storage rules, and
   Functions deployed together for production smoke testing
 - this repo's `.firebaserc` default points at `secret-faeries`; emulator scripts
-  still pass `--project demo-secret-faede` explicitly
+  still pass `--project demo-secret-faeries` explicitly
 - preview URLs are separate Hosting URLs and can still talk to real backend resources if you point them at a live Firebase project
 - PWA registration is disabled in preview and CI builds to avoid stale preview caches
 - seed Primary Gardener and Partner Gardener with `npm run auth:seed-users` before a live demo, then

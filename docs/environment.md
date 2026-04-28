@@ -53,7 +53,7 @@ build env:
 
 The seed script creates missing users, sets display names, verifies email,
 enables the accounts, and grants `gardenAccess: true` plus
-`secretFaedeMember: true`. Existing passwords are not changed unless
+`secretFaeriesMember: true`. Existing passwords are not changed unless
 `-- --reset-passwords` is passed.
 
 ## Carrier Messaging Scope

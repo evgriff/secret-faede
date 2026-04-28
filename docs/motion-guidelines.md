@@ -4,7 +4,7 @@ Date: 2026-04-22
 
 ## Purpose
 
-Motion in Secret Faede should make the private garden workspace feel calm,
+Motion in Secret Faeries should make the private garden workspace feel calm,
 stable, and understandable. It is not decoration. It should explain where a
 surface came from, what changed after an action, and how to recover from that
 state without making the plot editor feel slippery.

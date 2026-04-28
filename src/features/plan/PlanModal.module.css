@@ -109,9 +109,7 @@
 .cropSearchPanel {
   grid-area: search;
   display: grid;
-  grid-template-rows:
-    auto
-    minmax(calc((var(--crop-result-row-height-px, 96px) * 2) + 1rem), 1fr);
+  grid-template-rows: auto minmax(var(--crop-result-row-height-px, 96px), 1fr);
   gap: 0.75rem;
   min-width: 0;
   min-height: 0;

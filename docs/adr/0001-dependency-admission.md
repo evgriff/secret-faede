@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-Secret Faede should stay small and functionality-first. New packages can be
+Secret Faeries should stay small and functionality-first. New packages can be
 useful, but they also create maintenance, security, bundle, and architectural
 cost. The repo already has enough framework surface for the current foundation:
 React, Vite, Firebase, SunCalc, Vitest, Playwright, and local scripts.

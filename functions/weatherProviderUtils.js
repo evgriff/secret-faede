@@ -99,11 +99,21 @@ function sumGridPrecip(values, start, end) {
 }
 
 function findNextGridRainIso(values, now) {
-  return (
-    values
-      .find((entry) => entry.start >= now && entry.value > 0)
-      ?.start.toISOString() || null
+  const next = values.find(
+    (entry) => entry.end > now && entry.value * millimetersToInches >= 0.01,
   );
+
+  return next
+    ? new Date(Math.max(next.start.getTime(), now.getTime())).toISOString()
+    : null;
+}
+
+function findNextProbabilityRainIso(values, now) {
+  const next = values.find((entry) => entry.end > now && entry.value >= 50);
+
+  return next
+    ? new Date(Math.max(next.start.getTime(), now.getTime())).toISOString()
+    : null;
 }
 
 function sumForecastPrecip(periods, start, end) {
@@ -116,20 +126,43 @@ function sumForecastPrecip(periods, start, end) {
 }
 
 function findNextRainIso(periods, now) {
-  return (
-    periods.find((period) => {
-      const periodStart = new Date(period.startIso);
-      return (
-        periodStart >= now &&
-        ((period.precipitationAmountIn || 0) >= 0.01 ||
-          (period.precipitationChancePercent || 0) >= 50)
-      );
-    })?.startIso || null
-  );
+  const next = periods.find((period) => {
+    const periodStart = new Date(period.startIso);
+    const periodEnd = new Date(period.endIso);
+    return (
+      periodEnd > now &&
+      ((period.precipitationAmountIn || 0) >= 0.01 ||
+        ((period.precipitationChancePercent || 0) >= 50 &&
+          isRainForecast(period.shortForecast)))
+    );
+  });
+
+  if (!next) {
+    return null;
+  }
+
+  const start = new Date(next.startIso);
+  return new Date(Math.max(start.getTime(), now.getTime())).toISOString();
 }
 
-function buildForecastDays(periods, qpfValues, timezone) {
+function buildForecastDays(
+  periods,
+  qpfValues,
+  probabilityValuesOrTimezone = [],
+  timezoneMaybe,
+) {
+  const probabilityValues = Array.isArray(probabilityValuesOrTimezone)
+    ? probabilityValuesOrTimezone
+    : [];
+  const timezone =
+    typeof probabilityValuesOrTimezone === 'string'
+      ? probabilityValuesOrTimezone
+      : timezoneMaybe;
   const rainByDate = allocateGridPrecipitationByLocalDate(qpfValues, timezone);
+  const probabilityByDate = allocateGridProbabilityByLocalDate(
+    probabilityValues,
+    timezone,
+  );
   const days = new Map();
 
   periods.forEach((period) => {
@@ -145,6 +178,9 @@ function buildForecastDays(periods, qpfValues, timezone) {
       highF: null,
       precipitationChancePercent: null,
       preferredSummary: null,
+      rainPeriodEndIso: null,
+      rainPeriodStartIso: null,
+      rainTextLikely: false,
     };
 
     current.firstSummary ||= period.shortForecast;
@@ -171,31 +207,84 @@ function buildForecastDays(periods, qpfValues, timezone) {
               current.precipitationChancePercent,
               period.precipitationChancePercent,
             );
+    if (isRainForecast(period.shortForecast)) {
+      current.rainTextLikely = true;
+      current.rainPeriodStartIso ||= period.startIso;
+      current.rainPeriodEndIso = period.endIso;
+    }
     days.set(date, current);
   });
 
-  rainByDate.forEach((_rain, date) => {
-    if (!days.has(date)) {
-      days.set(date, {
-        firstSummary: null,
-        highF: null,
-        precipitationChancePercent: null,
-        preferredSummary: null,
-      });
-    }
-  });
+  new Set([...rainByDate.keys(), ...probabilityByDate.keys()]).forEach(
+    (date) => {
+      if (!days.has(date)) {
+        days.set(date, {
+          firstSummary: null,
+          highF: null,
+          precipitationChancePercent: null,
+          preferredSummary: null,
+          rainPeriodEndIso: null,
+          rainPeriodStartIso: null,
+          rainTextLikely: false,
+        });
+      }
+    },
+  );
 
   return [...days.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
     .slice(0, 14)
-    .map(([date, day]) => ({
-      conditionSummary:
-        day.preferredSummary || day.firstSummary || 'NWS forecast',
-      date,
-      expectedRainIn: roundTo(rainByDate.get(date) || 0, 2),
-      highF: day.highF,
-      precipitationChancePercent: day.precipitationChancePercent,
-    }));
+    .map(([date, day]) => {
+      const expectedRainIn = roundTo(rainByDate.get(date) || 0, 2);
+      const probabilitySignal = probabilityByDate.get(date);
+      const maxChance =
+        probabilitySignal?.maxChancePercent ??
+        day.precipitationChancePercent ??
+        null;
+      const rainFromProbability =
+        (probabilitySignal?.maxChancePercent || 0) >= 50;
+      const rainFromText =
+        day.rainTextLikely && (day.precipitationChancePercent || 0) >= 30;
+      const hasQuantitativeRain = expectedRainIn >= 0.01;
+      const rainLikely =
+        hasQuantitativeRain || rainFromProbability || rainFromText;
+      const rainSignalSource = hasQuantitativeRain
+        ? 'quantitativePrecipitation'
+        : rainFromProbability
+          ? 'probabilityOfPrecipitation'
+          : rainFromText
+            ? 'forecastText'
+            : null;
+      const quantitativeWindow = hasQuantitativeRain
+        ? findFirstGridRainWindowIso(qpfValues, date, timezone)
+        : null;
+
+      return {
+        conditionSummary:
+          day.preferredSummary || day.firstSummary || 'NWS forecast',
+        date,
+        expectedRainIn,
+        highF: day.highF,
+        precipitationChancePercent: maxChance,
+        rainAmountSource: hasQuantitativeRain
+          ? 'quantitativePrecipitation'
+          : 'none',
+        rainLikely,
+        rainSignalSource,
+        rainSummary: buildRainSignalSummary({
+          expectedRainIn,
+          maxChance,
+          rainLikely,
+          rainSignalSource,
+        }),
+        rainWindowEndIso: hasQuantitativeRain
+          ? quantitativeWindow?.endIso
+          : probabilitySignal?.endIso || day.rainPeriodEndIso,
+        rainWindowStartIso: hasQuantitativeRain
+          ? quantitativeWindow?.startIso
+          : probabilitySignal?.startIso || day.rainPeriodStartIso,
+      };
+    });
 }
 
 function allocateGridPrecipitationByLocalDate(values, timezone) {
@@ -226,6 +315,70 @@ function allocateGridPrecipitationByLocalDate(values, timezone) {
   return new Map(
     [...totals.entries()].map(([date, total]) => [date, roundTo(total, 2)]),
   );
+}
+
+function allocateGridProbabilityByLocalDate(values, timezone) {
+  const signals = new Map();
+
+  values.forEach((entry) => {
+    if (entry.value < 1 || entry.end <= entry.start) {
+      return;
+    }
+
+    let cursor = entry.start;
+
+    while (cursor < entry.end) {
+      const date = formatLocalDate(cursor, timezone);
+      const segmentEnd = findNextLocalDateBoundary(cursor, entry.end, timezone);
+      const current = signals.get(date);
+
+      if (!current || entry.value > current.maxChancePercent) {
+        signals.set(date, {
+          endIso: segmentEnd.toISOString(),
+          maxChancePercent: Math.round(Math.min(entry.value, 100)),
+          startIso: cursor.toISOString(),
+        });
+      }
+
+      cursor = segmentEnd;
+    }
+  });
+
+  return signals;
+}
+
+function findFirstGridRainWindowIso(values, date, timezone) {
+  const value = values.find(
+    (entry) =>
+      entry.value * millimetersToInches >= 0.01 &&
+      (formatLocalDate(entry.start, timezone) === date ||
+        formatLocalDate(new Date(entry.end.getTime() - 1), timezone) === date),
+  );
+
+  return value
+    ? { endIso: value.end.toISOString(), startIso: value.start.toISOString() }
+    : null;
+}
+
+function buildRainSignalSummary({
+  expectedRainIn,
+  maxChance,
+  rainLikely,
+  rainSignalSource,
+}) {
+  if (!rainLikely) {
+    return null;
+  }
+
+  if (rainSignalSource === 'quantitativePrecipitation') {
+    return `NWS QPF shows ${expectedRainIn.toFixed(2)} in expected rain.`;
+  }
+
+  if (maxChance !== null) {
+    return `${maxChance}% rain chance; amount not published by NWS.`;
+  }
+
+  return 'Rain mentioned by NWS; amount not published.';
 }
 
 function maxTemperature(periods, start, end) {
@@ -390,6 +543,10 @@ function readStringOrNull(value) {
   return typeof value === 'string' && value.trim() ? value : null;
 }
 
+function isRainForecast(value) {
+  return /rain|shower|storm|drizzle/i.test(value);
+}
+
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -425,6 +582,7 @@ module.exports = {
   cachedJson,
   celsiusToFahrenheit,
   findNextGridRainIso,
+  findNextProbabilityRainIso,
   findNextRainIso,
   hours,
   kilometersPerHourToMph,

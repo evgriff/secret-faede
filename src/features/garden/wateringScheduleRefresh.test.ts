@@ -70,11 +70,15 @@ describe('wateringScheduleRefresh', () => {
     );
 
     expect(rebuiltGarden.wateringSchedule).toHaveLength(1);
-    expect(rebuiltGarden.wateringSchedule[0]?.targetAmountInches).not.toBe(
-      initialSchedule[0]?.targetAmountInches,
-    );
     expect(rebuiltGarden.wateringSchedule[0]?.reasonDetails).toContain(
       'This is rolled up for 2 active plantings in the same bed.',
+    );
+    expect(rebuiltGarden.wateringSchedule[0]?.waterBalance).toMatchObject({
+      modelVersion: 'water-balance-v1',
+      nextCheckReason: 'Dry weather has built a water deficit.',
+    });
+    expect(rebuiltGarden.wateringSchedule[0]?.targetAmountInches).toBe(
+      initialSchedule[0]?.targetAmountInches,
     );
     expect(
       rebuiltGarden.tasks.find((task) => task.source === 'wateringSchedule'),

@@ -117,6 +117,17 @@ describe('app routing', () => {
       throw new Error('Expected signed-in test user.');
     }
 
+    const profile = createDefaultUserProfile(
+      currentUser.uid,
+      currentUser.email,
+    );
+    await services.userProfileRepository.saveUserProfile({
+      ...profile,
+      notificationPreference: {
+        ...profile.notificationPreference,
+        defaultWateringCheckTime: '00:00',
+      },
+    });
     services.weatherProvider = weatherProvider;
     await services.gardenRepository.saveGarden({
       ...createDefaultGarden(currentUser.uid),
@@ -129,8 +140,9 @@ describe('app routing', () => {
             yFt: 3,
           }),
           cropId: 'tomato',
+          plantedOn: '2026-04-20',
           status: 'growing',
-          weeklyWaterNeedInches: 1.1,
+          weeklyWaterNeedInches: 1.75,
         },
       ],
       structures: [

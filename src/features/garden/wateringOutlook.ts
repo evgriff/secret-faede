@@ -12,18 +12,32 @@ import { getPlantingInstances } from '../../domain/gardens/GardenRepository';
 import { getStructureFootprint } from './gardenPlanning';
 import {
   ACTIVE_WATERING_STATUSES,
+  fallbackCropWaterNeed,
+  getLifecycleAllowedDepletionInches,
+  getLifecycleDailyNeedInches,
+  getLifecycleEffectiveRainCreditInches,
+  getLifecycleHeatMultiplier,
+  getLifecycleRootZoneCapacityInches,
+  getLifecycleSoilMultiplier,
+  getLifecycleDrainageMultiplier,
   getPlantingWaterProfile,
   getTargetLifecycleStage,
+  type WaterLifecycleStage,
 } from './wateringLifecycle';
 
-const MIN_ACTIONABLE_DEFICIT_INCHES = 0.15;
 const FORECAST_RAIN_CREDIT_CAP = 0.75;
 
 export interface WateringOutlookDefaults {
   timezone?: string | null;
 }
 
-export interface WateringOutlookRun {
+type WateringWindowKind =
+  | 'coveredByRain'
+  | 'dateRange'
+  | 'dueNow'
+  | 'specificDay';
+
+interface WateringOutlookRun {
   date: LocalDateString;
   expectedAmountInches: number;
   groupKey: string;
@@ -38,19 +52,40 @@ export interface WateringOutlookRun {
   urgency: WateringScheduleUrgency;
 }
 
+export interface WateringWindow {
+  amountInches: number;
+  bestDate: LocalDateString;
+  details: string;
+  endDate: LocalDateString;
+  groupKey: string;
+  headline: string;
+  id: string;
+  kind: WateringWindowKind;
+  label: string;
+  memberLabels: string[];
+  rangeLabel: string;
+  startDate: LocalDateString;
+  targetCount: number;
+  urgency: WateringScheduleUrgency;
+}
+
 interface OutlookTarget {
   currentDeficitInches: number;
   drainageProfile: DrainageProfile;
   groupKey: string;
   id: string;
   irrigationZone: string | null;
+  isContainer: boolean;
   kind: 'bed' | 'planting';
   label: string;
+  lifecycleStage: WaterLifecycleStage;
   memberLabels: string[];
   mulched: boolean;
   priorRun: WateringScheduleEntry | null;
+  rootZoneCapacityInches: number;
   soilType: SoilType;
   targetCount: number;
+  thresholdInches: number;
   weeklyWaterNeedInches: number;
 }
 
@@ -59,7 +94,7 @@ export function buildWateringOutlook(
   snapshot: WeatherSnapshot | null,
   now = new Date(),
   defaults: WateringOutlookDefaults = {},
-): WateringOutlookRun[] {
+): WateringWindow[] {
   if (!snapshot) {
     return [];
   }
@@ -79,13 +114,7 @@ export function buildWateringOutlook(
     ),
   );
 
-  return runs.sort(
-    (left, right) =>
-      left.date.localeCompare(right.date) ||
-      urgencyRank(right.urgency) - urgencyRank(left.urgency) ||
-      right.expectedAmountInches - left.expectedAmountInches ||
-      left.label.localeCompare(right.label),
-  );
+  return collapseRunsIntoWindows(runs, todayDate);
 }
 
 function buildTargetOutlookRuns(
@@ -153,10 +182,13 @@ function buildTargetOutlookRuns(
     }
 
     const dailyNeedInches = getDailyNeedInches(target, day.highF);
-    const rainCredit = getRainCredit(day.expectedRainIn);
-    balanceInches = Math.max(balanceInches + dailyNeedInches - rainCredit, 0);
+    const rainCredit = getRainCredit(day.expectedRainIn, target);
+    balanceInches = Math.min(
+      Math.max(balanceInches + dailyNeedInches - rainCredit, 0),
+      target.rootZoneCapacityInches,
+    );
 
-    if (balanceInches < MIN_ACTIONABLE_DEFICIT_INCHES) {
+    if (balanceInches < getPracticalEventThreshold(target, day.highF)) {
       continue;
     }
 
@@ -181,6 +213,25 @@ function buildTargetOutlookRuns(
   }
 
   return dedupeRunsByDate(runs);
+}
+
+function getPracticalEventThreshold(
+  target: OutlookTarget,
+  dailyHighF: number | null,
+) {
+  if ((dailyHighF ?? 0) >= 95) {
+    return target.thresholdInches;
+  }
+
+  const practicalThreshold = target.isContainer
+    ? 0.28
+    : target.lifecycleStage === 'establishing'
+      ? 0.3
+      : target.lifecycleStage === 'mixed'
+        ? 0.4
+        : 0.5;
+
+  return Math.max(target.thresholdInches, practicalThreshold);
 }
 
 function createRun(
@@ -266,6 +317,143 @@ function aggregateRunsByGroupDate(runs: WateringOutlookRun[]) {
   return [...aggregatedRuns.values()];
 }
 
+function collapseRunsIntoWindows(
+  runs: WateringOutlookRun[],
+  todayDate: LocalDateString,
+): WateringWindow[] {
+  const runsByGroup = new Map<string, WateringOutlookRun[]>();
+
+  runs.forEach((run) => {
+    runsByGroup.set(run.groupKey, [
+      ...(runsByGroup.get(run.groupKey) ?? []),
+      run,
+    ]);
+  });
+
+  return [...runsByGroup.values()]
+    .flatMap((groupRuns) => buildWindowsForGroup(groupRuns, todayDate))
+    .sort(
+      (left, right) =>
+        left.bestDate.localeCompare(right.bestDate) ||
+        urgencyRank(right.urgency) - urgencyRank(left.urgency) ||
+        right.amountInches - left.amountInches ||
+        left.label.localeCompare(right.label),
+    );
+}
+
+function buildWindowsForGroup(
+  runs: WateringOutlookRun[],
+  todayDate: LocalDateString,
+) {
+  const sortedRuns = [...runs].sort((left, right) =>
+    left.date.localeCompare(right.date),
+  );
+
+  return sortedRuns.length > 0 ? [createWindow(sortedRuns, todayDate)] : [];
+}
+
+function createWindow(
+  runs: WateringOutlookRun[],
+  todayDate: LocalDateString,
+): WateringWindow {
+  const startDate = runs[0]?.date ?? todayDate;
+  const endDate = runs[runs.length - 1]?.date ?? startDate;
+  const bestRun =
+    runs.find((run) => run.urgency === 'high') ??
+    runs.find((run) => run.urgency === 'medium') ??
+    runs[0];
+  const bestDate = bestRun?.date ?? startDate;
+  const firstRun = runs[0];
+  const amountInches = roundTo(
+    Math.max(...runs.map((run) => run.expectedAmountInches), 0),
+    2,
+  );
+  const urgency = runs.reduce<WateringScheduleUrgency>(
+    (currentUrgency, run) =>
+      urgencyRank(run.urgency) > urgencyRank(currentUrgency)
+        ? run.urgency
+        : currentUrgency,
+    'none',
+  );
+  const kind = getWindowKind(startDate, endDate, todayDate);
+  const rangeLabel = formatWateringRange(startDate, endDate);
+
+  return {
+    amountInches,
+    bestDate,
+    details: getWindowDetails(kind, bestDate, firstRun?.reason ?? ''),
+    endDate,
+    groupKey: firstRun?.groupKey ?? `window:${startDate}`,
+    headline: getWindowHeadline(
+      firstRun?.label ?? 'Garden',
+      kind,
+      rangeLabel,
+      bestDate,
+      todayDate,
+    ),
+    id: `window:${firstRun?.groupKey ?? 'garden'}:${startDate}:${endDate}`,
+    kind,
+    label: firstRun?.label ?? 'Garden',
+    memberLabels: sortLabels(runs.flatMap((run) => run.memberLabels)),
+    rangeLabel,
+    startDate,
+    targetCount: runs.reduce(
+      (total, run) => Math.max(total, run.targetCount),
+      0,
+    ),
+    urgency,
+  };
+}
+
+function getWindowKind(
+  startDate: LocalDateString,
+  endDate: LocalDateString,
+  todayDate: LocalDateString,
+): WateringWindowKind {
+  if (startDate <= todayDate) {
+    return 'dueNow';
+  }
+
+  return startDate === endDate ? 'specificDay' : 'dateRange';
+}
+
+function getWindowHeadline(
+  label: string,
+  kind: WateringWindowKind,
+  rangeLabel: string,
+  bestDate: LocalDateString,
+  todayDate: LocalDateString,
+) {
+  if (kind === 'dueNow') {
+    return `Water ${label} today`;
+  }
+
+  if (kind === 'specificDay') {
+    return `Water ${label} ${formatFriendlyDate(bestDate, todayDate)}`;
+  }
+
+  return `Water ${label} ${rangeLabel}`;
+}
+
+function getWindowDetails(
+  kind: WateringWindowKind,
+  bestDate: LocalDateString,
+  reason: string,
+) {
+  const bestDateCopy =
+    kind === 'dueNow'
+      ? 'Best: today.'
+      : `Best: ${formatMonthDay(bestDate)} morning.`;
+  const practicalCopy =
+    kind === 'dateRange'
+      ? 'A deeper soak in this window is better than small daily watering.'
+      : 'A deeper soak is better than a small daily watering.';
+
+  return reason
+    ? `${bestDateCopy} ${practicalCopy} ${reason}`
+    : `${bestDateCopy} ${practicalCopy}`;
+}
+
 function getOutlookTargets(
   garden: Garden,
   snapshot: WeatherSnapshot,
@@ -311,6 +499,21 @@ function getOutlookTargets(
       const groupKey = structure.irrigationZone
         ? `zone:${structure.irrigationZone}`
         : `bed:${structure.id}`;
+      const lifecycleStage = getTargetLifecycleStage(plantings, now);
+      const weeklyWaterNeedInches = getBedWeeklyNeedInches(
+        plantings,
+        structure,
+        now,
+      );
+      const targetContext = {
+        drainageProfile: structure.drainageProfile ?? 'unknown',
+        isContainer: structure.type === 'container',
+        lifecycleStage,
+        mulched: structure.mulched,
+        plantings,
+        soilType: structure.soilType ?? 'unknown',
+        weeklyWaterNeedInches,
+      };
 
       return [
         {
@@ -328,18 +531,22 @@ function getOutlookTargets(
           groupKey,
           id: structure.id,
           irrigationZone: structure.irrigationZone ?? null,
+          isContainer: targetContext.isContainer,
           kind: 'bed',
           label: structure.label,
+          lifecycleStage,
           memberLabels: sortLabels(plantings.map((planting) => planting.label)),
           mulched: structure.mulched,
           priorRun: wateringEntriesByTargetId.get(structure.id) ?? null,
+          rootZoneCapacityInches:
+            getLifecycleRootZoneCapacityInches(targetContext),
           soilType: structure.soilType ?? 'unknown',
           targetCount: plantings.length,
-          weeklyWaterNeedInches: getBedWeeklyNeedInches(
-            plantings,
-            structure,
-            now,
+          thresholdInches: getLifecycleAllowedDepletionInches(
+            targetContext,
+            snapshot.temperatureF,
           ),
+          weeklyWaterNeedInches,
         },
       ];
     }),
@@ -348,6 +555,21 @@ function getOutlookTargets(
         (planting.irrigationZone ?? structure?.irrigationZone)
           ? `zone:${planting.irrigationZone ?? structure?.irrigationZone}`
           : `planting:${planting.id}`;
+      const lifecycleStage = getTargetLifecycleStage([planting], now);
+      const weeklyWaterNeedInches = getPlantingWeeklyNeedInches(
+        planting,
+        structure,
+        now,
+      );
+      const targetContext = {
+        drainageProfile: structure?.drainageProfile ?? 'unknown',
+        isContainer: structure?.type === 'container',
+        lifecycleStage,
+        mulched: planting.mulched,
+        plantings: [planting],
+        soilType: structure?.soilType ?? 'unknown',
+        weeklyWaterNeedInches,
+      };
 
       return {
         currentDeficitInches: getCurrentDeficitInches(
@@ -365,18 +587,22 @@ function getOutlookTargets(
         id: planting.id,
         irrigationZone:
           planting.irrigationZone ?? structure?.irrigationZone ?? null,
+        isContainer: targetContext.isContainer,
         kind: 'planting',
         label: planting.label,
+        lifecycleStage,
         memberLabels: sortLabels([planting.label]),
         mulched: planting.mulched,
         priorRun: wateringEntriesByTargetId.get(planting.id) ?? null,
+        rootZoneCapacityInches:
+          getLifecycleRootZoneCapacityInches(targetContext),
         soilType: structure?.soilType ?? 'unknown',
         targetCount: Math.max(getPlantingInstances(planting).length, 1),
-        weeklyWaterNeedInches: getPlantingWeeklyNeedInches(
-          planting,
-          structure,
-          now,
+        thresholdInches: getLifecycleAllowedDepletionInches(
+          targetContext,
+          snapshot.temperatureF,
         ),
+        weeklyWaterNeedInches,
       };
     }),
   ];
@@ -399,10 +625,16 @@ function getCurrentDeficitInches(
   }
 
   if (existingEntry) {
+    if (existingEntry.waterBalance) {
+      return existingEntry.waterBalance.effectiveDeficitInches;
+    }
+
     if (existingEntry.status === 'suppressed') {
       return Math.max(
         existingEntry.deficitInches -
-          getRainCredit(snapshot.forecastRainNext24In ?? 0),
+          getRainCredit(snapshot.forecastRainNext24In ?? 0, {
+            isContainer: structure?.type === 'container',
+          }),
         0,
       );
     }
@@ -437,14 +669,20 @@ function getCurrentDeficitInches(
     journalEntries,
   );
   const adjustedNeed =
-    weeklyNeed + Math.min(snapshot.evapotranspirationIn ?? 0, 0.35);
+    (weeklyNeed / 7) * 3 * getLifecycleHeatMultiplier(snapshot.temperatureF) +
+    Math.min(snapshot.evapotranspirationIn ?? 0, 0.2);
   const remainingBeforeForecast = Math.max(
-    adjustedNeed - (snapshot.recentPrecipitation72hIn ?? 0) - manualWaterIn,
+    adjustedNeed -
+      (snapshot.recentPrecipitation72hIn ?? 0) * 0.8 -
+      manualWaterIn,
     0,
   );
 
   return Math.max(
-    remainingBeforeForecast - getRainCredit(snapshot.forecastRainNext24In ?? 0),
+    remainingBeforeForecast -
+      getRainCredit(snapshot.forecastRainNext24In ?? 0, {
+        isContainer: structure?.type === 'container',
+      }),
     0,
   );
 }
@@ -455,6 +693,13 @@ function getStartingBalance(
 ) {
   if (!currentEntry) {
     return target.currentDeficitInches;
+  }
+
+  if (currentEntry.waterBalance) {
+    return (
+      currentEntry.waterBalance.currentDepletionInches ??
+      currentEntry.waterBalance.effectiveDeficitInches
+    );
   }
 
   if (currentEntry.status === 'suppressed') {
@@ -474,7 +719,9 @@ function getStartingBalance(
 }
 
 function getDailyNeedInches(target: OutlookTarget, highF: number | null) {
-  return (target.weeklyWaterNeedInches * getHeatMultiplier(highF)) / 7;
+  return getLifecycleDailyNeedInches(target, {
+    dailyHighF: highF,
+  });
 }
 
 function getBedWeeklyNeedInches(
@@ -485,11 +732,10 @@ function getBedWeeklyNeedInches(
   const plantWaterProfiles = plantings.map((planting) =>
     getPlantingWaterProfile(planting, now, fallbackCropWaterNeed),
   );
-  const averageCropNeed =
-    plantWaterProfiles.reduce(
-      (total, profile) => total + profile.weeklyWaterNeedInches,
-      0,
-    ) / Math.max(plantWaterProfiles.length, 1);
+  const highestCropNeed = Math.max(
+    ...plantWaterProfiles.map((profile) => profile.weeklyWaterNeedInches),
+    0,
+  );
   const bedMultiplier =
     structure?.type === 'container'
       ? 1.25
@@ -497,8 +743,10 @@ function getBedWeeklyNeedInches(
         ? 1.1
         : 1;
   const mulchedMultiplier = structure?.mulched ? 0.85 : 1;
-  const soilMultiplier = getSoilMultiplier(structure?.soilType ?? 'unknown');
-  const drainageMultiplier = getDrainageMultiplier(
+  const soilMultiplier = getLifecycleSoilMultiplier(
+    structure?.soilType ?? 'unknown',
+  );
+  const drainageMultiplier = getLifecycleDrainageMultiplier(
     structure?.drainageProfile ?? 'unknown',
   );
   const lifecycleStage = getTargetLifecycleStage(plantings, now);
@@ -510,7 +758,7 @@ function getBedWeeklyNeedInches(
         : 1;
 
   return (
-    averageCropNeed *
+    highestCropNeed *
     bedMultiplier *
     mulchedMultiplier *
     soilMultiplier *
@@ -540,8 +788,8 @@ function getPlantingWeeklyNeedInches(
     waterProfile.weeklyWaterNeedInches *
     containerMultiplier *
     (planting.mulched ? 0.85 : 1) *
-    getSoilMultiplier(structure?.soilType ?? 'unknown') *
-    getDrainageMultiplier(structure?.drainageProfile ?? 'unknown')
+    getLifecycleSoilMultiplier(structure?.soilType ?? 'unknown') *
+    getLifecycleDrainageMultiplier(structure?.drainageProfile ?? 'unknown')
   );
 }
 
@@ -610,48 +858,15 @@ function getForecastDays(
   ];
 }
 
-function getHeatMultiplier(dailyHighF: number | null) {
-  if (dailyHighF === null) {
-    return 1;
-  }
-
-  if (dailyHighF >= 95) {
-    return 1.3;
-  }
-
-  if (dailyHighF >= 88) {
-    return 1.15;
-  }
-
-  return dailyHighF >= 82 ? 1.05 : 1;
-}
-
-function getSoilMultiplier(soilType: SoilType) {
-  if (soilType === 'sandy') {
-    return 1.12;
-  }
-
-  if (soilType === 'clay') {
-    return 0.94;
-  }
-
-  return 1;
-}
-
-function getDrainageMultiplier(drainageProfile: DrainageProfile) {
-  if (drainageProfile === 'fast') {
-    return 1.12;
-  }
-
-  if (drainageProfile === 'slow') {
-    return 0.92;
-  }
-
-  return 1;
-}
-
-function getRainCredit(expectedRainIn: number) {
-  return Math.min(expectedRainIn * 0.6, FORECAST_RAIN_CREDIT_CAP);
+function getRainCredit(
+  expectedRainIn: number,
+  target: Pick<OutlookTarget, 'isContainer'>,
+) {
+  return getLifecycleEffectiveRainCreditInches(
+    expectedRainIn,
+    target,
+    FORECAST_RAIN_CREDIT_CAP,
+  );
 }
 
 function getUrgency(
@@ -678,18 +893,6 @@ function urgencyRank(urgency: WateringScheduleUrgency) {
     default:
       return 1;
   }
-}
-
-function fallbackCropWaterNeed(waterNeeds: 'high' | 'low' | 'medium' | null) {
-  if (waterNeeds === 'high') {
-    return 1.25;
-  }
-
-  if (waterNeeds === 'low') {
-    return 0.6;
-  }
-
-  return 1;
 }
 
 function estimateManualWatering(
@@ -744,6 +947,27 @@ function addDays(date: LocalDateString, days: number) {
   const parsedDate = new Date(`${date}T12:00:00.000Z`);
   parsedDate.setUTCDate(parsedDate.getUTCDate() + days);
   return parsedDate.toISOString().slice(0, 10);
+}
+
+function formatWateringRange(
+  startDate: LocalDateString,
+  endDate: LocalDateString,
+) {
+  return startDate === endDate
+    ? formatMonthDay(startDate)
+    : `${formatMonthDay(startDate)}-${formatMonthDay(endDate)}`;
+}
+
+function formatFriendlyDate(date: LocalDateString, todayDate: LocalDateString) {
+  if (date === todayDate) {
+    return 'today';
+  }
+
+  if (date === addDays(todayDate, 1)) {
+    return 'tomorrow';
+  }
+
+  return formatMonthDay(date);
 }
 
 function formatMonthDay(date: LocalDateString) {

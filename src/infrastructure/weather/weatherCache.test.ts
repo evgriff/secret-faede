@@ -43,7 +43,7 @@ describe('CachedWeatherProvider', () => {
 
     const firstForecast = await cachedProvider.getForecast(location);
     window.localStorage.setItem(
-      'secret-faede.weather.v3:nationalWeatherService:forecast:42.3314:-83.0458',
+      'secret-faeries.weather.v3:nationalWeatherService:forecast:42.3314:-83.0458',
       JSON.stringify({
         cachedAtMs: Date.now() - 60 * 60 * 1000,
         value: firstForecast,

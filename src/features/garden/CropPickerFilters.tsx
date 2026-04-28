@@ -75,7 +75,12 @@ export function CropPickerFilters({
 
       <div className={styles.filterGrid}>
         <label className={styles.field}>
-          <span>Fits my location</span>
+          <span className={cropStyles.filterLabelHeader}>
+            <span>Fits my location</span>
+            <small className={cropStyles.filterHelpText}>
+              {locationHelperText}
+            </small>
+          </span>
           <select
             onChange={(event) =>
               onLocationFilterChange(
@@ -87,13 +92,18 @@ export function CropPickerFilters({
             <option value="any">Any crop</option>
             <option value="fitsMyLocation">Only crops that fit here</option>
           </select>
-          <small className={cropStyles.filterHelpText}>
-            {locationHelperText}
-          </small>
         </label>
 
         <label className={styles.field}>
-          <span>Planting time</span>
+          <span className={cropStyles.filterLabelHeader}>
+            <span>Planting time</span>
+            <small
+              aria-hidden="true"
+              className={`${cropStyles.filterHelpText} ${cropStyles.filterHelpPlaceholder}`}
+            >
+              {locationHelperText}
+            </small>
+          </span>
           <select
             onChange={(event) =>
               onTimingFilterChange(event.currentTarget.value as TimingFilter)

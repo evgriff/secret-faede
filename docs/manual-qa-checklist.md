@@ -212,7 +212,7 @@ Date: 2026-04-21
   `FIREBASE_SERVICE_ACCOUNT`, and all required `VITE_*` variables configured.
 - Run `npm run auth:seed-users -- --dry-run`, then seed Primary Gardener and Partner Gardener.
 - Confirm both Firebase Auth users have `gardenAccess: true` and
-  `secretFaedeMember: true`, then have each user sign out and back in so the
+  `secretFaeriesMember: true`, then have each user sign out and back in so the
   token refreshes.
 - Confirm FCM web push registration writes a token document for each production
   user.

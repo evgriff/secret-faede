@@ -1,6 +1,6 @@
-# Secret Faede
+# Secret Faeries
 
-Secret Faede is a private garden planner for one real home food garden. It uses
+Secret Faeries is a private garden planner for one real home food garden. It uses
 Firebase email/password auth for exactly two provisioned accounts, then routes
 the signed-in user into Plan, Today, Feed, and Settings around one shared
 published garden with private drafts.
@@ -18,6 +18,7 @@ Included:
 - mock runtime and Firebase runtime from one env parser
 - application-level allowlist for exactly two configured email addresses
 - one shared published garden with one private draft per authenticated user
+- one shared operations stream for Feed and Today activity across both users
 - canvas-first Plan workspace with compact tool launchers, stable overlays, and
   publish/revert review
 - plot width/depth in feet with a 1 square foot visual grid
@@ -50,7 +51,7 @@ Included:
   restore path while the sample is active on the current device
 - Firebase Cloud Functions source for daily watering checks and weather-driven
   frost, heat, and severe-weather alerts
-- Firebase Storage for authenticated journal photos
+- Firebase Storage for shared authenticated journal photos
 - Firebase Hosting and Local Emulator Suite scaffolding
 - ESLint, Prettier, Vitest, React Testing Library, Playwright, Husky, lint-staged, and GitHub Actions
 
@@ -104,7 +105,8 @@ recorded planting events drive the next derived Today tasks and Feed history.
 - shared draft/publish persistence uses Firestore path `gardenWorkspaces/main`
 - legacy `gardens/{uid}` data remains a migration source
 - user profile persistence uses Firestore path `users/{uid}`
-- journal photo binaries use Firebase Storage under `users/{uid}/journal/...`
+- journal photo binaries use Firebase Storage under
+  `gardenWorkspaces/main/journal/...`
 
 `firebase + emulators`
 
@@ -149,7 +151,7 @@ Platform and add Auth blocking triggers.
 
 Firestore and Storage rules require the signed-in user to own the document path
 and carry the Firebase Auth custom claims `gardenAccess: true` and
-`secretFaedeMember: true`. The browser allowlist is still a user-facing gate,
+`secretFaeriesMember: true`. The browser allowlist is still a user-facing gate,
 not the data-protection boundary.
 
 See:

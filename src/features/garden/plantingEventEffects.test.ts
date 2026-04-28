@@ -38,7 +38,7 @@ describe('applyPlantingEventEffects', () => {
     const updatedGarden = applyPlantingEventEffects({
       garden: baseGarden,
       nextPlantings,
-      now: new Date('2026-04-22T14:00:00.000Z'),
+      now: new Date('2026-04-26T14:00:00.000Z'),
     });
     const openTasks = updatedGarden.tasks.filter(
       (task) => task.status === 'open',
@@ -46,9 +46,9 @@ describe('applyPlantingEventEffects', () => {
     const todayModel = buildTodayFieldModel(
       updatedGarden,
       openTasks,
-      '2026-04-22',
-      '2026-04-22',
-      new Date('2026-04-22T14:00:00.000Z'),
+      '2026-04-26',
+      '2026-04-26',
+      new Date('2026-04-26T14:00:00.000Z'),
     );
     const feedItems = buildLogFeedItems({
       garden: updatedGarden,

@@ -10,7 +10,7 @@ import type {
   WeatherRequestOptions,
 } from '../../domain/weather/WeatherProvider';
 
-const cachePrefix = 'secret-faede.weather.v3:';
+const cachePrefix = 'secret-faeries.weather.v3:';
 
 export class CachedWeatherProvider implements WeatherProvider {
   readonly id: WeatherProviderId;

@@ -794,7 +794,7 @@ function toBaseRecord(crop) {
       ...(crop.sourceTags ?? []),
       'trefle-query',
       'curated-overlay',
-      'secret-faede-home-garden-v2',
+      'secret-faeries-home-garden-v2',
     ]),
     spacingInches: crop.spacingInches ?? defaults.spacingInches,
     supportedPlantingModes: crop.supportedPlantingModes ?? inferModes(crop),

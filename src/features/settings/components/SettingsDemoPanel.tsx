@@ -10,6 +10,7 @@ import styles from './SettingsDemoPanel.module.css';
 
 export function SettingsDemoPanel({
   canExit,
+  canUseDemo,
   error,
   isActive,
   isBusy,
@@ -20,6 +21,7 @@ export function SettingsDemoPanel({
   status,
 }: {
   canExit: boolean;
+  canUseDemo: boolean;
   error: string | null;
   isActive: boolean;
   isBusy: boolean;
@@ -29,11 +31,13 @@ export function SettingsDemoPanel({
   onResetDemo(): void;
   status: DemoModeStatus;
 }) {
-  const restoreHelpText = isActive
-    ? canExit
-      ? `Reset returns the sample to its seeded baseline. ${sampleGardenRestoreLabel} restores what was backed up on this device.`
-      : sampleGardenRestoreDisabledMessage
-    : 'Open the sample only when you want a clean example to explore without touching your garden.';
+  const restoreHelpText = !canUseDemo
+    ? 'The resettable sample is restricted to Primary Gardener on the production workspace.'
+    : isActive
+      ? canExit
+        ? `Reset returns the sample to its seeded baseline. ${sampleGardenRestoreLabel} restores what was backed up on this device.`
+        : sampleGardenRestoreDisabledMessage
+      : 'Open the sample only when you want a clean example to explore without touching your garden.';
 
   return (
     <section
@@ -45,21 +49,25 @@ export function SettingsDemoPanel({
         <p className={pageStyles.kicker}>Sample garden</p>
         <h2>Open a resettable sample garden</h2>
         <p>
-          Your saved garden stays primary. Open the Detroit sample only when
-          you need a clean example on this device; the current garden is backed
-          up first so you can return to it.
+          Your saved garden stays primary. Primary Gardener can open the Detroit sample
+          when a clean example is needed on this device; the current garden is
+          backed up first so it can be restored.
         </p>
       </div>
       <div className={styles.statusLine}>
         <strong>
-          {isActive ? sampleGardenActiveLabel : 'Your garden is active.'}
+          {isActive
+            ? sampleGardenActiveLabel
+            : canUseDemo
+              ? 'Your garden is active.'
+              : 'Sample garden unavailable.'}
         </strong>
         <span>{restoreHelpText}</span>
       </div>
       <div className={styles.actions}>
         <button
           className={pageStyles.button}
-          disabled={isBusy}
+          disabled={isBusy || !canUseDemo}
           onClick={onLoadDemo}
           type="button"
         >
@@ -69,7 +77,7 @@ export function SettingsDemoPanel({
         </button>
         <button
           className={pageStyles.secondaryButton}
-          disabled={isBusy}
+          disabled={isBusy || !canUseDemo}
           onClick={onResetDemo}
           type="button"
         >
@@ -77,7 +85,7 @@ export function SettingsDemoPanel({
         </button>
         <button
           className={pageStyles.secondaryButton}
-          disabled={isBusy || !canExit}
+          disabled={isBusy || !canExit || !canUseDemo}
           onClick={onExitDemo}
           title={
             canExit

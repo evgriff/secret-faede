@@ -1213,7 +1213,7 @@ function getProjectId() {
     process.env.FIREBASE_PROJECT_ID ||
     process.env.VITE_FIREBASE_PROJECT_ID ||
     readDefaultFirebaseProject() ||
-    'demo-secret-faede'
+    'demo-secret-faeries'
   );
 }
 

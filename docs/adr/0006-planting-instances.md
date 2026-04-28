@@ -13,7 +13,7 @@ node, even when the user adds several plants of the same crop at once. The older
 aggregate planting model could imply that "three tomatoes" were one larger
 shape instead of three real plants.
 
-Secret Faede also needs grouped editing, optimizer compatibility, Today/Feed
+Secret Faeries also needs grouped editing, optimizer compatibility, Today/Feed
 links, publish/revert safety, and backward compatibility with saved gardens.
 
 ## Decision

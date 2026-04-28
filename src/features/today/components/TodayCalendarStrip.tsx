@@ -14,7 +14,7 @@ export function TodayCalendarStrip({
   todayDate: string;
 }) {
   return (
-    <section aria-label="Two week calendar" className={styles.calendar}>
+    <section aria-label="One week calendar" className={styles.calendar}>
       {days.map((day) => (
         <button
           aria-pressed={day.date === selectedDate}

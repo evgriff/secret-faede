@@ -10,6 +10,9 @@ import {
   type GardenLocation,
   type GardenPlot,
   type GardenPlant,
+  getSharedGardenOperations,
+  overlaySharedGardenOperations,
+  fitPlantingToAreaRect,
   type Planting,
   getDerivedPlantingDimensions,
   type LayoutProblem,
@@ -137,6 +140,14 @@ export interface GardenStructureRectUpdate {
   yFt: number;
 }
 
+export interface GardenPlantingRectUpdate {
+  depthFt: number;
+  id: string;
+  widthFt: number;
+  xFt: number;
+  yFt: number;
+}
+
 export interface AddPlantingRequest {
   blockDepthFt: number | null;
   blockWidthFt: number | null;
@@ -149,8 +160,12 @@ export interface AddPlantingRequest {
 
 export function useGarden(userId: string | null) {
   const { state } = useAuth();
-  const { gardenRepository, userProfileRepository, weatherProvider } =
-    useServices();
+  const {
+    gardenOperationsService,
+    gardenRepository,
+    userProfileRepository,
+    weatherProvider,
+  } = useServices();
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [garden, setGarden] = useState<Garden | null>(null);
@@ -257,8 +272,28 @@ export function useGarden(userId: string | null) {
         setStatus('error');
       });
 
+    const unsubscribe = gardenRepository.subscribeWorkspace(
+      userId,
+      (liveWorkspace) => {
+        if (!active) {
+          return;
+        }
+
+        setWorkspace(liveWorkspace);
+        setGarden((currentGarden) =>
+          currentGarden && !needsProfileSetup(currentGarden)
+            ? overlaySharedGardenOperations(
+                currentGarden,
+                getSharedGardenOperations(liveWorkspace.draft.garden),
+              )
+            : currentGarden,
+        );
+      },
+    );
+
     return () => {
       active = false;
+      unsubscribe();
     };
   }, [gardenRepository, userId]);
 
@@ -1186,6 +1221,30 @@ export function useGarden(userId: string | null) {
     [commitGardenUpdate],
   );
 
+  const resizePlantingRect = useCallback(
+    (update: GardenPlantingRectUpdate, trackHistory = true) => {
+      commitGardenUpdate(
+        (currentGarden) => ({
+          ...currentGarden,
+          plantings: currentGarden.plantings.map((planting) =>
+            planting.id === update.id
+              ? planting.locked
+                ? planting
+                : fitPlantingToAreaRect(
+                    planting,
+                    clampAreaRectToPlot(update, currentGarden.plot),
+                  ).planting
+              : planting,
+          ),
+        }),
+        { id: update.id, type: 'planting' },
+        trackHistory,
+        true,
+      );
+    },
+    [commitGardenUpdate],
+  );
+
   const applyPlotSettings = useCallback(
     (
       widthFt: number,
@@ -1359,6 +1418,25 @@ export function useGarden(userId: string | null) {
 
     try {
       const wasOffline = isBrowserOffline();
+      const backendResult = userId
+        ? await gardenOperationsService
+            .refreshGardenOperations(userId)
+            .catch(() => null)
+        : null;
+
+      if (backendResult?.ok && backendResult.backendAvailable) {
+        const savedGarden = userId
+          ? await gardenRepository.getGarden(userId)
+          : null;
+
+        if (savedGarden) {
+          setGarden(savedGarden);
+          setDirty(false);
+          setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
+          return;
+        }
+      }
+
       const updatedGarden = await refreshGardenWateringFromWeather(
         garden,
         weatherProvider,
@@ -1368,8 +1446,21 @@ export function useGarden(userId: string | null) {
         },
       );
 
-      await gardenRepository.saveGarden(updatedGarden);
-      setGarden(updatedGarden);
+      const authUser = state.user;
+      const savedGarden = authUser?.email
+        ? await gardenRepository.saveSharedOperations({
+            actor: {
+              displayName: authUser.displayName,
+              email: authUser.email,
+              userId: authUser.uid,
+            },
+            baseGarden: garden,
+            updatedGarden,
+            userId: authUser.uid,
+          })
+        : updatedGarden;
+
+      setGarden(savedGarden);
       setDirty(false);
       setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
     } catch (weatherError) {
@@ -1382,7 +1473,15 @@ export function useGarden(userId: string | null) {
       setSaveStatus('error');
       throw weatherError;
     }
-  }, [garden, gardenRepository, wateringProfile, weatherProvider]);
+  }, [
+    garden,
+    gardenOperationsService,
+    gardenRepository,
+    state.user,
+    userId,
+    wateringProfile,
+    weatherProvider,
+  ]);
 
   const updateStructureShade = useCallback(
     (
@@ -2047,6 +2146,7 @@ export function useGarden(userId: string | null) {
     plantGroups: gardenPlanningState?.plantGroups ?? [],
     recalculateSunShade,
     refreshWeatherAndWatering,
+    resizePlantingRect,
     resizeStructure,
     resizeStructureRect,
     redoGardenChange,
@@ -2351,6 +2451,18 @@ function createPlantId() {
 
 function clampPlantGroupQuantity(quantity: number) {
   return Math.max(Math.min(Math.round(quantity), 500), 1);
+}
+
+function clampAreaRectToPlot(rect: GardenPlantingRectUpdate, plot: GardenPlot) {
+  const widthFt = Math.min(Math.max(rect.widthFt, 0.25), plot.widthFt);
+  const depthFt = Math.min(Math.max(rect.depthFt, 0.25), plot.depthFt);
+
+  return {
+    depthFt,
+    widthFt,
+    xFt: Math.min(Math.max(rect.xFt, 0), plot.widthFt - widthFt),
+    yFt: Math.min(Math.max(rect.yFt, 0), plot.depthFt - depthFt),
+  };
 }
 
 function toPlantingMode(placementMode: PlantPlacementMode): PlantingMode {

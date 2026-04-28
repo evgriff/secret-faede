@@ -10,8 +10,8 @@ import {
   writeJsonStorageValue,
 } from '../../../shared/lib/storage';
 
-const mockLocalSessionKey = 'secret-faede.auth.mock.session';
-const mockSessionSessionKey = 'secret-faede.auth.mock.session-tab';
+const mockLocalSessionKey = 'secret-faeries.auth.mock.session';
+const mockSessionSessionKey = 'secret-faeries.auth.mock.session-tab';
 const mockPassword = 'password';
 
 function normalizeEmail(email: string): string {

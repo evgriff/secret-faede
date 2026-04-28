@@ -20,7 +20,7 @@ Date: 2026-04-24
 
 ## Story
 
-Secret Faede is for one real home food garden. The sample garden shows the
+Secret Faeries is for one real home food garden. The sample garden shows the
 closed loop: place the garden in Plan, do the work in Today, remember it in
 Feed, and keep the defaults trustworthy in Settings.
 
@@ -105,5 +105,5 @@ It includes:
 
 ## Closing Line
 
-Secret Faede is not a planner deck. It is a calm working app for the one garden
+Secret Faeries is not a planner deck. It is a calm working app for the one garden
 someone actually maintains.

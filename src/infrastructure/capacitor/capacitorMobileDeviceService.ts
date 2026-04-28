@@ -14,7 +14,7 @@ import type {
 } from '../../domain/mobile/MobileDeviceService';
 import type { NetworkStatus } from '../../shared/network/networkStatus';
 
-const sessionHintKey = 'secret-faede.mobile.session-hint.v1';
+const sessionHintKey = 'secret-faeries.mobile.session-hint.v1';
 
 export function createMobileDeviceService(): MobileDeviceService {
   return new CapacitorMobileDeviceService();

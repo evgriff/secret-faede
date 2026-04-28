@@ -8,6 +8,7 @@ const {
   cachedJson,
   celsiusToFahrenheit,
   findNextGridRainIso,
+  findNextProbabilityRainIso,
   findNextRainIso,
   hours,
   kilometersPerHourToMph,
@@ -81,6 +82,10 @@ class NationalWeatherServiceProvider {
     const dailyPeriods = parseHourlyPeriods(forecast);
     const periods = parseHourlyPeriods(hourly);
     const qpfValues = parseGridValues(grid, 'quantitativePrecipitation');
+    const probabilityValues = parseGridValues(
+      grid,
+      'probabilityOfPrecipitation',
+    );
     const now = new Date();
     const in24h = addHours(now, 24);
     const in48h = addHours(now, 48);
@@ -90,13 +95,16 @@ class NationalWeatherServiceProvider {
       days: buildForecastDays(
         dailyPeriods.length ? dailyPeriods : periods,
         qpfValues,
+        probabilityValues,
         location.timezone,
       ),
       generatedAtIso: now.toISOString(),
       next24hPrecipIn: roundTo(sumGridPrecip(qpfValues, now, in24h), 2),
       next48hPrecipIn: roundTo(sumGridPrecip(qpfValues, now, in48h), 2),
       nextRainIso:
-        findNextGridRainIso(qpfValues, now) || findNextRainIso(periods, now),
+        findNextGridRainIso(qpfValues, now) ||
+        findNextProbabilityRainIso(probabilityValues, now) ||
+        findNextRainIso(periods, now),
       overnightLowF: overnightLow(periods, now),
       periods,
       providerId: this.id,
@@ -232,7 +240,7 @@ class NationalWeatherServiceProvider {
       headers: {
         Accept: 'application/geo+json, application/json',
         'User-Agent':
-          process.env.NWS_USER_AGENT || 'SecretFaede/0.1 garden operations',
+          process.env.NWS_USER_AGENT || 'SecretFaeries/0.1 garden operations',
       },
       logger: this.logger,
       ttlMs,

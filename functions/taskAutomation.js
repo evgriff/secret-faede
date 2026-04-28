@@ -7,6 +7,8 @@ const {
   sortTasks,
 } = require('./operationTime');
 
+const TASK_LOOKAHEAD_DAYS = 7;
+
 function buildAutomatedTasks(garden, snapshot, now) {
   const today = formatLocalDate(now, getGardenTimezone(garden));
   const tasks = [
@@ -15,7 +17,7 @@ function buildAutomatedTasks(garden, snapshot, now) {
     ...buildPlantingTasks(garden, today, now),
   ];
 
-  return sortTasks(tasks);
+  return sortTasks(tasks.filter((task) => isInsideTaskLookahead(task, today)));
 }
 
 function mergeTasks(existing, generated) {
@@ -23,12 +25,15 @@ function mergeTasks(existing, generated) {
   const merged = existing.map((task) => {
     const generatedTask = generatedById.get(task.id);
 
-    if (
-      !generatedTask ||
-      task.status !== 'open' ||
-      task.snoozedUntilDate ||
-      task.deferredUntilDate
-    ) {
+    if (!generatedTask && shouldRetireStaleAutomatedTask(task)) {
+      return {
+        ...task,
+        completedAtIso: task.completedAtIso || new Date().toISOString(),
+        status: 'skipped',
+      };
+    }
+
+    if (!generatedTask || !shouldRefreshAutomatedTask(task)) {
       return task;
     }
 
@@ -135,6 +140,8 @@ function buildWeatherTasks(garden, snapshot, today, now) {
 }
 
 function buildPlantingTasks(garden, today, now) {
+  const lookaheadEnd = getTaskLookaheadEndDate(today);
+
   return (garden.plantings || []).flatMap((planting) => {
     if (planting.status === 'removed') {
       return [];
@@ -142,7 +149,7 @@ function buildPlantingTasks(garden, today, now) {
 
     const tasks = [];
 
-    if (planting.plannedFor && planting.plannedFor <= addDays(today, 7)) {
+    if (planting.plannedFor && planting.plannedFor <= lookaheadEnd) {
       tasks.push(
         createTask(
           {
@@ -226,6 +233,31 @@ function isPointInsideStructure(xFt, yFt, structure) {
     yFt >= structure.yFt &&
     yFt <= structure.yFt + structure.depthFt
   );
+}
+
+function shouldRefreshAutomatedTask(task) {
+  return (
+    task.status === 'open' && !task.snoozedUntilDate && !task.deferredUntilDate
+  );
+}
+
+function shouldRetireStaleAutomatedTask(task) {
+  return (
+    task.status === 'open' &&
+    (task.source === 'generated' || task.source === 'wateringSchedule') &&
+    !task.snoozedUntilDate &&
+    !task.deferredUntilDate
+  );
+}
+
+function isInsideTaskLookahead(task, today) {
+  return Boolean(
+    task.dueDate && task.dueDate <= getTaskLookaheadEndDate(today),
+  );
+}
+
+function getTaskLookaheadEndDate(today) {
+  return addDays(today, TASK_LOOKAHEAD_DAYS - 1);
 }
 
 module.exports = {

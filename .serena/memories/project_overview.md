@@ -1,6 +1,6 @@
 # Project Overview
 
-Secret Faede is a small, functionality-first garden plot planner and garden operations app for one real home food garden. The product keeps Firebase email/password auth for exactly two provisioned accounts and routes authenticated users into one shared published garden workspace with private per-user drafts.
+Secret Faeries is a small, functionality-first garden plot planner and garden operations app for one real home food garden. The product keeps Firebase email/password auth for exactly two provisioned accounts and routes authenticated users into one shared published garden workspace with private per-user drafts.
 
 Current surface area:
 

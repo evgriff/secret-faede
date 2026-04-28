@@ -109,6 +109,7 @@ function FeedItemCard({
             ) : (
               item.targetLabel
             )}
+            {item.authorLabel ? ` · ${item.authorLabel}` : ''}
           </span>
           <time dateTime={item.date}>{formatDate(item.date)}</time>
         </div>
@@ -135,6 +136,7 @@ function IssuePin({ item }: { item: LogFeedItem }) {
       <span>
         {item.targetLabel} -{' '}
         {formatIssueSeverity(item.issue?.issueSeverity ?? null)}
+        {item.authorLabel ? ` - ${item.authorLabel}` : ''}
       </span>
     </article>
   );

@@ -7,8 +7,13 @@ import {
   parsePlot,
   parseStructures,
   parseTasks,
+  parseWateringSchedule,
+  parseWeatherSnapshots,
   type Garden,
   type GardenRepository,
+  type GardenWorkspaceListener,
+  type GardenWorkspaceUnsubscribe,
+  type SaveSharedGardenOperationsRequest,
 } from '../../../domain/gardens/GardenRepository';
 import {
   createDraftFromPublished,
@@ -25,6 +30,16 @@ import {
   type GardenWorkspace,
   type PublishedGardenRevision,
 } from '../../../domain/gardens/gardenWorkspace';
+import {
+  applyActorToNewSharedOperations,
+  applySharedGardenOperationsPatch,
+  createEmptySharedGardenOperations,
+  getSharedGardenOperations,
+  mergeSharedGardenOperations,
+  overlaySharedGardenOperations,
+  stripSharedGardenOperations,
+  type SharedGardenOperations,
+} from '../../../domain/gardens/sharedOperations';
 import type { AppEnvironment } from '../../../shared/config/env';
 import { isBrowserOffline } from '../../../shared/network/networkStatus';
 import { getFirestoreClient } from '../app';
@@ -41,10 +56,12 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   serverTimestamp,
   setDoc,
   writeBatch,
   type Firestore,
+  type Unsubscribe,
 } from 'firebase/firestore';
 
 export class FirebaseGardenRepository implements GardenRepository {
@@ -82,8 +99,19 @@ export class FirebaseGardenRepository implements GardenRepository {
       await this.flushPendingSave(userId).catch(() => undefined);
     }
 
-    const published = await this.getPublishedRevision(userId);
-    const draft = await this.getDraft(userId, published);
+    const basePublished = await this.getPublishedRevision(userId);
+    const sharedOperations = await this.getSharedOperations(
+      userId,
+      basePublished.garden,
+    );
+    const published = {
+      ...basePublished,
+      garden: overlaySharedGardenOperations(
+        basePublished.garden,
+        sharedOperations,
+      ),
+    };
+    const draft = await this.getDraft(userId, published, sharedOperations);
     const revisions = await this.getRevisionHistory(userId, published);
     const draftSummary = createGardenChangesetSummary(
       prepareGardenForUser(published.garden, userId),
@@ -104,7 +132,7 @@ export class FirebaseGardenRepository implements GardenRepository {
   async saveDraft(draft: GardenDraft): Promise<void> {
     const preparedDraft = {
       ...draft,
-      garden: prepareGardenForUser(draft.garden, draft.userId),
+      garden: prepareDraftGardenForPersistence(draft.garden, draft.userId),
       updatedAtIso: draft.updatedAtIso || new Date().toISOString(),
     };
 
@@ -112,18 +140,24 @@ export class FirebaseGardenRepository implements GardenRepository {
       queuePendingGardenSave(preparedDraft.garden, {
         draftBaseRevisionId: preparedDraft.baseRevisionId,
         draftUpdatedAtIso: preparedDraft.updatedAtIso,
+        kind: 'draft',
       });
       return;
     }
 
     try {
       await this.commitDraft(preparedDraft);
-      clearPendingGardenSave(draft.userId);
+      if (
+        readPendingGardenSaveMetadata(draft.userId)?.kind !== 'sharedOperations'
+      ) {
+        clearPendingGardenSave(draft.userId);
+      }
     } catch (saveError) {
       if (shouldQueueSaveFailure(saveError)) {
         queuePendingGardenSave(preparedDraft.garden, {
           draftBaseRevisionId: preparedDraft.baseRevisionId,
           draftUpdatedAtIso: preparedDraft.updatedAtIso,
+          kind: 'draft',
         });
         return;
       }
@@ -169,7 +203,7 @@ export class FirebaseGardenRepository implements GardenRepository {
         request.userId,
       ),
       baseRevisionId: workspace.draft.baseRevisionId,
-      garden: workspace.draft.garden,
+      garden: stripSharedGardenOperations(workspace.draft.garden),
       publishedByEmail: request.userEmail,
       publishedByUserId: request.userId,
       revertedFromRevisionId: null,
@@ -210,7 +244,9 @@ export class FirebaseGardenRepository implements GardenRepository {
         request.userId,
       ),
       baseRevisionId: workspace.published.id,
-      garden: prepareGardenForUser(targetRevision.garden, request.userId),
+      garden: stripSharedGardenOperations(
+        prepareGardenForUser(targetRevision.garden, request.userId),
+      ),
       publishedByEmail: request.userEmail,
       publishedByUserId: request.userId,
       revertedFromRevisionId: targetRevision.id,
@@ -229,6 +265,114 @@ export class FirebaseGardenRepository implements GardenRepository {
       revision,
       status: 'published',
       workspace: await this.getWorkspace(request.userId),
+    };
+  }
+
+  async saveSharedOperations({
+    actor,
+    baseGarden,
+    updatedGarden,
+    userId,
+  }: SaveSharedGardenOperationsRequest): Promise<Garden> {
+    if (shouldKeepDraftOperations(updatedGarden)) {
+      await this.saveGarden(updatedGarden);
+      return updatedGarden;
+    }
+
+    const authoredGarden = applyActorToNewSharedOperations({
+      actor,
+      baseGarden,
+      updatedGarden: prepareGardenForUser(updatedGarden, userId),
+    });
+    const updatedOperations = getSharedGardenOperations(authoredGarden);
+
+    if (isBrowserOffline()) {
+      queuePendingGardenSave(authoredGarden, {
+        kind: 'sharedOperations',
+      });
+      return authoredGarden;
+    }
+
+    try {
+      const currentOperations = await this.getSharedOperations(userId);
+      const nextOperations = applySharedGardenOperationsPatch({
+        base: getSharedGardenOperations(baseGarden),
+        current: currentOperations,
+        updated: updatedOperations,
+      });
+
+      await this.commitSharedOperationsPatch({
+        base: currentOperations,
+        next: nextOperations,
+      });
+      if (readPendingGardenSaveMetadata(userId)?.kind === 'sharedOperations') {
+        clearPendingGardenSave(userId);
+      }
+
+      return overlaySharedGardenOperations(authoredGarden, nextOperations);
+    } catch (saveError) {
+      if (shouldQueueSaveFailure(saveError)) {
+        queuePendingGardenSave(authoredGarden, {
+          kind: 'sharedOperations',
+        });
+        return authoredGarden;
+      }
+
+      throw saveError;
+    }
+  }
+
+  subscribeWorkspace(
+    userId: string,
+    listener: GardenWorkspaceListener,
+  ): GardenWorkspaceUnsubscribe {
+    let active = true;
+    let scheduled = false;
+    const unsubscriptions: Unsubscribe[] = [];
+
+    const emit = () => {
+      scheduled = false;
+
+      if (!active) {
+        return;
+      }
+
+      void this.getWorkspace(userId)
+        .then((workspace) => {
+          if (active) {
+            listener(workspace);
+          }
+        })
+        .catch(() => undefined);
+    };
+    const scheduleEmit = () => {
+      if (scheduled) {
+        return;
+      }
+
+      scheduled = true;
+      setTimeout(emit, 0);
+    };
+
+    unsubscriptions.push(
+      onSnapshot(this.getWorkspaceDocument(), scheduleEmit, scheduleEmit),
+      onSnapshot(this.getDraftDocument(userId), scheduleEmit, scheduleEmit),
+      ...sharedOperationCollectionNames.map((collectionName) =>
+        onSnapshot(
+          this.getSharedOperationsCollection(collectionName),
+          scheduleEmit,
+          scheduleEmit,
+        ),
+      ),
+    );
+    scheduleEmit();
+
+    return () => {
+      active = false;
+
+      for (const unsubscribe of unsubscriptions) {
+        unsubscribe();
+      }
     };
   }
 
@@ -276,6 +420,7 @@ export class FirebaseGardenRepository implements GardenRepository {
   private async getDraft(
     userId: string,
     published: PublishedGardenRevision,
+    sharedOperations: SharedGardenOperations,
   ): Promise<GardenDraft> {
     const pendingGarden = readPendingGardenSave(userId);
 
@@ -285,7 +430,10 @@ export class FirebaseGardenRepository implements GardenRepository {
       return {
         ...createDraftFromPublished(published, userId),
         baseRevisionId: metadata?.draftBaseRevisionId ?? published.id,
-        garden: pendingGarden,
+        garden:
+          metadata?.kind === 'sharedOperations'
+            ? pendingGarden
+            : overlaySharedGardenOperations(pendingGarden, sharedOperations),
         updatedAtIso:
           metadata?.draftUpdatedAtIso ??
           metadata?.queuedAtIso ??
@@ -300,7 +448,12 @@ export class FirebaseGardenRepository implements GardenRepository {
       published,
     );
 
-    return parsedDraft ?? createDraftFromPublished(published, userId);
+    const draft = parsedDraft ?? createDraftFromPublished(published, userId);
+
+    return {
+      ...draft,
+      garden: overlaySharedGardenOperations(draft.garden, sharedOperations),
+    };
   }
 
   private async hasDraft(userId: string) {
@@ -332,10 +485,160 @@ export class FirebaseGardenRepository implements GardenRepository {
     );
   }
 
+  private async getSharedOperations(
+    userId: string,
+    publishedGarden?: Garden,
+  ): Promise<SharedGardenOperations> {
+    const [
+      journalEntries,
+      harvestEvents,
+      notificationLogs,
+      tasks,
+      wateringSchedule,
+      weatherSnapshots,
+    ] = await Promise.all([
+      this.getSharedCollectionData('journal'),
+      this.getSharedCollectionData('harvests'),
+      this.getSharedCollectionData('notifications'),
+      this.getSharedCollectionData('tasks'),
+      this.getSharedCollectionData('wateringSchedule'),
+      this.getSharedCollectionData('weatherSnapshots'),
+    ]);
+    const operations = mergeSharedGardenOperations({
+      harvestEvents: parseHarvestEvents(harvestEvents),
+      journalEntries: parseJournalEntries(journalEntries),
+      notificationLogs: parseNotificationLogs(notificationLogs),
+      tasks: parseTasks(tasks),
+      wateringSchedule: parseWateringSchedule(wateringSchedule),
+      weatherSnapshots: parseWeatherSnapshots(weatherSnapshots),
+    });
+
+    if (hasSharedOperations(operations)) {
+      return operations;
+    }
+
+    const seededOperations = await this.seedSharedOperations(
+      userId,
+      publishedGarden,
+    );
+
+    if (hasSharedOperations(seededOperations)) {
+      await this.commitSharedOperationsSnapshot(seededOperations);
+    }
+
+    return seededOperations;
+  }
+
+  private async seedSharedOperations(
+    userId: string,
+    publishedGarden?: Garden,
+  ): Promise<SharedGardenOperations> {
+    const legacyGarden = await this.getLegacyGarden(userId).catch(() => null);
+    const draftSnapshot = await getDoc(this.getDraftDocument(userId)).catch(
+      () => null,
+    );
+    const draft =
+      draftSnapshot && publishedGarden
+        ? parseGardenDraft(
+            userId,
+            draftSnapshot.exists() ? draftSnapshot.data() : null,
+            createInitialGardenRevisionFromGarden(publishedGarden),
+          )
+        : null;
+
+    return mergeSharedGardenOperations(
+      publishedGarden ? getSharedGardenOperations(publishedGarden) : null,
+      draft && !shouldKeepDraftOperations(draft.garden)
+        ? getSharedGardenOperations(draft.garden)
+        : null,
+      legacyGarden ? getSharedGardenOperations(legacyGarden) : null,
+    );
+  }
+
+  private async commitSharedOperationsPatch({
+    base,
+    next,
+  }: {
+    base: SharedGardenOperations;
+    next: SharedGardenOperations;
+  }) {
+    const batch = writeBatch(this.firestore);
+
+    this.writeSharedCollectionPatch(batch, 'journal', {
+      base: base.journalEntries,
+      next: next.journalEntries,
+    });
+    this.writeSharedCollectionPatch(batch, 'harvests', {
+      base: base.harvestEvents,
+      next: next.harvestEvents,
+    });
+    this.writeSharedCollectionPatch(batch, 'notifications', {
+      base: base.notificationLogs,
+      next: next.notificationLogs,
+    });
+    this.writeSharedCollectionPatch(batch, 'tasks', {
+      base: base.tasks,
+      next: next.tasks,
+    });
+    this.writeSharedCollectionPatch(batch, 'wateringSchedule', {
+      base: base.wateringSchedule,
+      next: next.wateringSchedule,
+    });
+    this.writeSharedCollectionPatch(batch, 'weatherSnapshots', {
+      base: base.weatherSnapshots,
+      next: next.weatherSnapshots,
+    });
+
+    await batch.commit();
+  }
+
+  private async commitSharedOperationsSnapshot(
+    operations: SharedGardenOperations,
+  ) {
+    const emptyOperations = createEmptySharedGardenOperations();
+
+    await this.commitSharedOperationsPatch({
+      base: emptyOperations,
+      next: operations,
+    });
+  }
+
+  private writeSharedCollectionPatch<T extends { id: string }>(
+    batch: ReturnType<typeof writeBatch>,
+    collectionName: SharedOperationCollectionName,
+    {
+      base,
+      next,
+    }: {
+      base: T[];
+      next: T[];
+    },
+  ) {
+    const baseById = new Map(base.map((item) => [item.id, item] as const));
+    const nextById = new Map(next.map((item) => [item.id, item] as const));
+
+    for (const item of next) {
+      const baseItem = baseById.get(item.id);
+
+      if (!baseItem || !sameData(baseItem, item)) {
+        batch.set(
+          this.getSharedOperationDocument(collectionName, item.id),
+          item,
+        );
+      }
+    }
+
+    for (const item of base) {
+      if (!nextById.has(item.id)) {
+        batch.delete(this.getSharedOperationDocument(collectionName, item.id));
+      }
+    }
+  }
+
   private async commitDraft(draft: GardenDraft): Promise<void> {
     await setDoc(this.getDraftDocument(draft.userId), {
       baseRevisionId: draft.baseRevisionId,
-      garden: draft.garden,
+      garden: prepareDraftGardenForPersistence(draft.garden, draft.userId),
       suggestionDecisions: draft.suggestionDecisions,
       updatedAt: serverTimestamp(),
       updatedAtIso: draft.updatedAtIso,
@@ -349,6 +652,7 @@ export class FirebaseGardenRepository implements GardenRepository {
     const batch = writeBatch(this.firestore);
     const revisionData = {
       ...revision,
+      garden: stripSharedGardenOperations(revision.garden),
       publishedAt: serverTimestamp(),
     };
 
@@ -450,7 +754,27 @@ export class FirebaseGardenRepository implements GardenRepository {
       return;
     }
 
+    if (metadata?.kind === 'sharedOperations') {
+      const currentOperations = await this.getSharedOperations(userId);
+      const nextOperations = applySharedGardenOperationsPatch({
+        base: createEmptySharedGardenOperations(),
+        current: currentOperations,
+        updated: getSharedGardenOperations(pendingGarden),
+      });
+
+      await this.commitSharedOperationsPatch({
+        base: currentOperations,
+        next: nextOperations,
+      });
+      clearPendingGardenSave(userId);
+      return;
+    }
+
     const published = await this.getPublishedRevision(userId);
+    const sharedOperations = await this.getSharedOperations(
+      userId,
+      published.garden,
+    );
 
     if (
       metadata?.draftBaseRevisionId &&
@@ -460,7 +784,7 @@ export class FirebaseGardenRepository implements GardenRepository {
       return;
     }
 
-    const draft = await this.getDraft(userId, published);
+    const draft = await this.getDraft(userId, published, sharedOperations);
 
     await this.commitDraft({
       ...draft,
@@ -481,6 +805,19 @@ export class FirebaseGardenRepository implements GardenRepository {
     }));
   }
 
+  private async getSharedCollectionData(
+    collectionName: SharedOperationCollectionName,
+  ) {
+    const snapshot = await getDocs(
+      this.getSharedOperationsCollection(collectionName),
+    );
+
+    return snapshot.docs.map((documentSnapshot) => ({
+      id: documentSnapshot.id,
+      ...documentSnapshot.data(),
+    }));
+  }
+
   private getGardenDocument(userId: string) {
     return doc(this.firestore, 'gardens', userId);
   }
@@ -491,6 +828,30 @@ export class FirebaseGardenRepository implements GardenRepository {
 
   private getRevisionsCollection() {
     return collection(this.firestore, 'gardenWorkspaces', 'main', 'revisions');
+  }
+
+  private getSharedOperationsCollection(
+    collectionName: SharedOperationCollectionName,
+  ) {
+    return collection(
+      this.firestore,
+      'gardenWorkspaces',
+      'main',
+      collectionName,
+    );
+  }
+
+  private getSharedOperationDocument(
+    collectionName: SharedOperationCollectionName,
+    documentId: string,
+  ) {
+    return doc(
+      this.firestore,
+      'gardenWorkspaces',
+      'main',
+      collectionName,
+      documentId,
+    );
   }
 
   private getRevisionDocument(revisionId: string) {
@@ -517,6 +878,42 @@ function createRevisionId() {
   return `revision-${suffix}`;
 }
 
+function createInitialGardenRevisionFromGarden(
+  garden: Garden,
+): PublishedGardenRevision {
+  return {
+    ...createInitialGardenRevision(garden.userId),
+    garden,
+  };
+}
+
+function prepareDraftGardenForPersistence(garden: Garden, userId: string) {
+  const preparedGarden = prepareGardenForUser(garden, userId);
+
+  return shouldKeepDraftOperations(preparedGarden)
+    ? preparedGarden
+    : stripSharedGardenOperations(preparedGarden);
+}
+
+function shouldKeepDraftOperations(garden: Garden) {
+  return garden.name === 'Sample Kitchen Garden';
+}
+
+function hasSharedOperations(operations: SharedGardenOperations) {
+  return (
+    operations.harvestEvents.length > 0 ||
+    operations.journalEntries.length > 0 ||
+    operations.notificationLogs.length > 0 ||
+    operations.tasks.length > 0 ||
+    operations.wateringSchedule.length > 0 ||
+    operations.weatherSnapshots.length > 0
+  );
+}
+
+function sameData(left: unknown, right: unknown) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 function shouldQueueSaveFailure(error: unknown) {
   if (isBrowserOffline()) {
     return true;
@@ -529,3 +926,15 @@ function shouldQueueSaveFailure(error: unknown) {
     (error as { code?: unknown }).code === 'unavailable'
   );
 }
+
+const sharedOperationCollectionNames = [
+  'journal',
+  'harvests',
+  'notifications',
+  'tasks',
+  'wateringSchedule',
+  'weatherSnapshots',
+] as const;
+
+type SharedOperationCollectionName =
+  (typeof sharedOperationCollectionNames)[number];

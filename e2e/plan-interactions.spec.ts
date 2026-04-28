@@ -134,6 +134,15 @@ test('wheel scrolling flies around the framed workspace while pointer drag still
 
   const afterWheelScroll = await readViewportScroll(page);
 
+  await page.keyboard.down('Control');
+  await page.mouse.wheel(0, -240);
+  await page.keyboard.up('Control');
+
+  await expect(page.locator('[aria-label="Current zoom"]')).not.toHaveText(
+    '100%',
+  );
+  await page.getByRole('button', { name: '100%' }).click();
+
   await page.getByRole('button', { name: 'Pan canvas' }).click();
   await page.mouse.move(firstBox.x + 640, firstBox.y + 160);
   await page.mouse.down();
@@ -151,6 +160,32 @@ test('wheel scrolling flies around the framed workspace while pointer drag still
     afterWheelScroll.scrollLeft,
   );
   expect(afterPanDragScroll.scrollTop).toBeLessThan(afterWheelScroll.scrollTop);
+});
+
+test('selected plant spacing can be tightened directly on the grid', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1365, height: 768 });
+  await signInWithMockPassword(page);
+  await addTomatoToPlan(page);
+
+  const plant = page.getByRole('button', {
+    name: 'Tomato at X: 6.0 ft, Y: 4.0 ft',
+  });
+  const initialBox = await getBox(plant, 'Expected tomato to be visible.');
+
+  await plant.click();
+  await page.getByRole('button', { name: 'Adjust Tomato spacing' }).click();
+  await page.getByLabel('Tomato spacing in inches').fill('6');
+
+  await expect(page.getByText('Tighter than catalog spacing.')).toBeVisible();
+  await expect
+    .poll(async () => {
+      const box = await getBox(plant, 'Expected tomato to stay visible.');
+
+      return box.width;
+    })
+    .toBeLessThan(initialBox.width);
 });
 
 test('marquee select marks multiple plant groups as planted in one action', async ({

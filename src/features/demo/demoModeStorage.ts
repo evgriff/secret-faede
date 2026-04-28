@@ -55,9 +55,9 @@ export function clearDemoModeSession(uid: string): void {
 }
 
 function getBackupKey(uid: string) {
-  return `secret-faede.demo-backup.v1:${encodeURIComponent(uid)}`;
+  return `secret-faeries.demo-backup.v1:${encodeURIComponent(uid)}`;
 }
 
 function getSessionKey(uid: string) {
-  return `secret-faede.demo-session.v1:${encodeURIComponent(uid)}`;
+  return `secret-faeries.demo-session.v1:${encodeURIComponent(uid)}`;
 }

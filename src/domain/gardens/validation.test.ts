@@ -235,6 +235,22 @@ describe('garden domain validation', () => {
           targetLabel: 'Tomato',
           targetType: 'planting',
           urgency: 'medium',
+          waterBalance: {
+            baselineDate: '2026-06-18',
+            baselineSource: 'plantingEvent',
+            currentDepletionInches: 0.5,
+            dailyNeedInches: 0.18,
+            effectiveDeficitInches: 0.5,
+            forecastCreditInches: 0,
+            manualWaterCreditInches: 0,
+            modelVersion: 'water-balance-v1',
+            nextCheckReason: 'Dry weather has built a water deficit.',
+            plantingWaterCreditInches: 0,
+            recentRainCreditInches: 0,
+            rootZoneCapacityInches: 1.1,
+            rootZoneCapacitySource: 'estimated',
+            thresholdInches: 0.18,
+          },
           weatherSnapshotId: 'weather-1',
         },
       ],
@@ -250,6 +266,10 @@ describe('garden domain validation', () => {
         targetAmountInches: 0.5,
         targetId: 'tomato-1',
         targetKind: 'planting',
+        waterBalance: expect.objectContaining({
+          baselineDate: '2026-06-18',
+          modelVersion: 'water-balance-v1',
+        }),
       }),
     ]);
   });

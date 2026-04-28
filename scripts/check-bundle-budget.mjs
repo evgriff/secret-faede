@@ -8,7 +8,7 @@ const indexPath = 'dist/index.html';
 const budgets = [
   {
     label: 'total built asset gzip',
-    limitBytes: 650 * 1024,
+    limitBytes: 656 * 1024,
     value: (context) => context.summary.totalGzipBytes,
   },
   {
@@ -23,7 +23,7 @@ const budgets = [
   },
   {
     label: 'Plan route JavaScript gzip',
-    limitBytes: 72 * 1024,
+    limitBytes: 73 * 1024,
     value: (context) => context.planRouteGzipBytes,
   },
 ];

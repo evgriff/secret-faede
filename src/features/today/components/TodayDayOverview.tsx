@@ -60,8 +60,9 @@ export function TodayDayOverview({
     <section className={styles.overviewGrid}>
       <WeatherPanel
         latestWeather={model.latestWeather}
-        nextWateringRun={model.nextWateringRun}
+        nextWateringWindow={model.nextWateringRun}
         selectedWeather={model.selectedWeather}
+        weekRain={model.weekRain}
         wateringGroups={model.wateringGroups}
       />
       <section className={styles.priorityPanel}>

@@ -19,6 +19,7 @@ export type TodayLoadStatus = 'error' | 'loading' | 'ready';
 
 export function useTodayGarden(today: Date, isOffline: boolean) {
   const {
+    gardenOperationsService,
     gardenRepository,
     mediaStorageService,
     userProfileRepository,
@@ -41,6 +42,20 @@ export function useTodayGarden(today: Date, isOffline: boolean) {
     setLoadStatus('loading');
     setError(null);
 
+    const unsubscribe = gardenRepository.subscribeWorkspace(
+      userId,
+      (workspace) => {
+        if (!active) {
+          return;
+        }
+
+        setGarden(
+          synchronizeGardenTasks(workspace.draft.garden, { now: today }),
+        );
+        setLoadStatus('ready');
+      },
+    );
+
     void gardenRepository
       .getGarden(userId)
       .then(async (savedGarden) => {
@@ -49,8 +64,24 @@ export function useTodayGarden(today: Date, isOffline: boolean) {
         let initialSaveStatus: TodaySaveStatus = 'idle';
 
         if (!tasksAreEqual(baseGarden.tasks, syncedGarden.tasks)) {
+          const authUser = state.user;
           const wasOffline = isBrowserOffline();
-          await gardenRepository.saveGarden(syncedGarden);
+
+          if (authUser?.email) {
+            await gardenRepository.saveSharedOperations({
+              actor: {
+                displayName: authUser.displayName,
+                email: authUser.email,
+                userId: authUser.uid,
+              },
+              baseGarden,
+              updatedGarden: syncedGarden,
+              userId: authUser.uid,
+            });
+          } else {
+            await gardenRepository.saveGarden(syncedGarden);
+          }
+
           initialSaveStatus =
             wasOffline || isBrowserOffline() ? 'queued' : 'saved';
         }
@@ -74,8 +105,9 @@ export function useTodayGarden(today: Date, isOffline: boolean) {
 
     return () => {
       active = false;
+      unsubscribe();
     };
-  }, [gardenRepository, state.user?.uid, today]);
+  }, [gardenRepository, state.user, state.user?.uid, today]);
 
   async function applyGardenUpdate(
     updateGarden: (current: Garden) => Garden,
@@ -86,10 +118,17 @@ export function useTodayGarden(today: Date, isOffline: boolean) {
       return false;
     }
 
+    const authUser = state.user;
+
+    if (!authUser?.email) {
+      setError('Sign in before saving field activity.');
+      setSaveStatus('error');
+      return false;
+    }
+
     let updatedGarden = updateGarden(garden);
 
     if (options.refreshWateringFromSnapshot) {
-      const authUser = state.user;
       const profile =
         authUser?.email && authUser.uid === garden.userId
           ? await userProfileRepository
@@ -109,7 +148,17 @@ export function useTodayGarden(today: Date, isOffline: boolean) {
 
     try {
       const wasOffline = isBrowserOffline();
-      await gardenRepository.saveGarden(updatedGarden);
+      const savedGarden = await gardenRepository.saveSharedOperations({
+        actor: {
+          displayName: authUser.displayName,
+          email: authUser.email,
+          userId: authUser.uid,
+        },
+        baseGarden: garden,
+        updatedGarden,
+        userId: authUser.uid,
+      });
+      setGarden(savedGarden);
       setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
       return true;
     } catch (saveError) {
@@ -146,7 +195,7 @@ export function useTodayGarden(today: Date, isOffline: boolean) {
             entryId,
             file,
             gardenId: garden.id,
-            userId: garden.userId,
+            userId: state.user?.uid ?? garden.userId,
           }),
         ),
       );
@@ -169,6 +218,22 @@ export function useTodayGarden(today: Date, isOffline: boolean) {
       const now = new Date();
       const wasOffline = isBrowserOffline();
       const authUser = state.user;
+      const backendResult = authUser
+        ? await gardenOperationsService
+            .refreshGardenOperations(authUser.uid)
+            .catch(() => null)
+        : null;
+
+      if (backendResult?.ok && backendResult.backendAvailable) {
+        const savedGarden = await gardenRepository.getGarden(garden.userId);
+
+        if (savedGarden) {
+          setGarden(savedGarden);
+          setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
+          return true;
+        }
+      }
+
       const profile =
         authUser?.email && authUser.uid === garden.userId
           ? await userProfileRepository
@@ -185,8 +250,20 @@ export function useTodayGarden(today: Date, isOffline: boolean) {
         },
       );
 
-      await gardenRepository.saveGarden(updatedGarden);
-      setGarden(updatedGarden);
+      const savedGarden = authUser?.email
+        ? await gardenRepository.saveSharedOperations({
+            actor: {
+              displayName: authUser.displayName,
+              email: authUser.email,
+              userId: authUser.uid,
+            },
+            baseGarden: garden,
+            updatedGarden,
+            userId: authUser.uid,
+          })
+        : updatedGarden;
+
+      setGarden(savedGarden);
       setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
       return true;
     } catch (refreshError) {

@@ -4,7 +4,7 @@ Date: 2026-04-22
 
 ## Scope Contract
 
-Secret Faede is release-candidate only if it still reads as a private Garden OS
+Secret Faeries is release-candidate only if it still reads as a private Secret Faeries
 for one real home food garden:
 
 - exactly two provisioned users behind Firebase Email/Password auth
@@ -89,7 +89,7 @@ Required before live tester release:
 - Configure Firebase project, web app, authorized domains, Firestore indexes,
   Firestore rules, Storage rules, Functions, and Hosting.
 - Provision only Primary Gardener and Partner Gardener, then set `gardenAccess: true` and
-  `secretFaedeMember: true` custom claims.
+  `secretFaeriesMember: true` custom claims.
 - Set required `VITE_*` repository variables, including the FCM web push VAPID
   key.
 - Smoke live Auth, Firestore, Storage photo upload, FCM foreground/background

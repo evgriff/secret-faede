@@ -13,7 +13,7 @@ export class FirebaseMediaStorageService implements MediaStorageService {
     const uploadedAtIso = new Date().toISOString();
     const photoId = createPhotoId();
     const fileName = sanitizeFileName(request.file.name);
-    const storagePath = `users/${request.userId}/journal/${request.entryId}/${photoId}-${fileName}`;
+    const storagePath = `gardenWorkspaces/main/journal/${request.entryId}/${photoId}-${fileName}`;
     const storageRef = ref(
       getFirebaseStorageClient(this.environment),
       storagePath,

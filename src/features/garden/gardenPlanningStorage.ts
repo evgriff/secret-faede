@@ -329,7 +329,7 @@ function parseLayoutDownstreamValidation(
 }
 
 function getGardenPlanningStateKey(userId: string) {
-  return `secret-faede.plan-state.v2:${encodeURIComponent(userId)}`;
+  return `secret-faeries.plan-state.v2:${encodeURIComponent(userId)}`;
 }
 
 function normalizeGroupId(value: unknown, groupIds: Set<string>) {

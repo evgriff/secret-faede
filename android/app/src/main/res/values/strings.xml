@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Secret Faede</string>
-    <string name="title_activity_main">Secret Faede</string>
-    <string name="package_name">com.secretfaede.app</string>
-    <string name="custom_url_scheme">com.secretfaede.app</string>
+    <string name="app_name">Secret Faeries</string>
+    <string name="title_activity_main">Secret Faeries</string>
+    <string name="package_name">com.secretfaeries.app</string>
+    <string name="custom_url_scheme">com.secretfaeries.app</string>
 </resources>

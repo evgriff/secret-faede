@@ -145,6 +145,12 @@ describe('NationalWeatherServiceProvider', () => {
         expectedRainIn: 0.25,
         highF: 51,
         precipitationChancePercent: 83,
+        rainAmountSource: 'quantitativePrecipitation',
+        rainLikely: true,
+        rainSignalSource: 'quantitativePrecipitation',
+        rainSummary: 'NWS QPF shows 0.25 in expected rain.',
+        rainWindowEndIso: '2026-04-25T07:00:00.000Z',
+        rainWindowStartIso: '2026-04-25T03:00:00.000Z',
       },
       {
         conditionSummary: 'Mostly Cloudy',
@@ -152,6 +158,12 @@ describe('NationalWeatherServiceProvider', () => {
         expectedRainIn: 0.75,
         highF: 60,
         precipitationChancePercent: 3,
+        rainAmountSource: 'quantitativePrecipitation',
+        rainLikely: true,
+        rainSignalSource: 'quantitativePrecipitation',
+        rainSummary: 'NWS QPF shows 0.75 in expected rain.',
+        rainWindowEndIso: '2026-04-25T07:00:00.000Z',
+        rainWindowStartIso: '2026-04-25T03:00:00.000Z',
       },
       {
         conditionSummary: 'Mostly Sunny',
@@ -159,18 +171,86 @@ describe('NationalWeatherServiceProvider', () => {
         expectedRainIn: 0,
         highF: 64,
         precipitationChancePercent: 2,
+        rainAmountSource: 'none',
+        rainLikely: false,
+        rainSignalSource: null,
+        rainSummary: null,
+        rainWindowEndIso: null,
+        rainWindowStartIso: null,
       },
     ]);
+  });
+
+  it('uses NWS probability grid as qualitative rain when QPF amount is unavailable', async () => {
+    mockNwsFetch({
+      forecastPeriods: [
+        createForecastPeriod(
+          'Tuesday',
+          '2026-04-28T06:00:00-04:00',
+          '2026-04-28T18:00:00-04:00',
+          true,
+          72,
+          78,
+          'Rain Showers Likely',
+        ),
+      ],
+      gridProbabilityValues: [
+        {
+          validTime: '2026-04-28T06:00:00+00:00/PT6H',
+          value: 78,
+        },
+      ],
+    });
+
+    const forecast = await new NationalWeatherServiceProvider().getForecast(
+      annArborLocation,
+    );
+
+    expect(forecast.nextRainIso).toBe('2026-04-28T06:00:00.000Z');
+    expect(forecast.days).toEqual([
+      {
+        conditionSummary: 'Rain Showers Likely',
+        date: '2026-04-28',
+        expectedRainIn: 0,
+        highF: 72,
+        precipitationChancePercent: 78,
+        rainAmountSource: 'none',
+        rainLikely: true,
+        rainSignalSource: 'probabilityOfPrecipitation',
+        rainSummary: '78% rain chance; amount not published by NWS.',
+        rainWindowEndIso: '2026-04-28T12:00:00.000Z',
+        rainWindowStartIso: '2026-04-28T06:00:00.000Z',
+      },
+    ]);
+  });
+
+  it('does not return a past next rain time from an ongoing grid interval', async () => {
+    mockNwsFetch({
+      gridPrecipitationValues: [
+        {
+          validTime: '2026-04-24T22:00:00+00:00/PT4H',
+          value: 2.54,
+        },
+      ],
+    });
+
+    const forecast = await new NationalWeatherServiceProvider().getForecast(
+      annArborLocation,
+    );
+
+    expect(forecast.nextRainIso).toBe('2026-04-24T23:30:00.000Z');
   });
 });
 
 function mockNwsFetch({
   forecastPeriods,
+  gridProbabilityValues = [],
   gridPrecipitationValues = [],
   latestObservation = {},
   observations = [],
 }: {
   forecastPeriods?: Array<Record<string, unknown>>;
+  gridProbabilityValues?: Array<{ validTime: string; value: number }>;
   gridPrecipitationValues?: Array<{ validTime: string; value: number }>;
   latestObservation?: Record<string, unknown>;
   observations?: Array<Record<string, unknown>>;
@@ -279,6 +359,9 @@ function mockNwsFetch({
       if (url.endsWith('/gridpoints/DTX/42,30')) {
         return jsonResponse({
           properties: {
+            probabilityOfPrecipitation: {
+              values: gridProbabilityValues,
+            },
             quantitativePrecipitation: {
               values: gridPrecipitationValues,
             },

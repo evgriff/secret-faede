@@ -29,20 +29,72 @@ describe('taskEngine', () => {
           type: 'sow',
         }),
         expect.objectContaining({
-          dueDate: '2026-05-17',
-          title: 'Transplant Tomato',
-          type: 'transplant',
-        }),
-        expect.objectContaining({
-          title: 'Set support for Tomato',
-          type: 'trellis',
-        }),
-        expect.objectContaining({
           source: 'wateringSchedule',
           title: 'Water Tomato 0.60 in',
           type: 'water',
         }),
       ]),
+    );
+    expect(garden.tasks.map((task) => task.title)).not.toContain(
+      'Transplant Tomato',
+    );
+    expect(garden.tasks.map((task) => task.title)).not.toContain(
+      'Set support for Tomato',
+    );
+  });
+
+  it('creates generated planting tasks inside one week but not after it', () => {
+    const insideWindow = synchronizeGardenTasks(
+      {
+        ...createTaskGarden(),
+        plantings: [
+          {
+            ...createDefaultPlanting({
+              id: 'radish-1',
+              label: 'Radish row',
+              xFt: 3,
+              yFt: 3,
+            }),
+            cropId: 'radish',
+            plannedFor: '2026-04-26',
+            status: 'planned',
+          },
+        ],
+        wateringSchedule: [],
+      },
+      { now: new Date('2026-04-20T12:00:00.000Z') },
+    );
+    const outsideWindow = synchronizeGardenTasks(
+      {
+        ...createTaskGarden(),
+        plantings: [
+          {
+            ...createDefaultPlanting({
+              id: 'radish-1',
+              label: 'Radish row',
+              xFt: 3,
+              yFt: 3,
+            }),
+            cropId: 'radish',
+            plannedFor: '2026-04-27',
+            status: 'planned',
+          },
+        ],
+        wateringSchedule: [],
+      },
+      { now: new Date('2026-04-20T12:00:00.000Z') },
+    );
+
+    expect(insideWindow.tasks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dueDate: '2026-04-26',
+          title: 'Direct sow Radish row',
+        }),
+      ]),
+    );
+    expect(outsideWindow.tasks.map((task) => task.title)).not.toContain(
+      'Direct sow Radish row',
     );
   });
 
@@ -170,7 +222,7 @@ describe('taskEngine', () => {
           },
         ],
       },
-      { now: new Date('2026-04-20T12:00:00.000Z') },
+      { now: new Date('2026-05-11T12:00:00.000Z') },
     );
 
     expect(garden.tasks).toEqual(
@@ -297,7 +349,7 @@ describe('taskEngine', () => {
 
   it('completes planting and watering tasks into downstream state', () => {
     const garden = synchronizeGardenTasks(createTaskGarden(), {
-      now: new Date('2026-04-20T12:00:00.000Z'),
+      now: new Date('2026-05-17T12:00:00.000Z'),
     });
     const plantedGarden = completeTask(
       garden,
@@ -429,6 +481,65 @@ describe('taskEngine', () => {
     ]);
   });
 
+  it('keeps future manual tasks stored even when they are outside the generated horizon', () => {
+    const garden = addManualTask(
+      createDefaultGarden('user-a'),
+      {
+        dueDate: '2026-05-20',
+        notes: 'Buy stakes after payday.',
+        title: 'Buy tomato stakes',
+        type: 'other',
+      },
+      new Date('2026-04-20T12:00:00.000Z'),
+    );
+
+    expect(garden.tasks).toEqual([
+      expect.objectContaining({
+        dueDate: '2026-05-20',
+        source: 'manual',
+        title: 'Buy tomato stakes',
+      }),
+    ]);
+  });
+
+  it('preserves snoozed generated tasks that have moved beyond the generated horizon', () => {
+    const garden = synchronizeGardenTasks(
+      {
+        ...createTaskGarden(),
+        tasks: [
+          {
+            bedLabel: 'Main bed',
+            completedAtIso: null,
+            createdAtIso: '2026-04-20T07:00:00.000Z',
+            deferredUntilDate: null,
+            dueDate: '2026-05-20',
+            gardenId: 'user-a',
+            id: 'planting-tomato-1-plant',
+            notes: 'User moved this later.',
+            plantingId: 'tomato-1',
+            priority: 'medium',
+            snoozedUntilDate: '2026-05-20',
+            source: 'generated',
+            sourceId: 'tomato-1',
+            status: 'open',
+            structureId: null,
+            title: 'Transplant Tomato',
+            type: 'transplant',
+          },
+        ],
+      },
+      { now: new Date('2026-04-20T12:00:00.000Z') },
+    );
+
+    expect(
+      garden.tasks.find((task) => task.id === 'planting-tomato-1-plant'),
+    ).toMatchObject({
+      dueDate: '2026-05-20',
+      snoozedUntilDate: '2026-05-20',
+      status: 'open',
+    });
+  });
+
   it('approves a succession recommendation into a future planned planting', () => {
     const garden = synchronizeGardenTasks(
       {
@@ -476,10 +587,9 @@ describe('taskEngine', () => {
       ]),
     );
     expect(updatedGarden.tasks).toEqual(
-      expect.arrayContaining([
+      expect.not.arrayContaining([
         expect.objectContaining({
           plantingId: expect.stringContaining('succession-planting-'),
-          status: 'open',
         }),
       ]),
     );

@@ -8,16 +8,20 @@ import {
 } from 'react';
 
 import { getCropById } from '../../../domain/crops/cropCatalog';
-import type {
-  CropProfile,
-  Garden,
-  Planting,
+import {
+  getDerivedPlantingDimensions,
+  type CropProfile,
+  type Garden,
+  type GardenPlant,
+  type Planting,
 } from '../../../domain/gardens/GardenRepository';
+import { fitPlantingToAreaRect } from '../../../domain/gardens/plantingAreaFit';
 import { getPlantingInstances } from '../../../domain/gardens/plantingInstances';
 import { isPlantingAnchoredByLifecycle } from '../../garden/gardenImmutability';
-import { formatFeet } from '../../garden/gardenMath';
+import { formatFeet, pixelsPerFoot } from '../../garden/gardenMath';
 import {
   getPlantingFootprint,
+  type FootRect,
   type PlanWarning,
 } from '../../garden/gardenPlanning';
 import {
@@ -33,7 +37,10 @@ import {
   getPlantGroupVisual,
   type PlantGroupLabelPlacement,
 } from '../plantVisuals';
-import type { PlanPreviewOffset } from '../planInteractionGeometry';
+import type {
+  PlanPreviewOffset,
+  ResizeHandle,
+} from '../planInteractionGeometry';
 import { PlantGroupIcon } from './PlantGroupIcon';
 import { footprintStyle } from './planCanvasGeometry';
 import itemStyles from './PlanCanvasItems.module.css';
@@ -51,6 +58,7 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
   isFocusDimmed,
   isHoverLabelVisible,
   isLabelVisible,
+  isResizing,
   isSelected,
   onHideLabel,
   onOpenEditor,
@@ -58,8 +66,13 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
   onPlantPointerDown,
   onPlantPointerEnd,
   onPlantPointerMove,
+  onPlantResizePointerDown,
+  onResizePointerEnd,
+  onResizePointerMove,
   previewOffset,
+  previewRect,
   onSelectItem,
+  onUpdatePlanting,
   plant,
   structures,
   warnings,
@@ -70,6 +83,7 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
   isFocusDimmed: boolean;
   isHoverLabelVisible: boolean;
   isLabelVisible: boolean;
+  isResizing: boolean;
   isSelected: boolean;
   onHideLabel(plantId: string): void;
   onOpenEditor(plantId: string): void;
@@ -89,28 +103,48 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
     plantId: string,
     instanceId?: string,
   ): void;
+  onPlantResizePointerDown(
+    event: PointerEvent<HTMLSpanElement>,
+    plantId: string,
+    handle: ResizeHandle,
+  ): void;
+  onResizePointerEnd(event: PointerEvent<HTMLSpanElement>): void;
+  onResizePointerMove(event: PointerEvent<HTMLSpanElement>): void;
   previewOffset: PlanPreviewOffset | null;
+  previewRect: FootRect | null;
   onSelectItem(
     item: SelectedGardenItem,
     additive: boolean,
     options?: { openSurface?: boolean },
   ): void;
+  onUpdatePlanting(id: string, values: Partial<GardenPlant>): void;
   plant: Planting;
   structures: Garden['structures'];
   warnings: PlanWarning[];
 }) {
+  const displayPlant = useMemo(
+    () =>
+      previewRect ? fitPlantingToAreaRect(plant, previewRect).planting : plant,
+    [plant, previewRect],
+  );
   const crop = plant.cropId ? getCropById(plant.cropId) : null;
-  const instances = useMemo(() => getPlantingInstances(plant), [plant]);
-  const footprint = useMemo(() => getPlantingFootprint(plant), [plant]);
-  const visual = getPlantGroupVisual(crop, plant);
+  const instances = useMemo(
+    () => getPlantingInstances(displayPlant),
+    [displayPlant],
+  );
+  const footprint = useMemo(
+    () => previewRect ?? getPlantingFootprint(displayPlant),
+    [displayPlant, previewRect],
+  );
+  const visual = getPlantGroupVisual(crop, displayPlant);
   const label = plant.label || crop?.commonName || `Plant ${index + 1}`;
-  const quantity = Math.max(instances.length, plant.plantCount ?? 1, 1);
+  const quantity = Math.max(instances.length, displayPlant.plantCount ?? 1, 1);
   const isAnchored = isPlantingAnchoredByLifecycle(plant);
   const showContextSignals = isSelected || isCropFocused;
   const supportState = getSupportState({
     crop,
     footprint,
-    plant,
+    plant: displayPlant,
     showContextSignals,
     structures,
     warnings,
@@ -147,6 +181,7 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
   const shouldExposeLabel = showInteriorLabel || showFloatingLabel;
   const supportId = `plant-group-support-${plant.id}`;
   const warningId = `plant-group-warning-${plant.id}`;
+  const plantWrenchMetrics = getPlantWrenchMetrics(footprint);
   const describedBy = [
     shouldExposeLabel ? labelId : null,
     supportState?.visible ? supportId : null,
@@ -162,6 +197,15 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
       : `${label} group, ${quantity} plants at X: ${formatFeet(
           plant.xFt,
         )} ft, Y: ${formatFeet(plant.yFt)} ft`;
+  const catalogSpacingInches =
+    crop?.spacingInches ?? crop?.matureSpreadInches ?? null;
+  const currentSpacingInches =
+    plant.spacingInches ?? plant.matureSpreadInches ?? catalogSpacingInches;
+  const spacingIsTighterThanCatalog = Boolean(
+    plant.spacingInches &&
+    catalogSpacingInches &&
+    plant.spacingInches < catalogSpacingInches,
+  );
   const style = useMemo(
     () =>
       ({
@@ -172,12 +216,22 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
         '--plant-dot-alt': visual.palette.dotAlt,
         '--plant-label-max-width': `${labelDecision.maxWidthPx}px`,
         '--plant-soft': visual.palette.soft,
+        '--plant-wrench-icon-size': `${plantWrenchMetrics.iconSizePx}px`,
+        '--plant-wrench-offset': `${plantWrenchMetrics.offsetPx}px`,
+        '--plant-wrench-shadow-blur': `${plantWrenchMetrics.shadowBlurPx}px`,
+        '--plant-wrench-shadow-y': `${plantWrenchMetrics.shadowYPx}px`,
+        '--plant-wrench-size': `${plantWrenchMetrics.sizePx}px`,
         '--preview-offset-x': `${previewOffset?.xPx ?? 0}px`,
         '--preview-offset-y': `${previewOffset?.yPx ?? 0}px`,
       }) as CSSProperties,
     [
       footprint,
       labelDecision.maxWidthPx,
+      plantWrenchMetrics.iconSizePx,
+      plantWrenchMetrics.offsetPx,
+      plantWrenchMetrics.shadowBlurPx,
+      plantWrenchMetrics.shadowYPx,
+      plantWrenchMetrics.sizePx,
       previewOffset?.xPx,
       previewOffset?.yPx,
       visual.palette.accent,
@@ -188,12 +242,50 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
     ],
   );
 
+  function updateSpacingOverride(value: number | null) {
+    const spacingInches =
+      value === null ? null : Math.max(Number.isFinite(value) ? value : 1, 1);
+    const nextPlant = {
+      ...plant,
+      spacingInches,
+    };
+
+    if (plant.mode === 'block' || plant.blockWidthFt || plant.blockDepthFt) {
+      const fittedPlant = fitPlantingToAreaRect(nextPlant, footprint).planting;
+
+      onUpdatePlanting(plant.id, {
+        blockDepthFt: fittedPlant.blockDepthFt,
+        blockWidthFt: fittedPlant.blockWidthFt,
+        clusterRadiusFt: null,
+        mode: 'block',
+        plantCount: fittedPlant.plantCount,
+        rowCount: fittedPlant.rowCount,
+        rowLengthFt: null,
+        spacingInches,
+        trellisLengthFt: null,
+        xFt: fittedPlant.xFt,
+        yFt: fittedPlant.yFt,
+      });
+      return;
+    }
+
+    onUpdatePlanting(plant.id, {
+      ...getDerivedPlantingDimensions({
+        ...nextPlant,
+        quantity,
+      }),
+      spacingInches,
+    });
+  }
+
   return (
     <div
-      className={`${itemStyles.plantGroup} ${itemStyles[plant.mode] ?? ''} ${
-        itemStyles[plant.status] ?? ''
-      } ${isSelected ? itemStyles.selectedPlantGroup : ''} ${
-        isDragging ? itemStyles.draggingPlantGroup : ''
+      className={`${itemStyles.plantGroup} ${
+        itemStyles[displayPlant.mode] ?? ''
+      } ${itemStyles[plant.status] ?? ''} ${
+        isSelected ? itemStyles.selectedPlantGroup : ''
+      } ${isDragging ? itemStyles.draggingPlantGroup : ''} ${
+        isResizing ? itemStyles.resizingPlantGroup : ''
       } ${plant.locked ? itemStyles.lockedItem : ''} ${
         isAnchored ? itemStyles.anchoredItem : ''
       } ${isCropFocused ? itemStyles.cropFocusedPlantGroup : ''} ${
@@ -349,9 +441,127 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
       >
         <WrenchIcon />
       </button>
+      {isSelected ? (
+        <details
+          className={itemStyles.plantGroupSpacingDisclosure}
+          data-plan-item="true"
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <summary
+            aria-label={`Adjust ${label} spacing`}
+            className={`${itemStyles.plantGroupWrench} ${itemStyles.plantGroupSpacingButton}`}
+            role="button"
+          >
+            Spacing
+          </summary>
+          <div
+            aria-label={`${label} spacing controls`}
+            className={itemStyles.plantGroupSpacingPanel}
+            role="dialog"
+          >
+            <strong>Plant spacing</strong>
+            <p>
+              Catalog:{' '}
+              {catalogSpacingInches ? `${catalogSpacingInches} in` : 'none'}.
+              Current:{' '}
+              {currentSpacingInches ? `${currentSpacingInches} in` : 'auto'}.
+            </p>
+            <label>
+              <span>Spacing in inches</span>
+              <input
+                aria-label={`${label} spacing in inches`}
+                inputMode="decimal"
+                min="1"
+                onChange={(event) => {
+                  const rawValue = event.currentTarget.value.trim();
+                  updateSpacingOverride(rawValue ? Number(rawValue) : null);
+                }}
+                step="0.5"
+                type="number"
+                value={plant.spacingInches ?? ''}
+              />
+            </label>
+            <p>Tight plans are allowed; thin later if crowded.</p>
+            {spacingIsTighterThanCatalog ? (
+              <p className={itemStyles.plantGroupSpacingWarning}>
+                Tighter than catalog spacing.
+              </p>
+            ) : null}
+            <button
+              className={itemStyles.plantGroupSpacingReset}
+              onClick={() => updateSpacingOverride(catalogSpacingInches)}
+              type="button"
+            >
+              Reset
+            </button>
+          </div>
+        </details>
+      ) : null}
+      {isSelected ? (
+        <ResizeHandles
+          onPointerCancel={onResizePointerEnd}
+          onPointerDown={(event, handle) =>
+            onPlantResizePointerDown(event, plant.id, handle)
+          }
+          onPointerMove={onResizePointerMove}
+          onPointerUp={onResizePointerEnd}
+          plantLabel={label}
+        />
+      ) : null}
     </div>
   );
 });
+
+const resizeHandles: Array<{
+  className: string;
+  handle: ResizeHandle;
+  label: string;
+}> = [
+  { className: 'resizeNorthWest', handle: 'northWest', label: 'northwest' },
+  { className: 'resizeNorth', handle: 'north', label: 'north' },
+  { className: 'resizeNorthEast', handle: 'northEast', label: 'northeast' },
+  { className: 'resizeEast', handle: 'east', label: 'east' },
+  { className: 'resizeSouthEast', handle: 'southEast', label: 'southeast' },
+  { className: 'resizeSouth', handle: 'south', label: 'south' },
+  { className: 'resizeSouthWest', handle: 'southWest', label: 'southwest' },
+  { className: 'resizeWest', handle: 'west', label: 'west' },
+];
+
+function ResizeHandles({
+  onPointerCancel,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  plantLabel,
+}: {
+  onPointerCancel(event: PointerEvent<HTMLSpanElement>): void;
+  onPointerDown(
+    event: PointerEvent<HTMLSpanElement>,
+    handle: ResizeHandle,
+  ): void;
+  onPointerMove(event: PointerEvent<HTMLSpanElement>): void;
+  onPointerUp(event: PointerEvent<HTMLSpanElement>): void;
+  plantLabel: string;
+}) {
+  return (
+    <>
+      {resizeHandles.map((entry) => (
+        <span
+          aria-label={`Resize ${plantLabel} planting area ${entry.label} handle`}
+          className={`${itemStyles.resizeHandle} ${itemStyles[entry.className]}`}
+          data-resize-handle={entry.handle}
+          key={entry.handle}
+          onPointerCancel={onPointerCancel}
+          onPointerDown={(event) => onPointerDown(event, entry.handle)}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          role="button"
+          tabIndex={-1}
+        />
+      ))}
+    </>
+  );
+}
 
 interface SupportSignalState {
   aria: string;
@@ -491,6 +701,22 @@ function getDotStyle(
     top: `${clampPercent(
       ((instance.yFt - footprint.yFt) / footprint.depthFt) * 100,
     )}%`,
+  };
+}
+
+function getPlantWrenchMetrics(
+  footprint: ReturnType<typeof getPlantingFootprint>,
+) {
+  const shorterSidePx =
+    Math.min(footprint.widthFt, footprint.depthFt) * pixelsPerFoot;
+  const sizePx = Math.max(10, Math.min(36, shorterSidePx * 0.46));
+
+  return {
+    iconSizePx: Math.max(7.2, sizePx * 0.46),
+    offsetPx: sizePx * -0.34,
+    shadowBlurPx: sizePx * 0.28,
+    shadowYPx: sizePx * 0.12,
+    sizePx,
   };
 }
 

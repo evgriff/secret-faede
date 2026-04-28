@@ -120,5 +120,5 @@ export async function exitSettingsDemoGarden({
 }
 
 function notifyDemoModeChanged() {
-  window.dispatchEvent(new Event('secret-faede:demo-mode-changed'));
+  window.dispatchEvent(new Event('secret-faeries:demo-mode-changed'));
 }

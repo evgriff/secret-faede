@@ -436,6 +436,17 @@ export interface WeatherSnapshotForecastDay {
   expectedRainIn: number;
   highF: number | null;
   precipitationChancePercent?: number | null;
+  rainAmountSource?: 'none' | 'quantitativePrecipitation' | undefined;
+  rainLikely?: boolean | undefined;
+  rainSignalSource?:
+    | 'forecastText'
+    | 'probabilityOfPrecipitation'
+    | 'quantitativePrecipitation'
+    | null
+    | undefined;
+  rainSummary?: string | null | undefined;
+  rainWindowEndIso?: IsoDateString | null | undefined;
+  rainWindowStartIso?: IsoDateString | null | undefined;
 }
 
 export interface WateringScheduleEntry {
@@ -460,13 +471,44 @@ export interface WateringScheduleEntry {
   targetLabel: string;
   updatedAtIso: IsoDateString;
   urgency: WateringScheduleUrgency;
+  waterBalance?: WaterBalanceMetadata | undefined;
   wateringZoneId: string | null;
   weatherSnapshotId: string | null;
 }
 
+export interface WaterBalanceMetadata {
+  actionableDeficitInches?: number;
+  allowedDepletionInches?: number;
+  baselineDate: LocalDateString;
+  baselineSource:
+    | 'fallbackWeatherWindow'
+    | 'manualWatering'
+    | 'plantingEvent'
+    | 'plantingRecord';
+  currentDepletionInches?: number;
+  dailyNeedInches: number;
+  effectiveDeficitInches: number;
+  forecastCreditInches: number;
+  manualWaterCreditInches: number;
+  modelVersion: string;
+  nextCheckReason: string;
+  observedRainCreditInches?: number;
+  plantingWaterCreditInches: number;
+  recentRainCreditInches: number;
+  rootZoneCapacityInches?: number;
+  rootZoneCapacitySource?: 'estimated' | 'fallback';
+  thresholdInches: number;
+}
+
 export interface Task {
   bedLabel: string | null;
+  completedByDisplayName?: string | null;
+  completedByEmail?: string | null;
+  completedByUserId?: string | null;
   completedAtIso: IsoDateString | null;
+  createdByDisplayName?: string | null;
+  createdByEmail?: string | null;
+  createdByUserId?: string | null;
   createdAtIso: IsoDateString;
   delayReason?: string | null;
   delaySetAtIso?: IsoDateString | null;
@@ -488,6 +530,9 @@ export interface Task {
 
 export interface JournalEntry {
   body: string;
+  createdByDisplayName?: string | null;
+  createdByEmail?: string | null;
+  createdByUserId?: string | null;
   createdAtIso: IsoDateString;
   gardenId: string;
   id: string;
@@ -518,6 +563,9 @@ export interface PhotoAttachment {
 export interface HarvestEvent {
   amountText: string;
   cropId: string | null;
+  createdByDisplayName?: string | null;
+  createdByEmail?: string | null;
+  createdByUserId?: string | null;
   gardenId: string;
   harvestedOn: LocalDateString;
   id: string;

@@ -3,6 +3,8 @@
 const assert = require('node:assert/strict');
 const {
   buildForecastDays,
+  findNextGridRainIso,
+  findNextProbabilityRainIso,
   parseGridValues,
   readPrecipitationQuantityInches,
 } = require('../weatherProviderUtils');
@@ -124,6 +126,12 @@ assert.deepEqual(
       expectedRainIn: 0.25,
       highF: 51,
       precipitationChancePercent: 83,
+      rainAmountSource: 'quantitativePrecipitation',
+      rainLikely: true,
+      rainSignalSource: 'quantitativePrecipitation',
+      rainSummary: 'NWS QPF shows 0.25 in expected rain.',
+      rainWindowEndIso: '2026-04-25T07:00:00.000Z',
+      rainWindowStartIso: '2026-04-25T03:00:00.000Z',
     },
     {
       conditionSummary: 'Mostly Cloudy',
@@ -131,8 +139,105 @@ assert.deepEqual(
       expectedRainIn: 0.75,
       highF: 60,
       precipitationChancePercent: 3,
+      rainAmountSource: 'quantitativePrecipitation',
+      rainLikely: true,
+      rainSignalSource: 'quantitativePrecipitation',
+      rainSummary: 'NWS QPF shows 0.75 in expected rain.',
+      rainWindowEndIso: '2026-04-25T07:00:00.000Z',
+      rainWindowStartIso: '2026-04-25T03:00:00.000Z',
     },
   ],
+);
+
+assert.deepEqual(
+  buildForecastDays(
+    [
+      {
+        endIso: '2026-04-28T18:00:00-04:00',
+        isDaytime: true,
+        precipitationChancePercent: 78,
+        shortForecast: 'Rain Showers Likely',
+        startIso: '2026-04-28T06:00:00-04:00',
+        temperatureF: 72,
+      },
+    ],
+    [],
+    parseGridValues(
+      {
+        properties: {
+          probabilityOfPrecipitation: {
+            values: [
+              {
+                validTime: '2026-04-28T06:00:00+00:00/PT6H',
+                value: 78,
+              },
+            ],
+          },
+        },
+      },
+      'probabilityOfPrecipitation',
+    ),
+    'America/Detroit',
+  ),
+  [
+    {
+      conditionSummary: 'Rain Showers Likely',
+      date: '2026-04-28',
+      expectedRainIn: 0,
+      highF: 72,
+      precipitationChancePercent: 78,
+      rainAmountSource: 'none',
+      rainLikely: true,
+      rainSignalSource: 'probabilityOfPrecipitation',
+      rainSummary: '78% rain chance; amount not published by NWS.',
+      rainWindowEndIso: '2026-04-28T12:00:00.000Z',
+      rainWindowStartIso: '2026-04-28T06:00:00.000Z',
+    },
+  ],
+);
+
+assert.equal(
+  findNextGridRainIso(
+    parseGridValues(
+      {
+        properties: {
+          quantitativePrecipitation: {
+            values: [
+              {
+                validTime: '2026-04-24T22:00:00+00:00/PT4H',
+                value: 2.54,
+              },
+            ],
+          },
+        },
+      },
+      'quantitativePrecipitation',
+    ),
+    new Date('2026-04-24T23:30:00.000Z'),
+  ),
+  '2026-04-24T23:30:00.000Z',
+);
+
+assert.equal(
+  findNextProbabilityRainIso(
+    parseGridValues(
+      {
+        properties: {
+          probabilityOfPrecipitation: {
+            values: [
+              {
+                validTime: '2026-04-28T06:00:00+00:00/PT6H',
+                value: 78,
+              },
+            ],
+          },
+        },
+      },
+      'probabilityOfPrecipitation',
+    ),
+    new Date('2026-04-24T23:30:00.000Z'),
+  ),
+  '2026-04-28T06:00:00.000Z',
 );
 
 console.log('weatherProviderUtils tests passed');

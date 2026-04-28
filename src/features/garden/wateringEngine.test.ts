@@ -64,6 +64,50 @@ describe('wateringEngine', () => {
     });
   });
 
+  it('delays watering for qualitative NWS rain without counting it as water credit', () => {
+    const garden = createWateringGarden();
+    const context = createWeatherContext({
+      dailyHighF: 82,
+      next24hPrecipIn: 0,
+      nextRainIso: '2026-06-21T18:00:00.000Z',
+      recentRainIn: 0,
+    });
+    context.forecast.days = [
+      {
+        conditionSummary: 'Rain Showers Likely',
+        date: '2026-06-21',
+        expectedRainIn: 0,
+        highF: 82,
+        precipitationChancePercent: 78,
+        rainAmountSource: 'none',
+        rainLikely: true,
+        rainSignalSource: 'probabilityOfPrecipitation',
+        rainSummary: '78% rain chance; amount not published by NWS.',
+        rainWindowEndIso: '2026-06-22T00:00:00.000Z',
+        rainWindowStartIso: '2026-06-21T18:00:00.000Z',
+      },
+    ];
+    const now = new Date('2026-06-21T11:00:00.000Z');
+    const snapshot = createWeatherSnapshot(garden, context, now);
+    const recommendations = buildWateringSchedule(
+      garden,
+      context,
+      snapshot,
+      now,
+    );
+
+    expect(recommendations[0]).toMatchObject({
+      nextRecalculationAtIso: '2026-06-21T18:00:00.000Z',
+      status: 'suppressed',
+      targetAmountInches: 0,
+      waterBalance: {
+        forecastCreditInches: 0,
+        nextCheckReason:
+          'NWS shows likely rain but has not published an inch amount yet; recheck after the rain window.',
+      },
+    });
+  });
+
   it('preserves distinct provider forecast days in weather snapshots', () => {
     const garden = createWateringGarden();
     const context = createWeatherContext({
@@ -86,6 +130,7 @@ describe('wateringEngine', () => {
         expectedRainIn: 0,
         highF: 74,
         precipitationChancePercent: 5,
+        rainLikely: false,
       },
     ];
 
@@ -95,7 +140,7 @@ describe('wateringEngine', () => {
       new Date('2026-06-21T11:00:00.000Z'),
     );
 
-    expect(snapshot.forecastDays).toEqual(context.forecast.days);
+    expect(snapshot.forecastDays).toMatchObject(context.forecast.days);
   });
 
   it('tracks partial watering from recent manual logs and leaves only the remainder due', () => {
@@ -249,7 +294,43 @@ describe('wateringEngine', () => {
     expect(recommendations[0]?.reasonDetails).toContain(
       'New plantings need steadier moisture right now.',
     );
-    expect(recommendations[0]?.targetAmountInches ?? 0).toBeGreaterThan(1.4);
+    expect(recommendations[0]?.targetAmountInches ?? 0).toBe(0.6);
+    expect(recommendations[0]?.waterBalance).toMatchObject({
+      baselineDate: '2026-06-18',
+      baselineSource: 'plantingEvent',
+      modelVersion: 'water-balance-v1',
+      rootZoneCapacityInches: 0.6,
+    });
+  });
+
+  it('uses same-day planting as the watering baseline instead of creating immediate work', () => {
+    const now = new Date('2026-06-21T15:00:00.000Z');
+    const planting = appendPlantingEvent(
+      {
+        ...createDefaultPlanting({
+          id: 'tomato-1',
+          label: 'Tomato',
+          xFt: 3,
+          yFt: 3,
+        }),
+        cropId: 'tomato',
+        status: 'planned' as const,
+        weeklyWaterNeedInches: 1.3,
+      },
+      {
+        occurredOn: '2026-06-21',
+        type: 'plantedOut',
+      },
+    );
+    const garden = createWateringGarden({ plantings: [planting] });
+    const context = createWeatherContext({
+      dailyHighF: 92,
+      next24hPrecipIn: 0,
+      recentRainIn: 0,
+    });
+    const snapshot = createWeatherSnapshot(garden, context, now);
+
+    expect(buildWateringSchedule(garden, context, snapshot, now)).toEqual([]);
   });
 });
 

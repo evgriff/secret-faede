@@ -19,6 +19,8 @@ import {
 } from './settingsDemoMode';
 import { toErrorMessage } from './settingsHelpers';
 
+const demoAllowedEmails = new Set(['primary.gardener@example.com']);
+
 export function useSettingsDemoMode({
   authUser,
   garden,
@@ -45,6 +47,9 @@ export function useSettingsDemoMode({
   const handledCommandRef = useRef<string | null>(null);
   const requestedDemoAction = searchParams.get('demo');
   const requestedReturnTo = searchParams.get('returnTo');
+  const canUseDemo = authUser
+    ? demoAllowedEmails.has(authUser.email.trim().toLowerCase())
+    : false;
 
   useEffect(() => {
     setState((current) =>
@@ -60,6 +65,15 @@ export function useSettingsDemoMode({
   const loadDemoGarden = useCallback(
     async (nextStatus: 'loaded' | 'reset') => {
       if (!authUser || !profile) {
+        return false;
+      }
+
+      if (!canUseDemo) {
+        setState(
+          readSettingsDemoState(authUser.uid, {
+            error: 'The sample garden is only available to Primary Gardener.',
+          }),
+        );
         return false;
       }
 
@@ -112,6 +126,7 @@ export function useSettingsDemoMode({
       setProfile,
       setSaveStatus,
       userProfileRepository,
+      canUseDemo,
     ],
   );
 
@@ -205,6 +220,7 @@ export function useSettingsDemoMode({
   ]);
 
   return {
+    canUseDemo,
     exitDemoGarden,
     loadDemoGarden,
     state,

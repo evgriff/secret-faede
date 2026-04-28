@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-Secret Faede is already a field-oriented PWA, but browser APIs alone do not
+Secret Faeries is already a field-oriented PWA, but browser APIs alone do not
 cover the native phone behaviors needed for real garden use: app-store shells,
 native push registration, local notifications, native camera capture, native
 network status, and platform storage hooks for future quick unlock.
@@ -30,7 +30,7 @@ existing seams:
 - `@capacitor/network` adds native network status for sync state.
 - `@capacitor/preferences` stores non-secret session convenience hints only.
 
-Firebase Auth remains the real session owner. Secret Faede will not store
+Firebase Auth remains the real session owner. Secret Faeries will not store
 passwords, refresh tokens, or Firebase credentials in Capacitor Preferences.
 Full PIN/biometric quick unlock still requires an audited Keychain/Keystore
 plugin or custom native code before secrets can be stored locally.

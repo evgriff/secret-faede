@@ -14,7 +14,7 @@ the maintenance and bundle cost of a broad animation dependency.
 
 ## Decision
 
-Secret Faede uses CSS/native-browser motion first:
+Secret Faeries uses CSS/native-browser motion first:
 
 - shared duration and easing tokens live in CSS
 - overlays use transform and opacity rather than layout-heavy animation

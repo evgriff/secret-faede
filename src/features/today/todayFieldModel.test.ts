@@ -145,7 +145,7 @@ describe('todayFieldModel', () => {
     ]);
   });
 
-  it('shows the next likely watering run when nothing is due right now', () => {
+  it('shows the next watering window when nothing is due right now', () => {
     const garden = {
       ...createDefaultGarden('user-a'),
       plantings: [
@@ -186,7 +186,8 @@ describe('todayFieldModel', () => {
 
     expect(model.wateringGroups).toEqual([]);
     expect(model.nextWateringRun).toMatchObject({
-      date: '2026-06-22',
+      bestDate: expect.any(String),
+      headline: expect.stringContaining('Water Main bed'),
       label: 'Main bed',
     });
   });
@@ -237,6 +238,47 @@ describe('todayFieldModel', () => {
       precipitationChancePercent: 3,
       temperatureF: 60,
     });
+  });
+
+  it('surfaces qualitative NWS rain signals without inventing rain inches', () => {
+    const snapshot: WeatherSnapshot = {
+      ...createSnapshot(),
+      forecastDays: [
+        {
+          conditionSummary: 'Rain Showers Likely',
+          date: '2026-06-23',
+          expectedRainIn: 0,
+          highF: 72,
+          precipitationChancePercent: 78,
+          rainAmountSource: 'none',
+          rainLikely: true,
+          rainSignalSource: 'probabilityOfPrecipitation',
+          rainSummary: '78% rain chance; amount not published by NWS.',
+          rainWindowEndIso: '2026-06-23T16:00:00.000Z',
+          rainWindowStartIso: '2026-06-23T10:00:00.000Z',
+        },
+      ],
+      nextRainIso: '2026-06-23T10:00:00.000Z',
+    };
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      weatherSnapshots: [snapshot],
+    };
+
+    const model = buildTodayFieldModel(garden, [], '2026-06-23', '2026-06-21');
+
+    expect(model.selectedWeather).toMatchObject({
+      forecastRainIn: 0,
+      rainLikely: true,
+      rainSummary: '78% rain chance; amount not published by NWS.',
+    });
+    expect(model.weekRain).toEqual([
+      expect.objectContaining({
+        date: '2026-06-23',
+        expectedRainIn: 0,
+        rainSummary: '78% rain chance; amount not published by NWS.',
+      }),
+    ]);
   });
 });
 

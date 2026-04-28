@@ -224,7 +224,7 @@ test('non-allowlisted email has no sign-in path', async ({ page }) => {
   await page.getByRole('button', { name: 'Sign in' }).click();
 
   await expect(
-    page.getByText('This email is not allowed for Secret Faede.'),
+    page.getByText('This email is not allowed for Secret Faeries.'),
   ).toBeVisible();
 });
 

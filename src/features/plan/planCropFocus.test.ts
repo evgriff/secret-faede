@@ -30,7 +30,7 @@ describe('buildCropFocusSummary', () => {
       ],
     };
     const garden = synchronizeGardenTasks(gardenWithPlanting, {
-      now: new Date('2026-04-22T14:00:00.000Z'),
+      now: new Date('2026-04-26T14:00:00.000Z'),
     });
     const sunLayer = buildSunShadeLayers(garden)[0];
 
@@ -42,7 +42,7 @@ describe('buildCropFocusSummary', () => {
       garden,
       selectedItem: { id: 'tomato-1', type: 'planting' },
       sunLayer,
-      todayDate: '2026-04-22',
+      todayDate: '2026-04-26',
       warnings: [],
     });
 

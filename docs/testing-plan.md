@@ -326,7 +326,7 @@ changes:
   volatile form draft, offers reconnect or text-only save, and never claims the
   photo uploaded or queued.
 - In Firebase mode, sign in with a user missing `gardenAccess: true` or
-  `secretFaedeMember: true` and confirm Firestore/Storage access fails even if
+  `secretFaeriesMember: true` and confirm Firestore/Storage access fails even if
   the email is in the client allowlist.
 
 ## Release Evidence

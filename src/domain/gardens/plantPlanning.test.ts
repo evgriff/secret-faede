@@ -59,10 +59,10 @@ describe('plant planning domain model', () => {
       { xFt: 11, yFt: 9 },
     ]);
     expect(derivePlantGroupFootprint(group)).toMatchObject({
-      depthFt: 4,
-      widthFt: 4,
-      xFt: 8,
-      yFt: 6,
+      depthFt: 3,
+      widthFt: 3,
+      xFt: 8.5,
+      yFt: 6.5,
     });
   });
 

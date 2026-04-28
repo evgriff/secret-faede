@@ -82,11 +82,11 @@ export function AppFrame({
     };
 
     syncDemoState();
-    window.addEventListener('secret-faede:demo-mode-changed', syncDemoState);
+    window.addEventListener('secret-faeries:demo-mode-changed', syncDemoState);
 
     return () => {
       window.removeEventListener(
-        'secret-faede:demo-mode-changed',
+        'secret-faeries:demo-mode-changed',
         syncDemoState,
       );
     };
@@ -97,7 +97,7 @@ export function AppFrame({
       <aside className={styles.sidebar}>
         <div className={styles.branding}>
           <Link className={styles.brandLink} to={routePaths.root}>
-            <span className={styles.title}>Secret Faede</span>
+            <span className={styles.title}>Secret Faeries</span>
             <span className={styles.subtitle}>Garden planner</span>
           </Link>
         </div>
@@ -119,7 +119,7 @@ export function AppFrame({
       <div className={styles.contentColumn}>
         <header className={styles.topbar}>
           <div className={styles.mobileBrand}>
-            <span className={styles.title}>Secret Faede</span>
+            <span className={styles.title}>Secret Faeries</span>
             <span className={styles.subtitle}>Garden planner</span>
           </div>
           <div className={styles.actions}>
@@ -196,8 +196,9 @@ export function AppFrame({
         {!hasSyncConflict && !isOffline && hasQueuedChanges ? (
           <div className={styles.bannerWrap}>
             <Banner tone="warning">
-              Saved local changes are waiting for cloud sync. Secret Faede will
-              check the draft base before writing them to the shared garden.
+              Saved local changes are waiting for cloud sync. Secret Faeries
+              will check the draft base before writing them to the shared
+              garden.
             </Banner>
           </div>
         ) : null}

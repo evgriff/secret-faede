@@ -13,6 +13,7 @@ import type {
   TodayCropStageAction,
   TodayRecentActivity,
   TodaySelectedWeather,
+  TodayWeekRainItem,
   TodayWateringOutlookItem,
 } from '../todayFieldModel';
 import type { TodayWateringGroup } from '../todayWateringGroups';
@@ -20,13 +21,15 @@ import styles from './TodayFieldPanels.module.css';
 
 export function WeatherPanel({
   latestWeather,
-  nextWateringRun,
+  nextWateringWindow,
   selectedWeather,
+  weekRain = [],
   wateringGroups = [],
 }: {
   latestWeather: WeatherSnapshot | null;
-  nextWateringRun?: TodayWateringOutlookItem | null;
+  nextWateringWindow: TodayWateringOutlookItem | null | undefined;
   selectedWeather: TodaySelectedWeather | null;
+  weekRain?: TodayWeekRainItem[];
   wateringGroups?: TodayWateringGroup[];
 }) {
   const waterTotalIn = wateringGroups.reduce(
@@ -37,6 +40,8 @@ export function WeatherPanel({
     (total, group) => total + group.targetCount,
     0,
   );
+  const waterBalanceSummary =
+    wateringGroups[0]?.entries[0]?.waterBalance?.nextCheckReason ?? null;
 
   return (
     <section className={`${styles.panel} ${styles.weatherPanel}`}>
@@ -69,6 +74,9 @@ export function WeatherPanel({
                   ? selectedWeather.recentPrecipitation72hIn
                   : selectedWeather.forecastRainIn,
                 'in',
+                selectedWeather.mode === 'forecast'
+                  ? selectedWeather.rainSummary
+                  : null,
               )}
             </span>
             <span className={styles.weatherNextDay}>
@@ -76,12 +84,20 @@ export function WeatherPanel({
                 {selectedWeather.mode === 'observed' ? 'Next 24h' : 'Chance'}
               </strong>
               {selectedWeather.mode === 'observed'
-                ? formatNullableNumber(selectedWeather.forecastRainIn, 'in')
+                ? formatNullableNumber(
+                    selectedWeather.forecastRainIn,
+                    'in',
+                    selectedWeather.rainSummary,
+                  )
                 : formatPercent(selectedWeather.precipitationChancePercent)}
             </span>
             <span>
               <strong>Next rain</strong>
               {formatNextRain(selectedWeather.nextRainIso)}
+            </span>
+            <span className={styles.weatherWeekRain}>
+              <strong>Week rain</strong>
+              {formatWeekRainSummary(weekRain)}
             </span>
             <span className={styles.weatherRisk}>
               <strong>Risk</strong>
@@ -89,12 +105,20 @@ export function WeatherPanel({
             </span>
             <span className={styles.weatherWatering}>
               <strong>Watering</strong>
-              {wateringGroups.length > 0
-                ? `${wateringGroups.length} run${wateringGroups.length === 1 ? '' : 's'}, ${waterTargetCount} target${waterTargetCount === 1 ? '' : 's'}, ${waterTotalIn.toFixed(2)} in`
-                : nextWateringRun
-                  ? formatNextWatering(nextWateringRun)
-                  : 'Check again tomorrow after the next weather refresh.'}
+              {formatWeatherWateringSummary({
+                nextWateringWindow,
+                selectedWeather,
+                waterTargetCount,
+                waterTotalIn,
+                wateringGroups,
+              })}
             </span>
+            {waterBalanceSummary ? (
+              <span className={styles.weatherWatering}>
+                <strong>Balance</strong>
+                {waterBalanceSummary}
+              </span>
+            ) : null}
             <span className={styles.weatherObserved}>
               <strong>{selectedWeather.displayDateLabel}</strong>
               {formatLongDate(selectedWeather.date)}
@@ -168,17 +192,18 @@ export function WateringOutlookCard({
     <article className={`${styles.miniCard} ${styles.waterCard}`}>
       <div className={styles.waterCardCopy}>
         <div className={styles.waterCardHeader}>
-          <h3>{item.label}</h3>
+          <h3>{item.headline}</h3>
           <StatusBadge tone={item.urgency === 'high' ? 'warning' : 'neutral'}>
-            {formatLongDate(item.date)}
+            {item.rangeLabel}
           </StatusBadge>
         </div>
         <p className={styles.waterMeta}>
-          {formatWaterAmount(item.expectedAmountInches)} in likely due across{' '}
-          {item.targetCount} target{item.targetCount === 1 ? '' : 's'}
+          Best: {formatLongDate(item.bestDate)} morning
         </p>
-        <small>{item.summary}</small>
-        <small>{item.reason}</small>
+        <small>
+          Deep soak about {formatWaterAmount(item.amountInches)} in.
+        </small>
+        <small>{item.details}</small>
         <div className={styles.waterMemberList}>
           {item.memberLabels.slice(0, 3).map((label) => (
             <span className={styles.waterMemberChip} key={label}>
@@ -194,6 +219,51 @@ export function WateringOutlookCard({
       </div>
     </article>
   );
+}
+
+function formatWeatherWateringSummary({
+  nextWateringWindow,
+  selectedWeather,
+  waterTargetCount,
+  waterTotalIn,
+  wateringGroups,
+}: {
+  nextWateringWindow: TodayWateringOutlookItem | null | undefined;
+  selectedWeather: TodaySelectedWeather | null;
+  waterTargetCount: number;
+  waterTotalIn: number;
+  wateringGroups: TodayWateringGroup[];
+}) {
+  if (wateringGroups.length > 0) {
+    return `Water today: ${wateringGroups.length} run${wateringGroups.length === 1 ? '' : 's'}, ${waterTargetCount} target${waterTargetCount === 1 ? '' : 's'}, ${waterTotalIn.toFixed(2)} in`;
+  }
+
+  if (nextWateringWindow) {
+    const selectedDate = selectedWeather?.date ?? '';
+
+    if (
+      selectedDate &&
+      selectedDate >= nextWateringWindow.startDate &&
+      selectedDate <= nextWateringWindow.endDate
+    ) {
+      return nextWateringWindow.headline;
+    }
+
+    return `Next water window: ${nextWateringWindow.rangeLabel}`;
+  }
+
+  if (
+    (selectedWeather?.forecastRainIn ?? 0) >= 0.1 ||
+    (selectedWeather?.recentPrecipitation72hIn ?? 0) >= 0.25
+  ) {
+    return 'Rain likely covers this week.';
+  }
+
+  if (selectedWeather?.rainLikely) {
+    return 'Rain likely; watering will recheck after the NWS window.';
+  }
+
+  return 'No watering today.';
 }
 
 export function CropStageCard({
@@ -297,7 +367,15 @@ function getWeatherTone(latestWeather: WeatherSnapshot | null) {
     : 'success';
 }
 
-function formatNullableNumber(value: number | null, unit: string) {
+function formatNullableNumber(
+  value: number | null,
+  unit: string,
+  qualitativeFallback: string | null = null,
+) {
+  if (qualitativeFallback && (value === null || value === 0)) {
+    return qualitativeFallback;
+  }
+
   return value === null ? 'unknown' : `${value}${unit}`;
 }
 
@@ -305,15 +383,9 @@ function formatPercent(value: number | null) {
   return value === null ? 'unknown' : `${value}%`;
 }
 
-function formatNextWatering(item: TodayWateringOutlookItem) {
-  return `Next likely ${formatLongDate(item.date)}, ${formatWaterAmount(
-    item.expectedAmountInches,
-  )} in for ${item.label}`;
-}
-
 function formatNextRain(value: string | null) {
   if (!value) {
-    return 'Not saved';
+    return 'No future rain saved';
   }
 
   const date = new Date(value);
@@ -322,11 +394,34 @@ function formatNextRain(value: string | null) {
     return 'Unknown';
   }
 
+  if (date < new Date()) {
+    return 'No future rain saved';
+  }
+
   return date.toLocaleString(undefined, {
     day: 'numeric',
     hour: 'numeric',
     month: 'short',
   });
+}
+
+function formatWeekRainSummary(weekRain: TodayWeekRainItem[]) {
+  if (weekRain.length === 0) {
+    return 'No NWS rain signal this week.';
+  }
+
+  return weekRain
+    .slice(0, 3)
+    .map((item) => {
+      const dayLabel = formatLongDate(item.date);
+
+      if (item.expectedRainIn >= 0.01) {
+        return `${dayLabel}: ${item.expectedRainIn.toFixed(2)} in`;
+      }
+
+      return `${dayLabel}: ${item.rainSummary}`;
+    })
+    .join(' · ');
 }
 
 function formatWaterAmount(value: number) {

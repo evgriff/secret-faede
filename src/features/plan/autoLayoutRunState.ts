@@ -126,7 +126,7 @@ function readAutoLayoutStageDelayMs(): number {
   }
 
   const rawDelay = window.localStorage.getItem(
-    'secret-faede:auto-layout-stage-delay-ms',
+    'secret-faeries:auto-layout-stage-delay-ms',
   );
   const delayMs = Number.parseInt(rawDelay ?? '0', 10);
 
@@ -135,10 +135,10 @@ function readAutoLayoutStageDelayMs(): number {
 
 function readWindowAutoLayoutStageDelayMs(
   currentWindow: Window & {
-    __secretFaedeAutoLayoutStageDelayMs?: number;
+    __secretFaeriesAutoLayoutStageDelayMs?: number;
   },
 ): number {
-  const delayMs = currentWindow.__secretFaedeAutoLayoutStageDelayMs ?? 0;
+  const delayMs = currentWindow.__secretFaeriesAutoLayoutStageDelayMs ?? 0;
 
   return Number.isFinite(delayMs) && delayMs > 0 ? delayMs : 0;
 }

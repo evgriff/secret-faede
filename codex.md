@@ -2,7 +2,7 @@
 
 ## Project philosophy
 
-This repo is intentionally small. Secret Faede should keep simple password auth
+This repo is intentionally small. Secret Faeries should keep simple password auth
 for exactly two provisioned accounts and a saved real-world garden plot editor
 as the product center while growing only the operations features that help
 gardeners manage that plot.
@@ -68,7 +68,7 @@ Deferred until the local product model needs them:
 
 Use Serena when its tools are available:
 
-- activate this project as `secret-faede`
+- activate this project as `secret-faeries`
 - prefer symbol overview, symbol lookup, and reference-search tools for code
   navigation before reading whole source files
 - prefer Serena symbol refactors for whole-symbol changes where they apply
@@ -162,8 +162,8 @@ Do not add a dependency until all answers are yes:
 
 1. Re-read `AGENTS.md`, `codex.md`, `docs/architecture.md`, and
    `docs/source-control-protocol.md`.
-2. Start with `git status --short --branch` and move agent work to a `codex/`
-   branch before substantial edits.
+2. Start with `git status --short --branch` and keep agent work on `main`
+   unless the user explicitly asks for a different branch strategy.
 3. Activate/use Serena for symbol-aware code navigation and refactors when its
    tools are available.
 4. Keep mock mode working.

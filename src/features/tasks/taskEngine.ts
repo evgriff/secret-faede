@@ -23,6 +23,7 @@ import {
   getPlantingEventTypeForCompletedTask,
   updatePlantingFromCompletedTask,
 } from './taskPlantingMutations';
+import { getTaskLookaheadEndDate } from './taskScope';
 import { getPlantingHarvestSchedule } from '../garden/harvestSchedule';
 
 const dayMs = 24 * 60 * 60 * 1000;
@@ -136,10 +137,12 @@ export function buildGeneratedTasks(garden: Garden, now = new Date()): Task[] {
   );
   const weatherTasks = buildWeatherTasks(garden, now);
 
-  return sortTasks([...tasks, ...waterTasks, ...weatherTasks]).map((task) => ({
-    ...task,
-    gardenId: garden.id,
-  }));
+  return sortTasks([...tasks, ...waterTasks, ...weatherTasks])
+    .filter((task) => isInsideTaskLookahead(task, now))
+    .map((task) => ({
+      ...task,
+      gardenId: garden.id,
+    }));
 }
 
 export function completeTask(
@@ -198,6 +201,16 @@ export function completeTask(
                 lastWateredAtIso: completedAtIso,
                 status: 'completed' as const,
                 updatedAtIso: completedAtIso,
+                waterBalance: entry.waterBalance
+                  ? {
+                      ...entry.waterBalance,
+                      effectiveDeficitInches: 0,
+                      manualWaterCreditInches:
+                        entry.waterBalance.manualWaterCreditInches +
+                        entry.targetAmountInches,
+                      nextCheckReason: 'Watering task was completed.',
+                    }
+                  : undefined,
               }
             : entry,
         )
@@ -889,8 +902,18 @@ function shouldRetireStaleGeneratedTask(
   return (
     !generated &&
     task.status === 'open' &&
-    (task.source === 'generated' || task.source === 'wateringSchedule')
+    (task.source === 'generated' || task.source === 'wateringSchedule') &&
+    !task.snoozedUntilDate &&
+    !task.deferredUntilDate
   );
+}
+
+function isInsideTaskLookahead(task: Task, now: Date) {
+  if (!task.dueDate) {
+    return false;
+  }
+
+  return task.dueDate <= getTaskLookaheadEndDate(toLocalDate(now));
 }
 
 function getGeneratedTaskKey(task: Task) {
