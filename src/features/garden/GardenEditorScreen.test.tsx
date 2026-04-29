@@ -207,6 +207,40 @@ describe('PlanPage', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeVisible();
   }, 30_000);
 
+  it('captures plot wheel zoom before the browser can zoom the page', async () => {
+    const user = userEvent.setup();
+    const services = await createConfiguredPlanServices();
+
+    renderRoute('/app/plan', services);
+
+    const viewport = await screen.findByTestId('plot-viewport');
+    const plot = await screen.findByTestId('garden-plot');
+
+    mockElementRect(viewport, { height: 512, width: 768 });
+    mockElementRect(plot, { height: 256, left: 64, top: 64, width: 384 });
+
+    await user.click(screen.getByRole('button', { name: '100%' }));
+    expect(screen.getByLabelText('Current zoom')).toHaveTextContent('100%');
+
+    const wheelEvent = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 240,
+      clientY: 180,
+      ctrlKey: true,
+      deltaY: -240,
+    });
+
+    viewport.dispatchEvent(wheelEvent);
+
+    expect(wheelEvent.defaultPrevented).toBe(true);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Current zoom')).not.toHaveTextContent(
+        '100%',
+      );
+    });
+  });
+
   it('supports planting duplicate, lifecycle, lock, and delete flows', async () => {
     const user = userEvent.setup();
     const services = await createConfiguredPlanServices();

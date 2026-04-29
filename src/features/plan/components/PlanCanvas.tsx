@@ -2,7 +2,6 @@ import {
   memo,
   type CSSProperties,
   type PointerEvent,
-  type TouchEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -212,44 +211,155 @@ export const PlanCanvas = memo(function PlanCanvas({
       ),
     );
   };
-  function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
-    if (event.touches.length !== 2 || isPointerInteractionActive) {
-      pinchGestureRef.current = null;
-      return;
-    }
 
-    pinchGestureRef.current = {
-      distance: getTouchDistance(event.touches),
-      zoom,
-    };
-  }
-  function handleTouchMove(event: TouchEvent<HTMLDivElement>) {
-    const gesture = pinchGestureRef.current;
+  const handleNativeWheel = useCallback(
+    (event: WheelEvent) => {
+      if (isPointerInteractionActive) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
 
-    if (!gesture || event.touches.length !== 2) {
-      return;
-    }
+      handleViewportWheel(
+        event,
+        readCanvasFitBoundsFromRefs(scrollportRef, pointerInteractions.plotRef),
+      );
+    },
+    [
+      handleViewportWheel,
+      isPointerInteractionActive,
+      pointerInteractions.plotRef,
+      scrollportRef,
+    ],
+  );
+  const handleTouchStart = useCallback(
+    (event: TouchEvent) => {
+      if (event.touches.length !== 2) {
+        pinchGestureRef.current = null;
+        return;
+      }
 
-    event.preventDefault();
-    event.stopPropagation();
+      event.preventDefault();
+      event.stopPropagation();
 
-    const distance = getTouchDistance(event.touches);
-    const center = getTouchCenter(event.touches);
+      if (isPointerInteractionActive) {
+        pinchGestureRef.current = null;
+        return;
+      }
 
-    zoomToPoint(
-      readCanvasFitBounds(
-        scrollportRef.current,
-        pointerInteractions.plotRef.current,
-      ),
-      gesture.zoom * (distance / gesture.distance),
-      center,
-    );
-  }
-  function handleTouchEnd(event: TouchEvent<HTMLDivElement>) {
+      pinchGestureRef.current = {
+        distance: getTouchDistance(event.touches),
+        zoom,
+      };
+    },
+    [isPointerInteractionActive, zoom],
+  );
+  const handleTouchMove = useCallback(
+    (event: TouchEvent) => {
+      const gesture = pinchGestureRef.current;
+
+      if (event.touches.length === 2) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      if (!gesture || event.touches.length !== 2) {
+        return;
+      }
+
+      const distance = getTouchDistance(event.touches);
+      const center = getTouchCenter(event.touches);
+
+      zoomToPoint(
+        readCanvasFitBoundsFromRefs(scrollportRef, pointerInteractions.plotRef),
+        gesture.zoom * (distance / gesture.distance),
+        center,
+      );
+    },
+    [pointerInteractions.plotRef, scrollportRef, zoomToPoint],
+  );
+  const handleTouchEnd = useCallback((event: TouchEvent) => {
     if (event.touches.length < 2) {
       pinchGestureRef.current = null;
     }
-  }
+  }, []);
+  const handleNativeGesture = useCallback((event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  }, []);
+
+  useEffect(() => {
+    const scrollport = scrollportRef.current;
+
+    if (!scrollport) {
+      return;
+    }
+
+    const listenerOptions: AddEventListenerOptions = {
+      capture: true,
+      passive: false,
+    };
+
+    scrollport.addEventListener('wheel', handleNativeWheel, listenerOptions);
+    scrollport.addEventListener(
+      'touchstart',
+      handleTouchStart,
+      listenerOptions,
+    );
+    scrollport.addEventListener('touchmove', handleTouchMove, listenerOptions);
+    scrollport.addEventListener('touchend', handleTouchEnd, listenerOptions);
+    scrollport.addEventListener('touchcancel', handleTouchEnd, listenerOptions);
+    scrollport.addEventListener(
+      'gesturestart',
+      handleNativeGesture,
+      listenerOptions,
+    );
+    scrollport.addEventListener(
+      'gesturechange',
+      handleNativeGesture,
+      listenerOptions,
+    );
+    scrollport.addEventListener(
+      'gestureend',
+      handleNativeGesture,
+      listenerOptions,
+    );
+
+    return () => {
+      scrollport.removeEventListener('wheel', handleNativeWheel, {
+        capture: true,
+      });
+      scrollport.removeEventListener('touchstart', handleTouchStart, {
+        capture: true,
+      });
+      scrollport.removeEventListener('touchmove', handleTouchMove, {
+        capture: true,
+      });
+      scrollport.removeEventListener('touchend', handleTouchEnd, {
+        capture: true,
+      });
+      scrollport.removeEventListener('touchcancel', handleTouchEnd, {
+        capture: true,
+      });
+      scrollport.removeEventListener('gesturestart', handleNativeGesture, {
+        capture: true,
+      });
+      scrollport.removeEventListener('gesturechange', handleNativeGesture, {
+        capture: true,
+      });
+      scrollport.removeEventListener('gestureend', handleNativeGesture, {
+        capture: true,
+      });
+    };
+  }, [
+    handleNativeGesture,
+    handleNativeWheel,
+    handleTouchEnd,
+    handleTouchMove,
+    handleTouchStart,
+    scrollportRef,
+  ]);
+
   const workbenchStyle = useMemo(
     () =>
       ({
@@ -497,25 +607,6 @@ export const PlanCanvas = memo(function PlanCanvas({
         onPointerDownCapture={handlePanPointerDownCapture}
         onPointerMove={handlePanPointerMove}
         onPointerUp={handlePanPointerEndCapture}
-        onTouchCancel={handleTouchEnd}
-        onTouchEnd={handleTouchEnd}
-        onTouchMove={handleTouchMove}
-        onTouchStart={handleTouchStart}
-        onWheel={(event) => {
-          if (isPointerInteractionActive) {
-            event.preventDefault();
-            event.stopPropagation();
-            return;
-          }
-
-          handleViewportWheel(
-            event,
-            readCanvasFitBounds(
-              scrollportRef.current,
-              pointerInteractions.plotRef.current,
-            ),
-          );
-        }}
         ref={scrollportRef}
       >
         <PlanCanvasScene
@@ -617,7 +708,14 @@ function readCanvasFitBounds(
   };
 }
 
-function getTouchDistance(touches: TouchEvent<HTMLDivElement>['touches']) {
+function readCanvasFitBoundsFromRefs(
+  viewportRef: { current: HTMLDivElement | null },
+  plotRef: { current: HTMLDivElement | null },
+) {
+  return readCanvasFitBounds(viewportRef.current, plotRef.current);
+}
+
+function getTouchDistance(touches: TouchList) {
   const first = touches.item(0);
   const second = touches.item(1);
 
@@ -631,7 +729,7 @@ function getTouchDistance(touches: TouchEvent<HTMLDivElement>['touches']) {
   );
 }
 
-function getTouchCenter(touches: TouchEvent<HTMLDivElement>['touches']) {
+function getTouchCenter(touches: TouchList) {
   const first = touches.item(0);
   const second = touches.item(1);
 

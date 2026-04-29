@@ -111,6 +111,7 @@ test('wheel scrolling flies around the framed workspace while pointer drag still
   const viewport = page.getByTestId('plot-viewport');
   const firstBox = await getBox(plot, 'Expected plot to be visible.');
   const initialScroll = await readViewportScroll(page);
+  const initialPageScale = await readPageScale(page);
 
   await page.mouse.move(firstBox.x + 640, firstBox.y + 160);
   await page.mouse.down();
@@ -132,6 +133,8 @@ test('wheel scrolling flies around the framed workspace while pointer drag still
   await expect
     .poll(async () => readViewportScroll(page))
     .not.toEqual(initialScroll);
+  await expect(page.locator('[aria-label="Current zoom"]')).toHaveText('100%');
+  expect(await readPageScale(page)).toEqual(initialPageScale);
 
   const afterWheelScroll = await readViewportScroll(page);
 
@@ -142,6 +145,7 @@ test('wheel scrolling flies around the framed workspace while pointer drag still
   await expect(page.locator('[aria-label="Current zoom"]')).not.toHaveText(
     '100%',
   );
+  expect(await readPageScale(page)).toEqual(initialPageScale);
   await page.getByRole('button', { name: '100%' }).click();
 
   await page.getByRole('button', { name: 'Pan canvas' }).click();
@@ -390,6 +394,30 @@ async function readViewportScroll(page: Page) {
   return page.getByTestId('plot-viewport').evaluate((element) => ({
     scrollLeft: element.scrollLeft,
     scrollTop: element.scrollTop,
+  }));
+}
+
+async function readPageScale(page: Page) {
+  return page.evaluate(() => ({
+    devicePixelRatio: Number(
+      (
+        globalThis as typeof globalThis & { devicePixelRatio: number }
+      ).devicePixelRatio.toFixed(4),
+    ),
+    viewportWidth: (
+      globalThis as typeof globalThis & {
+        document: { documentElement: { clientWidth: number } };
+      }
+    ).document.documentElement.clientWidth,
+    visualScale: Number(
+      (
+        (
+          globalThis as typeof globalThis & {
+            visualViewport?: { scale: number };
+          }
+        ).visualViewport?.scale ?? 1
+      ).toFixed(4),
+    ),
   }));
 }
 

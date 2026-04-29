@@ -5,7 +5,6 @@ import {
   useRef,
   useState,
   type PointerEvent,
-  type WheelEvent,
 } from 'react';
 
 const minZoom = 0.35;
@@ -218,10 +217,7 @@ export function usePlanCanvasView({ isPanMode }: { isPanMode: boolean }) {
   );
 
   const handleViewportWheel = useCallback(
-    (
-      event: WheelEvent<HTMLDivElement>,
-      bounds: CanvasFitBounds | null = null,
-    ) => {
+    (event: WheelEvent, bounds: CanvasFitBounds | null = null) => {
       const scrollport = scrollportRef.current;
 
       if (!scrollport || isPanning) {
