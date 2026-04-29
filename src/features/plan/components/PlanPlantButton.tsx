@@ -90,7 +90,7 @@ export const PlanPlantButton = memo(function PlanPlantButton({
           onSelectItem(
             { id: plant.id, instanceId: instance.id, type: 'planting' },
             event.shiftKey,
-            { openSurface: !event.shiftKey },
+            { openSurface: false },
           );
         }
       }}

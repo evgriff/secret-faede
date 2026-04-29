@@ -318,7 +318,7 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
         onClick={(event) => {
           if (event.detail === 0) {
             onSelectItem({ id: plant.id, type: 'planting' }, event.shiftKey, {
-              openSurface: !event.shiftKey,
+              openSurface: false,
             });
           }
         }}
@@ -429,7 +429,7 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
           event.preventDefault();
           event.stopPropagation();
           onSelectItem({ id: plant.id, type: 'planting' }, event.shiftKey, {
-            openSurface: true,
+            openSurface: false,
           });
           onOpenEditor(plant.id);
         }}

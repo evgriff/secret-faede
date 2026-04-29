@@ -53,9 +53,9 @@
   min-width: max-content;
   min-height: 100%;
   width: max-content;
-  padding: calc(var(--frame-padding-y, 22rem) + var(--space-6))
-    var(--frame-padding-x, 35rem) var(--frame-padding-y, 22rem)
-    var(--frame-padding-x, 35rem);
+  padding: calc(var(--frame-padding-y, 10rem) + var(--space-6))
+    var(--frame-padding-x, 18rem) var(--frame-padding-y, 10rem)
+    var(--frame-padding-x, 18rem);
 }
 
 .sceneBounds {
@@ -349,10 +349,10 @@
 
   .workbench {
     --ruler-size: 1.8rem;
-    padding: calc(min(var(--frame-padding-y, 14rem), 14rem) + 3.6rem)
-      max(0.9rem, min(var(--frame-padding-x, 16rem), 16rem))
-      max(6.4rem, min(var(--frame-padding-y, 14rem), 14rem))
-      max(0.9rem, min(var(--frame-padding-x, 16rem), 16rem));
+    padding: calc(min(var(--frame-padding-y, 8rem), 8rem) + 3.6rem)
+      max(0.9rem, min(var(--frame-padding-x, 6rem), 6rem))
+      max(5.5rem, min(var(--frame-padding-y, 8rem), 8rem))
+      max(0.9rem, min(var(--frame-padding-x, 6rem), 6rem));
   }
 
   .plotMeta {

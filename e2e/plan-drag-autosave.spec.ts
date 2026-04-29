@@ -14,7 +14,9 @@ test('drag drop autosaves without blocking route navigation', async ({
   await addTomatoToPlan(page);
   await savePlan(page);
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
-  await closeVisibleCropFocus(page);
+  await expect(
+    page.getByRole('complementary', { name: 'Crop focus' }),
+  ).toHaveCount(0);
 
   const plant = page.getByRole('button', {
     name: 'Tomato at X: 6.0 ft, Y: 4.0 ft',
@@ -60,14 +62,6 @@ async function addTomatoToPlan(page: Page) {
   await page.getByRole('searchbox', { name: 'Search crops' }).fill('tomato');
   await page.getByRole('button', { exact: true, name: 'Tomato crop' }).click();
   await page.getByRole('button', { exact: true, name: 'Add plant' }).click();
-}
-
-async function closeVisibleCropFocus(page: Page) {
-  const closeButton = page.getByRole('button', { name: 'Close crop focus' });
-
-  if (await closeButton.isVisible().catch(() => false)) {
-    await closeButton.click();
-  }
 }
 
 async function getBox(locator: Locator, errorMessage: string) {

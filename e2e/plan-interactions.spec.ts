@@ -2,15 +2,13 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { openPlanTool, signInWithMockPassword } from './appSmokeHelpers';
 
-test('dragging a plant preserves grab offset and keeps plant surfaces closed until a real click', async ({
+test('dragging a plant preserves grab offset and keeps plant surfaces closed on ordinary clicks', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1365, height: 768 });
   await signInWithMockPassword(page);
   await addTomatoToPlan(page);
   const focus = page.getByRole('complementary', { name: 'Crop focus' });
-  await expect(focus).toBeVisible();
-  await page.getByRole('button', { name: 'Close crop focus' }).click();
   await expect(focus).toHaveCount(0);
   await enlargePlot(page);
   await page.getByRole('button', { name: '100%' }).click();
@@ -94,7 +92,10 @@ test('dragging a plant preserves grab offset and keeps plant surfaces closed unt
   );
 
   await movedTomato.click();
-  await expect(focus).toBeVisible();
+  await expect(focus).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toHaveCount(
+    0,
+  );
 });
 
 test('wheel scrolling flies around the framed workspace while pointer drag still requires the explicit pan control', async ({
@@ -195,9 +196,7 @@ test('marquee select marks multiple plant groups as planted in one action', asyn
   await page.setViewportSize({ width: 1365, height: 768 });
   await signInWithMockPassword(page);
   await addCropToPlan(page, 'tomato', 'Tomato crop');
-  await closeVisibleCropFocus(page);
   await addCropToPlan(page, 'basil', 'Basil crop');
-  await closeVisibleCropFocus(page);
 
   const tomato = page.getByRole('button', {
     name: 'Tomato at X: 6.0 ft, Y: 4.0 ft',
@@ -227,7 +226,7 @@ test('marquee select marks multiple plant groups as planted in one action', asyn
   await expect(basil).toContainText('Anchored');
 });
 
-test('plant selection shows a preview before the inspector', async ({
+test('plant selection stays quiet until wrench or Details opens the editor', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1365, height: 768 });
@@ -235,29 +234,20 @@ test('plant selection shows a preview before the inspector', async ({
   await addTomatoToPlan(page);
 
   const focus = page.getByRole('complementary', { name: 'Crop focus' });
-  await expect(focus).toBeVisible();
+  await expect(focus).toHaveCount(0);
   await expect(page.getByLabel('Plan context panel')).toHaveCount(0);
-  await expect(focus.getByText('Selected plant')).toBeVisible();
-  await expect(focus.getByRole('heading', { name: 'Tomato' })).toBeVisible();
-  await expect(page.locator('[data-influence-overlay="true"]')).toHaveCount(0);
-
-  await focus.getByRole('button', { name: 'Show influence' }).click();
-  await expect(page.locator('[data-influence-overlay="true"]')).toBeVisible();
-  await expect(page.locator('[data-influence-zone="spacing"]')).toBeVisible();
-  await expect(focus.getByText(/keep-away radius/)).toBeVisible();
-
-  await focus.getByRole('button', { name: 'Hide influence' }).click();
   await expect(page.locator('[data-influence-overlay="true"]')).toHaveCount(0);
 
   const tomato = page.getByRole('button', {
     name: 'Tomato at X: 6.0 ft, Y: 4.0 ft',
   });
-  const tomatoLabel = page
-    .locator('[role="tooltip"]')
-    .filter({ hasText: 'Tomato' });
 
   await tomato.click();
-  await expect(tomatoLabel).toBeVisible();
+  await expect(tomato).toHaveAttribute('aria-pressed', 'true');
+  await expect(focus).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toHaveCount(
+    0,
+  );
   await expect(page.getByLabel('Plan context panel')).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Edit Tomato group' }).click();
@@ -270,17 +260,10 @@ test('plant selection shows a preview before the inspector', async ({
   await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toHaveCount(
     0,
   );
-  await expect(tomatoLabel).toBeHidden();
 
   await tomato.click();
-  await expect(tomatoLabel).toBeVisible();
-  await focus.getByRole('tab', { name: 'Crop' }).click();
-  await expect(focus.getByText('1 plant')).toBeVisible();
-
-  await focus.getByRole('tab', { name: 'Needs' }).click();
-  await expect(focus.getByText(/Cage recommended/)).toBeVisible();
-
-  await focus.getByRole('button', { name: /Open details/ }).click();
+  await expect(tomato).toHaveAttribute('aria-pressed', 'true');
+  await openPlanTool(page, 'Details');
   await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toBeVisible();
   await expect(page.getByTestId('plant-editor-layer')).toBeVisible();
   await expect(page.getByTestId('plant-editor-backdrop')).toHaveCount(0);
@@ -295,7 +278,7 @@ test('plant selection shows a preview before the inspector', async ({
   await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toBeVisible();
 });
 
-test('plant focus and overlays stay usable with reduced motion', async ({
+test('explicit plant editor stays usable with reduced motion', async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -309,18 +292,15 @@ test('plant focus and overlays stay usable with reduced motion', async ({
 
   await addTomatoToPlan(page);
   const focus = page.getByRole('complementary', { name: 'Crop focus' });
-  await expect(focus).toBeVisible();
-
-  await focus.getByRole('button', { name: 'Show influence' }).click();
-  await expect(page.locator('[data-influence-overlay="true"]')).toBeVisible();
+  await expect(focus).toHaveCount(0);
   await expect(viewport).toHaveJSProperty('clientWidth', viewportWidth);
 
-  await focus.getByRole('button', { name: /Open details/ }).click();
+  await openPlanTool(page, 'Details');
   await expect(page.getByRole('dialog', { name: /Edit Tomato/ })).toBeVisible();
   await expect(viewport).toHaveJSProperty('clientWidth', viewportWidth);
 });
 
-test('mobile plant focus stays compact and leaves the plot primary', async ({
+test('mobile plant editor keeps Close visible while the sheet scrolls', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 780 });
@@ -337,24 +317,14 @@ test('mobile plant focus stays compact and leaves the plot primary', async ({
   await addTomatoToPlan(page);
 
   const focus = page.getByRole('complementary', { name: 'Crop focus' });
-  await expect(focus).toBeVisible();
-
-  const focusBox = await getBox(
-    focus,
-    'Expected mobile crop focus card to stay visible.',
-  );
+  await expect(focus).toHaveCount(0);
   const viewportSize = page.viewportSize();
 
   if (!viewportSize) {
-    throw new Error('Expected viewport size for mobile crop focus assertion.');
+    throw new Error('Expected viewport size for mobile editor assertion.');
   }
 
-  expect(focusBox.height).toBeLessThanOrEqual(viewportSize.height * 0.48);
-  expect(focusBox.y + focusBox.height).toBeLessThanOrEqual(
-    viewportSize.height - 92,
-  );
-
-  await focus.getByRole('button', { name: /Open details/ }).click();
+  await openPlanTool(page, 'Details');
   const editor = page.getByRole('dialog', { name: /Edit Tomato/ });
   await expect(editor).toBeVisible();
 
@@ -368,6 +338,15 @@ test('mobile plant focus stays compact and leaves the plot primary', async ({
   expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(
     viewportSize.height - 12,
   );
+
+  const closeButton = editor.getByRole('button', {
+    name: 'Close plant editor',
+  });
+  await expect(closeButton).toBeVisible();
+  await editor.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect(closeButton).toBeVisible();
 });
 
 async function addTomatoToPlan(page: Page) {
@@ -387,14 +366,6 @@ async function addCropToPlan(
   await page.getByRole('searchbox', { name: 'Search crops' }).fill(search);
   await page.getByRole('button', { exact: true, name: cropButtonName }).click();
   await page.getByRole('button', { exact: true, name: 'Add plant' }).click();
-}
-
-async function closeVisibleCropFocus(page: Page) {
-  const closeButton = page.getByRole('button', { name: 'Close crop focus' });
-
-  if (await closeButton.isVisible().catch(() => false)) {
-    await closeButton.click();
-  }
 }
 
 async function enlargePlot(page: Page) {

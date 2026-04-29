@@ -32,7 +32,6 @@ import {
   isInspectorPlanWarning,
   isUserFacingPlanWarning,
 } from '../garden/gardenPlanning';
-import { PlotSettingsModal } from '../garden/PlotSettingsModal';
 import {
   buildReviewSuggestions,
   type ReviewSuggestion,
@@ -57,16 +56,10 @@ import type {
   AutoLayoutRunStatus,
 } from './autoLayoutTypes';
 import { allowAutoLayoutStagePaint } from './autoLayoutRunState';
-import { runPlanAutoLayoutGeneration } from './planAutoLayoutGeneration';
-import { PlanActionRail } from './components/PlanActionRail';
 import { PlanCanvas } from './components/PlanCanvas';
-import { PlanCropFocusCard } from './components/PlanCropFocusCard';
-import { PlanSelectionToolbar } from './components/PlanSelectionToolbar';
+import { PlantEditorSheet } from './components/PlantEditorSheet';
 import { PlanTopBar } from './components/PlanTopBar';
 import { usePlanKeyboardShortcuts } from './hooks/usePlanKeyboardShortcuts';
-import { buildCropFocusSummary } from './planCropFocus';
-import { formatDateForTimeZone } from './planDates';
-import { buildPlanInfluenceOverlay } from './planInfluenceOverlay';
 import { buildLayoutProblemResolutionModel } from './layoutProblemResolution';
 import { syncSetupProfile } from './planPageActions';
 import {
@@ -97,6 +90,11 @@ const AddPlantModal = lazy(() =>
     default: module.AddPlantModal,
   })),
 );
+const PlotSettingsModal = lazy(() =>
+  import('../garden/PlotSettingsModal').then((module) => ({
+    default: module.PlotSettingsModal,
+  })),
+);
 const ChoosePlantsModal = lazy(() =>
   import('./components/ChoosePlantsModal').then((module) => ({
     default: module.ChoosePlantsModal,
@@ -107,14 +105,19 @@ const PlanInspector = lazy(() =>
     default: module.PlanInspector,
   })),
 );
-const PlantEditorSheet = lazy(() =>
-  import('./components/PlantEditorSheet').then((module) => ({
-    default: module.PlantEditorSheet,
-  })),
-);
 const PlanModeDrawer = lazy(() =>
   import('./components/PlanModeDrawer').then((module) => ({
     default: module.PlanModeDrawer,
+  })),
+);
+const PlanActionRail = lazy(() =>
+  import('./components/PlanActionRail').then((module) => ({
+    default: module.PlanActionRail,
+  })),
+);
+const PlanSelectionToolbar = lazy(() =>
+  import('./components/PlanSelectionToolbar').then((module) => ({
+    default: module.PlanSelectionToolbar,
   })),
 );
 const loadPlanOperationsPanel = () =>
@@ -225,7 +228,6 @@ export function PlanPage() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isPlotSettingsOpen, setIsPlotSettingsOpen] = useState(false);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
-  const [showDraftChoice, setShowDraftChoice] = useState(true);
   const [structureType, setStructureType] =
     useState<AuthorableStructureType>('raisedBed');
   const [accessiblePathDefaults, setAccessiblePathDefaults] = useState(false);
@@ -238,13 +240,9 @@ export function PlanPage() {
     string[]
   >([]);
   const [operationsError, setOperationsError] = useState<string | null>(null);
-  const [dismissedCropFocusKey, setDismissedCropFocusKey] = useState<
-    string | null
-  >(null);
   const [suppressedSelectionKey, setSuppressedSelectionKey] = useState<
     string | null
   >(null);
-  const [showInfluenceOverlay, setShowInfluenceOverlay] = useState(false);
   const [publishConflict, setPublishConflict] =
     useState<GardenPublishConflict | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -517,42 +515,6 @@ export function PlanPage() {
     });
   }, [cropFocusItem, setPlantLabelVisibility]);
 
-  const cropFocusSummary = useMemo(
-    () =>
-      garden && activeSunLayer && cropFocusItem
-        ? buildCropFocusSummary({
-            garden,
-            selectedItem: cropFocusItem,
-            sunLayer: activeSunLayer,
-            todayDate: formatDateForTimeZone(
-              new Date(),
-              garden.plot.location.timezone,
-            ),
-            warnings: activePlanWarnings,
-          })
-        : null,
-    [activePlanWarnings, activeSunLayer, cropFocusItem, garden],
-  );
-  const visibleCropFocusSummary =
-    cropFocusSummary?.selectionKey === dismissedCropFocusKey
-      ? null
-      : cropFocusSummary;
-  const focusedCropKey = visibleCropFocusSummary?.focusKey ?? null;
-  const influenceOverlay = useMemo(
-    () =>
-      garden && activeSunLayer && focusedCropKey
-        ? buildPlanInfluenceOverlay({
-            focusKey: focusedCropKey,
-            garden,
-            sunLayer: activeSunLayer,
-            warnings: activePlanWarnings,
-          })
-        : null,
-    [activePlanWarnings, activeSunLayer, focusedCropKey, garden],
-  );
-  const visibleInfluenceOverlay = showInfluenceOverlay
-    ? influenceOverlay
-    : null;
   const isDragLikeInteraction =
     planInteractionState === 'drag' ||
     planInteractionState === 'marquee' ||
@@ -560,16 +522,11 @@ export function PlanPage() {
     planInteractionState === 'resize';
 
   useEffect(() => {
-    setShowInfluenceOverlay(false);
-  }, [visibleCropFocusSummary?.selectionKey]);
-
-  useEffect(() => {
     if (!isDragLikeInteraction) {
       return;
     }
 
     setSuppressedSelectionKey(selectedItemKey);
-    setShowInfluenceOverlay(false);
     setHoveredPlantGroupId(null);
     setPlantLabelVisibility({ groupIds: [], mode: 'auto' });
     closePlantGroupEditor();
@@ -661,8 +618,24 @@ export function PlanPage() {
       if (!shouldOpenSurface) {
         setSuppressedSelectionKey(nextPrimaryKey);
 
-        if (detailedViewState.isOpen) {
-          closeDetailedView();
+        if (detailedViewState.isOpen && primaryItem) {
+          openDetailedViewForItem(primaryItem);
+
+          if (primaryItem.type === 'planting') {
+            setIsContextPanelOpen(false);
+
+            if (plantEditorState.isOpen) {
+              openPlantGroupEditor(primaryItem.id, 'detailedView', {
+                tab: plantEditorState.tab,
+              });
+            }
+
+            return;
+          }
+
+          closePlantGroupEditor();
+          setIsContextPanelOpen(true);
+          return;
         }
 
         if (plantEditorState.isOpen) {
@@ -676,7 +649,6 @@ export function PlanPage() {
         return;
       }
 
-      setDismissedCropFocusKey(null);
       setSuppressedSelectionKey(null);
 
       if (detailedViewState.isOpen && primaryItem) {
@@ -713,7 +685,6 @@ export function PlanPage() {
     },
     [
       activeMode,
-      closeDetailedView,
       closePlantGroupEditor,
       detailedViewState.isOpen,
       openDetailedViewForItem,
@@ -894,7 +865,6 @@ export function PlanPage() {
     }
 
     setActiveMode('select');
-    setDismissedCropFocusKey(null);
     setSuppressedSelectionKey(null);
 
     if (
@@ -947,7 +917,6 @@ export function PlanPage() {
       const item = { id: plantId, type: 'planting' as const };
 
       setActiveMode('select');
-      setDismissedCropFocusKey(null);
       setIsContextPanelOpen(false);
       setSuppressedSelectionKey(null);
       setSelectedItems([item]);
@@ -1010,7 +979,6 @@ export function PlanPage() {
       }
 
       const item = { id: duplicateId, type: 'planting' as const };
-      setDismissedCropFocusKey(null);
       setSelectedItems([item]);
       setSelectedItem(item);
       setSuppressedSelectionKey(null);
@@ -1032,12 +1000,6 @@ export function PlanPage() {
       showPlantGroupLabel,
     ],
   );
-
-  const handleCloseCropFocus = useCallback(() => {
-    if (cropFocusSummary) {
-      setDismissedCropFocusKey(cropFocusSummary.selectionKey);
-    }
-  }, [cropFocusSummary]);
 
   const handleCloseContextPanel = useCallback(() => {
     setIsContextPanelOpen(false);
@@ -1177,6 +1139,8 @@ export function PlanPage() {
     setActiveReviewSuggestionId(null);
 
     try {
+      const { runPlanAutoLayoutGeneration } =
+        await import('./planAutoLayoutGeneration');
       const result = await runPlanAutoLayoutGeneration({
         acknowledgedWarningIds,
         currentGarden: garden,
@@ -1454,7 +1418,6 @@ export function PlanPage() {
   async function handleDiscardDraft() {
     try {
       await discardDraft();
-      setShowDraftChoice(false);
     } catch (discardFailure) {
       setOperationsError(
         discardFailure instanceof Error
@@ -1512,102 +1475,78 @@ export function PlanPage() {
 
   return (
     <section className={styles.screen} data-route-shell="true">
-      <div className={styles.routeChrome}>
-        <PlanTopBar
-          canPublish={canPublish || dirty}
-          dirty={dirty}
-          garden={garden}
-          isOffline={isOffline}
-          onAddPlants={() => {
-            void loadPlanOperationsPanel();
-            setIsChoosePlantsOpen(true);
-          }}
-          onOpenPlot={() => setIsPlotSettingsOpen(true)}
-          onPublish={() => {
-            setPublishConflict(
-              workspace?.draftIsStale
-                ? {
-                    currentRevisionId: workspace.published.id,
-                    draftBaseRevisionId: workspace.draft.baseRevisionId,
-                    message:
-                      'The published garden changed after this draft was started.',
-                  }
-                : null,
-            );
-            setPublishError(null);
-            setIsPublishOpen(true);
-          }}
-          onReviewProblems={handleOpenReviewProblems}
-          onSave={() => void saveGarden()}
-          saveStatus={saveStatus}
-          workspaceState={workspaceState}
-        />
-        {workspace?.hasDraft && showDraftChoice && (hasPlanChanges || dirty) ? (
-          <div className={styles.draftChoice}>
-            <div>
-              <strong>Saved draft changes are waiting</strong>
-              <p>
-                Keep editing this private draft, or abandon the saved local plan
-                changes and go back to the published plot.
-              </p>
-            </div>
-            <div className={styles.draftChoiceActions}>
-              <button
-                className={styles.secondaryButton}
-                onClick={() => setShowDraftChoice(false)}
-                type="button"
-              >
-                Continue draft
-              </button>
-              <button
-                className={styles.warningButton}
-                onClick={() => void handleDiscardDraft()}
-                type="button"
-              >
-                Abandon Changes
-              </button>
-            </div>
-          </div>
-        ) : null}
-        {saveStatus === 'error' && error ? (
-          <div className={styles.errorPanel}>
-            <p className={styles.error} role="alert">
-              {error}
-            </p>
-          </div>
-        ) : null}
-        {operationsError ? (
-          <div className={styles.errorPanel}>
-            <p className={styles.error} role="alert">
-              {operationsError}
-            </p>
-          </div>
-        ) : null}
-      </div>
-
       <div
         className={styles.workspaceGrid}
         data-panel-open={sidePanelState ? 'true' : 'false'}
       >
-        <PlanActionRail
-          activeMode={activeMode}
-          avoidFocusCard={Boolean(visibleCropFocusSummary)}
-          hasSelection={Boolean(selectedItem)}
-          isDetailedViewOpen={detailedViewState.isOpen}
-          onOpenDetails={handleOpenInspector}
-          onOpenHistory={() => setIsHistoryOpen(true)}
-          onOpenOptimize={handleOpenOptimizeMode}
-          onOpenSun={handleOpenSunMode}
-          setActiveMode={handleSetActiveMode}
-        />
+        <div className={styles.floatingChrome}>
+          <PlanTopBar
+            canDiscardDraft={Boolean(workspace?.hasDraft && hasPlanChanges)}
+            canPublish={canPublish || dirty}
+            dirty={dirty}
+            garden={garden}
+            isOffline={isOffline}
+            onAddPlants={() => {
+              void loadPlanOperationsPanel();
+              setIsChoosePlantsOpen(true);
+            }}
+            onDiscardDraft={() => void handleDiscardDraft()}
+            onOpenPlot={() => setIsPlotSettingsOpen(true)}
+            onPublish={() => {
+              setPublishConflict(
+                workspace?.draftIsStale
+                  ? {
+                      currentRevisionId: workspace.published.id,
+                      draftBaseRevisionId: workspace.draft.baseRevisionId,
+                      message:
+                        'The published garden changed after this draft was started.',
+                    }
+                  : null,
+              );
+              setPublishError(null);
+              setIsPublishOpen(true);
+            }}
+            onReviewProblems={handleOpenReviewProblems}
+            onSave={() => void saveGarden()}
+            saveStatus={saveStatus}
+            workspaceState={workspaceState}
+          />
+          {saveStatus === 'error' && error ? (
+            <div className={styles.errorPanel}>
+              <p className={styles.error} role="alert">
+                {error}
+              </p>
+            </div>
+          ) : null}
+          {operationsError ? (
+            <div className={styles.errorPanel}>
+              <p className={styles.error} role="alert">
+                {operationsError}
+              </p>
+            </div>
+          ) : null}
+        </div>
+        <Suspense fallback={null}>
+          <PlanActionRail
+            activeMode={activeMode}
+            avoidFocusCard={false}
+            hasSelection={Boolean(selectedItem)}
+            isDetailedViewOpen={detailedViewState.isOpen}
+            onOpenDetails={handleOpenInspector}
+            onOpenHistory={() => setIsHistoryOpen(true)}
+            onOpenOptimize={handleOpenOptimizeMode}
+            onOpenSun={handleOpenSunMode}
+            setActiveMode={handleSetActiveMode}
+          />
+        </Suspense>
 
         <div className={styles.canvasColumn}>
           <PlanCanvas
             activeSunLayer={activeSunLayer}
             garden={garden}
-            focusedCropKey={focusedCropKey}
+            focusedCropKey={null}
             hoveredPlantGroupId={planCanvasHoveredPlantGroupId}
-            influenceOverlay={visibleInfluenceOverlay}
+            influenceOverlay={null}
             manualSunEdit={manualSunEdit}
             manualSunExposure={manualSunExposure}
             mode={activeMode}
@@ -1634,31 +1573,25 @@ export function PlanPage() {
             updateItemPositions={updateItemPositions}
             visiblePlantLabelIds={planCanvasVisiblePlantLabelIds}
           />
-          {visibleCropFocusSummary ? (
-            <PlanCropFocusCard
-              influenceSummary={influenceOverlay?.summary ?? null}
-              onClose={handleCloseCropFocus}
-              onOpenDetails={handleOpenInspector}
-              onShowInfluenceChange={setShowInfluenceOverlay}
-              showInfluence={showInfluenceOverlay}
-              summary={visibleCropFocusSummary}
-            />
+          {selectedItems.length >= 2 ? (
+            <Suspense fallback={null}>
+              <PlanSelectionToolbar
+                count={selectedItems.length}
+                onAlignBottom={() => handleAlignSelection('bottom')}
+                onAlignCenter={() => handleAlignSelection('center')}
+                onAlignLeft={() => handleAlignSelection('left')}
+                onAlignRight={() => handleAlignSelection('right')}
+                onAlignTop={() => handleAlignSelection('top')}
+                onDelete={handleDeleteSelection}
+                onDistributeHorizontal={handleDistributeSelection}
+                onDuplicate={handleDuplicateSelection}
+                onMarkSelectedPlanted={handleMarkSelectedPlanted}
+                selectedPlantCount={selectedPlantCount}
+                selectedStructureCount={selectedStructureCount}
+                timezone={garden.plot.location.timezone}
+              />
+            </Suspense>
           ) : null}
-          <PlanSelectionToolbar
-            count={selectedItems.length}
-            onAlignBottom={() => handleAlignSelection('bottom')}
-            onAlignCenter={() => handleAlignSelection('center')}
-            onAlignLeft={() => handleAlignSelection('left')}
-            onAlignRight={() => handleAlignSelection('right')}
-            onAlignTop={() => handleAlignSelection('top')}
-            onDelete={handleDeleteSelection}
-            onDistributeHorizontal={handleDistributeSelection}
-            onDuplicate={handleDuplicateSelection}
-            onMarkSelectedPlanted={handleMarkSelectedPlanted}
-            selectedPlantCount={selectedPlantCount}
-            selectedStructureCount={selectedStructureCount}
-            timezone={garden.plot.location.timezone}
-          />
         </div>
 
         {sidePanelState ? (
@@ -1768,33 +1701,33 @@ export function PlanPage() {
       </div>
 
       {planInteractionState === 'idle' && plantEditorPlant ? (
-        <Suspense fallback={null}>
-          <PlantEditorSheet
-            garden={garden}
-            isDetailedViewPinned={isPlantEditorDetailedView}
-            onClose={handleClosePlantEditor}
-            onDeleteSelected={handleDeleteFromPlantEditor}
-            onDuplicatePlanting={handleDuplicateFromPlantEditor}
-            onUpdatePlanting={updatePlanting}
-            plant={plantEditorPlant}
-            sunLayer={activeSunLayer}
-            sunSeason={sunSeason}
-            warnings={plantEditorWarnings}
-          />
-        </Suspense>
+        <PlantEditorSheet
+          garden={garden}
+          isDetailedViewPinned={isPlantEditorDetailedView}
+          onClose={handleClosePlantEditor}
+          onDeleteSelected={handleDeleteFromPlantEditor}
+          onDuplicatePlanting={handleDuplicateFromPlantEditor}
+          onUpdatePlanting={updatePlanting}
+          plant={plantEditorPlant}
+          sunLayer={activeSunLayer}
+          sunSeason={sunSeason}
+          warnings={plantEditorWarnings}
+        />
       ) : null}
 
       {isPlotSettingsOpen ? (
-        <PlotSettingsModal
-          geocodingApiKey={environment.geocodingApiKey}
-          climateProfile={garden.climateProfile}
-          onApply={(widthFt, depthFt, orientationDegrees, location) => {
-            applyPlotSettings(widthFt, depthFt, orientationDegrees, location);
-            setIsPlotSettingsOpen(false);
-          }}
-          onClose={() => setIsPlotSettingsOpen(false)}
-          plot={garden.plot}
-        />
+        <Suspense fallback={null}>
+          <PlotSettingsModal
+            geocodingApiKey={environment.geocodingApiKey}
+            climateProfile={garden.climateProfile}
+            onApply={(widthFt, depthFt, orientationDegrees, location) => {
+              applyPlotSettings(widthFt, depthFt, orientationDegrees, location);
+              setIsPlotSettingsOpen(false);
+            }}
+            onClose={() => setIsPlotSettingsOpen(false)}
+            plot={garden.plot}
+          />
+        </Suspense>
       ) : null}
 
       {isAddPlantOpen ? (

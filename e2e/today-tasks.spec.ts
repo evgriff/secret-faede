@@ -93,7 +93,12 @@ test('Today surfaces due tasks with reasons and target jumps', async ({
   await expect(page).toHaveURL('/app/plan?p=demo-lettuce-block');
   await expect(
     page.getByRole('complementary', { name: 'Crop focus' }),
-  ).toContainText('lettuce');
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('button', {
+      name: /Butterhead lettuce group, 9 plants at X:/,
+    }),
+  ).toBeVisible();
 });
 
 test('Today keeps the remaining watering deficit visible after a partial watering', async ({

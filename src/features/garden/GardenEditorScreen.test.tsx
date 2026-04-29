@@ -76,7 +76,7 @@ describe('PlanPage', () => {
     expect(await screen.findByRole('heading', { name: 'Plan' })).toBeVisible();
     expect(await screen.findByText('12 ft by 8 ft')).toBeVisible();
     expect(
-      screen.queryByRole('button', { name: 'Abandon Changes' }),
+      screen.queryByRole('button', { name: 'More plan actions' }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Save' }),
@@ -114,14 +114,14 @@ describe('PlanPage', () => {
     expect(await screen.findByRole('heading', { name: 'Plan' })).toBeVisible();
     expect(screen.getByText('Published', { exact: true })).toBeVisible();
     expect(
-      screen.queryByRole('button', { name: 'Abandon Changes' }),
+      screen.queryByRole('button', { name: 'More plan actions' }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Save' }),
     ).not.toBeInTheDocument();
   });
 
-  it('shows an abandon-changes warning only for actual saved plot edits', async () => {
+  it('exposes abandon draft only for actual saved plot edits', async () => {
     const user = userEvent.setup();
     const services = await createTestServices({
       signedInEmail: 'primary.gardener@example.com',
@@ -155,14 +155,16 @@ describe('PlanPage', () => {
 
     renderRoute('/app/plan', services);
 
-    expect(
-      await screen.findByRole('button', { name: 'Abandon Changes' }),
-    ).toBeVisible();
+    const moreActions = await screen.findByRole('button', {
+      name: 'More plan actions',
+    });
+    expect(moreActions).toBeVisible();
     expect(
       screen.queryByRole('button', { name: 'Sync from published' }),
     ).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Abandon Changes' }));
+    await user.click(moreActions);
+    await user.click(screen.getByRole('menuitem', { name: 'Abandon draft' }));
 
     expect(
       screen.queryByRole('button', {
@@ -188,15 +190,20 @@ describe('PlanPage', () => {
 
     expect(tomatoNode).toBeVisible();
     expect(screen.getByRole('tooltip', { name: 'Tomato' })).toBeVisible();
-    expect(within(tomatoNode).getByText('Needs cage')).toBeVisible();
-    const focusCard = await screen.findByRole('complementary', {
-      name: 'Crop focus',
-    });
-    expect(within(focusCard).getByText('X 6.0 ft, Y 4.0 ft')).toBeVisible();
-    await user.click(within(focusCard).getByRole('tab', { name: 'Crop' }));
-    expect(within(focusCard).getByText('1 plant')).toBeVisible();
-    await user.click(within(focusCard).getByRole('tab', { name: 'Needs' }));
-    expect(within(focusCard).getByText(/Cage recommended/)).toBeVisible();
+    expect(
+      screen.queryByRole('complementary', { name: 'Crop focus' }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText('Edit Tomato group'));
+    const editor = await screen.findByRole('dialog', { name: /Edit Tomato/ });
+
+    expect(within(editor).getByLabelText('How many plants?')).toHaveValue(1);
+    expect(within(editor).getByText('Needs water check')).toBeVisible();
+    expect(
+      within(editor).getByRole('heading', { name: 'Supports' }),
+    ).toBeVisible();
+    await user.click(within(editor).getByText('Sun, footprint, and warnings'));
+    expect(within(editor).getByText('X 6.0 ft, Y 4.0 ft')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Save' })).toBeVisible();
   }, 30_000);
 
@@ -516,8 +523,7 @@ describe('PlanPage', () => {
         screen.getByRole('list', { name: 'Recent planting events' }),
       ).getByText('2026-04-22'),
     ).toBeVisible();
-    expect(screen.getByText('Last work')).toBeVisible();
-    expect(screen.getByText('Direct sowed on 2026-04-22')).toBeVisible();
+    expect(screen.getByText('Planted 2026-04-22')).toBeVisible();
   });
 
   it('shows structure resize preview before committing the new footprint', async () => {
@@ -553,14 +559,6 @@ describe('PlanPage', () => {
     });
 
     renderRoute('/app/plan', services);
-
-    const continueDraftButton = screen.queryByRole('button', {
-      name: 'Continue draft',
-    });
-
-    if (continueDraftButton) {
-      await user.click(continueDraftButton);
-    }
 
     const plot = await screen.findByTestId('garden-plot');
     const trellis = await screen.findByRole('button', {
@@ -769,7 +767,7 @@ describe('PlanPage', () => {
     ).toBeVisible();
   });
 
-  it('keeps plant surfaces closed during drag and reopens them only on click release', async () => {
+  it('keeps plant surfaces closed during drag and ordinary plant clicks', async () => {
     const user = userEvent.setup();
     const services = await createTestServices({
       signedInEmail: 'primary.gardener@example.com',
@@ -807,11 +805,10 @@ describe('PlanPage', () => {
     await user.click(plant);
 
     expect(
-      await screen.findByRole('complementary', { name: 'Crop focus' }),
-    ).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Close crop focus' }));
-    expect(
       screen.queryByRole('complementary', { name: 'Crop focus' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('dialog', { name: /Edit Saved tomato/ }),
     ).not.toBeInTheDocument();
 
     fireEvent.pointerDown(plant, {
@@ -862,8 +859,11 @@ describe('PlanPage', () => {
     await user.click(movedPlant);
 
     expect(
-      await screen.findByRole('complementary', { name: 'Crop focus' }),
-    ).toBeVisible();
+      screen.queryByRole('complementary', { name: 'Crop focus' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('dialog', { name: /Edit Saved tomato/ }),
+    ).not.toBeInTheDocument();
   });
 
   it('keeps drag autosave async and waits for the newest position before marking saved', async () => {
@@ -1845,8 +1845,10 @@ describe('PlanPage', () => {
 
     await addTomato(user);
     await user.click(screen.getByRole('button', { name: 'Plot settings' }));
-    await user.clear(screen.getByLabelText('Width in feet'));
-    await user.type(screen.getByLabelText('Width in feet'), '4');
+    const widthInput = await screen.findByLabelText('Width in feet');
+
+    await user.clear(widthInput);
+    await user.type(widthInput, '4');
     await user.clear(screen.getByLabelText('Depth in feet'));
     await user.type(screen.getByLabelText('Depth in feet'), '3');
     await user.clear(screen.getByLabelText('North orientation degrees'));
@@ -1858,11 +1860,13 @@ describe('PlanPage', () => {
     await user.click(screen.getByRole('button', { name: 'Save plot' }));
 
     expect(await screen.findByText('4 ft by 3 ft')).toBeVisible();
+    await openFocusedPlantEditor(user);
+    await user.click(screen.getByText('Sun, footprint, and warnings'));
     expect(await screen.findByText('X 4.0 ft, Y 3.0 ft')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Save' })).toBeVisible();
   });
 
-  it('opens crop focus from a click without marking the garden dirty', async () => {
+  it('selects a plant from a click without opening the editor or marking dirty', async () => {
     const user = userEvent.setup();
     const services = await createTestServices({
       signedInEmail: 'primary.gardener@example.com',
@@ -1893,16 +1897,18 @@ describe('PlanPage', () => {
       }),
     );
 
-    const focusCard = await screen.findByRole('complementary', {
-      name: 'Crop focus',
-    });
-    expect(within(focusCard).getByText('X 2.5 ft, Y 3.0 ft')).toBeVisible();
+    expect(
+      screen.queryByRole('complementary', { name: 'Crop focus' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('dialog', { name: /Edit Saved tomato/ }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Save' }),
     ).not.toBeInTheDocument();
   });
 
-  it('opens crop focus from keyboard activation', async () => {
+  it('selects a plant from keyboard activation without opening the editor', async () => {
     const user = userEvent.setup();
     const services = await createTestServices({
       signedInEmail: 'primary.gardener@example.com',
@@ -1935,17 +1941,21 @@ describe('PlanPage', () => {
     await user.keyboard('{Enter}');
 
     expect(
-      await screen.findByRole('complementary', { name: 'Crop focus' }),
-    ).toBeVisible();
-
-    await user.click(screen.getByRole('button', { name: 'Close crop focus' }));
+      screen.queryByRole('complementary', { name: 'Crop focus' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('dialog', { name: /Edit Saved tomato/ }),
+    ).not.toBeInTheDocument();
 
     plant.focus();
     await user.keyboard(' ');
 
     expect(
-      await screen.findByRole('complementary', { name: 'Crop focus' }),
-    ).toBeVisible();
+      screen.queryByRole('complementary', { name: 'Crop focus' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('dialog', { name: /Edit Saved tomato/ }),
+    ).not.toBeInTheDocument();
   });
 
   it('renders arrangement plantings as one grouped selectable footprint', async () => {
@@ -1997,7 +2007,9 @@ describe('PlanPage', () => {
     expect(
       screen.queryByRole('tooltip', { name: 'Carrot, 3 plants' }),
     ).not.toBeInTheDocument();
-    expect(await screen.findByText('X 4.0 ft, Y 3.0 ft')).toBeVisible();
+    expect(
+      screen.queryByRole('complementary', { name: 'Crop focus' }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('complementary', {
         name: 'Selected item inspector',
@@ -2010,6 +2022,8 @@ describe('PlanPage', () => {
         name: /Edit Carrot/,
       }),
     ).toBeVisible();
+    await user.click(screen.getByText('Sun, footprint, and warnings'));
+    expect(await screen.findByText('X 4.0 ft, Y 3.0 ft')).toBeVisible();
 
     await user.click(screen.getByTestId('plant-editor-backdrop'));
     expect(
@@ -2202,13 +2216,7 @@ async function clickPrimaryPlanAction(
 async function openFocusedPlantEditor(
   user: ReturnType<typeof userEvent.setup>,
 ) {
-  const focusCard = await screen.findByRole('complementary', {
-    name: 'Crop focus',
-  });
-
-  await user.click(
-    within(focusCard).getByRole('button', { name: /Open details/ }),
-  );
+  await clickPrimaryPlanAction(user, /Details/);
   await screen.findByRole('dialog', {
     name: /Edit /,
   });

@@ -101,7 +101,7 @@ test('quantity-first Add Plant creates one grouped footprint without resizing th
   await expect(viewport).toHaveJSProperty('clientWidth', stableSize.width);
   await expect(
     page.getByRole('complementary', { name: 'Crop focus' }),
-  ).toBeVisible();
+  ).toHaveCount(0);
 
   const focusedSize = await readViewportSize(page);
 

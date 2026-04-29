@@ -196,7 +196,9 @@ test.describe('Plan workflow visual baselines', () => {
       await expect(
         page.getByRole('heading', { name: 'Review problems' }),
       ).toBeVisible();
-      await expect(page.getByText('Review', { exact: true })).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Review problems' }),
+      ).toBeVisible();
       await expect(
         page.getByRole('button', { name: 'Apply fix' }).first(),
       ).toBeVisible();
@@ -218,8 +220,8 @@ test.describe('Plan workflow visual baselines', () => {
         await addTomatoToPlan(page);
         const focus = page.getByRole('complementary', { name: 'Crop focus' });
 
-        await expect(focus).toBeVisible();
-        await focus.getByRole('button', { name: /Open details/ }).click();
+        await expect(focus).toHaveCount(0);
+        await openPlanTool(page, 'Details');
         await expect(
           page.getByRole('dialog', { name: /Edit Tomato/ }),
         ).toBeVisible();

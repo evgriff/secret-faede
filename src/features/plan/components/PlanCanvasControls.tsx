@@ -42,31 +42,46 @@ export function PlanCanvasControls({
           aria-label="Pan canvas"
           aria-pressed={isPanMode}
           onClick={() => onPanModeChange(!isPanMode)}
+          title="Pan canvas"
           type="button"
         >
           Pan
         </button>
         <button
+          aria-label="Fit"
           aria-pressed={zoomState === 'fit'}
           onClick={onFitView}
+          title="Fit"
           type="button"
         >
           Fit
         </button>
         <button
+          aria-label="100%"
           aria-pressed={zoomState === 'actual'}
           onClick={onResetView}
+          title="100%"
           type="button"
         >
-          100%
+          1:1
         </button>
-        <button aria-label="Zoom out" onClick={onZoomOut} type="button">
+        <button
+          aria-label="Zoom out"
+          onClick={onZoomOut}
+          title="Zoom out"
+          type="button"
+        >
           -
         </button>
         <span className={styles.zoomReadout} aria-label="Current zoom">
           {Math.round(zoom * 100)}%
         </span>
-        <button aria-label="Zoom in" onClick={onZoomIn} type="button">
+        <button
+          aria-label="Zoom in"
+          onClick={onZoomIn}
+          title="Zoom in"
+          type="button"
+        >
           +
         </button>
       </div>
@@ -74,21 +89,25 @@ export function PlanCanvasControls({
         <LayerButton
           active={layers.grid}
           label="Grid"
+          shortLabel="#"
           onClick={() => onLayersChange({ ...layers, grid: !layers.grid })}
         />
         <LayerButton
           active={layers.labels}
           label="Labels"
+          shortLabel="Aa"
           onClick={() => onLayersChange({ ...layers, labels: !layers.labels })}
         />
         <LayerButton
           active={layers.sun}
           label="Sun"
+          shortLabel="Sun"
           onClick={() => onLayersChange({ ...layers, sun: !layers.sun })}
         />
         <LayerButton
           active={layers.miniMap}
           label="Overview"
+          shortLabel="Map"
           onClick={() =>
             onLayersChange({ ...layers, miniMap: !layers.miniMap })
           }
@@ -102,14 +121,22 @@ function LayerButton({
   active,
   label,
   onClick,
+  shortLabel,
 }: {
   active: boolean;
   label: string;
   onClick(): void;
+  shortLabel: string;
 }) {
   return (
-    <button aria-pressed={active} onClick={onClick} type="button">
-      {label}
+    <button
+      aria-label={label}
+      aria-pressed={active}
+      onClick={onClick}
+      title={label}
+      type="button"
+    >
+      {shortLabel}
     </button>
   );
 }

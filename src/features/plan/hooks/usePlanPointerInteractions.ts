@@ -644,7 +644,9 @@ export function usePlanPointerInteractions({
         onSelectItem(item, false, { openSurface: false });
       }
     } else if (!canceled && pressState && !pressState.moved) {
-      onSelectItem(item, pressState.additive, { openSurface: true });
+      onSelectItem(item, pressState.additive, {
+        openSurface: item.type === 'structure' && !pressState.additive,
+      });
     }
 
     restoreScrollLock(dragState?.scrollLock ?? null);

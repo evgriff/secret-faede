@@ -21,7 +21,7 @@ import {
   PlantEditorArrangement,
   PlantEditorSupport,
 } from './PlantEditorSheetSections';
-import { formatSupportType } from './PlantEditorSheetShared';
+import { formatLifecycle, formatSupportType } from './PlantEditorSheetShared';
 import styles from './PlantEditorSheet.module.css';
 
 export function PlantEditorSheet({
@@ -59,6 +59,11 @@ export function PlantEditorSheet({
   const statusSummary = useMemo(
     (): string[] =>
       [
+        formatLifecycle(plant.status),
+        plant.plantedOn ? `Planted ${plant.plantedOn}` : null,
+        !plant.plantedOn && plant.plannedFor
+          ? `Planned ${plant.plannedFor}`
+          : null,
         plantStatus.watered ? 'Watered' : 'Needs water check',
         plantStatus.thinned
           ? 'Thinned'
@@ -72,8 +77,11 @@ export function PlantEditorSheet({
           : null,
       ].filter((item): item is string => Boolean(item)),
     [
+      plant.plannedFor,
+      plant.plantedOn,
       plant.support.installedAtIso,
       plant.support.type,
+      plant.status,
       plantStatus.thinned,
       plantStatus.watered,
       quantity,

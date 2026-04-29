@@ -12,6 +12,7 @@ import { routePaths } from '../shared/lib/routes';
 import { LoadingState } from '../shared/ui/LoadingState';
 import { NotFoundPage } from './routes/NotFoundPage';
 import { ProtectedLayout } from './routes/ProtectedLayout';
+import { RouteErrorPage } from './routes/RouteErrorPage';
 import { RootRedirect } from './routes/RootRedirect';
 
 const PlanPage = lazy(() =>
@@ -55,6 +56,7 @@ export const appRoutes: RouteObject[] = [
   {
     path: routePaths.app,
     element: <ProtectedLayout />,
+    errorElement: <RouteErrorPage />,
     children: [
       {
         index: true,

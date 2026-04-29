@@ -11,7 +11,7 @@
 
 .pinnedLayer {
   position: fixed;
-  top: clamp(13rem, 39vh, 19rem);
+  top: clamp(5.2rem, 12vh, 7.5rem);
   right: var(--space-3);
   bottom: var(--space-3);
   z-index: 32;
@@ -46,10 +46,17 @@
 }
 
 .header {
+  position: sticky;
+  z-index: 3;
+  top: calc(-1 * var(--space-3));
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: var(--space-3);
+  border-bottom: 1px solid rgba(54, 48, 40, 0.1);
+  background: var(--color-surface-solid);
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-2);
 }
 
 .header h2,

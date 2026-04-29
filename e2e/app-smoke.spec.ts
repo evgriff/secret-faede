@@ -24,7 +24,9 @@ test('allowlisted mock sign-in reaches and saves Plan', async ({ page }) => {
   await expect(
     page.getByRole('button', { name: 'Tomato at X: 6.0 ft, Y: 4.0 ft' }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Close crop focus' }).click();
+  await expect(
+    page.getByRole('complementary', { name: 'Crop focus' }),
+  ).toHaveCount(0);
   const plantBox = await page
     .getByRole('button', { name: 'Tomato at X: 6.0 ft, Y: 4.0 ft' })
     .boundingBox();
