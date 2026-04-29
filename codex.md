@@ -72,6 +72,10 @@ Use Serena when its tools are available:
 - prefer symbol overview, symbol lookup, and reference-search tools for code
   navigation before reading whole source files
 - prefer Serena symbol refactors for whole-symbol changes where they apply
+- read relevant topic memories from `.serena/memories/` when their names match
+  the current task; treat `_archive/` memories as historical onboarding output
+- `npm run quality:serena` is the guardrail that keeps the topic catalog current
+  during normal app work
 - use shell, git, npm, and Playwright commands directly for repo workflow and
   verification
 
@@ -172,6 +176,6 @@ Do not add a dependency until all answers are yes:
    `UserProfileRepository` as the user-profile persistence boundary.
 7. Store plot and plant data in feet, not pixels.
 8. Update docs when runtime, scripts, persistence, or deployment requirements change.
-9. Re-run `npm run lint`, `npm run typecheck`, `npm run test:unit`, `npm run test:e2e`, `npm run build`, and `npm run ci`.
+9. Re-run `npm run lint`, `npm run typecheck`, `npm run quality:serena`, `npm run test:unit`, `npm run test:e2e`, `npm run build`, and `npm run ci`.
 10. Do not reintroduce carrier messaging as product scope; treat any new carrier
     delivery path as a scope regression.

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly REPO_ROOT="<repo-path>"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd -P)"
+readonly PROJECT_NAME="secret-faeries"
 readonly CONTEXT_FILE="${REPO_ROOT}/plugins/serena/codex-context.yml"
 readonly HOST="127.0.0.1"
 readonly PORT="9127"
@@ -41,6 +43,137 @@ wait_for_repo_serena() {
   return 1
 }
 
+mcp_health_check() {
+  python3 - "${HOST}" "${PORT}" "${REPO_ROOT}" "${PROJECT_NAME}" <<'PY'
+import json
+import sys
+import urllib.error
+import urllib.request
+
+host, port, repo_root, project_name = sys.argv[1:5]
+request = urllib.request.Request(
+    f"http://{host}:{port}/mcp",
+    data=json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-03-26",
+                "capabilities": {},
+                "clientInfo": {
+                    "name": "secret-faeries-serena-health-check",
+                    "version": "1",
+                },
+            },
+        }
+    ).encode("utf-8"),
+    headers={
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+    },
+    method="POST",
+)
+
+try:
+    with urllib.request.urlopen(request, timeout=5) as response:
+        body_parts: list[str] = []
+        for _ in range(200):
+            line = response.readline()
+            if not line:
+                break
+            body_parts.append(line.decode("utf-8", errors="replace"))
+            body = "".join(body_parts)
+            if (
+                f"The project with name '{project_name}' at {repo_root} is activated"
+                in body
+            ):
+                sys.exit(0)
+            if '"error"' in body and '"result"' not in body:
+                break
+except (OSError, urllib.error.URLError) as exc:
+    print(f"Serena MCP health check failed: {exc}", file=sys.stderr)
+    sys.exit(1)
+
+print(
+    "Serena MCP health check did not confirm the active Secret Faeries project.",
+    file=sys.stderr,
+)
+sys.exit(1)
+PY
+}
+
+wait_for_repo_serena_health() {
+  local pid
+
+  for _ in {1..40}; do
+    pid="$(listener_pid)"
+    if is_repo_serena_pid "${pid}" && mcp_health_check; then
+      return 0
+    fi
+    sleep 0.25
+  done
+
+  return 1
+}
+
+stop_repo_serena_pid() {
+  local pid="$1"
+
+  if ! is_repo_serena_pid "${pid}"; then
+    return 1
+  fi
+
+  kill "${pid}" 2>/dev/null || true
+  for _ in {1..40}; do
+    if [[ "$(listener_pid)" != "${pid}" ]]; then
+      rm -f "${PID_FILE}"
+      return 0
+    fi
+    sleep 0.25
+  done
+
+  return 1
+}
+
+repo_serena_config_newer_than_pid() {
+  local pid="$1"
+
+  python3 - \
+    "${pid}" \
+    "${CONTEXT_FILE}" \
+    "${REPO_ROOT}/.serena/project.yml" \
+    "${REPO_ROOT}/plugins/serena/scripts/ensure-project-mcp.sh" <<'PY'
+import datetime
+import pathlib
+import subprocess
+import sys
+
+pid = sys.argv[1]
+paths = [pathlib.Path(path) for path in sys.argv[2:]]
+
+try:
+    started_text = subprocess.check_output(
+        ["ps", "-p", pid, "-o", "lstart="],
+        text=True,
+        stderr=subprocess.DEVNULL,
+    ).strip()
+    started_at = datetime.datetime.strptime(
+        started_text,
+        "%a %b %d %H:%M:%S %Y",
+    ).timestamp()
+except Exception:
+    sys.exit(1)
+
+latest_config_mtime = max(
+    (path.stat().st_mtime for path in paths if path.exists()),
+    default=0,
+)
+
+sys.exit(0 if latest_config_mtime > started_at + 1 else 1)
+PY
+}
+
 emit_warning() {
   local message="$1"
   python3 -c 'import json, sys; print(json.dumps({"systemMessage": sys.argv[1]}))' "${message}"
@@ -50,16 +183,25 @@ mkdir -p "${STATE_DIR}"
 
 existing_pid="$(listener_pid)"
 if is_repo_serena_pid "${existing_pid}"; then
-  exit 0
+  if ! repo_serena_config_newer_than_pid "${existing_pid}" && mcp_health_check; then
+    exit 0
+  fi
+
+  emit_warning "Existing Secret Faeries Serena MCP is stale or did not confirm an active project; restarting the repo-owned singleton."
+  if ! stop_repo_serena_pid "${existing_pid}"; then
+    emit_warning "Could not stop stale Secret Faeries Serena MCP process ${existing_pid}; leaving it running."
+    exit 0
+  fi
 fi
 
+existing_pid="$(listener_pid)"
 if [[ -n "${existing_pid}" ]]; then
   emit_warning "Serena MCP port ${PORT} is already in use by PID ${existing_pid}; not starting the Secret Faeries Serena singleton."
   exit 0
 fi
 
 if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
-  if wait_for_repo_serena; then
+  if wait_for_repo_serena_health; then
     exit 0
   fi
 
@@ -74,7 +216,15 @@ trap cleanup EXIT
 
 existing_pid="$(listener_pid)"
 if is_repo_serena_pid "${existing_pid}"; then
-  exit 0
+  if ! repo_serena_config_newer_than_pid "${existing_pid}" && mcp_health_check; then
+    exit 0
+  fi
+
+  emit_warning "Existing Secret Faeries Serena MCP is stale or did not confirm an active project after lock acquisition; restarting it."
+  if ! stop_repo_serena_pid "${existing_pid}"; then
+    emit_warning "Could not stop stale Secret Faeries Serena MCP process ${existing_pid}; leaving it running."
+    exit 0
+  fi
 fi
 
 python3 - "${LOG_FILE}" "${PID_FILE}" "${HOST}" "${PORT}" "${REPO_ROOT}" "${CONTEXT_FILE}" <<'PY'
@@ -124,6 +274,6 @@ with log_path.open("ab", buffering=0) as log_file:
 pid_path.write_text(f"{process.pid}\n", encoding="utf-8")
 PY
 
-if ! wait_for_repo_serena; then
+if ! wait_for_repo_serena_health; then
   emit_warning "Started Serena for Secret Faeries, but it did not begin listening on ${HOST}:${PORT} within 10 seconds. See ${LOG_FILE}."
 fi

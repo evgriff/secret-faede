@@ -42,14 +42,15 @@ Focus areas:
 - `npm run build`
 - `npm run quality:deps`
 - `npm run quality:files`
+- `npm run quality:serena`
 - `npm run quality:bundle`
 - `npm run ci`
 
 `npm run ci` runs format check, dependency ADR check, large-file architecture
-check, lint, typecheck, unit tests, Firebase adapter integration tests,
-emulator-backed Firestore/Storage rules tests, Functions build/tests, build,
-bundle summary generation, bundle-budget enforcement, Playwright smoke coverage,
-and visual regression.
+check, Serena topic-catalog enforcement, lint, typecheck, unit tests, Firebase
+adapter integration tests, emulator-backed Firestore/Storage rules tests,
+Functions build/tests, build, bundle summary generation, bundle-budget
+enforcement, Playwright smoke coverage, and visual regression.
 
 Visual regression is part of the CI gate:
 

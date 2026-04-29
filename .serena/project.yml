@@ -33,7 +33,7 @@ initial_prompt: |
   Keep product scope centered on the real plot editor and practical operations; do not add dashboards, charts, maps, collaboration, lore, AI, carrier messaging, or onboarding flows.
   Keep seams explicit: AuthService owns auth, GardenRepository owns garden persistence, and UserProfileRepository owns profile preferences.
   Store garden positions in feet using xFt from the left edge and yFt from the top edge; never store raw pixels as canonical garden coordinates.
-  Start every agentic workflow with git status --short --branch, confirm the branch, use a codex/ branch for agent edits, and do not perform substantial edits directly on main.
+  Start every agentic workflow with git status --short --branch, confirm the branch, keep agent work on main unless the user explicitly asks for another branch strategy, and stop for confirmation if the active branch is not main.
   Treat pre-existing dirty files as user-owned, keep edits scoped, stage only explicit files when asked, and commit only when the user asks.
   Use Serena first for code navigation, symbol overviews, references, and symbol-safe refactors.
   This repo-local Serena setup also enables read-only discovery helpers plus query-projects mode; use them selectively when symbolic tools are not enough.
@@ -41,4 +41,5 @@ initial_prompt: |
 
 symbol_info_budget: 10
 read_only_memory_patterns: []
-ignored_memory_patterns: []
+ignored_memory_patterns:
+  - '_archive/.*'

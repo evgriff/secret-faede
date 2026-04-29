@@ -17,8 +17,12 @@ Serena:
 - use Serena for symbol overviews, symbol lookup, reference searches, and
   symbol-safe refactors via the repo-local Serena Codex plugin before falling
   back to broad file reads or text-only search
-- keep `.serena/project.yml` and tracked `.serena/memories/` files free of
-  secrets and aligned with this document
+- keep `.serena/project.yml` and the tracked `.serena/memories/` topic catalog
+  free of secrets and aligned with this document, Serena documentation, and the
+  app's current user stories
+- `npm run quality:serena` enforces the topic catalog and requires matching
+  memory updates when app work changes stable product, workflow, or architecture
+  areas
 - refresh the Serena index after large TypeScript refactors with
   `serena project index <repo-path> --log-level INFO --timeout 20`
 
@@ -88,6 +92,7 @@ Before finishing:
 
 - `npm run lint`
 - `npm run typecheck`
+- `npm run quality:serena`
 - `npm run test:unit`
 - `npm run test:e2e`
 - `npm run build`
