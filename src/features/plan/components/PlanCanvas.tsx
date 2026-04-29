@@ -13,7 +13,6 @@ import { flushSync } from 'react-dom';
 
 import type {
   Garden,
-  GardenPlant,
   Planting,
   SunExposure,
   SunShadeArea,
@@ -67,7 +66,6 @@ export const PlanCanvas = memo(function PlanCanvas({
   onPlantHoverChange,
   onPlantLabelHide,
   onPlantEditorOpen,
-  onUpdatePlanting,
   onInteractionStateChange,
   onSelectItem,
   onShowSunOverlayChange,
@@ -103,7 +101,6 @@ export const PlanCanvas = memo(function PlanCanvas({
   onPlantHoverChange(plantId: string | null): void;
   onPlantLabelHide(plantId: string): void;
   onPlantEditorOpen(plantId: string): void;
-  onUpdatePlanting(id: string, values: Partial<GardenPlant>): void;
   onInteractionStateChange(state: PlanPointerInteractionState | 'pan'): void;
   onSelectItem(
     item: SelectedGardenItem,
@@ -546,7 +543,6 @@ export const PlanCanvas = memo(function PlanCanvas({
           onPlantPointerEnd={handlePlantPointerEnd}
           onPlantPointerMove={pointerInteractions.handlePlantPointerMove}
           onPlantResizePointerDown={handlePlantResizePointerDown}
-          onUpdatePlanting={onUpdatePlanting}
           onResizePointerDown={handleResizePointerDown}
           onResizePointerEnd={handleResizePointerEnd}
           onResizePointerMove={pointerInteractions.handleResizePointerMove}

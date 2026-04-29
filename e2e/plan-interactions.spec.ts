@@ -163,7 +163,7 @@ test('wheel scrolling flies around the framed workspace while pointer drag still
   expect(afterPanDragScroll.scrollTop).toBeLessThan(afterWheelScroll.scrollTop);
 });
 
-test('selected plant spacing can be tightened directly on the grid', async ({
+test('plant spacing can be tightened in the editor and shrinks the grid box', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1365, height: 768 });
@@ -176,10 +176,17 @@ test('selected plant spacing can be tightened directly on the grid', async ({
   const initialBox = await getBox(plant, 'Expected tomato to be visible.');
 
   await plant.click();
-  await page.getByRole('button', { name: 'Adjust Tomato spacing' }).click();
-  await page.getByLabel('Tomato spacing in inches').fill('6');
+  await expect(
+    page.getByRole('button', { name: 'Adjust Tomato spacing' }),
+  ).toHaveCount(0);
+  await page.getByRole('button', { name: 'Edit Tomato group' }).click();
+  const editor = page.getByRole('dialog', { name: /Edit Tomato/ });
+  await expect(editor).toBeVisible();
+  await editor.getByLabel('Plant spacing in inches').fill('6');
 
-  await expect(page.getByText('Tighter than catalog spacing.')).toBeVisible();
+  await expect(
+    editor.getByText('Spacing is tighter than the catalog spacing of 24 in.'),
+  ).toBeVisible();
   await expect
     .poll(async () => {
       const box = await getBox(plant, 'Expected tomato to stay visible.');

@@ -111,6 +111,7 @@ describe('auto layout engine', () => {
 
     expect(candidate?.hardConstraintViolations).toEqual([]);
     expect(cucumber?.support.type).toBe('none');
+    expect(cucumber?.supportStructureIds).toEqual([trellis?.id]);
     expect(trellis).toEqual(
       expect.objectContaining({
         label: expect.stringContaining('Cucumber'),
@@ -292,16 +293,30 @@ describe('auto layout engine', () => {
   });
 
   it('keeps unsupported trellis crops out of illegal layouts', () => {
-    const garden = createLayoutFixture({
-      supportAllowed: false,
-    });
+    const baseGarden = createLayoutFixture();
+    const garden = {
+      ...baseGarden,
+      seasonPlan: {
+        ...baseGarden.seasonPlan,
+        wantedCrops: baseGarden.seasonPlan.wantedCrops.map((selection) =>
+          selection.cropId === 'tomato'
+            ? {
+                ...selection,
+                cropId: 'pole-bean',
+                id: 'season-pole-bean',
+                supportAllowed: false,
+              }
+            : selection,
+        ),
+      },
+    };
     const [candidate] = generateAutoLayoutCandidates(garden, {
       sunLayer: createSunLayer(garden),
     });
 
     expect(candidate?.unplaced).toContainEqual(
       expect.objectContaining({
-        cropName: 'Tomato',
+        cropName: 'Pole bean',
         reason: 'Support was disabled for a crop that needs it.',
       }),
     );

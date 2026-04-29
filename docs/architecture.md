@@ -202,7 +202,7 @@ Canonical garden document:
 {
   id: string,
   userId: string,
-  schemaVersion: 6,
+  schemaVersion: 8,
   name: string,
   climateProfile: ClimateProfile,
   plot: {
@@ -223,8 +223,11 @@ for the internal plant positions shown inside grouped Plan footprints. The
 shared `src/domain/gardens/plantingGeometry.ts` helper converts quantity,
 spacing, mature spread, and row/block/cluster mode into deterministic dots and
 footprint hulls so Plan rendering, optimizer constraints, and sun/shade logic do
-not drift apart. Per-plant cages, stakes, and similar support choices live on
-the planting support plan; trellises and raised beds remain structure documents.
+not drift apart. Per-plant cages, stakes, stake-and-weave, row cover, and
+netting choices live on the planting support plan; trellises remain saved
+structure documents. `supportStructureIds[]` records explicit trellis links for
+plantings whose app-created supports should move with them; nearby unlinked
+trellises can satisfy support warnings but are not grouped for movement.
 `plannedFor` stores an optional future date for approved succession plantings;
 older saved plantings default to `null`.
 
@@ -235,20 +238,24 @@ to keep fit guidance, follow-up tasks, and memory entries grounded in what
 actually happened instead of only relying on planned dates.
 
 Structure planning supports raised beds, in-ground beds, containers, access
-paths, and trellises in the primary flow. Plant-level supports such as cages and
-stakes live on the planting support plan instead of becoming global structure
-documents. Legacy shade, fence, compost, and water-source objects remain
-migration-readable, but schema version 5 drops them from saved page structures
-so Plan does not behave like a general yard-survey tool. Structure positions and
-sizes use feet as canonical units.
+paths, and trellises in the primary flow. Plant-level supports such as cages,
+stakes, stake-and-weave, row cover, and netting live on the planting support
+plan instead of becoming global structure documents. `trellisLine` remains an
+arrangement mode, not evidence that a real trellis exists. Legacy shade, fence,
+compost, and water-source objects remain migration-readable, but schema version
+5 drops them from saved page structures so Plan does not behave like a general
+yard-survey tool. Structure positions and sizes use feet as canonical units.
 
 Crop profiles are normalized from the checked-in generated catalog in
 `src/domain/crops/homeGardenCropCatalog.generated.json`. The app can rebuild the
 offline library with `npm run catalog:build` and refresh Trefle enrichment with
 `npm run catalog:ingest:trefle`, but the editor does not call Trefle at runtime.
 Runtime crop profiles include aliases, roles, source tags, profile completeness,
-and provenance quality so the Add Plant picker can show data gaps without
-presenting source quality as a planning score.
+support profiles, and provenance quality so the Add Plant picker can show data
+gaps without presenting source quality as a planning score. Support profiles
+split plant-level supports from grid trellises and carry source tags for the
+curated extension-backed defaults used by warnings, Review, Optimize, Choose
+Plants, materials, tasks, crop focus, and the plant editor.
 
 Starter garden templates live in `src/domain/gardens/gardenTemplates.ts`.
 Templates create normal garden aggregates with structures and crop-backed
@@ -296,7 +303,7 @@ Tasks are stored at `gardens/{uid}/tasks/{taskId}`. Generated tasks keep stable
 ids so completed/skipped work does not reappear. Task records include due date,
 type, source, source id, bed label, priority, snooze/defer state, and completion
 time. The task engine generates work from crop defaults, planting date or
-editable frost dates, sow method, trellis needs, thinning, pruning,
+editable frost dates, sow method, support needs, thinning, pruning,
 fertilizing, mulching, watering schedule entries, harvest windows, and recorded
 planting events. Completing a sow/plant/transplant task updates the planting to
 growing, records the matching planting event, and refreshes downstream

@@ -8,6 +8,15 @@ const CURATED_PATH = 'src/domain/crops/curatedCropOverrides.json';
 const OUTPUT_PATH = 'src/domain/crops/homeGardenCropCatalog.generated.json';
 const REFRESHED_AT = '2026-04-21T00:00:00.000Z';
 const MIN_CATALOG_SIZE = 540;
+const TOMATO_SUPPORT_SOURCE_TAGS = [
+  'extension:uga-tomato-staking',
+  'extension:umn-trellises-cages',
+];
+const TRELLIS_SUPPORT_SOURCE_TAGS = [
+  'extension:umn-trellises-cages',
+  'extension:uw-vertical-support',
+];
+const EGGPLANT_SUPPORT_SOURCE_TAGS = ['extension:umn-eggplant'];
 
 function p(
   id,
@@ -754,6 +763,122 @@ const specificVarieties = {
   apple: ['Dwarf', 'Espalier', 'Cider', 'Dessert', 'Cooking', 'Columnar'],
 };
 
+function inferSupportProfile(crop) {
+  const text =
+    `${crop.id} ${crop.commonName} ${(crop.roles ?? []).join(' ')}`.toLowerCase();
+
+  if (/\btomato|tomatoes\b/.test(text)) {
+    return plantSupportProfile({
+      kind: 'cage',
+      label: 'Cage or stake recommended',
+      plantSupportType: 'cage',
+      reason:
+        'Tomatoes are tall, heavy fruiting crops that are commonly caged, staked, or stake-and-weaved.',
+      recommended: true,
+      required: false,
+      sourceTags: TOMATO_SUPPORT_SOURCE_TAGS,
+    });
+  }
+
+  if (/\beggplant|aubergine\b/.test(text)) {
+    return plantSupportProfile({
+      kind: 'stake',
+      label: 'Stake recommended',
+      plantSupportType: 'stake',
+      reason:
+        'Eggplant stems can lodge under fruit load; extension guidance recommends staking as plants grow.',
+      recommended: true,
+      required: false,
+      sourceTags: EGGPLANT_SUPPORT_SOURCE_TAGS,
+    });
+  }
+
+  if (isTrellisSupportCrop(crop, text)) {
+    const required =
+      crop.trellisRequired === true || crop.growthForm === 'climber';
+
+    return {
+      kind: 'trellis',
+      label: required ? 'Trellis required' : 'Trellis recommended',
+      plantSupportType: null,
+      reason: `${crop.commonName} is best managed with a saved trellis structure on the plot.`,
+      recommended: true,
+      required,
+      scope: 'structure',
+      sourceTags: TRELLIS_SUPPORT_SOURCE_TAGS,
+    };
+  }
+
+  if (/\bpepper|peppers|capsicum\b/.test(text)) {
+    return plantSupportProfile({
+      kind: 'stake',
+      label: 'Stake if exposed',
+      plantSupportType: 'stake',
+      reason:
+        'Peppers are usually self-supporting, but staking helps plants carrying heavy fruit or growing in wind.',
+      recommended: false,
+      required: false,
+      sourceTags: TRELLIS_SUPPORT_SOURCE_TAGS,
+    });
+  }
+
+  if (crop.growthForm === 'bush' && (crop.matureHeightInches ?? 0) >= 36) {
+    return plantSupportProfile({
+      kind: 'stake',
+      label: 'Stake if exposed',
+      plantSupportType: 'stake',
+      reason: `${crop.commonName} is tall enough that a stake can help in wind or heavy fruiting.`,
+      recommended: false,
+      required: false,
+      sourceTags: TRELLIS_SUPPORT_SOURCE_TAGS,
+    });
+  }
+
+  return noSupportProfile();
+}
+
+function isTrellisSupportCrop(crop, text) {
+  if (isHeavySprawlingCucurbit(text)) {
+    return false;
+  }
+
+  return (
+    crop.trellisRequired === true ||
+    crop.trellisRecommended === true ||
+    crop.growthForm === 'climber' ||
+    crop.growthForm === 'vining' ||
+    /\b(pole bean|snap pea|snow pea|pea|grape|raspberry|blackberry|malabar spinach)\b/.test(
+      text,
+    )
+  );
+}
+
+function isHeavySprawlingCucurbit(text) {
+  return /\b(watermelon|pumpkin|winter squash|butternut|hubbard|acorn squash|spaghetti squash)\b/.test(
+    text,
+  );
+}
+
+function plantSupportProfile(input) {
+  return {
+    kind: input.kind,
+    label: input.label,
+    plantSupportType: input.plantSupportType,
+    reason: input.reason,
+    recommended: input.recommended,
+    required: input.required,
+    scope: 'plant',
+    sourceTags: input.sourceTags,
+  };
+}
+
+function noSupportProfile() {
+  return {
+    kind: 'none',
+    scope: 'none',
+  };
+}
+
 function toBaseRecord(crop) {
   const defaults =
     defaultByCategory[crop.category] ?? defaultByCategory.vegetable;
@@ -762,12 +887,32 @@ function toBaseRecord(crop) {
   const aliases = unique(
     [...(crop.aliases ?? []), crop.name, crop.trefleQuery].filter(Boolean),
   );
+  const pollinatorRole =
+    crop.pollinatorRole ?? inferPollinatorRole(crop, roles);
+  const matureHeightInches =
+    crop.matureHeightInches ?? defaults.matureHeightInches;
+  const supportProfile =
+    crop.supportProfile ??
+    inferSupportProfile({
+      ...crop,
+      commonName,
+      matureHeightInches,
+      roles,
+    });
+  const trellisRecommended =
+    supportProfile.scope === 'structure' &&
+    supportProfile.kind === 'trellis' &&
+    supportProfile.recommended;
+  const trellisRequired =
+    supportProfile.scope === 'structure' &&
+    supportProfile.kind === 'trellis' &&
+    supportProfile.required;
 
   return {
     aliases,
     category: crop.category,
-    caution: crop.caution ?? null,
     commonName,
+    ...(crop.caution ? { caution: crop.caution } : {}),
     daysToMaturity: crop.daysToMaturity ?? defaults.daysToMaturity,
     defaultIcon: crop.defaultIcon ?? defaults.defaultIcon,
     family: crop.family,
@@ -777,12 +922,12 @@ function toBaseRecord(crop) {
     lifecycle: crop.lifecycle ?? 'annual',
     lastRefreshedIso: crop.lastRefreshedIso ?? REFRESHED_AT,
     manualOverride: crop.manualOverride ?? true,
-    matureHeightInches: crop.matureHeightInches ?? defaults.matureHeightInches,
+    matureHeightInches,
     matureSpreadInches: crop.matureSpreadInches ?? defaults.matureSpreadInches,
     notes: crop.notes ?? defaultNotes(crop),
     perennialSuitability:
       crop.perennialSuitability ?? inferPerennialSuitability(crop),
-    pollinatorRole: crop.pollinatorRole ?? inferPollinatorRole(crop, roles),
+    ...(pollinatorRole ? { pollinatorRole } : {}),
     profileCompleteness: crop.profileCompleteness ?? 'complete',
     rootDepthInches: crop.rootDepthInches ?? defaults.rootDepthInches,
     rowSpacingInches: crop.rowSpacingInches ?? defaults.rowSpacingInches,
@@ -803,10 +948,9 @@ function toBaseRecord(crop) {
       [...(crop.synonyms ?? []), crop.scientificName].filter(Boolean),
     ),
     trefleQuery: crop.trefleQuery ?? crop.scientificName,
-    trellisRecommended:
-      crop.trellisRecommended ??
-      (crop.growthForm === 'vining' || crop.growthForm === 'climber'),
-    varietyGroup: crop.varietyGroup ?? null,
+    ...(trellisRecommended ? { trellisRecommended } : {}),
+    ...(trellisRequired ? { trellisRequired } : {}),
+    ...(crop.varietyGroup ? { varietyGroup: crop.varietyGroup } : {}),
     weeklyWaterNeedInches:
       crop.weeklyWaterNeedInches ?? defaults.weeklyWaterNeedInches,
   };

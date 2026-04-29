@@ -3,6 +3,7 @@ import type {
   PlantingMode,
   SeasonCropSelection,
 } from '../../../domain/gardens/GardenRepository';
+import { getCropSupportProfile } from '../../../domain/gardens/GardenRepository';
 import { getCropById } from '../../../domain/crops/cropCatalog';
 import {
   coercePlantQuantity,
@@ -27,7 +28,7 @@ export function createSeasonCropSelection(
     ),
     quantity,
     spacingOverrideInches: null,
-    supportAllowed: crop.trellisRecommended || crop.trellisRequired,
+    supportAllowed: getCropSupportProfile(crop).scope === 'structure',
     varietyName: '',
   };
 }

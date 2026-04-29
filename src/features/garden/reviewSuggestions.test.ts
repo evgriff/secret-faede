@@ -121,6 +121,12 @@ describe('reviewSuggestions', () => {
         }),
       ]),
     );
+    const linkedTrellis = nextGarden.structures.find(
+      (structure) => structure.type === 'trellis',
+    );
+    expect(nextGarden.plantings[0]?.supportStructureIds).toEqual([
+      linkedTrellis?.id,
+    ]);
     expect(
       findPlanWarnings(nextGarden).some(
         (warning) => warning.id === 'trellis-cucumber-1',

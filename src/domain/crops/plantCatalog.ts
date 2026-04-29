@@ -4,6 +4,10 @@ import type {
   PlantPlacementMode,
 } from '../gardens/GardenRepository';
 import {
+  getCropSupportNeed,
+  getCropSupportProfile,
+} from '../gardens/GardenRepository';
+import {
   cropCatalog,
   filterCropCatalog,
   type CropCatalogFilters,
@@ -108,31 +112,30 @@ function getCompatiblePlacementModes(crop: CropProfile): PlantPlacementMode[] {
 }
 
 function getDefaultSupportNeed(crop: CropProfile): PlantCatalogSupportNeed {
-  if (crop.trellisRequired || crop.trellisRecommended) {
-    const isTrellisCrop =
-      !/tomato/i.test(crop.commonName) &&
-      (crop.growthForm === 'vining' || crop.growthForm === 'climber');
+  const supportProfile = getCropSupportProfile(crop);
 
+  if (
+    supportProfile.scope === 'structure' &&
+    supportProfile.kind === 'trellis'
+  ) {
     return {
-      kind: isTrellisCrop ? 'trellis' : 'perPlant',
-      label: isTrellisCrop
-        ? 'Trellis recommended'
-        : 'Cage or stake recommended',
-      perPlant: !isTrellisCrop,
-      recommended: true,
-      required: crop.trellisRequired,
-      type: /tomato/i.test(crop.commonName) ? 'cage' : 'stake',
+      kind: 'trellis',
+      label: supportProfile.label,
+      perPlant: false,
+      recommended: supportProfile.recommended,
+      required: supportProfile.required,
+      type: 'none',
     };
   }
 
-  if ((crop.matureHeightInches ?? 0) >= 36 && crop.growthForm === 'upright') {
+  if (supportProfile.scope === 'plant') {
     return {
       kind: 'perPlant',
-      label: 'Stake if exposed',
+      label: supportProfile.label,
       perPlant: true,
-      recommended: true,
-      required: false,
-      type: 'stake',
+      recommended: supportProfile.recommended,
+      required: supportProfile.required,
+      type: supportProfile.plantSupportType ?? 'custom',
     };
   }
 
@@ -232,8 +235,10 @@ function getHarvestCycleNotes(cycle: PlantHarvestCycle) {
 }
 
 function getPlantDifficulty(crop: CropProfile): PlantDifficulty {
+  const supportNeed = getCropSupportNeed(crop);
+
   if (
-    crop.trellisRequired ||
+    supportNeed?.required ||
     crop.waterNeeds === 'high' ||
     crop.frostSensitive ||
     crop.profileCompleteness === 'needsReview'
@@ -241,7 +246,7 @@ function getPlantDifficulty(crop: CropProfile): PlantDifficulty {
     return 'demanding';
   }
 
-  return crop.trellisRecommended || crop.waterNeeds === 'medium'
+  return supportNeed?.recommended || crop.waterNeeds === 'medium'
     ? 'moderate'
     : 'easy';
 }

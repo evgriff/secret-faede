@@ -7,6 +7,7 @@ export * from './plantPlanning';
 export * from './plantingInstances';
 export * from './schemaMigrations';
 export * from './sharedOperations';
+export * from './supportNeeds';
 export * from './validation';
 
 import type { Garden } from './models';

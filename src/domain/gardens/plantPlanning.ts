@@ -12,6 +12,7 @@ import type {
 } from './models';
 import { derivePlantingGeometry } from './plantingGeometry';
 import { getPlantingInstances } from './plantingInstances';
+import { getCropSupportNeed } from './supportNeeds';
 import type {
   PlantDifficulty,
   PlantDot,
@@ -30,6 +31,7 @@ export * from './plantPlanningTypes';
 const minimumPlantSpacingInches = 9;
 
 export function toPlantSpecies(crop: CropProfile): PlantSpecies {
+  const supportNeed = getCropSupportNeed(crop);
   const supportedPlacementModes = crop.supportedPlantingModes
     .flatMap(toPlantPlacementModeOrNull)
     .filter(isPlantPlacementMode)
@@ -53,7 +55,7 @@ export function toPlantSpecies(crop: CropProfile): PlantSpecies {
     source: 'catalog',
     spacingInches: crop.spacingInches,
     supportHeightFt:
-      crop.trellisRequired || crop.trellisRecommended
+      supportNeed?.scope === 'structure'
         ? Math.max((crop.matureHeightInches ?? 60) / 12, 5)
         : null,
     sunRequirement: crop.sunRequirement,
@@ -61,8 +63,9 @@ export function toPlantSpecies(crop: CropProfile): PlantSpecies {
       supportedPlacementModes.length > 0
         ? supportedPlacementModes
         : ['cluster'],
-    trellisRecommended: crop.trellisRecommended,
-    trellisRequired: crop.trellisRequired,
+    trellisRecommended:
+      supportNeed?.kind === 'trellis' && supportNeed.recommended,
+    trellisRequired: supportNeed?.kind === 'trellis' && supportNeed.required,
     waterNeeds: crop.waterNeeds,
     weeklyWaterNeedInches: crop.weeklyWaterNeedInches,
   };
@@ -110,8 +113,9 @@ export function createPlantGroupFromPlanting(
       planting,
       getSpeciesHeightFt(species),
     ),
+    supportStructureIds: planting.supportStructureIds,
     trellisLengthFt: planting.trellisLengthFt,
-    trellisStructureId: null,
+    trellisStructureId: planting.supportStructureIds[0] ?? null,
     xFt: planting.xFt,
     yFt: planting.yFt,
   };
@@ -258,8 +262,10 @@ function createLegacyPlantSpecies(planting: Planting): PlantSpecies {
 }
 
 function getPlantDifficulty(crop: CropProfile): PlantDifficulty {
+  const supportNeed = getCropSupportNeed(crop);
+
   if (
-    crop.trellisRequired ||
+    supportNeed?.required ||
     crop.waterNeeds === 'high' ||
     crop.frostSensitive ||
     crop.profileCompleteness === 'needsReview'
@@ -267,7 +273,7 @@ function getPlantDifficulty(crop: CropProfile): PlantDifficulty {
     return 'demanding';
   }
 
-  if (crop.trellisRecommended || crop.waterNeeds === 'medium') {
+  if (supportNeed?.recommended || crop.waterNeeds === 'medium') {
     return 'moderate';
   }
 
@@ -316,11 +322,8 @@ function getPerPlantSupportType(species: PlantSpecies): PlantSupportType {
     return 'cage';
   }
 
-  if (
-    species.growthForm === 'bush' &&
-    (species.matureHeightInches ?? 0) >= 24
-  ) {
-    return 'cage';
+  if (/eggplant|aubergine/i.test(species.commonName)) {
+    return 'stake';
   }
 
   if (

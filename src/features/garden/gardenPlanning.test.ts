@@ -475,6 +475,63 @@ describe('gardenPlanning', () => {
     );
   });
 
+  it('satisfies trellis warnings with linked or nearby structures, not trellis-line mode alone', () => {
+    const cucumber = {
+      ...createDefaultPlanting({
+        id: 'cucumber-1',
+        label: 'Cucumber',
+        xFt: 3,
+        yFt: 3,
+      }),
+      cropId: 'cucumber',
+      mode: 'trellisLine' as const,
+      rowLengthFt: 3,
+      trellisLengthFt: 3,
+    };
+    const linkedGarden = {
+      ...createDefaultGarden('user-a'),
+      plantings: [
+        {
+          ...cucumber,
+          supportStructureIds: ['trellis-1'],
+        },
+      ],
+      structures: [
+        createDefaultStructure({
+          id: 'trellis-1',
+          type: 'trellis',
+          xFt: 2,
+          yFt: 2,
+        }),
+      ],
+    };
+    const unlinkedGarden = {
+      ...linkedGarden,
+      plantings: [cucumber],
+      structures: [],
+    };
+    const nearbyGarden = {
+      ...linkedGarden,
+      plantings: [cucumber],
+    };
+
+    expect(
+      findPlanWarnings(linkedGarden).some(
+        (warning) => warning.id === 'trellis-cucumber-1',
+      ),
+    ).toBe(false);
+    expect(
+      findPlanWarnings(unlinkedGarden).some(
+        (warning) => warning.id === 'trellis-cucumber-1',
+      ),
+    ).toBe(true);
+    expect(
+      findPlanWarnings(nearbyGarden).some(
+        (warning) => warning.id === 'trellis-cucumber-1',
+      ),
+    ).toBe(false);
+  });
+
   it('keeps modeled cautions off the canvas while preserving must-fix issues', () => {
     const garden = {
       ...createDefaultGarden('user-a'),

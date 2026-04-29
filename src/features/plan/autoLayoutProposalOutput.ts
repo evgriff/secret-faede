@@ -24,7 +24,7 @@ import {
   isBlockingStructure,
 } from './autoLayoutConstraints';
 import {
-  type CropSupportKind,
+  type PlantLevelSupportKind,
   getCropSupportNeed,
   getSupportLabel,
   needsExplicitSupportSetup,
@@ -56,7 +56,7 @@ export function applySupportPlansAndBuildStructures(
     }
 
     const footprint = getPlantingFootprint(placement.planting);
-    const supportKind: CropSupportKind = supportNeed.kind;
+    const supportKind = supportNeed.kind;
 
     if (supportKind !== 'trellis') {
       return {
@@ -89,7 +89,7 @@ export function applySupportPlansAndBuildStructures(
     }
 
     const supportLabel = getSupportLabel(supportKind);
-    structures.push({
+    const supportStructure: Structure = {
       accessiblePath: false,
       canopyRadiusFt: null,
       continuousPath: false,
@@ -110,8 +110,22 @@ export function applySupportPlansAndBuildStructures(
       workingClearanceFt: 1,
       xFt: supportFootprint.xFt,
       yFt: supportFootprint.yFt,
-    });
-    return placement;
+    };
+    structures.push(supportStructure);
+
+    return {
+      ...placement,
+      planting: {
+        ...placement.planting,
+        supportStructureIds: [
+          ...new Set([
+            ...placement.planting.supportStructureIds,
+            supportStructure.id,
+          ]),
+        ],
+        trellisLengthFt: supportFootprint.widthFt,
+      },
+    };
   });
 
   return { placements: supportedPlacements, structures };
@@ -234,7 +248,7 @@ function getSupportBlockedRects(
 
 function assignPlantLevelSupport(
   planting: Planting,
-  supportKind: Exclude<CropSupportKind, 'trellis'>,
+  supportKind: PlantLevelSupportKind,
   required: boolean,
 ): Planting {
   const support = createPlantSupportPlan(
@@ -250,7 +264,7 @@ function assignPlantLevelSupport(
 }
 
 function createPlantSupportPlan(
-  supportKind: Exclude<CropSupportKind, 'trellis'>,
+  supportKind: PlantLevelSupportKind,
   quantity: number,
   required: boolean,
 ): PlantSupportPlan {

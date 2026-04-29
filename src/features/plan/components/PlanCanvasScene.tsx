@@ -9,7 +9,6 @@ import {
 import {
   isPageStructureType,
   type Garden,
-  type GardenPlant,
   type Planting,
   type SunExposure,
   type SunShadeArea,
@@ -63,7 +62,6 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
   onPlantPointerEnd,
   onPlantPointerMove,
   onPlantResizePointerDown,
-  onUpdatePlanting,
   onResizePointerDown,
   onResizePointerEnd,
   onResizePointerMove,
@@ -136,7 +134,6 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
     plantId: string,
     handle: ResizeHandle,
   ): void;
-  onUpdatePlanting(id: string, values: Partial<GardenPlant>): void;
   onResizePointerDown(
     event: PointerEvent<HTMLSpanElement>,
     structureId: string,
@@ -401,7 +398,6 @@ export const PlanCanvasScene = memo(function PlanCanvasScene({
                     onResizePointerMove={onResizePointerMove}
                     onPlantHoverChange={onPlantHoverChange}
                     onSelectItem={onSelectItem}
-                    onUpdatePlanting={onUpdatePlanting}
                     plant={plant}
                     previewRect={
                       resizePreview?.item.type === 'planting' &&

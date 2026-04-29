@@ -9,10 +9,6 @@ import {
 
 import type { Garden } from '../../../domain/gardens/GardenRepository';
 import {
-  canManuallyMovePlanting,
-  canManuallyMoveStructure,
-} from '../../garden/gardenImmutability';
-import {
   clientPointToPlotFeet,
   pixelsPerFoot,
   type PlotClientRect,
@@ -41,6 +37,11 @@ import {
   type ResizeHandle,
   type SnapGuide,
 } from '../planInteractionGeometry';
+import {
+  canMoveLinkedPlanting,
+  canMoveLinkedStructure,
+  expandLinkedSupportSelection,
+} from '../supportStructureLinks';
 
 type ItemRect = NonNullable<ReturnType<typeof getItemRect>>;
 
@@ -512,13 +513,17 @@ export function usePlanPointerInteractions({
     const scrollLock = captureScrollLock(event.currentTarget);
     const pointerPoint = clientPointToPlotFeet(event, rect, garden.plot);
     const itemPoint = getItemPointFromRect(item, sourceRect);
-    const dragSelection =
+    const baseDragSelection =
       selectedItems.some((selected) => areSamePlanItem(selected, item)) &&
       selectedItems.length > 1
         ? selectedItems.filter(
             (selectedItem) => !isItemLocked(garden, selectedItem),
           )
         : [item];
+    const dragSelection = expandLinkedSupportSelection(
+      garden,
+      baseDragSelection,
+    );
     const originalRects = dragSelection.flatMap((selectedItem) => {
       const selectedRect = getItemRect(garden, selectedItem);
 
@@ -1002,19 +1007,11 @@ function canItemBeResized(garden: Garden, item: PlanItemRef) {
 }
 
 function canPlantingBeMoved(garden: Garden, plantingId: string) {
-  const planting = garden.plantings.find(
-    (candidate) => candidate.id === plantingId,
-  );
-
-  return planting ? canManuallyMovePlanting(planting) : false;
+  return canMoveLinkedPlanting(garden, plantingId);
 }
 
 function canStructureBeMoved(garden: Garden, structureId: string) {
-  const structure = garden.structures.find(
-    (candidate) => candidate.id === structureId,
-  );
-
-  return structure ? canManuallyMoveStructure(structure) : false;
+  return canMoveLinkedStructure(garden, structureId);
 }
 
 function roundFeet(value: number) {

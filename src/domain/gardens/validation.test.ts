@@ -79,12 +79,13 @@ describe('garden domain validation', () => {
         'season plan inputs simplified',
         'plant planning defaults normalized',
         'planting events normalized',
+        'planting support structure links normalized',
       ],
       fromVersion: 0,
       toVersion: CURRENT_GARDEN_SCHEMA_VERSION,
     });
     expect(migration.record).toMatchObject({
-      plantings: [{ id: 'plant-1', xFt: 3, yFt: 4 }],
+      plantings: [{ id: 'plant-1', supportStructureIds: [], xFt: 3, yFt: 4 }],
       plot: {
         gridUnitFt: 1,
         snapUnitFt: 0.125,
@@ -172,6 +173,7 @@ describe('garden domain validation', () => {
         'plant planning defaults normalized',
         'watering schedule normalized',
         'planting events normalized',
+        'planting support structure links normalized',
       ],
       fromVersion: 3,
       toVersion: CURRENT_GARDEN_SCHEMA_VERSION,
@@ -184,6 +186,7 @@ describe('garden domain validation', () => {
           quantity: 3,
           type: 'cage',
         },
+        supportStructureIds: [],
       },
     ]);
     expect(migration.record).not.toHaveProperty('markerLayer');

@@ -10,6 +10,7 @@ import type {
   SeasonCropSelection,
   SunExposure,
 } from '../../domain/gardens/GardenRepository';
+import { getCropSupportNeed } from '../../domain/gardens/GardenRepository';
 import { derivePlantingGeometry } from '../../domain/gardens/plantingGeometry';
 import { cropSunRequirementMet } from '../garden/sunShadeEngine';
 import {
@@ -178,16 +179,15 @@ export function getSeasonCropFitSignal({
     });
   }
 
-  if (
-    (crop.trellisRequired || crop.trellisRecommended) &&
-    !selection.supportAllowed
-  ) {
+  const supportNeed = getCropSupportNeed(crop);
+
+  if (supportNeed?.kind === 'trellis' && !selection.supportAllowed) {
     groupedReasons.push({
       group: 'support',
-      label: crop.trellisRequired
+      label: supportNeed.required
         ? 'Needs support before layout'
         : 'Support would make placement easier',
-      severity: crop.trellisRequired ? 'blocker' : 'watch',
+      severity: supportNeed.required ? 'blocker' : 'watch',
     });
   }
 

@@ -1,6 +1,6 @@
 import { isPageStructureType } from './structureTypes';
 
-export const CURRENT_GARDEN_SCHEMA_VERSION = 7;
+export const CURRENT_GARDEN_SCHEMA_VERSION = 8;
 export const LEGACY_GARDEN_SCHEMA_VERSION = 0;
 
 export interface GardenMigrationResult {
@@ -41,6 +41,10 @@ export function migrateGardenRecord(value: unknown): GardenMigrationResult {
 
   if (fromVersion < 7) {
     migratePlantingEvents(record, applied);
+  }
+
+  if (fromVersion < 8) {
+    migratePlantingSupportStructureLinks(record, applied);
   }
 
   record.schemaVersion = CURRENT_GARDEN_SCHEMA_VERSION;
@@ -182,6 +186,34 @@ function migratePlantingEvents(
   if (changed) {
     applied.push('planting events normalized');
   }
+}
+
+function migratePlantingSupportStructureLinks(
+  record: Record<string, unknown>,
+  applied: string[],
+) {
+  if (!Array.isArray(record.plantings)) {
+    return;
+  }
+
+  const plantings: unknown[] = record.plantings;
+
+  record.plantings = plantings.map((planting): unknown => {
+    if (!isPlainRecord(planting)) {
+      return planting;
+    }
+
+    return {
+      ...planting,
+      supportStructureIds: Array.isArray(planting.supportStructureIds)
+        ? planting.supportStructureIds.filter(
+            (id): id is string => typeof id === 'string',
+          )
+        : [],
+    };
+  });
+
+  applied.push('planting support structure links normalized');
 }
 
 function migratePlotDefaults(value: unknown) {

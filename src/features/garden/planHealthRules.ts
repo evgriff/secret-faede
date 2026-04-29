@@ -47,9 +47,12 @@ export type PlanHealthSeverity = 'caution' | 'mustFix' | 'recommended';
 export type PlanMaterialAddOnType =
   | 'cage'
   | 'coldFrame'
+  | 'custom'
   | 'mulch'
+  | 'netting'
   | 'rowCover'
   | 'stake'
+  | 'stakeAndWeave'
   | 'trellis';
 
 export interface PlanMaterialAddOn {
@@ -219,7 +222,7 @@ function buildSupportIssues(garden: Garden): PlanHealthIssue[] {
               unit: 'ft',
             },
           ],
-          message: `${planting.label} needs a trellis line, but no trellis is saved within reach.`,
+          message: `${planting.label} needs a saved grid trellis, but no linked or nearby trellis is within reach.`,
           sourceWarningId: null,
           restoreWarningId: null,
           severity: supportNeed.required ? 'mustFix' : 'recommended',

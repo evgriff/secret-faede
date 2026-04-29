@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useServices } from '../../app/providers';
+import { getCropById } from '../../domain/crops/cropCatalog';
 import {
   createDefaultPlanting,
   createDefaultPlantStatus,
@@ -11,6 +12,7 @@ import {
   type GardenPlot,
   type GardenPlant,
   getSharedGardenOperations,
+  getCropSupportNeed,
   overlaySharedGardenOperations,
   fitPlantingToAreaRect,
   type Planting,
@@ -902,11 +904,26 @@ export function useGarden(userId: string | null) {
         return;
       }
 
-      const addedPlant = createPlanting(garden, request);
+      const basePlant = createPlanting(garden, request);
+      const linkedTrellis = createLinkedTrellisStructure(
+        garden,
+        basePlant,
+        request.crop,
+      );
+      const addedPlant = linkedTrellis
+        ? {
+            ...basePlant,
+            supportStructureIds: [linkedTrellis.id],
+            trellisLengthFt: linkedTrellis.widthFt,
+          }
+        : basePlant;
       commitGardenUpdate(
         (currentGarden) => ({
           ...currentGarden,
           plantings: [...currentGarden.plantings, addedPlant],
+          structures: linkedTrellis
+            ? [...currentGarden.structures, linkedTrellis]
+            : currentGarden.structures,
         }),
         { id: addedPlant.id, type: 'planting' },
         true,
@@ -966,6 +983,108 @@ export function useGarden(userId: string | null) {
       );
     },
     [commitGardenUpdate, garden],
+  );
+
+  const addLinkedSupportStructure = useCallback(
+    (plantingId: string) => {
+      if (!garden) {
+        return;
+      }
+
+      commitGardenUpdate(
+        (currentGarden) => {
+          const planting = currentGarden.plantings.find(
+            (candidate) => candidate.id === plantingId,
+          );
+          const crop = getCropById(planting?.cropId);
+
+          if (!planting || !crop) {
+            return currentGarden;
+          }
+
+          const support = createLinkedTrellisStructure(
+            currentGarden,
+            planting,
+            crop,
+          );
+
+          if (!support) {
+            return currentGarden;
+          }
+
+          return {
+            ...currentGarden,
+            plantings: currentGarden.plantings.map((candidate) =>
+              candidate.id === planting.id
+                ? {
+                    ...candidate,
+                    supportStructureIds: [
+                      ...new Set([
+                        ...candidate.supportStructureIds,
+                        support.id,
+                      ]),
+                    ],
+                    trellisLengthFt: support.widthFt,
+                  }
+                : candidate,
+            ),
+            structures: [...currentGarden.structures, support],
+          };
+        },
+        { id: plantingId, type: 'planting' },
+        true,
+        true,
+      );
+    },
+    [commitGardenUpdate, garden],
+  );
+
+  const linkSupportStructure = useCallback(
+    (plantingId: string, structureId: string) => {
+      commitGardenUpdate(
+        (currentGarden) => ({
+          ...currentGarden,
+          plantings: currentGarden.plantings.map((planting) =>
+            planting.id === plantingId
+              ? {
+                  ...planting,
+                  supportStructureIds: [
+                    ...new Set([...planting.supportStructureIds, structureId]),
+                  ],
+                }
+              : planting,
+          ),
+        }),
+        { id: plantingId, type: 'planting' },
+        true,
+        true,
+      );
+    },
+    [commitGardenUpdate],
+  );
+
+  const unlinkSupportStructure = useCallback(
+    (plantingId: string, structureId: string) => {
+      commitGardenUpdate(
+        (currentGarden) => ({
+          ...currentGarden,
+          plantings: currentGarden.plantings.map((planting) =>
+            planting.id === plantingId
+              ? {
+                  ...planting,
+                  supportStructureIds: planting.supportStructureIds.filter(
+                    (id) => id !== structureId,
+                  ),
+                }
+              : planting,
+          ),
+        }),
+        { id: plantingId, type: 'planting' },
+        true,
+        true,
+      );
+    },
+    [commitGardenUpdate],
   );
 
   const approveSuccessionPlanting = useCallback(
@@ -1834,6 +1953,7 @@ export function useGarden(userId: string | null) {
         ),
         label: `${source.label} copy`,
         locked: false,
+        supportStructureIds: [],
         xFt: point.xFt,
         yFt: point.yFt,
       });
@@ -2008,17 +2128,31 @@ export function useGarden(userId: string | null) {
             }
 
             const instanceIds = plantingInstanceIds.get(planting.id);
+            const plantingWithoutDeletedLinks =
+              structureIds.size > 0
+                ? {
+                    ...planting,
+                    supportStructureIds: planting.supportStructureIds.filter(
+                      (id) => !structureIds.has(id),
+                    ),
+                  }
+                : planting;
 
             if (!instanceIds) {
-              return [planting];
+              return [plantingWithoutDeletedLinks];
             }
 
-            const instances = getPlantingInstances(planting).filter(
-              (instance) => !instanceIds.has(instance.id),
-            );
+            const instances = getPlantingInstances(
+              plantingWithoutDeletedLinks,
+            ).filter((instance) => !instanceIds.has(instance.id));
 
             return instances.length > 0
-              ? [normalizePlantingFromInstances({ ...planting, instances })]
+              ? [
+                  normalizePlantingFromInstances({
+                    ...plantingWithoutDeletedLinks,
+                    instances,
+                  }),
+                ]
               : [];
           }),
           structures: currentGarden.structures.filter(
@@ -2097,6 +2231,7 @@ export function useGarden(userId: string | null) {
   return {
     acceptReviewSuggestion,
     acceptReviewSuggestions,
+    addLinkedSupportStructure,
     addPlant,
     addStructure,
     applyPlotSettings,
@@ -2136,6 +2271,7 @@ export function useGarden(userId: string | null) {
     locationMatchState:
       gardenPlanningState?.locationMatch ??
       (garden ? createDefaultGardenPlanningState(garden).locationMatch : null),
+    linkSupportStructure,
     movePlant,
     moveStructure,
     markPlantingsPlanted,
@@ -2177,6 +2313,7 @@ export function useGarden(userId: string | null) {
     snoozeReviewSuggestion,
     toggleDetailedViewForSelection,
     undoGardenChange,
+    unlinkSupportStructure,
     updatePlantGroupPlacementMode,
     updatePlantGroupQuantity,
     updatePlantGroupSupport,
@@ -2260,6 +2397,70 @@ function createPlanting(
     ...planting,
     instances: createPlantingInstances(planting),
   });
+}
+
+function createLinkedTrellisStructure(
+  garden: Garden,
+  planting: Planting,
+  crop: CropProfile,
+): Structure | null {
+  const supportNeed = getCropSupportNeed(crop);
+
+  if (supportNeed?.kind !== 'trellis') {
+    return null;
+  }
+
+  const dimensions = getDerivedPlantingDimensions(planting);
+  const footprintWidthFt =
+    planting.rowLengthFt ??
+    dimensions.rowLengthFt ??
+    planting.blockWidthFt ??
+    dimensions.blockWidthFt ??
+    (planting.clusterRadiusFt ?? dimensions.clusterRadiusFt ?? 0.5) * 2;
+  const footprintDepthFt =
+    planting.blockDepthFt ??
+    dimensions.blockDepthFt ??
+    (planting.clusterRadiusFt ?? dimensions.clusterRadiusFt ?? 0.5) * 2;
+  const widthFt = Math.min(
+    Math.max(
+      planting.rowLengthFt ??
+        planting.trellisLengthFt ??
+        footprintWidthFt ??
+        (crop.spacingInches ?? 24) / 12,
+      2,
+    ),
+    garden.plot.widthFt,
+  );
+  const depthFt = 0.5;
+  const xFt = Math.max(
+    0,
+    Math.min(planting.xFt - widthFt / 2, garden.plot.widthFt - widthFt),
+  );
+  const aboveYFt = planting.yFt - footprintDepthFt / 2 - depthFt;
+  const belowYFt = planting.yFt + footprintDepthFt / 2;
+  const yFt =
+    aboveYFt >= 0
+      ? aboveYFt
+      : Math.min(Math.max(belowYFt, 0), garden.plot.depthFt - depthFt);
+
+  return clampStructureToPlot(
+    {
+      ...createDefaultStructure({
+        id: createItemId('structure'),
+        type: 'trellis',
+        xFt,
+        yFt,
+      }),
+      depthFt,
+      heightFt: Math.max((crop.matureHeightInches ?? 72) / 12, 5),
+      label: `${planting.label} trellis`,
+      material: 'wire',
+      notes: 'Linked trellis created with the planting.',
+      widthFt,
+      workingClearanceFt: 1,
+    },
+    garden.plot,
+  );
 }
 
 function resolveSelectionFromId(

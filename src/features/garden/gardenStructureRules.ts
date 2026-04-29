@@ -2,8 +2,18 @@ import type {
   CropProfile,
   Garden,
   Planting,
-  PlantSupportType,
   Structure,
+} from '../../domain/gardens/GardenRepository';
+import {
+  cropNeedsSupport,
+  getCropSupportNeed,
+  getPlantSupportKind,
+  getSupportLabel,
+  hasPlantLevelSupport,
+  needsExplicitSupportSetup,
+  type CropSupportKind,
+  type CropSupportNeed,
+  type PlantLevelSupportKind,
 } from '../../domain/gardens/GardenRepository';
 import {
   getPlantingFootprint,
@@ -13,13 +23,15 @@ import {
   type FootRect,
 } from './gardenPlanningGeometry';
 
-export type CropSupportKind = 'cage' | 'stake' | 'trellis';
-
-export interface CropSupportNeed {
-  kind: CropSupportKind;
-  required: boolean;
-  reason: string;
-}
+export {
+  cropNeedsSupport,
+  getCropSupportNeed,
+  getPlantSupportKind,
+  getSupportLabel,
+  hasPlantLevelSupport,
+  needsExplicitSupportSetup,
+};
+export type { CropSupportKind, CropSupportNeed, PlantLevelSupportKind };
 
 export const minimumStandardPathWidthFt = 1.5;
 export const minimumAccessiblePathWidthFt = 4;
@@ -127,104 +139,28 @@ export function hasWalkablePathAccess(
   });
 }
 
-export function getCropSupportNeed(crop: CropProfile): CropSupportNeed | null {
-  if (isTomato(crop)) {
-    return {
-      kind: 'cage',
-      reason: 'Tomatoes are tall, heavy fruiting crops.',
-      required: false,
-    };
-  }
-
-  if (
-    crop.trellisRequired ||
-    crop.trellisRecommended ||
-    crop.growthForm === 'climber' ||
-    crop.growthForm === 'vining'
-  ) {
-    return {
-      kind: 'trellis',
-      reason: `${crop.commonName} climbs or vines.`,
-      required: crop.trellisRequired || crop.growthForm === 'climber',
-    };
-  }
-
-  if (crop.growthForm === 'bush' && (crop.matureHeightInches ?? 0) >= 24) {
-    return {
-      kind: 'cage',
-      reason: `${crop.commonName} benefits from a cage.`,
-      required: false,
-    };
-  }
-
-  if (crop.growthForm === 'upright' && (crop.matureHeightInches ?? 0) >= 36) {
-    return {
-      kind: 'stake',
-      reason: `${crop.commonName} is tall enough for staking.`,
-      required: false,
-    };
-  }
-
-  return null;
-}
-
-export function cropNeedsSupport(crop: CropProfile) {
-  return Boolean(getCropSupportNeed(crop));
-}
-
-export function needsExplicitSupportSetup(crop: CropProfile) {
-  const supportNeed = getCropSupportNeed(crop);
-
-  return Boolean(
-    supportNeed &&
-    (supportNeed.kind === 'trellis' || supportNeed.required === true),
-  );
-}
-
 export function hasNearbySupport(garden: Garden, planting: Planting) {
-  if (planting.mode === 'trellisLine' || (planting.trellisLengthFt ?? 0) > 0) {
+  if (hasLinkedSupportStructure(garden, planting)) {
     return true;
   }
 
   return hasNearbySupportFootprint(garden, getPlantingFootprint(planting));
 }
 
-export function hasPlantLevelSupport(
-  planting: Planting,
-  kind: Exclude<CropSupportKind, 'trellis'>,
-) {
-  if (planting.support.type === 'none' || planting.support.quantity <= 0) {
-    return false;
-  }
-
-  const assignedKind = getPlantSupportKind(planting.support.type);
-
-  if (!assignedKind) {
-    return false;
-  }
-
-  if (assignedKind === kind) {
-    return true;
-  }
-
-  return isPlantLevelSupportCompatible(kind, assignedKind);
+export function hasLinkedSupportStructure(garden: Garden, planting: Planting) {
+  return getLinkedSupportStructures(garden, planting).length > 0;
 }
 
-export function getPlantSupportKind(
-  supportType: PlantSupportType,
-): Exclude<CropSupportKind, 'trellis'> | null {
-  switch (supportType) {
-    case 'cage':
-      return 'cage';
-    case 'stake':
-    case 'stakeAndWeave':
-      return 'stake';
-    case 'custom':
-    case 'netting':
-    case 'none':
-    case 'rowCover':
-      return null;
+export function getLinkedSupportStructures(garden: Garden, planting: Planting) {
+  if (planting.supportStructureIds.length === 0) {
+    return [];
   }
+
+  const linkedIds = new Set(planting.supportStructureIds);
+
+  return garden.structures.filter(
+    (structure) => structure.type === 'trellis' && linkedIds.has(structure.id),
+  );
 }
 
 export function hasNearbySupportFootprint(garden: Garden, footprint: FootRect) {
@@ -250,24 +186,6 @@ export function estimateSupportLengthFt(
   return Math.max(plantCount * spacingFt, 2);
 }
 
-export function getSupportLabel(kind: CropSupportKind) {
-  if (kind === 'trellis') {
-    return 'trellis';
-  }
-
-  return kind === 'cage' ? 'cage' : 'stake';
-}
-
-function isPlantLevelSupportCompatible(
-  neededKind: Exclude<CropSupportKind, 'trellis'>,
-  assignedKind: Exclude<CropSupportKind, 'trellis'>,
-) {
-  return (
-    (neededKind === 'cage' && assignedKind === 'stake') ||
-    (neededKind === 'stake' && assignedKind === 'cage')
-  );
-}
-
 export function expandRect(rect: FootRect, amountFt: number): FootRect {
   return {
     ...rect,
@@ -276,8 +194,4 @@ export function expandRect(rect: FootRect, amountFt: number): FootRect {
     xFt: rect.xFt - amountFt,
     yFt: rect.yFt - amountFt,
   };
-}
-
-function isTomato(crop: CropProfile) {
-  return crop.id.includes('tomato') || /tomato/i.test(crop.commonName);
 }

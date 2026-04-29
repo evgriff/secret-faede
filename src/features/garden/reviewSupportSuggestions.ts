@@ -3,6 +3,7 @@ import type {
   Garden,
   Planting,
   PlantSupportPlan,
+  PlantSupportType,
   Structure,
 } from '../../domain/gardens/GardenRepository';
 import {
@@ -28,6 +29,7 @@ import {
   getSupportLabel,
   getWalkablePathWidthFt,
   isBlockingStructure,
+  type PlantLevelSupportKind,
 } from './gardenStructureRules';
 import {
   appendNote,
@@ -105,14 +107,34 @@ export function buildSupportSuggestion(
   if (!support) {
     return null;
   }
+  const linkedPlanting = {
+    ...planting,
+    supportStructureIds: [
+      ...new Set([...planting.supportStructureIds, support.id]),
+    ],
+    trellisLengthFt: support.widthFt,
+  };
   const nextGarden = {
     ...garden,
+    plantings: garden.plantings.map((candidate) =>
+      candidate.id === planting.id ? linkedPlanting : candidate,
+    ),
     structures: [...garden.structures, support],
   };
   const safetyNote = getSupportSafetyNote(garden, nextGarden);
 
   return {
-    actions: [{ kind: 'addStructure', structure: support }],
+    actions: [
+      { kind: 'addStructure', structure: support },
+      {
+        id: planting.id,
+        kind: 'updatePlanting',
+        values: {
+          supportStructureIds: linkedPlanting.supportStructureIds,
+          trellisLengthFt: linkedPlanting.trellisLengthFt,
+        },
+      },
+    ],
     canBatchAccept: false,
     id: `review:addTrellis:${planting.id}`,
     itemIds: [planting.id],
@@ -267,11 +289,12 @@ export function buildWidenPathSuggestion(
 
 function createPlantSupportUpdate(
   planting: Planting,
-  supportKind: 'cage' | 'stake',
+  supportKind: PlantLevelSupportKind,
   required: boolean,
 ): PlantSupportPlan {
   const quantity = Math.max(Math.round(planting.plantCount ?? 1), 1);
   const supportLabel = getSupportLabel(supportKind);
+  const supportType = toPlantSupportType(supportKind);
 
   return {
     installedAtIso: null,
@@ -279,8 +302,14 @@ function createPlantSupportUpdate(
     perPlant: true,
     quantity,
     required,
-    type: supportKind,
+    type: supportType,
   };
+}
+
+function toPlantSupportType(
+  supportKind: PlantLevelSupportKind,
+): PlantSupportType {
+  return supportKind;
 }
 
 function createTrellisStructure(

@@ -15,12 +15,7 @@ import {
   describeCropSunFit,
   describeShadeSourceSummary,
 } from '../../garden/sunShadeFit';
-import {
-  formatMode,
-  formatNullableInches,
-  formatSeason,
-  formatSun,
-} from './planFormatters';
+import { formatMode, formatSeason, formatSun } from './planFormatters';
 import styles from './PlantEditorSheet.module.css';
 
 type UpdatePlanting = (id: string, values: Partial<GardenPlant>) => void;
@@ -55,7 +50,6 @@ export function PlantEditorContextDetails({
             `X ${formatFeet(plant.xFt)} ft, Y ${formatFeet(plant.yFt)} ft`,
           ],
           ['Footprint', describeFootprint(footprint)],
-          ['Spacing', formatNullableInches(plant.spacingInches)],
           [
             `${formatSeason(sunSeason)} sun`,
             sunArea

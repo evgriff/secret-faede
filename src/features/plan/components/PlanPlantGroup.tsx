@@ -9,10 +9,8 @@ import {
 
 import { getCropById } from '../../../domain/crops/cropCatalog';
 import {
-  getDerivedPlantingDimensions,
   type CropProfile,
   type Garden,
-  type GardenPlant,
   type Planting,
 } from '../../../domain/gardens/GardenRepository';
 import { fitPlantingToAreaRect } from '../../../domain/gardens/plantingAreaFit';
@@ -72,7 +70,6 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
   previewOffset,
   previewRect,
   onSelectItem,
-  onUpdatePlanting,
   plant,
   structures,
   warnings,
@@ -117,7 +114,6 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
     additive: boolean,
     options?: { openSurface?: boolean },
   ): void;
-  onUpdatePlanting(id: string, values: Partial<GardenPlant>): void;
   plant: Planting;
   structures: Garden['structures'];
   warnings: PlanWarning[];
@@ -165,19 +161,21 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
   );
   const hiddenDotCount = Math.max(instances.length - visibleDots.length, 0);
   const labelId = `plant-group-label-${plant.id}`;
-  const labelText = quantity > 1 ? `${label}, ${quantity} plants` : label;
   const quantityLabel = quantity > 1 ? `${quantity} plants` : '1 plant';
   const labelDecision = getPlantGroupLabelDecision({
     dragging: isDragging,
     footprint,
     hovering: isHoverLabelVisible,
-    label: labelText,
+    label,
     pinned: isLabelVisible,
   });
   const showInteriorLabel =
-    labelDecision.visible && labelDecision.placement === 'inside';
+    labelDecision.visible &&
+    labelDecision.placement === 'inside' &&
+    !isLabelVisible;
   const showFloatingLabel =
-    labelDecision.visible && labelDecision.placement !== 'inside';
+    labelDecision.visible &&
+    (labelDecision.placement !== 'inside' || isLabelVisible);
   const shouldExposeLabel = showInteriorLabel || showFloatingLabel;
   const supportId = `plant-group-support-${plant.id}`;
   const warningId = `plant-group-warning-${plant.id}`;
@@ -197,15 +195,6 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
       : `${label} group, ${quantity} plants at X: ${formatFeet(
           plant.xFt,
         )} ft, Y: ${formatFeet(plant.yFt)} ft`;
-  const catalogSpacingInches =
-    crop?.spacingInches ?? crop?.matureSpreadInches ?? null;
-  const currentSpacingInches =
-    plant.spacingInches ?? plant.matureSpreadInches ?? catalogSpacingInches;
-  const spacingIsTighterThanCatalog = Boolean(
-    plant.spacingInches &&
-    catalogSpacingInches &&
-    plant.spacingInches < catalogSpacingInches,
-  );
   const style = useMemo(
     () =>
       ({
@@ -241,42 +230,6 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
       visual.palette.strong,
     ],
   );
-
-  function updateSpacingOverride(value: number | null) {
-    const spacingInches =
-      value === null ? null : Math.max(Number.isFinite(value) ? value : 1, 1);
-    const nextPlant = {
-      ...plant,
-      spacingInches,
-    };
-
-    if (plant.mode === 'block' || plant.blockWidthFt || plant.blockDepthFt) {
-      const fittedPlant = fitPlantingToAreaRect(nextPlant, footprint).planting;
-
-      onUpdatePlanting(plant.id, {
-        blockDepthFt: fittedPlant.blockDepthFt,
-        blockWidthFt: fittedPlant.blockWidthFt,
-        clusterRadiusFt: null,
-        mode: 'block',
-        plantCount: fittedPlant.plantCount,
-        rowCount: fittedPlant.rowCount,
-        rowLengthFt: null,
-        spacingInches,
-        trellisLengthFt: null,
-        xFt: fittedPlant.xFt,
-        yFt: fittedPlant.yFt,
-      });
-      return;
-    }
-
-    onUpdatePlanting(plant.id, {
-      ...getDerivedPlantingDimensions({
-        ...nextPlant,
-        quantity,
-      }),
-      spacingInches,
-    });
-  }
 
   return (
     <div
@@ -390,7 +343,10 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
                 id={supportId}
                 title={supportState.aria}
               >
-                {supportState.label}
+                <SupportSignalIcon icon={supportState.icon} />
+                <span className={itemStyles.signalTooltip} role="tooltip">
+                  {supportState.label}
+                </span>
               </span>
             ) : null}
             {hasWarning ? (
@@ -417,7 +373,7 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
           id={labelId}
           role="tooltip"
         >
-          <span className={itemStyles.plantGroupName}>{labelText}</span>
+          <span className={itemStyles.plantGroupName}>{label}</span>
         </span>
       ) : null}
       <button
@@ -441,62 +397,6 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
       >
         <WrenchIcon />
       </button>
-      {isSelected ? (
-        <details
-          className={itemStyles.plantGroupSpacingDisclosure}
-          data-plan-item="true"
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <summary
-            aria-label={`Adjust ${label} spacing`}
-            className={`${itemStyles.plantGroupWrench} ${itemStyles.plantGroupSpacingButton}`}
-            role="button"
-          >
-            Spacing
-          </summary>
-          <div
-            aria-label={`${label} spacing controls`}
-            className={itemStyles.plantGroupSpacingPanel}
-            role="dialog"
-          >
-            <strong>Plant spacing</strong>
-            <p>
-              Catalog:{' '}
-              {catalogSpacingInches ? `${catalogSpacingInches} in` : 'none'}.
-              Current:{' '}
-              {currentSpacingInches ? `${currentSpacingInches} in` : 'auto'}.
-            </p>
-            <label>
-              <span>Spacing in inches</span>
-              <input
-                aria-label={`${label} spacing in inches`}
-                inputMode="decimal"
-                min="1"
-                onChange={(event) => {
-                  const rawValue = event.currentTarget.value.trim();
-                  updateSpacingOverride(rawValue ? Number(rawValue) : null);
-                }}
-                step="0.5"
-                type="number"
-                value={plant.spacingInches ?? ''}
-              />
-            </label>
-            <p>Tight plans are allowed; thin later if crowded.</p>
-            {spacingIsTighterThanCatalog ? (
-              <p className={itemStyles.plantGroupSpacingWarning}>
-                Tighter than catalog spacing.
-              </p>
-            ) : null}
-            <button
-              className={itemStyles.plantGroupSpacingReset}
-              onClick={() => updateSpacingOverride(catalogSpacingInches)}
-              type="button"
-            >
-              Reset
-            </button>
-          </div>
-        </details>
-      ) : null}
       {isSelected ? (
         <ResizeHandles
           onPointerCancel={onResizePointerEnd}
@@ -565,10 +465,20 @@ function ResizeHandles({
 
 interface SupportSignalState {
   aria: string;
+  icon: SupportSignalIconType;
   label: string;
   missing: boolean;
   visible: boolean;
 }
+
+type SupportSignalIconType =
+  | 'cage'
+  | 'netting'
+  | 'rowCover'
+  | 'stake'
+  | 'stakeAndWeave'
+  | 'support'
+  | 'trellis';
 
 function getSupportState({
   crop,
@@ -591,20 +501,24 @@ function getSupportState({
 
   if (supportNeed?.kind === 'trellis') {
     const hasTrellis =
-      plant.mode === 'trellisLine' ||
-      (plant.trellisLengthFt ?? 0) > 0 ||
-      hasNearbySupportFootprint({ structures } as Garden, footprint);
+      plant.supportStructureIds.some((structureId) =>
+        structures.some(
+          (structure) =>
+            structure.id === structureId && structure.type === 'trellis',
+        ),
+      ) || hasNearbySupportFootprint({ structures } as Garden, footprint);
     const label = hasTrellis ? 'Trellis' : 'Needs trellis';
 
     return {
       aria: hasTrellis ? 'trellis support assigned' : 'trellis support missing',
+      icon: 'trellis',
       label,
       missing: !hasTrellis,
       visible: hasTrellis || missingSupport || showContextSignals,
     };
   }
 
-  if (supportNeed?.kind === 'cage' || supportNeed?.kind === 'stake') {
+  if (supportNeed) {
     const supportLabel = capitalize(getSupportLabel(supportNeed.kind));
     const hasSupport = hasPlantLevelSupport(plant, supportNeed.kind);
 
@@ -612,6 +526,7 @@ function getSupportState({
       aria: hasSupport
         ? `${supportLabel.toLowerCase()} support assigned`
         : `${supportLabel.toLowerCase()} support missing`,
+      icon: toSupportSignalIcon(supportNeed.kind),
       label: hasSupport ? supportLabel : `Needs ${supportLabel.toLowerCase()}`,
       missing: !hasSupport,
       visible: hasSupport || missingSupport || showContextSignals,
@@ -621,11 +536,44 @@ function getSupportState({
   return assignedPlantSupport
     ? {
         aria: `${assignedPlantSupport.toLowerCase()} support assigned`,
+        icon: toSupportSignalIcon(getPlantSupportKind(plant.support.type)),
         label: assignedPlantSupport,
         missing: false,
         visible: true,
       }
     : null;
+}
+
+function toSupportSignalIcon(
+  kind: ReturnType<typeof getPlantSupportKind> | 'trellis',
+): SupportSignalIconType {
+  switch (kind) {
+    case 'cage':
+      return 'cage';
+    case 'netting':
+      return 'netting';
+    case 'rowCover':
+      return 'rowCover';
+    case 'stake':
+      return 'stake';
+    case 'stakeAndWeave':
+      return 'stakeAndWeave';
+    case 'trellis':
+      return 'trellis';
+    case 'custom':
+    case null:
+      return 'support';
+  }
+}
+
+function SupportSignalIcon({ icon }: { icon: SupportSignalIconType }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={itemStyles.supportSignalIcon}
+      data-support-icon={icon}
+    />
+  );
 }
 
 function getAssignedPlantSupportLabel(plant: Planting) {

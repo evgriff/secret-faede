@@ -27,9 +27,12 @@ import styles from './PlantEditorSheet.module.css';
 export function PlantEditorSheet({
   garden,
   isDetailedViewPinned,
+  onAddLinkedSupportStructure,
   onClose,
   onDeleteSelected,
   onDuplicatePlanting,
+  onLinkSupportStructure,
+  onUnlinkSupportStructure,
   onUpdatePlanting,
   plant,
   sunLayer,
@@ -38,9 +41,12 @@ export function PlantEditorSheet({
 }: {
   garden: Garden;
   isDetailedViewPinned: boolean;
+  onAddLinkedSupportStructure(plantingId: string): void;
   onClose(): void;
   onDeleteSelected(): void;
   onDuplicatePlanting(id: string): void;
+  onLinkSupportStructure(plantingId: string, structureId: string): void;
+  onUnlinkSupportStructure(plantingId: string, structureId: string): void;
   onUpdatePlanting(id: string, values: Partial<GardenPlant>): void;
   plant: GardenPlant;
   sunLayer: SunShadeLayer;
@@ -135,6 +141,11 @@ export function PlantEditorSheet({
       />
       {showSupportSection ? (
         <PlantEditorSupport
+          crop={crop ?? null}
+          garden={garden}
+          onAddLinkedSupportStructure={onAddLinkedSupportStructure}
+          onLinkSupportStructure={onLinkSupportStructure}
+          onUnlinkSupportStructure={onUnlinkSupportStructure}
           onUpdatePlanting={onUpdatePlanting}
           plant={plant}
           quantity={quantity}

@@ -123,6 +123,31 @@
   padding: 0;
 }
 
+.spacingMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.spacingMeta span,
+.spacingMeta button {
+  min-height: 1.9rem;
+  border: 1px solid rgba(54, 48, 40, 0.12);
+  border-radius: var(--radius-control);
+  background: rgba(255, 253, 247, 0.82);
+  padding: 0.32rem 0.5rem;
+}
+
+.spacingMeta button {
+  color: var(--color-text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 820;
+}
+
 .warningList {
   display: grid;
   gap: 0.25rem;
@@ -132,6 +157,7 @@
 }
 
 .modeButton:focus-visible,
+.spacingMeta button:focus-visible,
 .field:focus-within {
   outline: 2px solid var(--color-plant-sky);
   outline-offset: 2px;

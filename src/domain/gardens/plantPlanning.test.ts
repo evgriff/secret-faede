@@ -269,6 +269,7 @@ function makePlantGroup(overrides: Partial<PlantGroup> = {}): PlantGroup {
     },
     support: makeSupportPlan(),
     supportHeightFt: null,
+    supportStructureIds: [],
     trellisLengthFt: null,
     trellisStructureId: null,
     xFt: 5,

@@ -15,6 +15,8 @@ import {
   getCropSupportNeed,
   getPlantSupportKind,
   getSupportLabel,
+  hasLinkedSupportStructure,
+  hasNearbySupport,
 } from '../garden/gardenStructureRules';
 
 export interface MaterialsList {
@@ -44,7 +46,7 @@ export function buildMaterialsList(garden: Garden): MaterialsList {
   });
   const supports = garden.plantings.flatMap((planting) => {
     const crop = getCropById(planting.cropId);
-    const support = summarizePlantSupport(planting, crop);
+    const support = summarizePlantSupport(garden, planting, crop);
 
     return support ? [support] : [];
   });
@@ -113,18 +115,11 @@ function summarizePathMaterials(structure: Structure) {
   )}; ${formatMeasure(structure.widthFt)} ft ${standard}, ${continuity}.`;
 }
 
-function summarizePlantSupport(planting: Planting, crop: CropProfile | null) {
-  if (planting.mode === 'trellisLine' || (planting.trellisLengthFt ?? 0) > 0) {
-    const trellisLengthFt =
-      planting.trellisLengthFt ??
-      planting.rowLengthFt ??
-      estimateSupportLengthFt(planting, crop);
-
-    return `${planting.label}: ${formatMeasure(
-      trellisLengthFt,
-    )} ft trellis line`;
-  }
-
+function summarizePlantSupport(
+  garden: Garden,
+  planting: Planting,
+  crop: CropProfile | null,
+) {
   const plantSupportKind = getPlantSupportKind(planting.support.type);
 
   if (plantSupportKind && planting.support.quantity > 0) {
@@ -142,11 +137,19 @@ function summarizePlantSupport(planting: Planting, crop: CropProfile | null) {
   }
 
   if (supportNeed.kind === 'trellis') {
+    if (hasLinkedSupportStructure(garden, planting)) {
+      return `${planting.label}: linked grid trellis`;
+    }
+
+    if (hasNearbySupport(garden, planting)) {
+      return null;
+    }
+
     const trellisLengthFt = estimateSupportLengthFt(planting, crop);
 
     return `${planting.label}: ${formatMeasure(
       trellisLengthFt,
-    )} ft trellis line`;
+    )} ft grid trellis needed`;
   }
 
   return null;

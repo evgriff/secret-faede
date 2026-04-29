@@ -46,6 +46,10 @@ import {
   CURRENT_GARDEN_SCHEMA_VERSION,
   migrateGardenRecord,
 } from './schemaMigrations';
+import {
+  getFallbackCropSupportProfile,
+  normalizeCropSupportProfile,
+} from './supportNeeds';
 
 const plantingModes = [
   'block',
@@ -528,6 +532,7 @@ export function parsePlanting(value: unknown, plot: Plot): Planting | null {
       value.support ?? value.supportType,
       readNullableNumber(value.plantCount) ?? 1,
     ),
+    supportStructureIds: readStringArray(value.supportStructureIds),
     sunRequirement:
       isRecord(value) && value.sunRequirement
         ? readStringUnion(
@@ -1122,6 +1127,45 @@ export function parseCropProfile(value: unknown): CropProfile | null {
     return null;
   }
 
+  const commonName = readString(
+    value.commonName,
+    readString(value.name, 'Crop'),
+  );
+  const growthForm = readStringUnion(
+    value.growthForm,
+    [
+      'bulb',
+      'bush',
+      'climber',
+      'clump',
+      'groundcover',
+      'rosette',
+      'root',
+      'upright',
+      'vining',
+    ] as const,
+    'upright',
+  );
+  const matureHeightInches = readNullableNumber(value.matureHeightInches);
+  const roles = readStringArray(value.roles);
+  const trellisRecommended = readBoolean(
+    value.trellisRecommended,
+    readBoolean(value.trellisRequired, false),
+  );
+  const trellisRequired = readBoolean(value.trellisRequired, false);
+  const supportProfile = normalizeCropSupportProfile(
+    value.supportProfile,
+    getFallbackCropSupportProfile({
+      commonName,
+      growthForm,
+      id: value.id,
+      matureHeightInches,
+      roles,
+      trellisRecommended,
+      trellisRequired,
+    }),
+  );
+
   return {
     aliases: readStringArray(value.aliases),
     category: readStringUnion(
@@ -1140,27 +1184,13 @@ export function parseCropProfile(value: unknown): CropProfile | null {
       'vegetable',
     ),
     caution: readNullableString(value.caution),
-    commonName: readString(value.commonName, readString(value.name, 'Crop')),
+    commonName,
     completenessScore: readNumber(value.completenessScore, 0.5),
     daysToMaturity: readNullableNumber(value.daysToMaturity),
     defaultIcon: readString(value.defaultIcon, 'seedling'),
     family: readString(value.family),
     frostSensitive: readBoolean(value.frostSensitive, false),
-    growthForm: readStringUnion(
-      value.growthForm,
-      [
-        'bulb',
-        'bush',
-        'climber',
-        'clump',
-        'groundcover',
-        'rosette',
-        'root',
-        'upright',
-        'vining',
-      ] as const,
-      'upright',
-    ),
+    growthForm,
     hardiness: readString(value.hardiness),
     id: value.id,
     lifecycle: readStringUnion(
@@ -1170,7 +1200,7 @@ export function parseCropProfile(value: unknown): CropProfile | null {
     ),
     lastRefreshedIso: readNullableString(value.lastRefreshedIso),
     manualOverride: readBoolean(value.manualOverride, false),
-    matureHeightInches: readNullableNumber(value.matureHeightInches),
+    matureHeightInches,
     matureSpreadInches: readNullableNumber(value.matureSpreadInches),
     name: readString(value.name, 'Crop'),
     notes: readString(value.notes),
@@ -1183,7 +1213,7 @@ export function parseCropProfile(value: unknown): CropProfile | null {
     ),
     rowSpacingInches: readNullableNumber(value.rowSpacingInches),
     rootDepthInches: readNullableNumber(value.rootDepthInches),
-    roles: readStringArray(value.roles),
+    roles,
     scientificName: readString(value.scientificName),
     spacingInches: readNullableNumber(value.spacingInches),
     sowMethod: readStringUnion(
@@ -1198,6 +1228,7 @@ export function parseCropProfile(value: unknown): CropProfile | null {
         )
       : ['single'],
     sourceTags: readStringArray(value.sourceTags, ['imported']),
+    supportProfile,
     synonyms: readStringArray(value.synonyms),
     sunExposure: readStringUnion(
       value.sunExposure,
@@ -1209,11 +1240,8 @@ export function parseCropProfile(value: unknown): CropProfile | null {
       ['fullShade', 'fullSun', 'partShade', 'partSun'] as const,
       'fullSun',
     ),
-    trellisRecommended: readBoolean(
-      value.trellisRecommended,
-      readBoolean(value.trellisRequired, false),
-    ),
-    trellisRequired: readBoolean(value.trellisRequired, false),
+    trellisRecommended,
+    trellisRequired,
     varietyGroup: readNullableString(value.varietyGroup),
     weeklyWaterNeedInches: readNullableNumber(value.weeklyWaterNeedInches),
     waterNeeds: readStringUnion(

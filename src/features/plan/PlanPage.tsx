@@ -57,7 +57,6 @@ import type {
 } from './autoLayoutTypes';
 import { allowAutoLayoutStagePaint } from './autoLayoutRunState';
 import { PlanCanvas } from './components/PlanCanvas';
-import { PlantEditorSheet } from './components/PlantEditorSheet';
 import { PlanTopBar } from './components/PlanTopBar';
 import { usePlanKeyboardShortcuts } from './hooks/usePlanKeyboardShortcuts';
 import { buildLayoutProblemResolutionModel } from './layoutProblemResolution';
@@ -127,6 +126,11 @@ const PlanOperationsPanel = lazy(() =>
     default: module.PlanOperationsPanel,
   })),
 );
+const PlantEditorSheet = lazy(() =>
+  import('./components/PlantEditorSheet').then((module) => ({
+    default: module.PlantEditorSheet,
+  })),
+);
 const PlanPublishModal = lazy(() =>
   import('./components/PlanPublishModal').then((module) => ({
     default: module.PlanPublishModal,
@@ -149,6 +153,7 @@ export function PlanPage() {
     window.location.search.match(/[?&]p=([^&]+)/)?.[1] ?? null;
   const {
     acceptReviewSuggestion,
+    addLinkedSupportStructure,
     addPlant,
     addStructure,
     applyAutoLayoutProposal,
@@ -170,6 +175,7 @@ export function PlanPage() {
     hidePlantGroupLabel,
     hoveredPlantGroupId,
     labelVisibility,
+    linkSupportStructure,
     markPlantingsPlanted,
     openDetailedViewForItem,
     openPlantGroupEditor,
@@ -198,6 +204,7 @@ export function PlanPage() {
     snoozeReviewSuggestion,
     status,
     undoGardenChange,
+    unlinkSupportStructure,
     updateItemPositions,
     updatePlanting,
     updateSeasonCropSelections,
@@ -618,6 +625,15 @@ export function PlanPage() {
       if (!shouldOpenSurface) {
         setSuppressedSelectionKey(nextPrimaryKey);
 
+        if (labelVisibility.mode !== 'visible') {
+          setPlantLabelVisibility({
+            groupIds: nextSelection
+              .filter((item) => item.type === 'planting')
+              .map((item) => item.id),
+            mode: 'auto',
+          });
+        }
+
         if (detailedViewState.isOpen && primaryItem) {
           openDetailedViewForItem(primaryItem);
 
@@ -687,12 +703,14 @@ export function PlanPage() {
       activeMode,
       closePlantGroupEditor,
       detailedViewState.isOpen,
+      labelVisibility.mode,
       openDetailedViewForItem,
       openPlantGroupEditor,
       plantEditorState.isOpen,
       plantEditorState.groupId,
       plantEditorState.tab,
       setHoveredPlantGroupId,
+      setPlantLabelVisibility,
     ],
   );
 
@@ -1559,7 +1577,6 @@ export function PlanPage() {
             onPlantLabelHide={hidePlantGroupLabel}
             onSelectItem={handleSelectItem}
             onShowSunOverlayChange={setShowSunOverlay}
-            onUpdatePlanting={updatePlanting}
             plantingPreview={addPlantPreview}
             planWarnings={activePlanWarnings}
             proposalDiffOverlay={proposalDiffOverlay}
@@ -1701,18 +1718,23 @@ export function PlanPage() {
       </div>
 
       {planInteractionState === 'idle' && plantEditorPlant ? (
-        <PlantEditorSheet
-          garden={garden}
-          isDetailedViewPinned={isPlantEditorDetailedView}
-          onClose={handleClosePlantEditor}
-          onDeleteSelected={handleDeleteFromPlantEditor}
-          onDuplicatePlanting={handleDuplicateFromPlantEditor}
-          onUpdatePlanting={updatePlanting}
-          plant={plantEditorPlant}
-          sunLayer={activeSunLayer}
-          sunSeason={sunSeason}
-          warnings={plantEditorWarnings}
-        />
+        <Suspense fallback={null}>
+          <PlantEditorSheet
+            garden={garden}
+            isDetailedViewPinned={isPlantEditorDetailedView}
+            onAddLinkedSupportStructure={addLinkedSupportStructure}
+            onClose={handleClosePlantEditor}
+            onDeleteSelected={handleDeleteFromPlantEditor}
+            onDuplicatePlanting={handleDuplicateFromPlantEditor}
+            onLinkSupportStructure={linkSupportStructure}
+            onUnlinkSupportStructure={unlinkSupportStructure}
+            onUpdatePlanting={updatePlanting}
+            plant={plantEditorPlant}
+            sunLayer={activeSunLayer}
+            sunSeason={sunSeason}
+            warnings={plantEditorWarnings}
+          />
+        </Suspense>
       ) : null}
 
       {isPlotSettingsOpen ? (

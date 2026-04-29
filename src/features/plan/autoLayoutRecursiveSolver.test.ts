@@ -38,9 +38,23 @@ describe('auto layout recursive solver', () => {
   });
 
   it('caps recursive search and prunes repeated states instead of bouncing', () => {
-    const garden = createLayoutFixture({
-      supportAllowed: false,
-    });
+    const baseGarden = createLayoutFixture();
+    const garden = {
+      ...baseGarden,
+      seasonPlan: {
+        ...baseGarden.seasonPlan,
+        wantedCrops: baseGarden.seasonPlan.wantedCrops.map((selection) =>
+          selection.cropId === 'tomato'
+            ? {
+                ...selection,
+                cropId: 'pole-bean',
+                id: 'season-pole-bean',
+                supportAllowed: false,
+              }
+            : selection,
+        ),
+      },
+    };
     const [candidate] = generateAutoLayoutCandidates(garden, {
       maxSearchDepth: 3,
       sunLayer: createSunLayer(garden),
@@ -53,7 +67,7 @@ describe('auto layout recursive solver', () => {
       candidate?.search.maxStates ?? 0,
     );
     expect(candidate?.search.unresolvedIssues).toEqual(
-      expect.arrayContaining([expect.stringContaining('Tomato')]),
+      expect.arrayContaining([expect.stringContaining('Pole bean')]),
     );
   });
 

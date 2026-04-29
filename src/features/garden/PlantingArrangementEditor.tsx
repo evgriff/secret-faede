@@ -7,6 +7,7 @@ import type {
 import type { PlanWarning } from './gardenPlanning';
 import {
   buildArrangementWarnings,
+  formatArrangementFootprintMetric,
   formatArrangementMetric,
   formatArrangementMode,
   getBlockColumns,
@@ -32,7 +33,10 @@ export interface PlantingArrangementChange {
   mode?: PlantingMode;
   plantCount?: number;
   rowLengthFt?: number | null;
+  spacingInches?: number | null;
 }
+
+type PlantingArrangementSpacingMode = 'footprintFeet' | 'plantSpacingInches';
 
 export function PlantingArrangementEditor({
   crop,
@@ -40,6 +44,8 @@ export function PlantingArrangementEditor({
   onChange,
   planWarnings = [],
   plantCount,
+  spacingInches = null,
+  spacingMode = 'footprintFeet',
   showQuantity = false,
   values,
 }: {
@@ -48,6 +54,8 @@ export function PlantingArrangementEditor({
   onChange(values: PlantingArrangementChange): void;
   planWarnings?: PlanWarning[];
   plantCount: number;
+  spacingInches?: number | null;
+  spacingMode?: PlantingArrangementSpacingMode;
   showQuantity?: boolean;
   values: ArrangementEditorValues;
 }) {
@@ -67,23 +75,52 @@ export function PlantingArrangementEditor({
     clusterRadiusFt: values.clusterRadiusFt ?? defaults.clusterRadiusFt,
     rowLengthFt: values.rowLengthFt ?? defaults.rowLengthFt,
   };
-  const spacingFt = getEffectiveSpacingFt(mode, quantity, effectiveValues);
+  const catalogSpacingInches = getCatalogSpacingInches(crop);
+  const effectiveSpacingInches = getEffectiveSpacingInches(
+    spacingInches,
+    catalogSpacingInches,
+  );
+  const spacingFt =
+    spacingMode === 'plantSpacingInches'
+      ? effectiveSpacingInches / 12
+      : getEffectiveSpacingFt(mode, quantity, effectiveValues);
   const warnings = buildArrangementWarnings({
     crop,
     mode,
     planWarnings,
     quantity,
     recommendedMode,
+    showSpacingWarning: spacingMode === 'plantSpacingInches' || quantity > 1,
     spacingFt,
   });
   const previewPoints = getPreviewPoints(mode, quantity, effectiveValues);
   const spacingLabel = getSpacingLabel(mode);
+  const arrangementMetric =
+    spacingMode === 'plantSpacingInches'
+      ? formatArrangementFootprintMetric({
+          mode,
+          quantity,
+          spacingInches: effectiveSpacingInches,
+          values: effectiveValues,
+        })
+      : formatArrangementMetric(mode, quantity, effectiveValues);
+  const hasSpacingOverride =
+    spacingInches !== null && spacingInches !== undefined;
 
   useEffect(() => {
     setQuantityDraft(String(quantity));
   }, [quantity]);
 
   function applyMode(nextMode: PlantingMode, nextQuantity = quantity) {
+    if (spacingMode === 'plantSpacingInches') {
+      onChange({
+        mode: nextMode,
+        plantCount: nextQuantity,
+        spacingInches,
+      });
+      return;
+    }
+
     const nextDefaults = crop
       ? getPlantingArrangementDefaults(crop, nextMode, nextQuantity)
       : getFallbackArrangementDefaults(nextMode, nextQuantity);
@@ -112,6 +149,15 @@ export function PlantingArrangementEditor({
         : mode;
 
     applyMode(nextMode, nextQuantity);
+  }
+
+  function applyPlantSpacingInches(value: string) {
+    const trimmed = value.trim();
+    const nextSpacingInches = trimmed
+      ? Math.max(Number(trimmed) || 1, 1)
+      : null;
+
+    onChange({ spacingInches: nextSpacingInches });
   }
 
   function applySpacing(value: string) {
@@ -143,7 +189,7 @@ export function PlantingArrangementEditor({
     <section className={styles.editor} aria-label="Planting arrangement">
       <div className={styles.header}>
         <div>
-          <h3>Arrangement</h3>
+          <h3>Recommended placing</h3>
           <p>Recommended: {formatArrangementMode(recommendedMode, quantity)}</p>
         </div>
         <span className={styles.metric}>
@@ -199,12 +245,48 @@ export function PlantingArrangementEditor({
             />
           ))}
         </svg>
-        <span className={styles.metric}>
-          {formatArrangementMetric(mode, quantity, effectiveValues)}
-        </span>
+        <span className={styles.metric}>{arrangementMetric}</span>
       </div>
 
-      {quantity > 1 && mode !== 'single' ? (
+      {spacingMode === 'plantSpacingInches' ? (
+        <div className={styles.controls}>
+          <label className={styles.field}>
+            <span>Plant spacing in inches</span>
+            <input
+              aria-label="Plant spacing in inches"
+              inputMode="decimal"
+              min="1"
+              onChange={(event) =>
+                applyPlantSpacingInches(event.currentTarget.value)
+              }
+              placeholder={
+                catalogSpacingInches
+                  ? `${formatInches(catalogSpacingInches)} in recommended`
+                  : '12 in fallback'
+              }
+              step="0.5"
+              type="number"
+              value={spacingInches ?? ''}
+            />
+          </label>
+          <div className={styles.spacingMeta}>
+            <span>{formatInches(effectiveSpacingInches)} in current</span>
+            <span>
+              {catalogSpacingInches
+                ? `${formatInches(catalogSpacingInches)} in recommended`
+                : 'No catalog spacing'}
+            </span>
+            {hasSpacingOverride ? (
+              <button
+                onClick={() => onChange({ spacingInches: null })}
+                type="button"
+              >
+                Reset
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : quantity > 1 && mode !== 'single' ? (
         <div className={styles.controls}>
           <div className={styles.field}>
             <span id={spacingLabelId}>{spacingLabel}</span>
@@ -241,4 +323,19 @@ export function PlantingArrangementEditor({
       ) : null}
     </section>
   );
+}
+
+function getCatalogSpacingInches(crop: CropProfile | null) {
+  return crop?.spacingInches ?? crop?.matureSpreadInches ?? null;
+}
+
+function getEffectiveSpacingInches(
+  spacingInches: number | null | undefined,
+  catalogSpacingInches: number | null,
+) {
+  return Math.max(spacingInches ?? catalogSpacingInches ?? 12, 1);
+}
+
+function formatInches(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }

@@ -25,6 +25,12 @@ import {
 } from './taskPlantingMutations';
 import { getTaskLookaheadEndDate } from './taskScope';
 import { getPlantingHarvestSchedule } from '../garden/harvestSchedule';
+import {
+  getCropSupportNeed,
+  getSupportLabel,
+  hasNearbySupport,
+  hasPlantLevelSupport,
+} from '../garden/gardenStructureRules';
 
 const dayMs = 24 * 60 * 60 * 1000;
 
@@ -658,20 +664,21 @@ function buildPlantingTasks(
     );
   }
 
-  if (careAnchorDate && needsTrellis(planting, crop)) {
+  const supportTask = getSupportTaskInput(garden, planting, crop);
+
+  if (careAnchorDate && supportTask) {
     tasks.push(
       createTask(
         {
           bedLabel,
           dueDate: addDays(careAnchorDate, 7),
           id: `planting-${planting.id}-trellis`,
-          notes:
-            'Install support before vines elongate and roots fill the bed.',
+          notes: supportTask.notes,
           plantingId: planting.id,
-          priority: 'high',
+          priority: supportTask.priority,
           source: 'generated',
           sourceId: planting.id,
-          title: `Set support for ${planting.label}`,
+          title: `${supportTask.title} for ${planting.label}`,
           type: 'trellis',
         },
         now,
@@ -1064,13 +1071,45 @@ function needsSeedlingCheck(crop: CropProfile | null) {
   return crop?.sowMethod === 'directSow' || crop?.sowMethod === 'both';
 }
 
-function needsTrellis(planting: Planting, crop: CropProfile | null) {
-  return (
-    planting.mode === 'trellisLine' ||
-    crop?.trellisRecommended ||
-    crop?.growthForm === 'vining' ||
-    crop?.growthForm === 'climber'
-  );
+function getSupportTaskInput(
+  garden: Garden,
+  planting: Planting,
+  crop: CropProfile | null,
+): {
+  notes: string;
+  priority: TaskPriority;
+  title: string;
+} | null {
+  const supportNeed = crop ? getCropSupportNeed(crop) : null;
+
+  if (!supportNeed) {
+    return null;
+  }
+
+  if (supportNeed.kind === 'trellis') {
+    if (hasNearbySupport(garden, planting)) {
+      return null;
+    }
+
+    return {
+      notes:
+        'Add or link a saved grid trellis before vines elongate and roots fill the bed.',
+      priority: supportNeed.required ? 'high' : 'medium',
+      title: 'Install grid trellis',
+    };
+  }
+
+  if (hasPlantLevelSupport(planting, supportNeed.kind)) {
+    return null;
+  }
+
+  const supportLabel = getSupportLabel(supportNeed.kind);
+
+  return {
+    notes: `Assign ${supportLabel} support on the plant group before stems carry heavy growth.`,
+    priority: supportNeed.required ? 'high' : 'medium',
+    title: `Assign ${supportLabel} support`,
+  };
 }
 
 function needsFertilizer(crop: CropProfile | null) {

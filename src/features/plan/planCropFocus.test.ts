@@ -49,7 +49,7 @@ describe('buildCropFocusSummary', () => {
     expect(summary?.selected.lastWork).toBe('Direct sowed on 2026-04-22');
     expect(summary?.needs.tasks).toEqual(
       expect.arrayContaining([
-        'Set support for Tomato coming 2026-04-29',
+        'Assign cage support for Tomato coming 2026-04-29',
         'Mulch Tomato coming 2026-05-02',
       ]),
     );

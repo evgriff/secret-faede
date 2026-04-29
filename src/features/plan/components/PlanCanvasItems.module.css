@@ -543,66 +543,6 @@
   transform: scale(1.06);
 }
 
-.plantGroupSpacingDisclosure {
-  display: contents;
-}
-
-.plantGroupSpacingButton {
-  right: calc(var(--plant-wrench-size, 2.4rem) + 0.2rem);
-  width: auto;
-  height: auto;
-  font-size: 0.62rem;
-  font-weight: 940;
-  padding: 0.34rem 0.52rem;
-}
-
-.plantGroupSpacingButton::marker,
-.plantGroupSpacingButton::-webkit-details-marker {
-  display: none;
-}
-
-.plantGroupSpacingPanel {
-  position: absolute;
-  top: calc(var(--plant-wrench-size, 2.4rem) + 0.18rem);
-  right: -0.2rem;
-  z-index: 12;
-  display: grid;
-  gap: 0.48rem;
-  width: min(16rem, 82vw);
-  border: 1px solid rgba(31, 27, 24, 0.16);
-  border-radius: 18px;
-  background: rgba(255, 253, 247, 0.98);
-  padding: 0.8rem;
-  box-shadow: 0 18px 38px rgba(31, 27, 24, 0.24);
-}
-
-.plantGroupSpacingPanel p {
-  margin: 0;
-  font-size: 0.74rem;
-}
-
-.plantGroupSpacingPanel label {
-  display: grid;
-  gap: 0.22rem;
-  font-weight: 850;
-}
-
-.plantGroupSpacingPanel input {
-  width: 100%;
-  font: inherit;
-}
-
-.plantGroupSpacingWarning {
-  color: #7a3517 !important;
-  font-weight: 850;
-}
-
-.plantGroupSpacingReset {
-  justify-self: end;
-  cursor: pointer;
-  font-weight: 900;
-}
-
 .plantingPreview {
   z-index: 8;
   opacity: 0.84;
@@ -703,7 +643,7 @@
   color: rgba(31, 27, 24, 0.64);
   font-size: 0.42rem;
   font-weight: 880;
-  letter-spacing: 0.03em;
+  letter-spacing: 0;
   line-height: 1;
   padding: 0.08rem 0.14rem;
   text-overflow: ellipsis;
@@ -754,11 +694,100 @@
 .supportSignal {
   background: rgba(95, 145, 174, 0.1);
   color: rgba(31, 86, 111, 0.82);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.86rem;
+  height: 0.86rem;
+  padding: 0;
 }
 
 .supportMissingSignal {
   background: rgba(179, 90, 63, 0.1);
   color: rgba(138, 61, 43, 0.84);
+}
+
+.supportSignalIcon {
+  position: relative;
+  display: block;
+  width: 0.55rem;
+  height: 0.55rem;
+}
+
+.supportSignalIcon::before,
+.supportSignalIcon::after {
+  position: absolute;
+  content: '';
+  box-sizing: border-box;
+}
+
+.supportSignalIcon[data-support-icon='trellis']::before {
+  inset: 0.04rem 0.05rem;
+  border: 1.5px solid currentColor;
+  border-top: 0;
+}
+
+.supportSignalIcon[data-support-icon='trellis']::after {
+  top: 0.08rem;
+  bottom: 0.08rem;
+  left: 50%;
+  width: 1.5px;
+  background: currentColor;
+  box-shadow:
+    -0.16rem 0 0 currentColor,
+    0.16rem 0 0 currentColor;
+  transform: translateX(-50%);
+}
+
+.supportSignalIcon[data-support-icon='cage']::before {
+  inset: 0.03rem 0.09rem;
+  border: 1.5px solid currentColor;
+  border-radius: 50% 50% 36% 36%;
+}
+
+.supportSignalIcon[data-support-icon='cage']::after {
+  top: 0.12rem;
+  bottom: 0.1rem;
+  left: 50%;
+  width: 1.5px;
+  background: currentColor;
+  box-shadow:
+    -0.12rem 0 0 currentColor,
+    0.12rem 0 0 currentColor;
+  transform: translateX(-50%);
+}
+
+.supportSignalIcon[data-support-icon='stake']::before,
+.supportSignalIcon[data-support-icon='stakeAndWeave']::before,
+.supportSignalIcon[data-support-icon='support']::before {
+  top: 0.03rem;
+  bottom: 0.03rem;
+  left: 50%;
+  width: 1.5px;
+  background: currentColor;
+  transform: translateX(-50%) rotate(12deg);
+}
+
+.supportSignalIcon[data-support-icon='stakeAndWeave']::after {
+  right: 0.04rem;
+  left: 0.04rem;
+  top: 0.2rem;
+  height: 1.5px;
+  background: currentColor;
+  box-shadow: 0 0.14rem 0 currentColor;
+}
+
+.supportSignalIcon[data-support-icon='netting']::before,
+.supportSignalIcon[data-support-icon='rowCover']::before {
+  inset: 0.08rem 0.02rem;
+  border: 1.5px solid currentColor;
+  border-radius: 999px 999px 0 0;
+}
+
+.supportSignalIcon[data-support-icon='netting']::after {
+  inset: 0.18rem 0.08rem 0.08rem;
+  border-top: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
 }
 
 .warningSignal {

@@ -49,7 +49,7 @@ parsing and are not exposed by Settings, seed data, Functions, or rules.
 ## Garden Schema Version
 
 Every parsed garden aggregate now carries `schemaVersion:
-CURRENT_GARDEN_SCHEMA_VERSION`, currently `5`.
+CURRENT_GARDEN_SCHEMA_VERSION`, currently `8`.
 
 The migration helper in `src/domain/gardens/schemaMigrations.ts` runs before
 normal validation. It keeps legacy records readable by:
@@ -64,6 +64,9 @@ normal validation. It keeps legacy records readable by:
 - adding explicit `PlantSupportPlan` defaults to saved plantings and dropping
   obsolete marker/node overlay collections that are no longer part of the Plan
   state model
+- normalizing `supportStructureIds[]` on every planting so future trellis links
+  can be stored explicitly without auto-linking older manually placed
+  structures
 - removing legacy utility structures such as compost, hose bibs, water sources,
   fences, and tree obstacles from saved page-level structures while keeping
   beds, containers, paths, and trellises readable
@@ -271,9 +274,9 @@ terms without creating a second persistence schema:
   one placement mode, and feet-based center coordinates.
 - `PlantDot` is derived from the group quantity, spacing, row spacing, and
   placement mode for rendering individual lightweight plant positions.
-- `PlantSupportPlan` stores per-plant supports such as cages and stakes on the
-  plant group; trellises and raised beds remain normal grid structures and can
-  be linked from the group by structure id.
+- `PlantSupportPlan` stores plant-level supports such as cages, stakes,
+  stake-and-weave, row cover, and netting on the plant group. Trellises remain
+  normal grid structures and can be linked from the group by structure id.
 - `LayoutProblem`, `LayoutResolutionOption`, `LayoutResolution`, and
   `LayoutVariant` model optimizer conflicts and fixes as typed actions instead
   of parsing recommendation copy.
@@ -314,10 +317,11 @@ Migration note:
 - Existing saved gardens continue to read through the current garden migration
   and validation path. Old `plants[]` are copied to `plantings[]`, missing
   `instances[]` are deterministically rebuilt, missing support plans default to
-  no support or the legacy support type, and `createPlantGroupFromPlanting`
-  exposes those records as `PlantGroup` values for the redesign UI. Legacy
-  browser-only marker/node state is dropped during the local Plan state
-  migration because it is not canonical garden data.
+  no support or the legacy support type, `supportStructureIds[]` defaults to an
+  empty array, and `createPlantGroupFromPlanting` exposes those records as
+  `PlantGroup` values for the redesign UI. Legacy browser-only marker/node
+  state is dropped during the local Plan state migration because it is not
+  canonical garden data.
 
 ## Publish
 
@@ -345,8 +349,10 @@ The UI requires a two-step confirmation before calling this operation.
 
 Saved structures remain rectangular, feet-based objects with top-left
 coordinates. Beds, containers, access paths, and trellises are the primary Plan
-objects. Plant-level cages, stakes, and rods are stored on the planting support
-plan instead of in `structures[]`. Legacy shade, utility, compost, and
+objects. Plant-level cages, stakes, stake-and-weave, row cover, and netting are
+stored on the planting support plan instead of in `structures[]`. `trellisLine`
+is an arrangement mode only; a crop that needs a real trellis is satisfied by a
+linked or nearby saved trellis structure. Legacy shade, utility, compost, and
 water-source objects remain parseable only long enough for migration cleanup:
 
 - `type`: authorable values are `raisedBed`, `inGroundBed`, `container`,
@@ -373,8 +379,9 @@ Material summaries are derived from the same saved structures:
 - paths report surface material area
 - trellises report count and total saved length
 - cage and stake summaries come from planting support plans, while trellis
-  suggestions use crop growth form, trellis flags, planting mode, plant count,
-  row length, and spacing
+  summaries use saved grid trellis structures and explicit
+  `supportStructureIds[]` links. Missing-support suggestions use the central
+  crop support profile plus plant count, row length, and spacing.
 
 ## Crop Catalog
 
@@ -392,7 +399,7 @@ Each `CropProfile` stores:
   `sourceTags`
 - geometry/care defaults: mature height/spread, spacing, row spacing, root
   depth, sun requirement, weekly water, sow method, days to maturity, supported
-  planting modes, and trellis/support flags
+  planting modes, legacy trellis flags, and a normalized `supportProfile`
 - local guidance: notes, pollinator/beneficial role, caution/toxicity notes
   when relevant, hardiness, and perennial suitability
 - provenance: `source`, `lastRefreshedIso`, `manualOverride`,
@@ -403,7 +410,10 @@ Each `CropProfile` stores:
 Trefle is used through the offline ingestion pipeline. The browser does not call
 Trefle during normal use. Gardening-specific values are marked as curated
 overlays because botanical source data rarely contains complete spacing,
-trellis, sowing, and water-management fields.
+support, sowing, and water-management fields. Crop support profiles split
+plant-level supports from saved grid trellises and include source tags for the
+curated extension guidance used by warnings, Review, Optimize, materials,
+tasks, crop focus, Choose Plants, and the plant editor.
 
 ## Authorization
 

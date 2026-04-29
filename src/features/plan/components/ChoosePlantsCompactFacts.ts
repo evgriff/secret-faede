@@ -11,6 +11,7 @@ import type {
   PlantingMode,
   SunExposure,
 } from '../../../domain/gardens/GardenRepository';
+import { getCropSupportProfile } from '../../../domain/gardens/GardenRepository';
 import {
   formatLabel,
   formatSun,
@@ -113,8 +114,12 @@ export function getCompactPlantFacts({
           plant.defaultSupport.type,
         )
       : formatShortSupportNeed(
-          crop.trellisRequired || crop.trellisRecommended ? 'perPlant' : 'none',
-          crop.trellisRequired || crop.trellisRecommended ? 'stake' : 'none',
+          getCropSupportProfile(crop).scope === 'structure'
+            ? 'trellis'
+            : getCropSupportProfile(crop).scope === 'plant'
+              ? 'perPlant'
+              : 'none',
+          getCropSupportProfile(crop).plantSupportType ?? 'none',
         ),
     timingDetail: timing.detail,
     timingLabel: timing.label,
@@ -161,12 +166,10 @@ function formatSpacing(spacingInches: number | null | undefined) {
 }
 
 function formatSupportNeed(crop: CropProfile) {
-  if (crop.trellisRequired) {
-    return 'Trellis required';
-  }
+  const supportProfile = getCropSupportProfile(crop);
 
-  if (crop.trellisRecommended) {
-    return 'Support recommended';
+  if (supportProfile.required || supportProfile.recommended) {
+    return supportProfile.label;
   }
 
   return 'No default support';

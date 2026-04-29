@@ -5,10 +5,15 @@ import type {
   CropProfile,
   CropProfileCompleteness,
   CropSowMethod,
+  CropSupportProfile,
   CropWaterNeed,
   PlantingMode,
   SunExposure,
 } from '../gardens/GardenRepository';
+import {
+  getFallbackCropSupportProfile,
+  normalizeCropSupportProfile,
+} from '../gardens/supportNeeds';
 import cropRecords from './homeGardenCropCatalog.generated.json';
 
 interface CatalogCropRecord {
@@ -43,7 +48,9 @@ interface CatalogCropRecord {
   sunRequirement: SunExposure;
   supportedPlantingModes: PlantingMode[];
   trefleQuery?: string;
-  trellisRecommended: boolean;
+  trellisRecommended?: boolean;
+  trellisRequired?: boolean;
+  supportProfile?: CropSupportProfile;
   varietyGroup?: string | null;
   weeklyWaterNeedInches: number | null;
 }
@@ -108,6 +115,27 @@ function toCropProfile(override: CatalogCropRecord): CropProfile {
   const completenessScore = calculateCompletenessScore(override);
   const profileCompleteness =
     override.profileCompleteness ?? toProfileCompleteness(completenessScore);
+  const roles = override.roles ?? [];
+  const supportProfile = normalizeCropSupportProfile(
+    override.supportProfile,
+    getFallbackCropSupportProfile({
+      commonName: override.commonName,
+      growthForm: override.growthForm,
+      id: override.id,
+      matureHeightInches: override.matureHeightInches,
+      roles,
+      trellisRecommended: override.trellisRecommended ?? false,
+      trellisRequired: override.trellisRequired ?? false,
+    }),
+  );
+  const trellisRecommended =
+    supportProfile.scope === 'structure' &&
+    supportProfile.kind === 'trellis' &&
+    supportProfile.recommended;
+  const trellisRequired =
+    supportProfile.scope === 'structure' &&
+    supportProfile.kind === 'trellis' &&
+    supportProfile.required;
 
   return {
     aliases: override.aliases ?? [],
@@ -136,7 +164,7 @@ function toCropProfile(override: CatalogCropRecord): CropProfile {
     profileCompleteness,
     rowSpacingInches: override.rowSpacingInches,
     rootDepthInches: override.rootDepthInches ?? null,
-    roles: override.roles ?? [],
+    roles,
     scientificName: override.scientificName,
     source: override.source ?? 'unknown',
     sowMethod: override.sowMethod,
@@ -146,8 +174,9 @@ function toCropProfile(override: CatalogCropRecord): CropProfile {
     sunExposure: override.sunRequirement,
     sunRequirement: override.sunRequirement,
     supportedPlantingModes: override.supportedPlantingModes,
-    trellisRecommended: override.trellisRecommended,
-    trellisRequired: override.trellisRecommended,
+    supportProfile,
+    trellisRecommended,
+    trellisRequired,
     varietyGroup: override.varietyGroup ?? null,
     weeklyWaterNeedInches: override.weeklyWaterNeedInches,
     waterNeeds: toWaterNeed(override.weeklyWaterNeedInches),

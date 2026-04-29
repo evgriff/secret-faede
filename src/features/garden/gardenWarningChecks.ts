@@ -20,8 +20,8 @@ import {
   getPathRequiredWidthFt,
   getSupportLabel,
   getWalkablePathWidthFt,
+  hasNearbySupport,
   hasPlantLevelSupport,
-  hasNearbySupportFootprint,
   hasWalkablePathAccess,
   isBedLikeStructure,
   isBlockingStructure,
@@ -248,7 +248,7 @@ export function addTrellisWarnings(
   plantings: PlantingFootprint[],
   warnings: PlanWarning[],
 ) {
-  for (const { footprint, planting } of plantings) {
+  for (const { planting } of plantings) {
     const crop = getCropById(planting.cropId);
     const supportNeed = crop ? getCropSupportNeed(crop) : null;
 
@@ -258,9 +258,7 @@ export function addTrellisWarnings(
 
     if (
       supportNeed.kind === 'trellis'
-        ? planting.mode === 'trellisLine' ||
-          (planting.trellisLengthFt ?? 0) > 0 ||
-          hasNearbySupportFootprint(garden, footprint)
+        ? hasNearbySupport(garden, planting)
         : hasPlantLevelSupport(planting, supportNeed.kind)
     ) {
       continue;
@@ -272,7 +270,7 @@ export function addTrellisWarnings(
         acknowledgeable: !supportNeed.required,
         fix:
           supportNeed.kind === 'trellis'
-            ? `Add a saved grid trellis next to ${planting.label}, or change the group to a trellis-line layout if that reflects the real support.`
+            ? `Add or link a saved grid trellis next to ${planting.label}. Trellis-line layout controls plant arrangement, not whether a real trellis exists.`
             : `Assign ${planting.label} a plant-level ${supportLabel}; this should live on the plant group, not as a standalone structure.`,
         id: `trellis-${planting.id}`,
         itemIds: [planting.id],

@@ -699,7 +699,7 @@ describe('PlanPage', () => {
     ).toBeVisible();
   });
 
-  it('edits selected plant spacing on the grid and refits the planned count', async () => {
+  it('edits selected plant spacing in the editor and updates the footprint', async () => {
     const user = userEvent.setup();
     const services = await createTestServices({
       signedInEmail: 'primary.gardener@example.com',
@@ -729,6 +729,7 @@ describe('PlanPage', () => {
           cropId: 'tomato-beefsteak',
           matureSpreadInches: 36,
           mode: 'block',
+          plantCount: 4,
           spacingInches: null,
         },
       ],
@@ -737,21 +738,26 @@ describe('PlanPage', () => {
     renderRoute('/app/plan', services);
 
     const plant = await screen.findByRole('button', {
-      name: 'Saved pepper at X: 4.0 ft, Y: 4.0 ft',
+      name: /Saved pepper.*X: 4\.0 ft, Y: 4\.0 ft/,
     });
 
     await user.click(plant);
+    expect(
+      screen.queryByRole('button', {
+        name: 'Adjust Saved pepper spacing',
+      }),
+    ).not.toBeInTheDocument();
     await user.click(
       await screen.findByRole('button', {
-        name: 'Adjust Saved pepper spacing',
+        name: 'Edit Saved pepper group',
       }),
     );
 
-    const dialog = await screen.findByRole('dialog', {
-      name: 'Saved pepper spacing controls',
+    const editor = await screen.findByRole('dialog', {
+      name: /Edit Saved pepper/,
     });
-    const spacingInput = within(dialog).getByLabelText(
-      'Saved pepper spacing in inches',
+    const spacingInput = within(editor).getByLabelText(
+      'Plant spacing in inches',
     );
 
     await user.clear(spacingInput);
@@ -759,11 +765,14 @@ describe('PlanPage', () => {
 
     expect(
       await screen.findByRole('button', {
-        name: /Saved pepper group, [1-9][0-9]* plants at X:/,
+        name: /Saved pepper.*X: 4\.0 ft, Y: 4\.0 ft/,
       }),
     ).toBeVisible();
+    expect(within(editor).getByText('12 in current')).toBeVisible();
     expect(
-      within(dialog).getByText('Tighter than catalog spacing.'),
+      within(editor).getByText(
+        'Spacing is tighter than the catalog spacing of 24 in.',
+      ),
     ).toBeVisible();
   });
 
@@ -1148,7 +1157,7 @@ describe('PlanPage', () => {
       within(board).getAllByRole('heading', { name: 'Tomato' }),
     ).toHaveLength(1);
     expect(within(board).getByLabelText('Tomato quantity')).toHaveValue(2);
-    expect(within(board).getByText('Trellis form')).toBeVisible();
+    expect(within(board).getByText('Row form')).toBeVisible();
     expect(within(board).getByLabelText('Variety')).toHaveValue('Sun Gold');
     expect(within(board).getByLabelText('Notes')).toHaveValue('South trellis');
 
@@ -1350,15 +1359,13 @@ describe('PlanPage', () => {
       3,
     );
 
-    await user.click(within(editor).getByText('Spacing override'));
-    fireEvent.change(
-      within(editor).getByLabelText('Spacing override in inches'),
-      {
-        target: { value: '18' },
-      },
-    );
-    await user.click(within(editor).getByText('Sun, footprint, and warnings'));
-    expect(within(editor).getByText('18 in')).toBeVisible();
+    fireEvent.change(within(editor).getByLabelText('Plant spacing in inches'), {
+      target: { value: '18' },
+    });
+    expect(within(editor).getByText('18 in current')).toBeVisible();
+    expect(
+      within(editor).queryByText('Spacing override'),
+    ).not.toBeInTheDocument();
 
     await user.selectOptions(
       within(editor).getByLabelText('Support type'),
@@ -1380,6 +1387,67 @@ describe('PlanPage', () => {
     expect(
       within(editor).queryByLabelText('Picture label'),
     ).not.toBeInTheDocument();
+  });
+
+  it('shows trellis link controls for grid-trellis crops in the plant editor', async () => {
+    const user = userEvent.setup();
+    const services = await createConfiguredPlanServices();
+    const currentUser = services.authService.getCurrentUser();
+
+    if (!currentUser) {
+      throw new Error('Expected signed-in test user.');
+    }
+
+    await services.gardenRepository.saveGarden({
+      ...createDefaultGarden(currentUser.uid),
+      climateProfile: {
+        ...annArborClimateProfile,
+        source: 'user',
+      },
+      plantings: [
+        {
+          ...createDefaultPlanting({
+            id: 'cucumber-1',
+            label: 'Cucumber',
+            xFt: 3,
+            yFt: 3,
+          }),
+          cropId: 'cucumber',
+        },
+      ],
+      structures: [
+        {
+          ...createDefaultStructure({
+            id: 'trellis-1',
+            type: 'trellis',
+            xFt: 2,
+            yFt: 2,
+          }),
+          label: 'Saved trellis',
+        },
+      ],
+    });
+
+    renderRoute('/app/plan', services);
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Cucumber at X: 3.0 ft, Y: 3.0 ft',
+      }),
+    );
+    await openFocusedPlantEditor(user);
+
+    const editor = await screen.findByRole('dialog', { name: /Edit Cucumber/ });
+
+    expect(within(editor).getByText('No linked trellis')).toBeVisible();
+    await user.click(
+      within(editor).getByRole('button', { name: 'Link Saved trellis' }),
+    );
+
+    expect(await within(editor).findByText('Saved trellis')).toBeVisible();
+    expect(
+      within(editor).getByRole('button', { name: 'Unlink Saved trellis' }),
+    ).toBeVisible();
   });
 
   it('clears the seasonal crop board from Choose Plants', async () => {
@@ -1407,7 +1475,7 @@ describe('PlanPage', () => {
     fireEvent.change(within(board).getByLabelText('Tomato quantity'), {
       target: { value: '3' },
     });
-    expect(within(board).getByText('Trellis form')).toBeVisible();
+    expect(within(board).getByText('Row form')).toBeVisible();
     expect(within(board).getByText('6 ft line · 18 sq ft')).toBeVisible();
     await user.click(
       within(board).getByRole('button', {
@@ -2036,9 +2104,9 @@ describe('PlanPage', () => {
     await openFocusedPlantEditor(user);
 
     const spacingInput = await screen.findByRole('spinbutton', {
-      name: 'Plant spacing in feet value',
+      name: 'Plant spacing in inches',
     });
-    fireEvent.change(spacingInput, { target: { value: '1' } });
+    fireEvent.change(spacingInput, { target: { value: '12' } });
 
     expect(
       await screen.findByRole('button', {

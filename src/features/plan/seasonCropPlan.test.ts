@@ -55,9 +55,9 @@ describe('season crop plan', () => {
   });
 
   it('holds unsupported trellis crops for review', () => {
-    const tomato = getCropById('tomato');
+    const poleBean = getCropById('pole-bean');
 
-    expect(tomato?.trellisRequired).toBe(true);
+    expect(poleBean?.trellisRequired).toBe(true);
 
     const garden = {
       ...createDefaultGarden('user-a'),
@@ -65,8 +65,8 @@ describe('season crop plan', () => {
         updatedAtIso: null,
         wantedCrops: [
           makeSelection({
-            cropId: 'tomato',
-            id: 'season-tomato',
+            cropId: 'pole-bean',
+            id: 'season-pole-bean',
             supportAllowed: false,
           }),
         ],

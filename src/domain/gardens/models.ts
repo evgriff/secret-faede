@@ -1,5 +1,9 @@
 import { CURRENT_GARDEN_SCHEMA_VERSION } from './schemaMigrations';
-import type { PlantStatus, PlantSupportPlan } from './plantPlanningTypes';
+import type {
+  PlantStatus,
+  PlantSupportPlan,
+  PlantSupportType,
+} from './plantPlanningTypes';
 import type { StructureMaterial, StructureType } from './structureTypes';
 export {
   authorableStructureTypes,
@@ -123,6 +127,27 @@ export type CropLifecycle = 'annual' | 'biennial' | 'perennial';
 export type CropProfileCompleteness = 'complete' | 'needsReview' | 'partial';
 export type CropSowMethod = 'both' | 'directSow' | 'transplant';
 export type CropWaterNeed = 'high' | 'low' | 'medium';
+export type CropSupportScope = 'none' | 'plant' | 'structure';
+export type CropSupportKind =
+  | 'cage'
+  | 'custom'
+  | 'netting'
+  | 'none'
+  | 'rowCover'
+  | 'stake'
+  | 'stakeAndWeave'
+  | 'trellis';
+
+export interface CropSupportProfile {
+  kind: CropSupportKind;
+  label: string;
+  plantSupportType: PlantSupportType | null;
+  reason: string;
+  recommended: boolean;
+  required: boolean;
+  scope: CropSupportScope;
+  sourceTags: string[];
+}
 export type PlantingEventType =
   | 'directSowed'
   | 'plantedOut'
@@ -279,6 +304,7 @@ export interface CropProfile {
   source: string;
   sourceTags: string[];
   supportedPlantingModes: PlantingMode[];
+  supportProfile: CropSupportProfile;
   synonyms: string[];
   sunExposure: SunExposure;
   sunRequirement: SunExposure;
@@ -323,6 +349,7 @@ export interface Planting {
   spacingInches: number | null;
   status: PlantingLifecycleStatus;
   support: PlantSupportPlan;
+  supportStructureIds: string[];
   sunRequirement: SunExposure | null;
   trellisLengthFt: number | null;
   weeklyWaterNeedInches: number | null;
@@ -763,6 +790,7 @@ export function createDefaultPlanting({
       required: false,
       type: 'none',
     },
+    supportStructureIds: [],
     sunRequirement: null,
     trellisLengthFt: null,
     weeklyWaterNeedInches: null,

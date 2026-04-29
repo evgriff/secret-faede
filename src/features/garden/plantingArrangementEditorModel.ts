@@ -41,6 +41,7 @@ export function buildArrangementWarnings({
   planWarnings,
   quantity,
   recommendedMode,
+  showSpacingWarning,
   spacingFt,
 }: {
   crop: CropProfile | null;
@@ -48,6 +49,7 @@ export function buildArrangementWarnings({
   planWarnings: PlanWarning[];
   quantity: number;
   recommendedMode: PlantingMode;
+  showSpacingWarning?: boolean;
   spacingFt: number;
 }) {
   const warnings: string[] = [];
@@ -66,7 +68,7 @@ export function buildArrangementWarnings({
       (crop.spacingInches ?? crop.matureSpreadInches ?? 12) / 12;
     const spacingLabel = crop.spacingInches ?? crop.matureSpreadInches ?? 12;
 
-    if (quantity > 1 && spacingFt < catalogSpacingFt) {
+    if ((showSpacingWarning ?? quantity > 1) && spacingFt < catalogSpacingFt) {
       warnings.push(
         `Spacing is tighter than the catalog spacing of ${spacingLabel} in.`,
       );
@@ -160,6 +162,34 @@ export function formatArrangementMetric(
   }
 
   return `${quantity} single plant`;
+}
+
+export function formatArrangementFootprintMetric({
+  mode,
+  quantity,
+  spacingInches,
+  values,
+}: {
+  mode: PlantingMode;
+  quantity: number;
+  spacingInches: number;
+  values: ArrangementEditorValues;
+}) {
+  const geometry = derivePlantingGeometry({
+    blockDepthFt: values.blockDepthFt,
+    blockWidthFt: values.blockWidthFt,
+    clusterRadiusFt: values.clusterRadiusFt,
+    mode,
+    quantity,
+    rowLengthFt: values.rowLengthFt,
+    spacingInches,
+    xFt: 0,
+    yFt: 0,
+  });
+
+  return `${formatFeetInput(geometry.footprint.widthFt)} ft x ${formatFeetInput(
+    geometry.footprint.depthFt,
+  )} ft footprint`;
 }
 
 export function formatArrangementMode(mode: PlantingMode, quantity: number) {

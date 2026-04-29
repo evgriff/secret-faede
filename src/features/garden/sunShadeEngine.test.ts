@@ -165,7 +165,7 @@ describe('sunShadeEngine', () => {
       tomatoSources.some((source) => source.kind === 'trellisedCrop'),
     ).toBe(true);
     expect(tomatoSources[0]).toMatchObject({
-      canopyDensity: 'moderate',
+      canopyDensity: 'dense',
       growthStage: 'mature',
       matureHeightFt: 7,
     });

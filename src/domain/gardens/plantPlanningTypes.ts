@@ -118,6 +118,7 @@ export interface PlantGroup {
   status: PlantStatus;
   support: PlantSupportPlan;
   supportHeightFt: number | null;
+  supportStructureIds: string[];
   trellisLengthFt: number | null;
   trellisStructureId: string | null;
   xFt: number;

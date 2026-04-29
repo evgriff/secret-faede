@@ -220,6 +220,8 @@ function PlantingDetails({
         }
         planWarnings={warnings}
         plantCount={plant.plantCount ?? instances.length}
+        spacingInches={plant.spacingInches}
+        spacingMode="plantSpacingInches"
         showQuantity={instances.length > 1}
         values={{
           blockDepthFt: plant.blockDepthFt,

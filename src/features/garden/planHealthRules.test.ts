@@ -258,7 +258,7 @@ describe('planHealthRules', () => {
     expect(report.recommendedImprovements).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: 'Cage support missing',
+          title: 'Stake support missing',
           type: 'cropSupportMissing',
         }),
       ]),
@@ -271,8 +271,8 @@ describe('planHealthRules', () => {
     expect(report.materialAddOns).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          label: 'Eggplant cage',
-          type: 'cage',
+          label: 'Eggplant stake',
+          type: 'stake',
         }),
       ]),
     );

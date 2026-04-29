@@ -7,6 +7,7 @@ import type {
   SeasonCropSelection,
   SunExposure,
 } from '../../../domain/gardens/GardenRepository';
+import { getCropSupportProfile } from '../../../domain/gardens/GardenRepository';
 import {
   coercePlantQuantity,
   formatGlyph,
@@ -220,7 +221,7 @@ function CropBoardItem({
   );
   const currentModeLabel = modeLabels[currentMode];
   const modeOptions = getQuantityFirstPlantingModes(crop, selection.quantity);
-  const showSupportOption = crop.trellisRequired || crop.trellisRecommended;
+  const showSupportOption = getCropSupportProfile(crop).scope === 'structure';
   const showReview = needsSeasonCropReview(fit);
   const facts = getCompactPlantFacts({
     crop,

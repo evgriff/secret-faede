@@ -60,7 +60,10 @@ describe('applyPlantingEventEffects', () => {
     );
     expect(openTasks.map((task) => task.title)).not.toContain('Plant Tomato');
     expect(openTasks.map((task) => task.title)).toEqual(
-      expect.arrayContaining(['Set support for Tomato', 'Mulch Tomato']),
+      expect.arrayContaining([
+        'Assign cage support for Tomato',
+        'Mulch Tomato',
+      ]),
     );
     expect(todayModel.cropStageActions).toEqual([
       expect.objectContaining({

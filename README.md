@@ -37,7 +37,7 @@ Included:
   watering schedule
 - in-app notification logs, FCM web/native push registration, and local native
   alerts
-- generated task timeline for planting, trellising, thinning, pruning,
+- generated task timeline for planting, support setup, thinning, pruning,
   fertilizing, mulching, watering, harvest windows, and succession prompts
 - actual planting-event tracking for started-inside, direct-sow, planted-out,
   and thinned work, with derived follow-up tasks
@@ -77,7 +77,10 @@ Optional local config:
 ## Plan interaction model
 
 Plan now centers on grouped plant footprints. Add Plants asks for crop and
-quantity first, then derives row, block, or cluster geometry from spacing data.
+quantity first, then derives row, block, cluster, or trellis-line arrangement
+geometry from spacing data. Plant-level supports stay as compact badges on the
+plant group, while saved trellis structures can be explicitly linked to the
+planting so app-created trellises move with it.
 On the plot, clicking a plant group opens crop focus, and the wrench or
 **Open details** opens the plant editor. Detailed View keeps that editor
 available while moving between relevant items. Review Problems opens the
