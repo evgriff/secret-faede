@@ -17,6 +17,7 @@ Success criteria:
 - location, timezone, frost dates, watering check time, quiet hours, and thresholds are editable
 - sample garden controls are tucked into Settings and do not dominate shell chrome
 - sample reset restores the seeded Detroit baseline without damaging the user's saved real garden
+- public templates and tests must use generic provisioned identities, generic Firebase placeholders, and neutral retired-delivery fixtures rather than private account, project, provider, or address data
 
 Implementation ownership:
 
@@ -36,4 +37,4 @@ Primary local sources:
 - `docs/architecture.md`
 - `docs/demo-script.md`
 - `docs/manual-qa-checklist.md`
-- `docs/architecture.md`
+- `README.md`

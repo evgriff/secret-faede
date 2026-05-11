@@ -4,8 +4,8 @@ import {
   getPlantTimingGuidance,
 } from './plantLocationMatch';
 import {
-  annArborClimateProfile,
-  annArborLocation,
+  detroitClimateProfile,
+  detroitLocation,
 } from '../gardens/GardenRepository';
 
 describe('getPlantTimingGuidance', () => {
@@ -18,15 +18,15 @@ describe('getPlantTimingGuidance', () => {
 
     const timing = getPlantTimingGuidance({
       context: createPlantLocationContext({
-        climateProfile: { ...annArborClimateProfile, source: 'user' },
+        climateProfile: { ...detroitClimateProfile, source: 'user' },
         location: {
-          ...annArborLocation,
+          ...detroitLocation,
           locationName: 'Detroit, MI',
           timezone: 'America/Detroit',
         },
       }),
       crop: tomato,
-      today: new Date('2026-05-10T01:00:00.000Z'),
+      today: new Date('2026-04-30T01:00:00.000Z'),
     });
 
     expect(timing.status).toBe('possibleNowWithProtection');
@@ -41,8 +41,8 @@ describe('getPlantTimingGuidance', () => {
 
     const timing = getPlantTimingGuidance({
       context: createPlantLocationContext({
-        climateProfile: { ...annArborClimateProfile, source: 'user' },
-        location: annArborLocation,
+        climateProfile: { ...detroitClimateProfile, source: 'user' },
+        location: detroitLocation,
       }),
       crop: lettuce,
       today: new Date('2026-06-20T16:00:00.000Z'),

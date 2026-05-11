@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 
 import { getCropById } from '../../domain/crops/cropCatalog';
 import {
-  annArborClimateProfile,
+  detroitClimateProfile,
   createDefaultGarden,
 } from '../../domain/gardens/GardenRepository';
 import { createSeasonCropSelection } from './components/choosePlantsSelection';
@@ -19,7 +19,7 @@ describe('Plan layout suggestion flow', () => {
     const garden = {
       ...createDefaultGarden('test-user'),
       climateProfile: {
-        ...annArborClimateProfile,
+        ...detroitClimateProfile,
         source: 'user' as const,
       },
       seasonPlan: {

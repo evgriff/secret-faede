@@ -66,7 +66,7 @@ changes:
   and first-run blank setup.
 - Domain tests cover starter template generation, crop suitability scoring, and
   crop catalog completeness/provenance flags.
-- sample garden tests cover the Detroit demo builder, active warning content,
+- Sample garden tests cover the Detroit demo builder, active warning content,
   operations data, Feed examples, notification history, and no seeded phone.
 - Planning-domain tests cover spacing, pathway conflicts, sun mismatch,
   container fit, trellis warnings, timeline-aware succession occupancy,
@@ -331,7 +331,7 @@ changes:
 
 ## Release Evidence
 
-Each release-build-log entry should include:
+Each verification handoff note should include:
 
 - files or surfaces changed
 - schema decisions

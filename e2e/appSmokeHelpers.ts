@@ -105,8 +105,8 @@ export async function openPlanTool(page: Page, name: string) {
   await expect(launcher).toBeVisible();
   const toolButton = launcher.getByRole('button', { name });
 
-  await toolButton.focus();
-  await toolButton.press('Enter');
+  await expect(toolButton).toBeVisible();
+  await toolButton.click();
 }
 
 export async function addTomatoToSeasonList(page: Page) {

@@ -464,7 +464,7 @@ Manual override paths are required where model certainty is limited:
   more explicit.
 - Notifications: implemented through in-app history, push, local native
   reminders, and alert-type toggles. Carrier messaging is outside product scope
-  and should not appear in the current product UX.
+  and should not appear in the current UX.
 
 ## Remaining UX Debt
 

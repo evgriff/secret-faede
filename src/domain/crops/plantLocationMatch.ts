@@ -5,8 +5,8 @@ import type {
   SunExposure,
 } from '../gardens/GardenRepository';
 import {
-  annArborClimateProfile,
-  annArborLocation,
+  detroitClimateProfile,
+  detroitLocation,
 } from '../gardens/GardenRepository';
 import { toPlantCatalogEntry } from './plantCatalog';
 import {
@@ -33,7 +33,7 @@ import type {
   PlantTimingGuidance,
 } from './plantCatalogTypes';
 
-export const annArborPlantLocationContext = createPlantLocationContext();
+export const detroitPlantLocationContext = createPlantLocationContext();
 
 export {
   getPlantLocationMatchBand,
@@ -47,12 +47,12 @@ export function createPlantLocationContext({
   climateProfile?: ClimateProfile | null;
   location?: GardenLocation | null;
 } = {}): PlantLocationContext {
-  const profile = climateProfile ?? annArborClimateProfile;
-  const gardenLocation = location ?? annArborLocation;
-  const isAnnArborDefault =
+  const profile = climateProfile ?? detroitClimateProfile;
+  const gardenLocation = location ?? detroitLocation;
+  const isDetroitDefault =
     !climateProfile ||
     (profile.source === 'demoDefault' &&
-      profile.hardinessZone === annArborClimateProfile.hardinessZone);
+      profile.hardinessZone === detroitClimateProfile.hardinessZone);
 
   return {
     averageFirstFrost: profile.averageFirstFrost,
@@ -62,7 +62,7 @@ export function createPlantLocationContext({
     hardinessZone: profile.hardinessZone,
     lastSpringFrostWindow: getLastSpringFrostWindow(profile.hardinessZone),
     location: gardenLocation,
-    regionName: isAnnArborDefault
+    regionName: isDetroitDefault
       ? 'Detroit / southeast Michigan'
       : profile.locationName,
     seasonWindows: {
@@ -73,12 +73,12 @@ export function createPlantLocationContext({
         start: profile.averageLastFrost,
       },
     },
-    source: isAnnArborDefault ? 'annArborDefault' : 'gardenProfile',
+    source: isDetroitDefault ? 'detroitDefault' : 'gardenProfile',
   };
 }
 
 export function scorePlantLocationMatch({
-  context = annArborPlantLocationContext,
+  context = detroitPlantLocationContext,
   crop,
   sunExposureAtPlacement,
   today = new Date(),
@@ -156,7 +156,7 @@ export function scorePlantLocationMatch({
 }
 
 export function explainPlantLocationMatch({
-  context = annArborPlantLocationContext,
+  context = detroitPlantLocationContext,
   crop,
   match,
   today = new Date(),
@@ -200,7 +200,7 @@ export function explainPlantLocationMatch({
 }
 
 export function getPlantTimingGuidance({
-  context = annArborPlantLocationContext,
+  context = detroitPlantLocationContext,
   crop,
   today = new Date(),
 }: {
@@ -227,7 +227,7 @@ function getLocationMatchHeadline({
   warningText: string;
 }) {
   if (isTenderPerennial(plant)) {
-    return context.source === 'annArborDefault'
+    return context.source === 'detroitDefault'
       ? `Perennial not winter-hardy for the ${context.hardinessZone} default zone`
       : `Perennial not winter-hardy for zone ${context.hardinessZone}`;
   }
@@ -342,7 +342,7 @@ function isTenderPerennial(plant: PlantCatalogEntry) {
 }
 
 function getShortRegionName(context: PlantLocationContext) {
-  if (context.source === 'annArborDefault') {
+  if (context.source === 'detroitDefault') {
     return 'Detroit';
   }
 

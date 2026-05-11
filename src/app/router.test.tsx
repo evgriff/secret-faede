@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import {
-  annArborClimateProfile,
+  detroitClimateProfile,
   createDefaultGarden,
   createDefaultPlanting,
   createDefaultStructure,
@@ -436,7 +436,7 @@ async function createConfiguredGardenServices(): Promise<AppServices> {
   await services.gardenRepository.saveGarden({
     ...createDefaultGarden(currentUser.uid),
     climateProfile: {
-      ...annArborClimateProfile,
+      ...detroitClimateProfile,
       source: 'user',
     },
   });

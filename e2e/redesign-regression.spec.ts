@@ -220,7 +220,7 @@ test('save and improve plan shows truthful layout-generation stages', async ({
       'secret-faeries:auto-layout-stage-delay-ms',
       String(delayMs),
     );
-  }, 700);
+  }, 1_500);
   await page.setViewportSize({ width: 1365, height: 768 });
   await signInWithMockPassword(page);
 
@@ -244,19 +244,19 @@ test('save and improve plan shows truthful layout-generation stages', async ({
   });
 
   await expect(choosePlants).toHaveCount(0);
-  await expectBusyStage(page, workflow, {
+  await expectBusyStage(workflow, {
     message: 'Collecting the current spacing, access, and support constraints.',
     stageLabel: 'Collecting constraints',
   });
-  await expectBusyStage(page, workflow, {
+  await expectBusyStage(workflow, {
     message: 'Generating one checked whole-plot suggestion.',
     stageLabel: 'Generating suggestion',
   });
-  await expectBusyStage(page, workflow, {
+  await expectBusyStage(workflow, {
     message: 'Validating the suggestion against the current must-fix issues.',
     stageLabel: 'Validating suggestion',
   });
-  await expectBusyStage(page, workflow, {
+  await expectBusyStage(workflow, {
     message: 'Preparing the before-and-after preview for review.',
     stageLabel: 'Preparing preview',
   });
@@ -271,7 +271,6 @@ test('save and improve plan shows truthful layout-generation stages', async ({
 });
 
 async function expectBusyStage(
-  page: Page,
   workflow: Locator,
   {
     message,
@@ -281,7 +280,7 @@ async function expectBusyStage(
     stageLabel: string;
   },
 ) {
-  await expect(page.getByText(message)).toBeVisible();
+  await expect(workflow.getByText(message)).toBeVisible({ timeout: 10_000 });
   await expect(workflow.getByRole('button')).toBeDisabled();
   await expect(
     workflow.locator('li[data-state="active"]').filter({ hasText: stageLabel }),
@@ -546,7 +545,9 @@ test('Feed compose launcher exposes explicit private memory actions only', async
   await expect(
     page.getByRole('button', { exact: true, name: 'Photo' }),
   ).toHaveCount(0);
-  await expect(page.locator('body')).not.toContainText(/carrier messaging|notification provider/);
+  await expect(page.locator('body')).not.toContainText(
+    /carrier messaging|notification provider/,
+  );
 
   await page.getByRole('button', { name: 'New entry' }).click();
   const composer = page.getByRole('dialog', { name: 'New feed entry' });

@@ -1,6 +1,6 @@
 import {
-  annArborClimateProfile,
-  annArborLocation,
+  detroitClimateProfile,
+  detroitLocation,
   type ClimateProfile,
   type GardenLocation,
   type MonthDayString,
@@ -19,17 +19,7 @@ interface KnownClimateProfile {
 
 const knownClimateProfiles: KnownClimateProfile[] = [
   {
-    aliases: ['ann arbor', 'detroit', '48201'],
-    averageFirstFrost: '10-05',
-    averageLastFrost: '05-10',
-    hardinessZone: '6a',
-    latitude: 42.3314,
-    locationName: 'Detroit, MI',
-    longitude: -83.0458,
-    timezone: 'America/Detroit',
-  },
-  {
-    aliases: ['detroit'],
+    aliases: ['detroit', '48201'],
     averageFirstFrost: '10-15',
     averageLastFrost: '04-30',
     hardinessZone: '6b',
@@ -158,7 +148,7 @@ export function createGardenLocationFromInput({
     locationName: locationName.trim() || locationQuery.trim() || 'Garden',
     locationQuery: locationQuery.trim() || locationName.trim() || 'Garden',
     longitude,
-    timezone: timezone.trim() || annArborLocation.timezone,
+    timezone: timezone.trim() || detroitLocation.timezone,
   };
 }
 
@@ -181,16 +171,16 @@ export function createClimateProfileForLocation({
     averageFirstFrost:
       averageFirstFrost ??
       estimate?.averageFirstFrost ??
-      annArborClimateProfile.averageFirstFrost,
+      detroitClimateProfile.averageFirstFrost,
     averageLastFrost:
       averageLastFrost ??
       estimate?.averageLastFrost ??
-      annArborClimateProfile.averageLastFrost,
+      detroitClimateProfile.averageLastFrost,
     editableByUser: true,
     hardinessZone:
       hardinessZone ??
       estimate?.hardinessZone ??
-      annArborClimateProfile.hardinessZone,
+      detroitClimateProfile.hardinessZone,
     locationName: location.locationName,
     source,
     updatedAtIso: new Date().toISOString(),

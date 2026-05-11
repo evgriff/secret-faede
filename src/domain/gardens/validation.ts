@@ -1,6 +1,6 @@
 import {
-  annArborClimateProfile,
-  annArborLocation,
+  detroitClimateProfile,
+  detroitLocation,
   createDefaultPlantStatus,
   defaultGardenPlot,
   defaultNotificationPreference,
@@ -165,26 +165,26 @@ export function sanitizeFootPosition(value: unknown, max: number) {
 
 export function parseClimateProfile(value: unknown): ClimateProfile {
   if (!isRecord(value)) {
-    return annArborClimateProfile;
+    return detroitClimateProfile;
   }
 
   return {
     averageFirstFrost: readString(
       value.averageFirstFrost,
-      annArborClimateProfile.averageFirstFrost,
+      detroitClimateProfile.averageFirstFrost,
     ),
     averageLastFrost: readString(
       value.averageLastFrost,
-      annArborClimateProfile.averageLastFrost,
+      detroitClimateProfile.averageLastFrost,
     ),
     editableByUser: readBoolean(value.editableByUser, true),
     hardinessZone: readString(
       value.hardinessZone,
-      annArborClimateProfile.hardinessZone,
+      detroitClimateProfile.hardinessZone,
     ),
     locationName: readString(
       value.locationName,
-      annArborClimateProfile.locationName,
+      detroitClimateProfile.locationName,
     ),
     source: readStringUnion(
       value.source,
@@ -197,18 +197,18 @@ export function parseClimateProfile(value: unknown): ClimateProfile {
 
 export function parseGardenLocation(value: unknown): GardenLocation {
   if (!isRecord(value)) {
-    return annArborLocation;
+    return detroitLocation;
   }
 
   return {
     latitude: readNullableNumber(value.latitude),
-    locationName: readString(value.locationName, annArborLocation.locationName),
+    locationName: readString(value.locationName, detroitLocation.locationName),
     locationQuery: readString(
       value.locationQuery,
-      annArborLocation.locationQuery,
+      detroitLocation.locationQuery,
     ),
     longitude: readNullableNumber(value.longitude),
-    timezone: readString(value.timezone, annArborLocation.timezone),
+    timezone: readString(value.timezone, detroitLocation.timezone),
   };
 }
 
@@ -345,7 +345,7 @@ export function parseUserProfile(
   return {
     alertLocationQuery: readString(
       record.alertLocationQuery,
-      annArborLocation.locationQuery,
+      detroitLocation.locationQuery,
     ),
     climateProfile: parseClimateProfile(record.climateProfile),
     createdAtIso: readNullableString(record.createdAtIso),
@@ -355,7 +355,7 @@ export function parseUserProfile(
     notificationPreference: parseNotificationPreference(
       record.notificationPreference,
     ),
-    timezone: readString(record.timezone, annArborLocation.timezone),
+    timezone: readString(record.timezone, detroitLocation.timezone),
     uid,
     updatedAtIso: readNullableString(record.updatedAtIso),
   };
@@ -1043,7 +1043,7 @@ export function parseNotificationLog(value: unknown): NotificationLog | null {
   if (
     // Compatibility-only cleanup for saved logs from retired delivery channels.
     value.channel === 'email' ||
-    value.channel === 'carrier messaging' ||
+    value.channel === 'retiredDelivery' ||
     value.provider === 'retiredDeliveryProvider'
   ) {
     return null;

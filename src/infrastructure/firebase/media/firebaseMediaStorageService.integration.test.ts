@@ -65,7 +65,7 @@ describe('FirebaseMediaStorageService integration seam', () => {
       entryId: 'entry-a',
       file,
       gardenId: 'garden-a',
-      userId: 'uid-evan',
+      userId: 'uid-primary',
     });
 
     expect(ref).toHaveBeenCalledWith(
@@ -79,7 +79,7 @@ describe('FirebaseMediaStorageService integration seam', () => {
       customMetadata: {
         entryId: 'entry-a',
         gardenId: 'garden-a',
-        userId: 'uid-evan',
+        userId: 'uid-primary',
       },
     });
     expect(getDownloadURL).toHaveBeenCalledWith(mocks.storageRef);

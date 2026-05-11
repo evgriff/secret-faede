@@ -14,11 +14,11 @@ permissions:
 
 jobs:
   deploy:
-    if: ${{ secrets.FIREBASE_PROJECT_ID != '' && secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
     runs-on: ubuntu-latest
     environment: production
     env:
       FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       VITE_ALLOWED_EMAILS: ${{ vars.VITE_ALLOWED_EMAILS }}
       VITE_APP_RUNTIME: firebase
       VITE_ENABLE_PWA: true
@@ -30,25 +30,48 @@ jobs:
       VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
       VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
     steps:
+      - name: Check deploy configuration
+        id: deploy-config
+        run: |
+          if [ -z "$FIREBASE_PROJECT_ID" ] || [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Live deploy skipped because FIREBASE_PROJECT_ID or FIREBASE_SERVICE_ACCOUNT is missing."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check out code
+        if: steps.deploy-config.outputs.enabled == 'true'
         uses: actions/checkout@v4
 
       - name: Set up Node.js 22
+        if: steps.deploy-config.outputs.enabled == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
+      - name: Set up Java 21
+        if: steps.deploy-config.outputs.enabled == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
       - name: Install dependencies
+        if: steps.deploy-config.outputs.enabled == 'true'
         run: npm ci
 
       - name: Install Functions dependencies
+        if: steps.deploy-config.outputs.enabled == 'true'
         run: npm --prefix functions ci
 
       - name: Install Playwright browser
+        if: steps.deploy-config.outputs.enabled == 'true'
         run: npx playwright install --with-deps chromium
 
       - name: Validate build env
+        if: steps.deploy-config.outputs.enabled == 'true'
         run: |
           test -n "$FIREBASE_PROJECT_ID"
           test -n "$VITE_ALLOWED_EMAILS"
@@ -61,9 +84,11 @@ jobs:
           test -n "$VITE_FIREBASE_STORAGE_BUCKET"
 
       - name: Run release gate
+        if: steps.deploy-config.outputs.enabled == 'true'
         run: npm run ci
 
       - name: Authenticate Firebase CLI
+        if: steps.deploy-config.outputs.enabled == 'true'
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
@@ -71,20 +96,14 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
 
       - name: Deploy rules, indexes, storage, and functions
+        if: steps.deploy-config.outputs.enabled == 'true'
         run: npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage,functions --project "$FIREBASE_PROJECT_ID"
 
       - name: Deploy live channel
+        if: steps.deploy-config.outputs.enabled == 'true'
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
           channelId: live
-
-  skipped:
-    if: ${{ secrets.FIREBASE_PROJECT_ID == '' || secrets.FIREBASE_SERVICE_ACCOUNT == '' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Explain skip
-        run: |
-          echo "Live deploy skipped because FIREBASE_PROJECT_ID or FIREBASE_SERVICE_ACCOUNT is missing."

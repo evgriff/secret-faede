@@ -99,7 +99,7 @@ function createFeedGarden(): Garden {
         body: 'Aphids on tomato leaves.',
         createdByDisplayName: 'Partner Gardener',
         createdByEmail: 'partner.gardener@example.com',
-        createdByUserId: 'user-emma',
+        createdByUserId: 'user-partner',
         createdAtIso: '2026-07-01T12:00:00.000Z',
         gardenId: 'user-a',
         id: 'issue-1',

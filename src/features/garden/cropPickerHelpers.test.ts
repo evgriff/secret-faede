@@ -1,6 +1,6 @@
 import { getCropById } from '../../domain/crops/cropCatalog';
 import { scoreCropSuitability } from '../../domain/crops/cropSuitability';
-import { annArborClimateProfile } from '../../domain/gardens/GardenRepository';
+import { detroitClimateProfile } from '../../domain/gardens/GardenRepository';
 import {
   compareCropPickerResults,
   formatTimingLabel,
@@ -106,7 +106,7 @@ function buildRankedResult(
     baseOrder,
     crop,
     suitability: scoreCropSuitability({
-      climateProfile: { ...annArborClimateProfile, source: 'user' },
+      climateProfile: { ...detroitClimateProfile, source: 'user' },
       crop,
       location: {
         latitude: 42.3314,

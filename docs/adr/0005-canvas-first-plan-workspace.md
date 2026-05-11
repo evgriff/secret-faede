@@ -8,10 +8,10 @@ Accepted
 
 ## Context
 
-The current product overhaul made Plan the sample test surface. The old Plan
-shape allowed side rails, inspectors, and operations panels to compete with the
-plot or resize it during ordinary work. That made plant placement feel less
-stable than the garden data model actually is.
+The canvas-first redesign made Plan the primary test surface. The old Plan shape
+allowed side rails, inspectors, and operations panels to compete with the plot
+or resize it during ordinary work. That made plant placement feel less stable
+than the garden data model actually is.
 
 The app still needs access to selection, planting, structures, Optimize, Review,
 sun/climate, measuring, publish, history, and settings. The decision is about

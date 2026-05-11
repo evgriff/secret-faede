@@ -1,6 +1,6 @@
 import { getCropById } from '../../domain/crops/cropCatalog';
 import {
-  annArborClimateProfile,
+  detroitClimateProfile,
   createDefaultGarden,
   type SeasonCropSelection,
 } from '../../domain/gardens/GardenRepository';
@@ -14,7 +14,7 @@ describe('season crop plan', () => {
     const garden = {
       ...createDefaultGarden('user-a'),
       climateProfile: {
-        ...annArborClimateProfile,
+        ...detroitClimateProfile,
         source: 'user' as const,
       },
       seasonPlan: {

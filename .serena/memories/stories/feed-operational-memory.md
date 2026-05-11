@@ -35,4 +35,4 @@ Primary local sources:
 - `docs/architecture.md`
 - `docs/demo-script.md`
 - `docs/manual-qa-checklist.md`
-- `docs/architecture.md`
+- `README.md`

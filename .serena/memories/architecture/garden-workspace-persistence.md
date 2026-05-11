@@ -27,6 +27,7 @@ Repository rules:
 - `GardenOperationsService` can build higher-level operations on repository data.
 - UI code should not bypass the repository for garden workspace writes.
 - Mock mode must remain functional with localStorage-backed adapters.
+- Seed/sample fixtures should stay public-safe: generic user identities, Detroit sample climate/location defaults, and no private project, address, provider, or archived-planning artifacts.
 
 Offline behavior:
 

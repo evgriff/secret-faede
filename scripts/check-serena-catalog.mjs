@@ -15,7 +15,7 @@ const catalogMemory = 'serena/memory-catalog';
 const catalogPath = `${memoryRoot}/${catalogMemory}.md`;
 const projectConfigPath = '.serena/project.yml';
 const archivePrefix = '_archive/';
-const staleRepoPath = '<repo-path>';
+const staleRepoPath = 'Documents/secret-faeries';
 
 const failures = [];
 const catalog = readRequiredFile(catalogPath);

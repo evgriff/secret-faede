@@ -9,6 +9,7 @@ Route and workflow:
 - primary route: `/app/plan`
 - legacy redirect: `/app/garden`
 - first-run setup asks for garden name, plot type, plot size, and starter layout, with optional location and climate details
+- first-run and layout fixtures use the generic Detroit climate/location baseline so public builds avoid private location data while keeping frost-date behavior realistic
 - Plan remains the product center and should be canvas-first
 
 Success criteria:
@@ -19,6 +20,7 @@ Success criteria:
 - Review and Optimize present practical before/after choices, not numeric score dashboards
 - Publish, revert, and draft state are visible and recoverable
 - weather, watering, sun, and operations panels support the editor rather than replacing it
+- layout suggestions and seasonal crop planning should keep climate-aware assertions tied to the public Detroit baseline
 
 Implementation ownership:
 

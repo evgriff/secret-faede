@@ -653,7 +653,7 @@ export interface Garden {
 export type GardenPlot = Plot;
 export type GardenPlant = Planting;
 
-export const annArborLocation: GardenLocation = {
+export const detroitLocation: GardenLocation = {
   latitude: 42.3314,
   locationName: 'Detroit, MI',
   locationQuery: 'Detroit, MI',
@@ -661,11 +661,11 @@ export const annArborLocation: GardenLocation = {
   timezone: 'America/Detroit',
 };
 
-export const annArborClimateProfile: ClimateProfile = {
-  averageFirstFrost: '10-05',
-  averageLastFrost: '05-10',
+export const detroitClimateProfile: ClimateProfile = {
+  averageFirstFrost: '10-15',
+  averageLastFrost: '04-30',
   editableByUser: true,
-  hardinessZone: '6a',
+  hardinessZone: '6b',
   locationName: 'Detroit, MI',
   source: 'demoDefault',
   updatedAtIso: null,
@@ -706,7 +706,7 @@ export const defaultNotificationPreference: NotificationPreference = {
 export const defaultGardenPlot: Plot = {
   depthFt: 8,
   gridUnitFt: 1,
-  location: annArborLocation,
+  location: detroitLocation,
   orientationDegrees: 0,
   snapUnitFt: 0.125,
   widthFt: 12,
@@ -714,7 +714,7 @@ export const defaultGardenPlot: Plot = {
 
 export function createDefaultGarden(userId: string): Garden {
   return {
-    climateProfile: annArborClimateProfile,
+    climateProfile: detroitClimateProfile,
     harvestEvents: [],
     id: userId,
     journalEntries: [],
@@ -994,8 +994,8 @@ export function createDefaultUserProfile(
   email: string,
 ): UserProfile {
   return {
-    alertLocationQuery: annArborLocation.locationQuery,
-    climateProfile: annArborClimateProfile,
+    alertLocationQuery: detroitLocation.locationQuery,
+    climateProfile: detroitClimateProfile,
     createdAtIso: null,
     defaultGardenId: uid,
     displayName: '',
@@ -1003,7 +1003,7 @@ export function createDefaultUserProfile(
     notificationPreference: {
       ...defaultNotificationPreference,
     },
-    timezone: annArborLocation.timezone,
+    timezone: detroitLocation.timezone,
     uid,
     updatedAtIso: null,
   };

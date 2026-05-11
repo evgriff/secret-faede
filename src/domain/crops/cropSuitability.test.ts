@@ -1,6 +1,6 @@
 import { getCropById } from './cropCatalog';
 import { scoreCropSuitability } from './cropSuitability';
-import { annArborClimateProfile } from '../gardens/GardenRepository';
+import { detroitClimateProfile } from '../gardens/GardenRepository';
 
 describe('scoreCropSuitability', () => {
   it('rewards crops that match sun, season, and spacing', () => {
@@ -11,7 +11,7 @@ describe('scoreCropSuitability', () => {
     }
 
     const score = scoreCropSuitability({
-      climateProfile: { ...annArborClimateProfile, source: 'user' },
+      climateProfile: { ...detroitClimateProfile, source: 'user' },
       crop: lettuce,
       mode: 'block',
       plantCount: 8,
@@ -33,7 +33,7 @@ describe('scoreCropSuitability', () => {
     }
 
     const score = scoreCropSuitability({
-      climateProfile: { ...annArborClimateProfile, source: 'user' },
+      climateProfile: { ...detroitClimateProfile, source: 'user' },
       crop: watermelon,
       mode: 'single',
       plantCount: 1,

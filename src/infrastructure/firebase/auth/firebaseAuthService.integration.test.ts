@@ -46,7 +46,10 @@ vi.mock('firebase/auth', () => ({
 }));
 
 const environment: AppEnvironment = {
-  allowedEmails: ['primary.gardener@example.com', 'partner.gardener@example.com'],
+  allowedEmails: [
+    'primary.gardener@example.com',
+    'partner.gardener@example.com',
+  ],
   allowlistError: null,
   authEmulatorPort: 9099,
   emulatorHost: '127.0.0.1',
@@ -54,9 +57,9 @@ const environment: AppEnvironment = {
   firebaseConfig: {
     apiKey: 'api-key',
     appId: 'app-id',
-    authDomain: 'your-project-id.firebaseapp.com',
+    authDomain: 'example-garden-app.firebaseapp.com',
     messagingSenderId: 'sender-id',
-    projectId: 'secret-faeries',
+    projectId: 'example-garden-app',
     storageBucket: 'example-garden-app.appspot.com',
   },
   firestoreEmulatorPort: 8080,
@@ -82,7 +85,7 @@ describe('FirebaseAuthService integration seam', () => {
       user: {
         displayName: 'Primary Gardener',
         email: 'primary.gardener@example.com',
-        uid: 'uid-evan',
+        uid: 'uid-primary',
       },
     });
   });
@@ -115,7 +118,7 @@ describe('FirebaseAuthService integration seam', () => {
       displayName: 'Primary Gardener',
       email: 'primary.gardener@example.com',
       provider: 'firebase',
-      uid: 'uid-evan',
+      uid: 'uid-primary',
     });
   });
 

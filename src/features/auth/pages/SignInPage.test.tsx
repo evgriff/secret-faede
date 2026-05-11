@@ -17,7 +17,10 @@ describe('SignInPage', () => {
       await screen.findByText('Enter a valid email address.'),
     ).toBeVisible();
 
-    await user.type(screen.getByLabelText('Email'), 'primary.gardener@example.com');
+    await user.type(
+      screen.getByLabelText('Email'),
+      'primary.gardener@example.com',
+    );
     await user.type(screen.getByLabelText('Password'), 'wrong');
     expect(
       screen.getByRole('checkbox', {
@@ -58,7 +61,10 @@ describe('SignInPage', () => {
     expect(
       await screen.findByRole('heading', { name: 'Sign in' }),
     ).toBeVisible();
-    await user.type(screen.getByLabelText('Email'), 'primary.gardener@example.com');
+    await user.type(
+      screen.getByLabelText('Email'),
+      'primary.gardener@example.com',
+    );
     await user.type(screen.getByLabelText('Password'), 'password');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
@@ -89,7 +95,10 @@ describe('SignInPage', () => {
     ).toBeVisible();
 
     await user.clear(screen.getByLabelText('Email'));
-    await user.type(screen.getByLabelText('Email'), 'primary.gardener@example.com');
+    await user.type(
+      screen.getByLabelText('Email'),
+      'primary.gardener@example.com',
+    );
     await user.click(screen.getByRole('button', { name: 'Reset password' }));
 
     expect(await screen.findByText('Password reset email sent.')).toBeVisible();

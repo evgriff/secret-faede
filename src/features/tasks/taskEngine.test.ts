@@ -24,7 +24,7 @@ describe('taskEngine', () => {
       expect.arrayContaining([
         expect.objectContaining({
           bedLabel: 'Main bed',
-          dueDate: '2026-04-05',
+          dueDate: '2026-03-26',
           title: 'Start Tomato indoors',
           type: 'sow',
         }),
@@ -125,13 +125,13 @@ describe('taskEngine', () => {
     expect(garden.tasks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          dueDate: '2026-04-19',
+          dueDate: '2026-04-09',
           notes: expect.stringContaining('Check germination'),
           title: 'Check Radish row seedlings',
           type: 'inspect',
         }),
         expect.objectContaining({
-          dueDate: '2026-04-26',
+          dueDate: '2026-04-16',
           notes: expect.stringContaining('spacing'),
           title: 'Thin Radish row',
           type: 'thin',
@@ -228,12 +228,12 @@ describe('taskEngine', () => {
     expect(garden.tasks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          dueDate: '2026-05-10',
+          dueDate: '2026-05-08',
           title: 'Harden off Tomato',
           type: 'inspect',
         }),
         expect.objectContaining({
-          dueDate: '2026-05-17',
+          dueDate: '2026-05-15',
           title: 'Plant out Tomato',
           type: 'transplant',
         }),
@@ -365,11 +365,11 @@ describe('taskEngine', () => {
     expect(wateredGarden.plantings[0]).toMatchObject({
       plantingEvents: [
         expect.objectContaining({
-          occurredOn: '2026-05-17',
+          occurredOn: '2026-05-07',
           type: 'plantedOut',
         }),
       ],
-      plantedOn: '2026-05-17',
+      plantedOn: '2026-05-07',
       status: 'growing',
     });
     expect(wateredGarden.wateringSchedule[0]).toMatchObject({

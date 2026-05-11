@@ -1,5 +1,5 @@
 import {
-  annArborLocation,
+  detroitLocation,
   type DrainageProfile,
   type Garden,
   type GardenLocation,
@@ -1150,10 +1150,10 @@ function getRecommendationDataQuality(
 
 function toWeatherLocation(location: GardenLocation): WeatherLocation {
   return {
-    latitude: location.latitude ?? annArborLocation.latitude ?? 42.3314,
-    locationName: location.locationName || annArborLocation.locationName,
-    longitude: location.longitude ?? annArborLocation.longitude ?? -83.0458,
-    timezone: location.timezone || annArborLocation.timezone,
+    latitude: location.latitude ?? detroitLocation.latitude ?? 42.3314,
+    locationName: location.locationName || detroitLocation.locationName,
+    longitude: location.longitude ?? detroitLocation.longitude ?? -83.0458,
+    timezone: location.timezone || detroitLocation.timezone,
   };
 }
 

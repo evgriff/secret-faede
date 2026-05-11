@@ -2,7 +2,7 @@ import { afterEach, beforeEach, vi } from 'vitest';
 
 import { NationalWeatherServiceProvider } from './nwsWeatherProvider';
 
-const annArborLocation = {
+const detroitLocation = {
   latitude: 42.3314,
   locationName: 'Detroit, MI',
   longitude: -83.0458,
@@ -32,7 +32,7 @@ describe('NationalWeatherServiceProvider', () => {
 
     const conditions =
       await new NationalWeatherServiceProvider().getCurrentConditions(
-        annArborLocation,
+        detroitLocation,
       );
 
     expect(conditions.precipitationLastHourIn).toBe(0.1);
@@ -54,7 +54,7 @@ describe('NationalWeatherServiceProvider', () => {
 
     const precipitation =
       await new NationalWeatherServiceProvider().getRecentPrecipitation(
-        annArborLocation,
+        detroitLocation,
         72,
       );
 
@@ -79,7 +79,7 @@ describe('NationalWeatherServiceProvider', () => {
     });
 
     const forecast = await new NationalWeatherServiceProvider().getForecast(
-      annArborLocation,
+      detroitLocation,
     );
 
     expect(forecast.next24hPrecipIn).toBe(1);
@@ -135,7 +135,7 @@ describe('NationalWeatherServiceProvider', () => {
     });
 
     const forecast = await new NationalWeatherServiceProvider().getForecast(
-      annArborLocation,
+      detroitLocation,
     );
 
     expect(forecast.days).toEqual([
@@ -203,7 +203,7 @@ describe('NationalWeatherServiceProvider', () => {
     });
 
     const forecast = await new NationalWeatherServiceProvider().getForecast(
-      annArborLocation,
+      detroitLocation,
     );
 
     expect(forecast.nextRainIso).toBe('2026-04-28T06:00:00.000Z');
@@ -235,7 +235,7 @@ describe('NationalWeatherServiceProvider', () => {
     });
 
     const forecast = await new NationalWeatherServiceProvider().getForecast(
-      annArborLocation,
+      detroitLocation,
     );
 
     expect(forecast.nextRainIso).toBe('2026-04-24T23:30:00.000Z');

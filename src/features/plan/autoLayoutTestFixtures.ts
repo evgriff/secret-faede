@@ -1,5 +1,5 @@
 import {
-  annArborClimateProfile,
+  detroitClimateProfile,
   createDefaultGarden,
   type Garden,
   type SeasonCropSelection,
@@ -13,7 +13,7 @@ export function createLayoutFixture(
   return {
     ...createDefaultGarden('user-a'),
     climateProfile: {
-      ...annArborClimateProfile,
+      ...detroitClimateProfile,
       source: 'user',
     },
     plot: {

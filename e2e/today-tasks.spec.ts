@@ -116,8 +116,17 @@ test('Today keeps the remaining watering deficit visible after a partial waterin
     .filter({ hasText: 'roots and salad bed' })
     .filter({ has: page.getByRole('button', { name: 'Review watering' }) })
     .first();
+  const reviewWateringButton = wateringCard.getByRole('button', {
+    name: 'Review watering',
+  });
 
-  await wateringCard.getByRole('button', { name: 'Review watering' }).click();
+  await reviewWateringButton.evaluate((element) => {
+    element.scrollIntoView({ block: 'center', inline: 'nearest' });
+  });
+  await expect(reviewWateringButton).toBeInViewport({ ratio: 1 });
+  await reviewWateringButton.focus();
+  await expect(reviewWateringButton).toBeFocused();
+  await page.keyboard.press('Enter');
   await expect(
     page.getByRole('dialog', { name: 'Review watering' }),
   ).toBeVisible();
@@ -148,7 +157,7 @@ test('Today refreshes Detroit NWS weather without stale impossible rain totals',
   await page.clock.setFixedTime(new Date('2026-04-24T23:30:00.000Z'));
   let weatherRun: 'first' | 'second' = 'first';
 
-  await routeAnnArborNwsWeather(page, () => weatherRun);
+  await routeDetroitNwsWeather(page, () => weatherRun);
   await signInWithMockPassword(page);
   await openPlanTool(page, 'Plant');
   await page.getByRole('button', { name: 'Open plant picker' }).click();
@@ -238,7 +247,7 @@ test('Today harvest logging opens a dismissable sheet from the field card', asyn
   await expect(radishHarvest).toContainText('French breakfast radish');
 });
 
-async function routeAnnArborNwsWeather(
+async function routeDetroitNwsWeather(
   page: Page,
   getRun: () => 'first' | 'second',
 ) {

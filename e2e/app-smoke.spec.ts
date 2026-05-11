@@ -98,7 +98,9 @@ test('second production user signs in on mobile with a persisted session', async
   await expect(
     page.getByRole('heading', { exact: true, name: 'Settings' }),
   ).toBeVisible();
-  await expect(page.locator('[title="partner.gardener@example.com"]')).toHaveText('Partner Gardener');
+  await expect(
+    page.locator('[title="partner.gardener@example.com"]'),
+  ).toHaveText('Partner Gardener');
 });
 
 test('garden plot has exact board sizing and scrolls large plots', async ({

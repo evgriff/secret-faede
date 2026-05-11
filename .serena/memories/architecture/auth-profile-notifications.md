@@ -12,6 +12,7 @@ Profile model:
 
 - `UserProfileRepository` owns alert defaults and notification preferences at `users/{uid}`.
 - Settings is the user-facing surface for quiet hours, check time, thresholds, location, timezone, and consent state.
+- Provisioned public examples use generic primary/partner gardener identities and placeholder Firebase configuration only.
 
 Notification model:
 
@@ -20,6 +21,7 @@ Notification model:
 - Scheduled delivery stays server-side in Firebase Functions.
 - In-app history remains available even when push is not enabled.
 - Native/local alerts are additive through `MobileDeviceService` and must not break the PWA path.
+- Compatibility cleanup may reject neutral retired-delivery fixture keys in tests, but current tracked data and templates must not contain private delivery provider details or personal contact data.
 
 Removed scope:
 
@@ -31,5 +33,5 @@ Primary local sources:
 
 - `docs/architecture.md`
 - `docs/firebase.md`
-- `docs/architecture.md`
+- `docs/environment.md`
 - `AGENTS.md`

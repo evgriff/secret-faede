@@ -1,6 +1,6 @@
 import {
-  annArborClimateProfile,
-  annArborLocation,
+  detroitClimateProfile,
+  detroitLocation,
   createDefaultGarden,
 } from './GardenRepository';
 import {
@@ -42,11 +42,11 @@ describe('gardenTemplates', () => {
 function setupRequest(templateId: string): GardenSetupRequest {
   return {
     climateProfile: {
-      ...annArborClimateProfile,
+      ...detroitClimateProfile,
       source: 'user',
     },
     gardenName: 'Kitchen garden',
-    location: annArborLocation,
+    location: detroitLocation,
     plotDepthFt: 8,
     plotType: 'raisedBed',
     plotWidthFt: 12,

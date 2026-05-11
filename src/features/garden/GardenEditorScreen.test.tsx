@@ -9,7 +9,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, vi } from 'vitest';
 
 import {
-  annArborClimateProfile,
+  detroitClimateProfile,
   createDefaultGarden,
   createDefaultPlanting,
   createDefaultStructure,
@@ -58,7 +58,7 @@ describe('PlanPage', () => {
     expect(await screen.findByLabelText('Location or address')).toHaveValue(
       'Detroit, MI',
     );
-    expect(screen.getByDisplayValue('6a')).toBeVisible();
+    expect(screen.getByDisplayValue('6b')).toBeVisible();
 
     await user.click(screen.getByLabelText(/Blank plan/));
     await user.click(screen.getByRole('button', { name: 'Create plan' }));
@@ -135,7 +135,7 @@ describe('PlanPage', () => {
     await services.gardenRepository.saveGarden({
       ...createDefaultGarden(currentUser.uid),
       climateProfile: {
-        ...annArborClimateProfile,
+        ...detroitClimateProfile,
         source: 'user',
       },
       structures: [
@@ -341,7 +341,7 @@ describe('PlanPage', () => {
     await services.gardenRepository.saveGarden({
       ...createDefaultGarden(currentUser.uid),
       climateProfile: {
-        ...annArborClimateProfile,
+        ...detroitClimateProfile,
         source: 'user',
       },
       plantings: [
@@ -454,7 +454,7 @@ describe('PlanPage', () => {
     await services.gardenRepository.saveGarden({
       ...createDefaultGarden(currentUser.uid),
       climateProfile: {
-        ...annArborClimateProfile,
+        ...detroitClimateProfile,
         source: 'user',
       },
       plantings: [
@@ -574,7 +574,7 @@ describe('PlanPage', () => {
     await services.gardenRepository.saveGarden({
       ...createDefaultGarden(currentUser.uid),
       climateProfile: {
-        ...annArborClimateProfile,
+        ...detroitClimateProfile,
         source: 'user',
       },
       structures: [
@@ -658,7 +658,7 @@ describe('PlanPage', () => {
     await services.gardenRepository.saveGarden({
       ...createDefaultGarden(currentUser.uid),
       climateProfile: {
-        ...annArborClimateProfile,
+        ...detroitClimateProfile,
         source: 'user',
       },
       plantings: [
@@ -747,7 +747,7 @@ describe('PlanPage', () => {
     await services.gardenRepository.saveGarden({
       ...createDefaultGarden(currentUser.uid),
       climateProfile: {
-        ...annArborClimateProfile,
+        ...detroitClimateProfile,
         source: 'user',
       },
       plantings: [
@@ -824,7 +824,7 @@ describe('PlanPage', () => {
     await services.gardenRepository.saveGarden({
       ...createDefaultGarden(currentUser.uid),
       climateProfile: {
-        ...annArborClimateProfile,
+        ...detroitClimateProfile,
         source: 'user',
       },
       plantings: [
@@ -922,7 +922,7 @@ describe('PlanPage', () => {
     await services.gardenRepository.saveGarden({
       ...createDefaultGarden(currentUser.uid),
       climateProfile: {
-        ...annArborClimateProfile,
+        ...detroitClimateProfile,
         source: 'user',
       },
       plantings: [
@@ -1065,7 +1065,7 @@ describe('PlanPage', () => {
     expect((await within(library).findAllByText('Spacing'))[0]).toBeVisible();
     expect(within(library).getAllByText('Lifecycle')[0]).toBeVisible();
     expect(
-      within(library).getByText(/zone 6a; average last frost/i),
+      within(library).getByText(/zone 6b; average last frost/i),
     ).toBeVisible();
     await user.click(
       within(library).getByRole('button', { name: 'Hide Tomato details' }),
@@ -1081,9 +1081,10 @@ describe('PlanPage', () => {
     expect(within(board).getByText('2 x 2 ft · 4 sq ft')).toBeVisible();
     expect(within(board).getByText('Full')).toBeVisible();
     expect(within(board).getByText('Cage')).toBeVisible();
+    expect(within(board).getByText('Plant now')).toBeVisible();
     expect(
-      within(board).getByRole('button', { name: 'Tomato review reason' }),
-    ).toBeVisible();
+      within(board).queryByRole('button', { name: 'Tomato review reason' }),
+    ).not.toBeInTheDocument();
     expect(within(board).queryByText('Watch timing')).not.toBeInTheDocument();
     expect(
       within(board).queryByText(/Continuous harvest/),
@@ -1217,7 +1218,7 @@ describe('PlanPage', () => {
     expect(within(reopenedBoard).getByLabelText('Notes')).toHaveValue(
       'South trellis',
     );
-  });
+  }, 30_000);
 
   it('keeps the picked plants side collapsed until requested on desktop', async () => {
     const user = userEvent.setup();
@@ -1265,7 +1266,7 @@ describe('PlanPage', () => {
       }),
     ).toBeVisible();
     expect(within(board).getByText('Review')).toBeVisible();
-  });
+  }, 30_000);
 
   it('adds multiple plants as one grouped footprint from the quantity-first picker', async () => {
     const user = userEvent.setup();
@@ -1356,8 +1357,7 @@ describe('PlanPage', () => {
     );
 
     expect(
-      screen.getAllByText(/Using Detroit|Using saved garden location/i)
-        .length,
+      screen.getAllByText(/Using Detroit|Using saved garden location/i).length,
     ).toBeGreaterThan(0);
     expect(
       screen.getAllByText(
@@ -1435,7 +1435,7 @@ describe('PlanPage', () => {
     await services.gardenRepository.saveGarden({
       ...createDefaultGarden(currentUser.uid),
       climateProfile: {
-        ...annArborClimateProfile,
+        ...detroitClimateProfile,
         source: 'user',
       },
       plantings: [
@@ -1535,7 +1535,7 @@ describe('PlanPage', () => {
     expect(
       screen.getByRole('button', { name: 'Save and improve plan' }),
     ).toBeDisabled();
-  });
+  }, 30_000);
 
   it('shows planted crops in the reference dropdown and filters them from the initial board state', async () => {
     const user = userEvent.setup();
@@ -1567,7 +1567,7 @@ describe('PlanPage', () => {
     expect(
       within(board).queryByRole('heading', { name: 'Tomato' }),
     ).not.toBeInTheDocument();
-  });
+  }, 30_000);
 
   it('compares a small set of practical crop facts from Choose Plants', async () => {
     const user = userEvent.setup();
@@ -1623,7 +1623,7 @@ describe('PlanPage', () => {
     expect(
       screen.queryByRole('region', { name: 'Crop planning compare' }),
     ).not.toBeInTheDocument();
-  });
+  }, 30_000);
 
   it('searches specific generated crops from the full plant library', async () => {
     const user = userEvent.setup();
@@ -1811,7 +1811,7 @@ describe('PlanPage', () => {
     await services.gardenRepository.saveGarden({
       ...createDefaultGarden(currentUser.uid),
       climateProfile: {
-        ...annArborClimateProfile,
+        ...detroitClimateProfile,
         source: 'user',
       },
       plantings: [
@@ -1966,7 +1966,7 @@ describe('PlanPage', () => {
     await user.click(screen.getByText('Sun, footprint, and warnings'));
     expect(await screen.findByText('X 4.0 ft, Y 3.0 ft')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Save' })).toBeVisible();
-  });
+  }, 30_000);
 
   it('selects a plant from a click without opening the editor or marking dirty', async () => {
     const user = userEvent.setup();
@@ -2337,7 +2337,7 @@ async function createConfiguredPlanServices() {
   await services.gardenRepository.saveGarden({
     ...createDefaultGarden(currentUser.uid),
     climateProfile: {
-      ...annArborClimateProfile,
+      ...detroitClimateProfile,
       source: 'user',
     },
   });

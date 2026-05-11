@@ -33,7 +33,7 @@ export interface CropSuitabilityScore {
   level: CropSuitabilityLevel;
   locationContext: {
     regionName: string;
-    source: 'annArborDefault' | 'gardenProfile';
+    source: 'detroitDefault' | 'gardenProfile';
   };
   locationHeadline: string;
   locationMatch: PlantLocationMatch;

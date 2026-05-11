@@ -21,13 +21,13 @@ const users = [
     displayName: 'Primary Gardener',
     email: readRequiredEnv('APP_LOGIN_PRIMARY_EMAIL'),
     password: readRequiredEnv('APP_LOGIN_PRIMARY_TEMP_PASSWORD'),
-    slot: 'evan',
+    slot: 'primary',
   },
   {
     displayName: 'Partner Gardener',
     email: readRequiredEnv('APP_LOGIN_PARTNER_EMAIL'),
     password: readRequiredEnv('APP_LOGIN_PARTNER_TEMP_PASSWORD'),
-    slot: 'emma',
+    slot: 'partner',
   },
 ].map((user) => ({
   ...user,

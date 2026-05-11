@@ -5,7 +5,7 @@ import {
   plantCatalog,
 } from './plantCatalog';
 import {
-  annArborPlantLocationContext,
+  detroitPlantLocationContext,
   explainPlantLocationMatch,
   scorePlantLocationMatch,
 } from './plantLocationMatch';
@@ -54,20 +54,20 @@ describe('plant catalog scaffolding', () => {
   });
 
   it('uses Detroit and southeast Michigan as the default location context', () => {
-    expect(annArborPlantLocationContext).toMatchObject({
-      averageFirstFrost: '10-05',
-      averageLastFrost: '05-10',
+    expect(detroitPlantLocationContext).toMatchObject({
+      averageFirstFrost: '10-15',
+      averageLastFrost: '04-30',
       firstFallFrostWindow: {
-        end: '10-21',
-        start: '10-06',
+        end: '10-31',
+        start: '10-15',
       },
-      hardinessZone: '6a',
+      hardinessZone: '6b',
       lastSpringFrostWindow: {
-        end: '05-15',
-        start: '05-01',
+        end: '04-30',
+        start: '04-15',
       },
       regionName: 'Detroit / southeast Michigan',
-      source: 'annArborDefault',
+      source: 'detroitDefault',
     });
   });
 
@@ -91,8 +91,8 @@ describe('plant catalog scaffolding', () => {
     });
 
     expect(lettuceMatch).toMatchObject({
-      band: 'strong',
-      label: 'Strong match',
+      band: 'good',
+      label: 'Good match',
     });
     expect(watermelonMatch).toMatchObject({
       band: 'poor',
@@ -149,6 +149,6 @@ describe('plant catalog scaffolding', () => {
         match: rosemaryMatch,
         today: new Date('2026-06-15T12:00:00.000Z'),
       }).headline,
-    ).toBe('Perennial not winter-hardy for the 6a default zone');
+    ).toBe('Perennial not winter-hardy for the 6b default zone');
   });
 });

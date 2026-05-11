@@ -49,9 +49,9 @@ export function SettingsDemoPanel({
         <p className={pageStyles.kicker}>Sample garden</p>
         <h2>Open a resettable sample garden</h2>
         <p>
-          Your saved garden stays primary. Primary Gardener can open the Detroit sample
-          when a clean example is needed on this device; the current garden is
-          backed up first so it can be restored.
+          Your saved garden stays primary. Primary Gardener can open the Detroit
+          sample when a clean example is needed on this device; the current
+          garden is backed up first so it can be restored.
         </p>
       </div>
       <div className={styles.statusLine}>

@@ -9,7 +9,7 @@ stable, and understandable. It is not decoration. It should explain where a
 surface came from, what changed after an action, and how to recover from that
 state without making the plot editor feel slippery.
 
-This spec is written for the public-release-overhaul prompt chain. It should guide
+This spec is written for the current app motion pass. It should guide
 implementation before broad animation work starts.
 
 ## Current Implementation

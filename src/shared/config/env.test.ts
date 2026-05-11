@@ -5,7 +5,8 @@ import { resolveAppEnvironmentFromEnv } from './env';
 describe('resolveAppEnvironmentFromEnv', () => {
   it('normalizes exactly two allowed emails', () => {
     const environment = resolveAppEnvironmentFromEnv({
-      VITE_ALLOWED_EMAILS: ' Primary.Gardener@example.com , Partner.Gardener@example.com ',
+      VITE_ALLOWED_EMAILS:
+        ' Primary.Gardener@example.com , Partner.Gardener@example.com ',
     });
 
     expect(environment.allowedEmails).toEqual([
@@ -17,7 +18,8 @@ describe('resolveAppEnvironmentFromEnv', () => {
 
   it('fails closed when the allowlist is duplicated after normalization', () => {
     const environment = resolveAppEnvironmentFromEnv({
-      VITE_ALLOWED_EMAILS: 'Primary.Gardener@example.com,primary.gardener@example.com',
+      VITE_ALLOWED_EMAILS:
+        'Primary.Gardener@example.com,primary.gardener@example.com',
     });
 
     expect(environment.allowedEmails).toEqual([]);
@@ -26,7 +28,8 @@ describe('resolveAppEnvironmentFromEnv', () => {
 
   it('falls back to mock mode when firebase config is incomplete', () => {
     const environment = resolveAppEnvironmentFromEnv({
-      VITE_ALLOWED_EMAILS: 'primary.gardener@example.com,partner.gardener@example.com',
+      VITE_ALLOWED_EMAILS:
+        'primary.gardener@example.com,partner.gardener@example.com',
       VITE_APP_RUNTIME: 'firebase',
       VITE_FIREBASE_API_KEY: 'api-key-only',
     });

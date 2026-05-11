@@ -143,8 +143,8 @@ Required before TestFlight, Google Play testing, or real native push:
 
 Carrier messaging is no longer in scope. Do not set carrier delivery secrets,
 add phone-number seed values, configure carrier webhooks, or run carrier
-delivery smoke tests for the current product prompt chain. Any new
-carrier-message code should be treated as scope regression.
+delivery smoke tests. Any new carrier-message code should be treated as scope
+regression.
 
 ## Optional Provider Keys
 

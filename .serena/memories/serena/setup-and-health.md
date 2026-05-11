@@ -14,7 +14,7 @@ Startup behavior:
 
 - `ensure-project-mcp.sh` derives the repo root from its own path.
 - It may reuse a process only when the command line matches this repo, port `9127`, Streamable HTTP, and the current repo path.
-- It must initialize the MCP and confirm the instructions say the `secret-faeries` project at `<repo-path>` is active.
+- It must initialize the MCP and confirm the instructions say the `secret-faeries` project at the current repo path is active.
 - It treats a matching process as stale when it predates `.serena/project.yml`, `plugins/serena/codex-context.yml`, or the bootstrap script.
 - It may restart only a matching repo-owned stale Serena process.
 - It must not take over the port from an unrelated process.

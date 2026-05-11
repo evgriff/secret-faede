@@ -1,5 +1,5 @@
 import {
-  annArborClimateProfile,
+  detroitClimateProfile,
   createDefaultGarden,
   createDefaultPlanting,
   CURRENT_GARDEN_SCHEMA_VERSION,
@@ -546,10 +546,10 @@ describe('garden domain validation', () => {
       locationQuery: 'Detroit, MI',
       timezone: 'America/Detroit',
     });
-    expect(annArborClimateProfile).toMatchObject({
-      averageFirstFrost: '10-05',
-      averageLastFrost: '05-10',
-      hardinessZone: '6a',
+    expect(detroitClimateProfile).toMatchObject({
+      averageFirstFrost: '10-15',
+      averageLastFrost: '04-30',
+      hardinessZone: '6b',
     });
     expect(preferences).toMatchObject({
       defaultWateringCheckTime: '07:00',
@@ -567,7 +567,7 @@ describe('garden domain validation', () => {
           revokedAtIso: null,
           status: 'granted',
         },
-        carrier messaging: {
+        retiredDelivery: {
           consentCopyVersion: 'legacy',
           grantedAtIso: '2026-04-20T11:00:00.000Z',
           revokedAtIso: null,
@@ -578,7 +578,7 @@ describe('garden domain validation', () => {
         email: true,
         inApp: false,
         push: true,
-        carrier messaging: true,
+        retiredDelivery: true,
       },
       email: 'alerts@example.com',
       phoneE164: '+17345550123',
@@ -586,9 +586,9 @@ describe('garden domain validation', () => {
 
     expect(preferences.channels).toMatchObject({ inApp: true, push: true });
     expect(preferences.channels).not.toHaveProperty('email');
-    expect(preferences.channels).not.toHaveProperty('carrier messaging');
+    expect(preferences.channels).not.toHaveProperty('retiredDelivery');
     expect(preferences.channelConsent).not.toHaveProperty('email');
-    expect(preferences.channelConsent).not.toHaveProperty('carrier messaging');
+    expect(preferences.channelConsent).not.toHaveProperty('retiredDelivery');
     expect(preferences).not.toHaveProperty('email');
     expect(preferences).not.toHaveProperty('phoneE164');
   });
@@ -657,10 +657,10 @@ describe('garden domain validation', () => {
     expect(
       parseNotificationLog({
         body: 'Legacy delivery alert.',
-        channel: 'carrier messaging',
+        channel: 'retiredDelivery',
         createdAtIso: '2026-06-21T11:00:00.000Z',
         dryRun: true,
-        id: 'carrier messaging-log',
+        id: 'retired-delivery-log',
         messageSummary: 'Legacy delivery alert',
         provider: 'retiredDeliveryProvider',
         recipientRedacted: '***0123',

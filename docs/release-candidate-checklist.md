@@ -25,7 +25,7 @@ for one real home food garden:
 | Today                | Ready for mock-mode demo | One-tap watering/task/stage actions, contextual harvest photo follow-up, compact field cards, and task cross-links are covered by unit and browser smoke.          | Water skip/dismiss/custom amount controls are not implemented.                                      |
 | Feed                 | Ready for mock-mode demo | One **New entry** launcher, explicit composer modes, image-led private memory cards, offline text save copy, and photo caveats are covered by browser smoke.       | Offline photo binaries are not durably queued.                                                      |
 | Review and optimizer | Ready for mock-mode demo | Generated layouts open a visual walkthrough, proposal diffs show material changes, physical moves require preview, and publish summarizes accepted decisions.      | Optimizer remains conservative and source-bound; it is not agronomic advice.                        |
-| Demo controls        | Ready for mock-mode demo | Shell and Settings expose enter, reset, and exit controls; reset restores the Detroit baseline and exit restores the saved real draft.                           | Firebase-emulator stale nested document cleanup still needs broader coverage.                       |
+| Demo controls        | Ready for mock-mode demo | Shell and Settings expose enter, reset, and exit controls; reset restores the Detroit baseline and exit restores the saved real draft.                             | Firebase-emulator stale nested document cleanup still needs broader coverage.                       |
 | Notifications        | Ready for mock-mode demo | Settings and shell describe in-app history, push, local/native reminders, quiet hours, and delivery reasons only.                                                  | Live FCM delivery still needs production smoke.                                                     |
 | PWA/native media     | Ready with caveats       | Browser picker/native-camera copy, previews, and offline media limitations are explicit.                                                                           | Native camera and local notification behavior still need device smoke after platform config.        |
 
@@ -105,7 +105,7 @@ Required before live tester release:
 - Offline photo upload is intentionally honest rather than queued.
 - Live Firebase, FCM, Storage, and weather-provider behavior are not proven by
   mock-mode Playwright alone.
-- Real-device touch QA remains the biggest release-demo risk because the Plan
+- Real-device touch QA remains the biggest browser-demo risk because the Plan
   redesign is interaction-heavy.
 - The offline crop catalog remains a large intentional route chunk protected by
   the bundle budget.
@@ -114,8 +114,8 @@ Required before live tester release:
 
 ## Go / No-Go
 
-Go for a mock-mode release demo after the automated gate passes and the manual
-demo rehearsal completes once on desktop and mobile browser sizes.
+Go for a mock-mode browser demo after the automated gate passes and the manual
+rehearsal completes once on desktop and mobile browser sizes.
 
 No-go for production tester launch until live Firebase setup, FCM delivery,
 Storage upload, weather refresh, and real-device touch QA are complete.

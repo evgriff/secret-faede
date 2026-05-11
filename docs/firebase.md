@@ -308,7 +308,7 @@ Firebase Functions:
 
 Carrier messaging:
 
-- Removed from product scope for the current product overhaul.
+- Removed from current product scope.
 - Do not add setup steps, demo paths, phone-number seed values, dry-run flags,
   provider secrets, webhooks, or new tests for carrier delivery behavior.
 
@@ -331,7 +331,7 @@ user passwords are not overwritten unless `-- --reset-passwords` is passed. Use
 
 `npm run seed:dev`
 
-The seed script creates an Detroit demo profile and garden for an existing
+The seed script creates a Detroit demo profile and garden for an existing
 Firebase Auth user. It does not create Auth users.
 
 User selection:
@@ -342,8 +342,8 @@ User selection:
 
 Seeded data:
 
-- `users/{uid}` with an Detroit climate profile and notification preferences
-- `gardens/{uid}` with an Detroit plot location and orientation
+- `users/{uid}` with a Detroit climate profile and notification preferences
+- `gardens/{uid}` with a Detroit plot location and orientation
 - one raised bed, one trellis, and one pathway under `structures`
 - sample tomato, radish, and pole bean plantings under `plantings`
 - sample weather, watering, tasks, journal, harvest, and notification records

@@ -51,9 +51,9 @@ const firebaseEnvironment: AppEnvironment = {
   firebaseConfig: {
     apiKey: 'api-key',
     appId: 'app-id',
-    authDomain: 'your-project-id.firebaseapp.com',
+    authDomain: 'example-garden-app.firebaseapp.com',
     messagingSenderId: 'sender-id',
-    projectId: 'secret-faeries',
+    projectId: 'example-garden-app',
     storageBucket: 'example-garden-app.appspot.com',
   },
   firestoreEmulatorPort: 8080,
@@ -104,7 +104,7 @@ describe('FirebaseNotificationService integration seam', () => {
       messagingVapidKey: null,
     });
 
-    await expect(service.registerWebPush('uid-evan')).resolves.toEqual({
+    await expect(service.registerWebPush('uid-primary')).resolves.toEqual({
       message: 'Web push needs Firebase messaging config and a VAPID key.',
       status: 'unavailable',
       tokenRegisteredAtIso: null,
@@ -115,7 +115,7 @@ describe('FirebaseNotificationService integration seam', () => {
   it('registers a web FCM token under the user pushTokens collection', async () => {
     const service = new FirebaseNotificationService(firebaseEnvironment);
 
-    const result = await service.registerWebPush('uid-evan');
+    const result = await service.registerWebPush('uid-primary');
 
     expect(result).toMatchObject({
       message: 'Web push is enabled for this browser.',
@@ -134,14 +134,14 @@ describe('FirebaseNotificationService integration seam', () => {
     expect(doc).toHaveBeenCalledWith(
       mocks.firestoreClient,
       'users',
-      'uid-evan',
+      'uid-primary',
       'pushTokens',
       expect.stringMatching(/^[a-f0-9]{64}$/),
     );
     expect(setDoc).toHaveBeenCalledWith(
       expect.objectContaining({
         path: expect.stringMatching(
-          /^users\/uid-evan\/pushTokens\/[a-f0-9]{64}$/,
+          /^users\/uid-primary\/pushTokens\/[a-f0-9]{64}$/,
         ),
       }),
       expect.objectContaining({

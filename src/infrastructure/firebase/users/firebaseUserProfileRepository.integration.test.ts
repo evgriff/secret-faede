@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 import {
-  annArborClimateProfile,
+  detroitClimateProfile,
   defaultNotificationPreference,
   type UserProfile,
 } from '../../../domain/gardens/GardenRepository';
@@ -81,7 +81,7 @@ describe('FirebaseUserProfileRepository integration seam', () => {
             ...defaultNotificationPreference.channels,
             email: true,
             push: true,
-            carrier messaging: true,
+            retiredDelivery: true,
           },
           email: 'alerts@example.com',
           phoneE164: '+17345550123',
@@ -95,16 +95,16 @@ describe('FirebaseUserProfileRepository integration seam', () => {
   it('loads notification preferences from the user Firestore document', async () => {
     const repository = new FirebaseUserProfileRepository(environment);
     const profile = await repository.getUserProfile(
-      'uid-evan',
+      'uid-primary',
       'fallback@example.com',
     );
 
     expect(doc).toHaveBeenCalledWith(
       mocks.firestoreClient,
       'users',
-      'uid-evan',
+      'uid-primary',
     );
-    expect(getDoc).toHaveBeenCalledWith({ path: 'users/uid-evan' });
+    expect(getDoc).toHaveBeenCalledWith({ path: 'users/uid-primary' });
     expect(profile).toMatchObject({
       defaultGardenId: 'garden-a',
       displayName: 'Primary Gardener',
@@ -112,12 +112,14 @@ describe('FirebaseUserProfileRepository integration seam', () => {
       notificationPreference: {
         channels: expect.objectContaining({ push: true }),
       },
-      uid: 'uid-evan',
+      uid: 'uid-primary',
     });
     expect(profile?.notificationPreference.channels).not.toHaveProperty(
       'email',
     );
-    expect(profile?.notificationPreference.channels).not.toHaveProperty('carrier messaging');
+    expect(profile?.notificationPreference.channels).not.toHaveProperty(
+      'retiredDelivery',
+    );
     expect(profile?.notificationPreference.channelConsent).not.toHaveProperty(
       'email',
     );
@@ -128,9 +130,9 @@ describe('FirebaseUserProfileRepository integration seam', () => {
     const repository = new FirebaseUserProfileRepository(environment);
     const profile: UserProfile = {
       alertLocationQuery: 'Detroit, MI',
-      climateProfile: annArborClimateProfile,
+      climateProfile: detroitClimateProfile,
       createdAtIso: '2026-04-20T12:00:00.000Z',
-      defaultGardenId: 'uid-emma',
+      defaultGardenId: 'uid-partner',
       displayName: 'Partner Gardener',
       email: 'partner.gardener@example.com',
       notificationPreference: {
@@ -141,20 +143,20 @@ describe('FirebaseUserProfileRepository integration seam', () => {
         },
       },
       timezone: 'America/Detroit',
-      uid: 'uid-emma',
+      uid: 'uid-partner',
       updatedAtIso: null,
     };
 
     await repository.saveUserProfile(profile);
 
     expect(setDoc).toHaveBeenCalledWith(
-      { path: 'users/uid-emma' },
+      { path: 'users/uid-partner' },
       expect.objectContaining({
         displayName: 'Partner Gardener',
         notificationPreference: expect.objectContaining({
           channels: expect.objectContaining({ push: true }),
         }),
-        uid: 'uid-emma',
+        uid: 'uid-partner',
         updatedAt: 'SERVER_TIMESTAMP',
         updatedAtIso: expect.any(String),
       }),

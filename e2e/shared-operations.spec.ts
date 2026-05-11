@@ -2,53 +2,53 @@ import { expect, test, type Page } from '@playwright/test';
 
 test('Feed issues sync live between Primary Gardener and Partner Gardener with author labels', async ({
   context,
-  page: evanPage,
+  page: primaryPage,
 }) => {
-  await evanPage.setViewportSize({ width: 1365, height: 768 });
-  await signInWithSessionOnly(evanPage, 'primary.gardener@example.com', {
+  await primaryPage.setViewportSize({ width: 1365, height: 768 });
+  await signInWithSessionOnly(primaryPage, 'primary.gardener@example.com', {
     clearAllStorage: true,
   });
-  await evanPage.getByRole('link', { name: 'Feed' }).click();
+  await primaryPage.getByRole('link', { name: 'Feed' }).click();
   await expect(
-    evanPage.getByRole('heading', { exact: true, name: 'Feed' }),
+    primaryPage.getByRole('heading', { exact: true, name: 'Feed' }),
   ).toBeVisible();
 
-  const emmaPage = await context.newPage();
+  const partnerPage = await context.newPage();
 
-  await emmaPage.setViewportSize({ width: 1365, height: 768 });
-  await signInWithSessionOnly(emmaPage, 'partner.gardener@example.com');
-  await emmaPage.getByRole('link', { name: 'Feed' }).click();
-  await emmaPage.getByRole('button', { name: 'New entry' }).click();
+  await partnerPage.setViewportSize({ width: 1365, height: 768 });
+  await signInWithSessionOnly(partnerPage, 'partner.gardener@example.com');
+  await partnerPage.getByRole('link', { name: 'Feed' }).click();
+  await partnerPage.getByRole('button', { name: 'New entry' }).click();
 
-  const composer = emmaPage.getByRole('dialog', { name: 'New feed entry' });
+  const composer = partnerPage.getByRole('dialog', { name: 'New feed entry' });
 
   await composer
     .getByRole('button', { exact: true, name: 'New issue' })
     .click();
-  await emmaPage.getByLabel('Title').fill('Shared slug issue');
-  await emmaPage
+  await partnerPage.getByLabel('Title').fill('Shared slug issue');
+  await partnerPage
     .getByLabel('Notes')
     .fill('Partner Gardener saw slug pressure under the lettuce leaves.');
   await composer.getByRole('button', { name: 'Create issue task' }).click();
   await expect(composer).toHaveCount(0);
 
-  const evanIssue = evanPage
+  const primaryIssue = primaryPage
     .locator('article[id^="feed-journal-"]')
     .filter({ hasText: 'Shared slug issue' })
     .first();
 
-  await expect(evanIssue).toBeVisible();
-  await expect(evanIssue).toContainText('Partner Gardener');
-  await evanIssue.getByRole('button', { name: 'Resolved' }).click();
+  await expect(primaryIssue).toBeVisible();
+  await expect(primaryIssue).toContainText('Partner Gardener');
+  await primaryIssue.getByRole('button', { name: 'Resolved' }).click();
 
-  const emmaIssue = emmaPage
+  const partnerIssue = partnerPage
     .locator('article[id^="feed-journal-"]')
     .filter({ hasText: 'Shared slug issue' })
     .first();
 
-  await expect(emmaIssue).toContainText('Resolved');
+  await expect(partnerIssue).toContainText('Resolved');
   await expect(
-    emmaIssue.getByRole('button', { name: 'Resolved' }),
+    partnerIssue.getByRole('button', { name: 'Resolved' }),
   ).toHaveAttribute('aria-pressed', 'true');
 });
 

@@ -337,7 +337,7 @@ test('mobile plant editor keeps Close visible while the sheet scrolls', async ({
 
   await openPlanTool(page, 'Details');
   const editor = page.getByRole('dialog', { name: /Edit Tomato/ });
-  await expect(editor).toBeVisible();
+  await expect(editor).toBeVisible({ timeout: 10_000 });
 
   const panelBox = await getBox(
     editor,

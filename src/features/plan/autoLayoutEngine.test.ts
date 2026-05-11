@@ -1,6 +1,6 @@
 import { getCropById } from '../../domain/crops/cropCatalog';
 import {
-  annArborClimateProfile,
+  detroitClimateProfile,
   createDefaultGarden,
   createDefaultPlanting,
   type Garden,
@@ -365,7 +365,7 @@ describe('auto layout engine', () => {
     const garden = {
       ...createDefaultGarden('user-a'),
       climateProfile: {
-        ...annArborClimateProfile,
+        ...detroitClimateProfile,
         source: 'user' as const,
       },
       plantings: [

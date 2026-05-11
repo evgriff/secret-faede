@@ -8,12 +8,12 @@ import {
 
 describe('sharedOperations', () => {
   it('adds durable actor metadata to new Feed entries', () => {
-    const baseGarden = createDefaultGarden('user-evan');
+    const baseGarden = createDefaultGarden('user-primary');
     const entry: JournalEntry = {
       body: 'Slug damage on lettuce.',
       createdAtIso: '2026-07-01T12:00:00.000Z',
-      gardenId: 'user-emma',
-      id: 'issue-emma',
+      gardenId: 'user-partner',
+      id: 'issue-partner',
       issueCategory: 'pest',
       issueSeverity: 'medium',
       issueStatus: 'open',
@@ -32,7 +32,7 @@ describe('sharedOperations', () => {
       actor: {
         displayName: 'Partner Gardener',
         email: 'partner.gardener@example.com',
-        userId: 'user-emma',
+        userId: 'user-partner',
       },
       baseGarden,
       updatedGarden: {
@@ -44,17 +44,17 @@ describe('sharedOperations', () => {
     expect(updatedGarden.journalEntries[0]).toMatchObject({
       createdByDisplayName: 'Partner Gardener',
       createdByEmail: 'partner.gardener@example.com',
-      createdByUserId: 'user-emma',
+      createdByUserId: 'user-partner',
     });
   });
 
   it('keeps operation patches from deleting unseen newer shared entries', () => {
-    const baseGarden = createDefaultGarden('user-evan');
-    const emmaEntry = {
+    const baseGarden = createDefaultGarden('user-primary');
+    const partnerEntry = {
       body: 'Partner Gardener issue',
       createdAtIso: '2026-07-01T12:00:00.000Z',
-      gardenId: 'user-emma',
-      id: 'issue-emma',
+      gardenId: 'user-partner',
+      id: 'issue-partner',
       issueCategory: 'pest' as const,
       issueSeverity: 'medium' as const,
       issueStatus: 'open' as const,
@@ -68,10 +68,10 @@ describe('sharedOperations', () => {
       type: 'issue' as const,
       weatherSnapshotId: null,
     };
-    const evanEntry = {
-      ...emmaEntry,
+    const primaryEntry = {
+      ...partnerEntry,
       body: 'Primary Gardener issue',
-      id: 'issue-evan',
+      id: 'issue-primary',
       title: 'Primary Gardener issue',
     };
 
@@ -79,17 +79,17 @@ describe('sharedOperations', () => {
       base: getSharedGardenOperations(baseGarden),
       current: getSharedGardenOperations({
         ...baseGarden,
-        journalEntries: [emmaEntry],
+        journalEntries: [partnerEntry],
       }),
       updated: getSharedGardenOperations({
         ...baseGarden,
-        journalEntries: [evanEntry],
+        journalEntries: [primaryEntry],
       }),
     });
 
     expect(nextOperations.journalEntries.map((entry) => entry.id)).toEqual([
-      'issue-emma',
-      'issue-evan',
+      'issue-partner',
+      'issue-primary',
     ]);
   });
 });

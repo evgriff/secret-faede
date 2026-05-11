@@ -19,7 +19,7 @@ if (!seedEmail) {
   );
 }
 
-const annArborLocation = {
+const detroitLocation = {
   latitude: 42.3314,
   locationName: 'Detroit, MI',
   locationQuery: process.env.DEFAULT_ALERT_LOCATION_QUERY || 'Detroit, MI',
@@ -27,7 +27,7 @@ const annArborLocation = {
   timezone: process.env.DEFAULT_ALERT_TIMEZONE || 'America/Detroit',
 };
 
-const annArborClimateProfile = {
+const detroitClimateProfile = {
   averageFirstFrost: '10-05',
   averageLastFrost: '05-10',
   editableByUser: true,
@@ -84,8 +84,8 @@ async function main() {
 
 function createSeedDocuments(uid, email, now) {
   const userProfile = {
-    alertLocationQuery: annArborLocation.locationQuery,
-    climateProfile: annArborClimateProfile,
+    alertLocationQuery: detroitLocation.locationQuery,
+    climateProfile: detroitClimateProfile,
     createdAtIso: now,
     defaultGardenId: uid,
     displayName: 'Demo gardener',
@@ -118,21 +118,21 @@ function createSeedDocuments(uid, email, now) {
         endLocalTime: '07:00',
         startLocalTime: '21:00',
       },
-      timezone: annArborLocation.timezone,
+      timezone: detroitLocation.timezone,
       wateringAlertThresholdIn: 0.25,
     },
-    timezone: annArborLocation.timezone,
+    timezone: detroitLocation.timezone,
     uid,
     updatedAtIso: now,
   };
   const garden = {
-    climateProfile: annArborClimateProfile,
+    climateProfile: detroitClimateProfile,
     id: uid,
     name: 'Sample Kitchen Garden',
     plot: {
       depthFt: 16,
       gridUnitFt: 1,
-      location: annArborLocation,
+      location: detroitLocation,
       orientationDegrees: 0,
       snapUnitFt: 0.25,
       widthFt: 20,

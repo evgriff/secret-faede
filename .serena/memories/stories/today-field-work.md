@@ -17,6 +17,7 @@ Success criteria:
 - field actions are fast: water done, task done, issue, note/photo, and harvest logging
 - empty or quiet days collapse secondary panels instead of becoming dashboards
 - alerts should bring the user back to Today or the relevant route, not create a separate dashboard
+- public sample task timing is anchored to the generic Detroit climate baseline, so generated sow, harden-off, plant-out, seedling, and thinning dates should be validated against the Detroit frost dates
 
 Implementation ownership:
 
@@ -36,4 +37,4 @@ Primary local sources:
 - `docs/architecture.md`
 - `docs/demo-script.md`
 - `docs/manual-qa-checklist.md`
-- `docs/architecture.md`
+- `README.md`

@@ -30,7 +30,7 @@ Primary local sources:
 - `AGENTS.md`
 - `codex.md`
 - `docs/architecture.md`
-- `docs/architecture.md`
+- `docs/firebase.md`
 - `docs/demo-script.md`
 - `docs/manual-qa-checklist.md`
 - `README.md`

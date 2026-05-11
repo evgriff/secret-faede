@@ -74,7 +74,7 @@ and sign back in.
 
 ## Demo Seed
 
-For release demos, mock mode is still the fastest path:
+For local demos, mock mode is still the fastest path:
 
 ```bash
 npm run dev

@@ -19,7 +19,7 @@ Hard boundaries:
 - keep PWA-first behavior; native support is additive
 - `npm run quality:serena` requires this memory to move with product guardrail
   docs such as `AGENTS.md`, `codex.md`, `README.md`, `docs/architecture.md`,
-  `docs/architecture.md`, and `docs/release-simplification-backlog.md`
+  and `docs/firebase.md`
 
 Non-goals:
 
@@ -36,5 +36,6 @@ Primary local sources:
 
 - `AGENTS.md`
 - `codex.md`
+- `README.md`
 - `docs/architecture.md`
-- `docs/release-simplification-backlog.md`
+- `docs/firebase.md`

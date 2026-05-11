@@ -1,8 +1,8 @@
 import { useMemo, useState, type FormEvent } from 'react';
 
 import {
-  annArborClimateProfile,
-  annArborLocation,
+  detroitClimateProfile,
+  detroitLocation,
   type Garden,
 } from '../../../domain/gardens/GardenRepository';
 import {
@@ -33,22 +33,22 @@ export function FirstRunSetupWizard({
 }) {
   const [gardenName, setGardenName] = useState(garden.name);
   const [locationName, setLocationName] = useState(
-    garden.plot.location.locationName || annArborLocation.locationName,
+    garden.plot.location.locationName || detroitLocation.locationName,
   );
   const [locationQuery, setLocationQuery] = useState(
-    garden.plot.location.locationQuery || annArborLocation.locationQuery,
+    garden.plot.location.locationQuery || detroitLocation.locationQuery,
   );
   const [timezone, setTimezone] = useState(
-    garden.plot.location.timezone || annArborLocation.timezone,
+    garden.plot.location.timezone || detroitLocation.timezone,
   );
   const [latitude, setLatitude] = useState(
     coordinateToString(
-      garden.plot.location.latitude ?? annArborLocation.latitude,
+      garden.plot.location.latitude ?? detroitLocation.latitude,
     ),
   );
   const [longitude, setLongitude] = useState(
     coordinateToString(
-      garden.plot.location.longitude ?? annArborLocation.longitude,
+      garden.plot.location.longitude ?? detroitLocation.longitude,
     ),
   );
   const [plotType, setPlotType] = useState<GardenSetupPlotType>('raisedBed');
@@ -56,15 +56,15 @@ export function FirstRunSetupWizard({
   const [plotDepthFt, setPlotDepthFt] = useState(String(garden.plot.depthFt));
   const [templateId, setTemplateId] = useState('small-raised-bed');
   const [hardinessZone, setHardinessZone] = useState(
-    garden.climateProfile.hardinessZone || annArborClimateProfile.hardinessZone,
+    garden.climateProfile.hardinessZone || detroitClimateProfile.hardinessZone,
   );
   const [averageLastFrost, setAverageLastFrost] = useState(
     garden.climateProfile.averageLastFrost ||
-      annArborClimateProfile.averageLastFrost,
+      detroitClimateProfile.averageLastFrost,
   );
   const [averageFirstFrost, setAverageFirstFrost] = useState(
     garden.climateProfile.averageFirstFrost ||
-      annArborClimateProfile.averageFirstFrost,
+      detroitClimateProfile.averageFirstFrost,
   );
   const climateEstimate = useMemo(
     () =>
@@ -209,9 +209,9 @@ export function FirstRunSetupWizard({
           <summary>
             <span>Optional location and climate</span>
             <small>
-              Using {locationName || annArborLocation.locationName}, zone{' '}
-              {hardinessZone || annArborClimateProfile.hardinessZone}; refine
-              now or later in Settings.
+              Using {locationName || detroitLocation.locationName}, zone{' '}
+              {hardinessZone || detroitClimateProfile.hardinessZone}; refine now
+              or later in Settings.
             </small>
           </summary>
           <div className={styles.optionalGrid}>

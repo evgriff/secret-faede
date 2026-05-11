@@ -19,7 +19,10 @@ import type {
 } from '../domain/weather/WeatherProvider';
 
 const testEnvironment: AppEnvironment = {
-  allowedEmails: ['primary.gardener@example.com', 'partner.gardener@example.com'],
+  allowedEmails: [
+    'primary.gardener@example.com',
+    'partner.gardener@example.com',
+  ],
   allowlistError: null,
   authEmulatorPort: 9099,
   emulatorHost: '127.0.0.1',

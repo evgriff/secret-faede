@@ -109,7 +109,7 @@ export interface PlantLocationContext {
     coolSpring: MonthDayRange;
     warmSeason: MonthDayRange;
   };
-  source: 'annArborDefault' | 'gardenProfile';
+  source: 'detroitDefault' | 'gardenProfile';
 }
 
 export interface PlantLocationMatch {

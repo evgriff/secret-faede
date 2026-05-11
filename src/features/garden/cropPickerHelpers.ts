@@ -302,7 +302,7 @@ export function formatLocationSource(
     concise?: boolean;
   } = {},
 ) {
-  if (suitability.locationContext.source === 'annArborDefault') {
+  if (suitability.locationContext.source === 'detroitDefault') {
     return options.concise
       ? 'Using Detroit default'
       : `Using ${suitability.locationContext.regionName} as the current default`;

@@ -201,7 +201,7 @@ generated tasks only when they are not snoozed or deferred.
 
 ### Carrier Messaging
 
-Carrier messaging is outside the current product product scope. Push, local native
+Carrier messaging is outside the current product scope. Push, local native
 reminders, and in-app logs are the supported notification paths. Do not add
 carrier setup, product copy, demo scripts, or prompt-chain work that depends on
 phone-number delivery. Legacy provider-specific Functions, env, seed, Settings,

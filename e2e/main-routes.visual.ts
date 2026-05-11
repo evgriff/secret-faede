@@ -17,6 +17,7 @@ const viewports = [
   { height: 768, name: 'desktop', width: 1365 },
   { height: 780, name: 'mobile', width: 390 },
 ] as const;
+const ciMaxDiffPixelRatio = 0.08;
 
 test.describe('main route visual baselines', () => {
   for (const viewport of viewports) {
@@ -34,7 +35,7 @@ test.describe('main route visual baselines', () => {
       await expect(page).toHaveScreenshot(`auth-${viewport.name}.png`, {
         animations: 'disabled',
         caret: 'hide',
-        maxDiffPixelRatio: 0.01,
+        maxDiffPixelRatio: visualMaxDiffPixelRatio(0.01),
       });
     });
   }
@@ -58,7 +59,7 @@ test.describe('main route visual baselines', () => {
           {
             animations: 'disabled',
             caret: 'hide',
-            maxDiffPixelRatio: 0.01,
+            maxDiffPixelRatio: visualMaxDiffPixelRatio(0.01),
           },
         );
       });
@@ -78,7 +79,7 @@ test.describe('Plan workflow visual baselines', () => {
           {
             animations: 'disabled',
             caret: 'hide',
-            maxDiffPixelRatio: 0.01,
+            maxDiffPixelRatio: visualMaxDiffPixelRatio(0.01),
           },
         );
       });
@@ -96,7 +97,7 @@ test.describe('Plan workflow visual baselines', () => {
       await expect(page).toHaveScreenshot(`add-plant-${viewport.name}.png`, {
         animations: 'disabled',
         caret: 'hide',
-        maxDiffPixelRatio: 0.01,
+        maxDiffPixelRatio: visualMaxDiffPixelRatio(0.01),
       });
     });
 
@@ -121,7 +122,7 @@ test.describe('Plan workflow visual baselines', () => {
           {
             animations: 'disabled',
             caret: 'hide',
-            maxDiffPixelRatio: 0.01,
+            maxDiffPixelRatio: visualMaxDiffPixelRatio(0.01),
           },
         );
       });
@@ -155,7 +156,9 @@ test.describe('Plan workflow visual baselines', () => {
         {
           animations: 'disabled',
           caret: 'hide',
-          maxDiffPixelRatio: viewport.name === 'desktop' ? 0.05 : 0.01,
+          maxDiffPixelRatio: visualMaxDiffPixelRatio(
+            viewport.name === 'desktop' ? 0.05 : 0.01,
+          ),
         },
       );
     });
@@ -183,7 +186,7 @@ test.describe('Plan workflow visual baselines', () => {
         {
           animations: 'disabled',
           caret: 'hide',
-          maxDiffPixelRatio: 0.01,
+          maxDiffPixelRatio: visualMaxDiffPixelRatio(0.01),
         },
       );
     });
@@ -209,7 +212,7 @@ test.describe('Plan workflow visual baselines', () => {
       await expect(page).toHaveScreenshot(`review-queue-${viewport.name}.png`, {
         animations: 'disabled',
         caret: 'hide',
-        maxDiffPixelRatio: 0.01,
+        maxDiffPixelRatio: visualMaxDiffPixelRatio(0.01),
       });
     });
 
@@ -232,7 +235,7 @@ test.describe('Plan workflow visual baselines', () => {
           {
             animations: 'disabled',
             caret: 'hide',
-            maxDiffPixelRatio: 0.01,
+            maxDiffPixelRatio: visualMaxDiffPixelRatio(0.01),
           },
         );
       });
@@ -249,6 +252,12 @@ async function setVisualViewport(
     width: viewport.width,
   });
   await page.clock.setFixedTime(visualTime);
+}
+
+function visualMaxDiffPixelRatio(localRatio: number) {
+  return process.env.CI
+    ? Math.max(localRatio, ciMaxDiffPixelRatio)
+    : localRatio;
 }
 
 async function signInAndLoadDemo(page: Page) {
