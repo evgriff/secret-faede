@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   browserLocalPersistence,
   browserSessionPersistence,
+  getIdTokenResult,
   sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
@@ -23,6 +24,7 @@ const mocks = vi.hoisted(() => {
   return {
     authClient,
     getFirebaseAuthClient: vi.fn(() => authClient),
+    getIdTokenResult: vi.fn(),
     onAuthStateChanged: vi.fn(),
     sendPasswordResetEmail: vi.fn(),
     setPersistence: vi.fn(() => Promise.resolve()),
@@ -38,6 +40,7 @@ vi.mock('../app', () => ({
 vi.mock('firebase/auth', () => ({
   browserLocalPersistence: { type: 'LOCAL' },
   browserSessionPersistence: { type: 'SESSION' },
+  getIdTokenResult: mocks.getIdTokenResult,
   onAuthStateChanged: mocks.onAuthStateChanged,
   sendPasswordResetEmail: mocks.sendPasswordResetEmail,
   setPersistence: mocks.setPersistence,
@@ -88,6 +91,12 @@ describe('FirebaseAuthService integration seam', () => {
         uid: 'uid-primary',
       },
     });
+    mocks.getIdTokenResult.mockResolvedValue({
+      claims: {
+        gardenAccess: true,
+        secretFaeriesMember: true,
+      },
+    });
   });
 
   it('signs in with email/password using the requested persistence mode', async () => {
@@ -114,11 +123,43 @@ describe('FirebaseAuthService integration seam', () => {
       'primary.gardener@example.com',
       'temporary-password',
     );
+    expect(getIdTokenResult).toHaveBeenCalledWith(
+      {
+        displayName: 'Primary Gardener',
+        email: 'primary.gardener@example.com',
+        uid: 'uid-primary',
+      },
+      true,
+    );
     expect(user).toEqual({
+      accessClaims: {
+        gardenAccess: true,
+        secretFaeriesMember: true,
+      },
       displayName: 'Primary Gardener',
       email: 'primary.gardener@example.com',
       provider: 'firebase',
       uid: 'uid-primary',
+    });
+  });
+
+  it('returns false access claims when Firebase membership claims are missing', async () => {
+    mocks.getIdTokenResult.mockResolvedValueOnce({
+      claims: {
+        gardenAccess: true,
+      },
+    });
+    const service = new FirebaseAuthService(environment);
+
+    const user = await service.signInWithPassword({
+      email: 'primary.gardener@example.com',
+      password: 'temporary-password',
+      rememberDevice: true,
+    });
+
+    expect(user.accessClaims).toEqual({
+      gardenAccess: true,
+      secretFaeriesMember: false,
     });
   });
 

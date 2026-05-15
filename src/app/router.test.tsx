@@ -381,6 +381,28 @@ describe('app routing', () => {
     ).toBeVisible();
   });
 
+  it('redirects Firebase users without membership claims to access denied', async () => {
+    const services = await createTestServices({
+      accessClaims: {
+        gardenAccess: true,
+        secretFaeriesMember: false,
+      },
+      environment: {
+        requestedMode: 'firebase',
+        runtimeMode: 'firebase',
+      },
+      signedInEmail: 'primary.gardener@example.com',
+    });
+
+    renderRoute('/', services);
+
+    expect(
+      await screen.findByRole('heading', {
+        name: 'This email address is not authorized.',
+      }),
+    ).toBeVisible();
+  });
+
   it('disables restore when sample mode has no saved-garden backup', async () => {
     const services = await createTestServices({
       signedInEmail: 'primary.gardener@example.com',

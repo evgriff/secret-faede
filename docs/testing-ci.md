@@ -84,8 +84,10 @@ Bundle analysis output:
 
 - runs on pushes to `main`
 - builds with Firebase runtime only
-- requires explicit `VITE_*` repository variables
+- requires explicit `VITE_*` repository variables and secure production
+  `APP_LOGIN_*` access secrets
 - runs `npm run ci`
+- syncs Firebase Auth access claims
 - deploys Firestore rules/indexes, Storage rules, and Functions
 - deploys live Hosting only after backend deployment succeeds
 
@@ -98,7 +100,6 @@ GitHub secrets:
 
 GitHub repository variables for live builds:
 
-- `VITE_ALLOWED_EMAILS`
 - `VITE_FIREBASE_API_KEY`
 - `VITE_FIREBASE_APP_ID`
 - `VITE_FIREBASE_AUTH_DOMAIN`
@@ -106,6 +107,11 @@ GitHub repository variables for live builds:
 - `VITE_FIREBASE_PROJECT_ID`
 - `VITE_FIREBASE_STORAGE_BUCKET`
 - `VITE_FIREBASE_MESSAGING_VAPID_KEY`
+
+GitHub production environment secrets for live access sync:
+
+- `APP_LOGIN_PRIMARY_EMAIL`
+- `APP_LOGIN_PARTNER_EMAIL`
 
 ## Intentionally Deferred
 

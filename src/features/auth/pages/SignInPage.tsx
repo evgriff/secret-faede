@@ -17,6 +17,7 @@ export function SignInPage() {
   const navigate = useNavigate();
   const { environment } = useServices();
   const { sendPasswordReset, signInWithPassword, state } = useAuth();
+  const usesClientAllowlist = environment.runtimeMode === 'mock';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberDevice, setRememberDevice] = useState(true);
@@ -109,7 +110,7 @@ export function SignInPage() {
   }
 
   function canAttemptAuth(normalizedEmail: string) {
-    if (environment.allowlistError) {
+    if (usesClientAllowlist && environment.allowlistError) {
       setError(environment.allowlistError);
       return false;
     }
@@ -119,7 +120,10 @@ export function SignInPage() {
       return false;
     }
 
-    if (!isEmailAllowed(environment.allowedEmails, normalizedEmail)) {
+    if (
+      usesClientAllowlist &&
+      !isEmailAllowed(environment.allowedEmails, normalizedEmail)
+    ) {
       setError('This email is not allowed for Secret Faeries.');
       return false;
     }
@@ -137,7 +141,7 @@ export function SignInPage() {
           you can get back to the garden quickly.
         </p>
 
-        {environment.allowlistError ? (
+        {usesClientAllowlist && environment.allowlistError ? (
           <p className={styles.error} role="alert">
             {environment.allowlistError}
           </p>
@@ -227,7 +231,10 @@ export function SignInPage() {
 
           <button
             className={styles.primaryButton}
-            disabled={Boolean(environment.allowlistError) || isSubmitting}
+            disabled={
+              (usesClientAllowlist && Boolean(environment.allowlistError)) ||
+              isSubmitting
+            }
             type="submit"
           >
             {isSubmitting ? 'Signing in...' : 'Sign in'}
@@ -235,7 +242,10 @@ export function SignInPage() {
 
           <button
             className={styles.resetButton}
-            disabled={Boolean(environment.allowlistError) || isResetting}
+            disabled={
+              (usesClientAllowlist && Boolean(environment.allowlistError)) ||
+              isResetting
+            }
             onClick={() => void handlePasswordReset()}
             type="button"
           >

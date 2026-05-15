@@ -12,7 +12,6 @@ Functions, FCM web/native push, and optional Capacitor shells.
 - Run `npm ci` and `npm --prefix functions ci` after dependency changes.
 - Keep all private values out of browser env and source files.
 - Confirm live build repository variables:
-  - `VITE_ALLOWED_EMAILS`
   - `VITE_APP_RUNTIME=firebase`
   - `VITE_ENABLE_PWA=true`
   - `VITE_FIREBASE_API_KEY`
@@ -22,6 +21,9 @@ Functions, FCM web/native push, and optional Capacitor shells.
   - `VITE_FIREBASE_PROJECT_ID`
   - `VITE_FIREBASE_STORAGE_BUCKET`
   - `VITE_FIREBASE_MESSAGING_VAPID_KEY`
+- Confirm live production secrets:
+  - `APP_LOGIN_PRIMARY_EMAIL`
+  - `APP_LOGIN_PARTNER_EMAIL`
 - Run `npm run ci`. This now includes format, dependency ADR guard,
   oversized-file guard, lint, typecheck, unit, Firebase adapter integration,
   emulator-backed Firestore/Storage rules, Functions build/tests, build, bundle
@@ -41,8 +43,9 @@ Functions, FCM web/native push, and optional Capacitor shells.
    - any preview domain intentionally used with live Firebase
 5. Do not enable or link a public sign-up surface in Secret Faeries.
 
-The client allowlist is a UX gate only. Firestore, Storage, and callable
-Functions require custom claims:
+Mock/local builds use the client allowlist as a UX gate only. Firebase
+production access is controlled by Auth custom claims, and Firestore, Storage,
+and callable Functions require the same claims:
 
 ```json
 {
@@ -71,6 +74,21 @@ The seed creates missing Auth users, sets display names, verifies email, enables
 the accounts, and grants the required claims. Existing passwords are unchanged
 unless `-- --reset-passwords` is passed. After claims change, users must sign out
 and sign back in.
+
+Use the access sync whenever the allowed production account emails change, and
+as part of the live deploy workflow:
+
+```bash
+export FIREBASE_PROJECT_ID=your-project-id
+export APP_LOGIN_PRIMARY_EMAIL=primary.gardener@example.com
+export APP_LOGIN_PARTNER_EMAIL=partner.gardener@example.com
+
+npm run auth:sync-access -- --dry-run
+npm run auth:sync-access
+```
+
+The sync grants the required claims to only those two Auth users and removes the
+managed access claims from any stale Auth users.
 
 ## Demo Seed
 
@@ -172,10 +190,11 @@ export FIREBASE_PROJECT_ID=your-project-id
 npm run deploy:all
 ```
 
-The `Hosting Live` GitHub workflow also runs the full release gate, deploys
+The `Hosting Live` GitHub workflow also runs the full release gate, syncs
+production Auth access claims from secure `APP_LOGIN_*` secrets, deploys
 Firestore rules/indexes, Storage rules, Functions, then deploys Hosting live
-when `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT`, and all required
-`VITE_*` variables are configured.
+when `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT`, all required `VITE_*`
+variables, and the production access secrets are configured.
 
 ## Production Checklist
 

@@ -12,6 +12,8 @@ Product center:
 Hard boundaries:
 
 - preserve password auth for exactly two provisioned accounts
+- keep production membership in secure `APP_LOGIN_*` environment values and
+  Firebase Auth custom claims, not browser `VITE_*` config
 - keep `AuthService` as the auth seam
 - keep `GardenRepository` as the garden persistence seam
 - keep `UserProfileRepository` as the profile and alert preference seam

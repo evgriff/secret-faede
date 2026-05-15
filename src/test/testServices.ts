@@ -8,6 +8,7 @@ import { MockTelemetryService } from '../infrastructure/mock/telemetry/mockTelem
 import { MockUserProfileRepository } from '../infrastructure/mock/users/mockUserProfileRepository';
 import type { AppServices } from '../infrastructure/runtime/services';
 import type { AppEnvironment } from '../shared/config/env';
+import type { AuthAccessClaims } from '../domain/auth/types';
 import type {
   OptionalAgricultureMetrics,
   RecentPrecipitation,
@@ -42,16 +43,19 @@ const testEnvironment: AppEnvironment = {
 };
 
 export async function createTestServices(options?: {
+  accessClaims?: AuthAccessClaims;
   allowedEmails?: string[];
   allowlistError?: string | null;
+  environment?: Partial<AppEnvironment>;
   signedInEmail?: string;
 }): Promise<AppServices> {
-  const authService = new MockAuthService();
   const environment: AppEnvironment = {
     ...testEnvironment,
     allowedEmails: options?.allowedEmails ?? testEnvironment.allowedEmails,
     allowlistError: options?.allowlistError ?? testEnvironment.allowlistError,
+    ...options?.environment,
   };
+  const authService = new MockAuthService(options?.accessClaims);
 
   if (options?.signedInEmail) {
     await authService.signInWithPassword({

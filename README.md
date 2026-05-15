@@ -16,7 +16,8 @@ Included:
   `/app/journal`, and `*`
 - Firebase email/password auth behind `AuthService`, with no public sign-up UI
 - mock runtime and Firebase runtime from one env parser
-- application-level allowlist for exactly two configured email addresses
+- mock/local email allowlist for exactly two configured email addresses
+- Firebase production access controlled by Auth custom claims
 - one shared published garden with one private draft per authenticated user
 - one shared operations stream for Feed and Today activity across both users
 - canvas-first Plan workspace with compact tool launchers, stable overlays, and
@@ -104,7 +105,9 @@ recorded planting events drive the next derived Today tasks and Feed history.
 
 - set `VITE_APP_RUNTIME=firebase`
 - provide all `VITE_FIREBASE_*` values
-- keep `VITE_ALLOWED_EMAILS` set to exactly two distinct email addresses
+- keep production membership emails out of `VITE_*` values
+- grant production access with `npm run auth:sync-access` from secure
+  `APP_LOGIN_PRIMARY_EMAIL` and `APP_LOGIN_PARTNER_EMAIL` environment values
 - shared draft/publish persistence uses Firestore path `gardenWorkspaces/main`
 - legacy `gardens/{uid}` data remains a migration source
 - user profile persistence uses Firestore path `users/{uid}`
@@ -125,6 +128,8 @@ If Firebase mode is requested without complete web config, the app falls back to
 - `npm run emulators`: start Auth, Firestore, Storage, Functions, Hosting, and Emulator UI
 - `npm run setup:firebase:live`: enable Email/Password auth and authorized domains for a live Firebase project
 - `npm run auth:seed-users`: create or update the Primary Gardener and Partner Gardener Firebase Auth users from `APP_LOGIN_*` env
+- `npm run auth:sync-access`: grant production custom claims to the two
+  configured account emails and revoke stale member claims from other Auth users
 - `npm run mobile:sync`: build the PWA bundle and sync it into the Capacitor iOS/Android shells
 - `npm run mobile:ios` / `npm run mobile:android`: open the native shell projects
 - `npm run functions:build`: syntax-check Cloud Functions source
@@ -147,15 +152,14 @@ If Firebase mode is requested without complete web config, the app falls back to
 
 ## Firebase and deployment
 
-The allowlist is an application-level gate. It prevents unauthorized users from
-entering the garden editor after sign-in, and the app exposes no public sign-up
-path. For stronger pre-auth enforcement, upgrade the project to Identity
-Platform and add Auth blocking triggers.
+The mock allowlist is a local UX gate. Production access is controlled by
+Firebase Auth custom claims synced from secure environment values, and the app
+exposes no public sign-up path. For stronger pre-auth enforcement, upgrade the
+project to Identity Platform and add Auth blocking triggers.
 
 Firestore and Storage rules require the signed-in user to own the document path
 and carry the Firebase Auth custom claims `gardenAccess: true` and
-`secretFaeriesMember: true`. The browser allowlist is still a user-facing gate,
-not the data-protection boundary.
+`secretFaeriesMember: true`.
 
 See:
 

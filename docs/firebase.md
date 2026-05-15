@@ -56,10 +56,15 @@ Preview caution:
 Required runtime variables:
 
 ```bash
-VITE_ALLOWED_EMAILS=primary.gardener@example.com,partner.gardener@example.com
 VITE_APP_RUNTIME=mock|firebase
 VITE_ENABLE_PWA=true|false
 VITE_USE_FIREBASE_EMULATORS=true|false
+```
+
+Mock/local email gate:
+
+```bash
+VITE_ALLOWED_EMAILS=primary.gardener@example.com,partner.gardener@example.com
 ```
 
 Firebase web config values for `firebase` runtime:
@@ -87,7 +92,7 @@ Server-side function variables and secrets:
 TOMORROW_API_KEY=...
 ```
 
-Auth seed variables:
+Auth seed and access-sync variables:
 
 ```bash
 APP_LOGIN_PRIMARY_EMAIL=...
@@ -107,6 +112,7 @@ new work.
 - normalized to lowercase and trimmed before comparison
 - duplicates after normalization are invalid
 - invalid allowlist config fails closed with a visible UI error
+- used only for mock/local client gating, not production membership
 
 ## Runtime switching
 
@@ -128,6 +134,9 @@ Firebase live mode:
 - set `VITE_APP_RUNTIME=firebase`
 - set `VITE_USE_FIREBASE_EMULATORS=false`
 - provide all `VITE_FIREBASE_*` values
+- do not set production account membership through `VITE_ALLOWED_EMAILS`
+- grant production access with `npm run auth:sync-access` from secure
+  `APP_LOGIN_PRIMARY_EMAIL` and `APP_LOGIN_PARTNER_EMAIL` values
 - run `npm run dev`
 
 If Firebase mode is requested without complete web config, the app falls back to mock mode and tells the user why.
@@ -329,6 +338,14 @@ accounts, and sets `gardenAccess: true` plus `secretFaeriesMember: true`. Existi
 user passwords are not overwritten unless `-- --reset-passwords` is passed. Use
 `npm run auth:seed-users -- --dry-run` before writing to a live project.
 
+`npm run auth:sync-access`
+
+The auth access sync script reads `APP_LOGIN_PRIMARY_EMAIL` and
+`APP_LOGIN_PARTNER_EMAIL`, grants those two existing Firebase Auth users
+`gardenAccess: true` plus `secretFaeriesMember: true`, and removes those
+managed claims from any other Auth user. Use
+`npm run auth:sync-access -- --dry-run` before writing to a live project.
+
 `npm run seed:dev`
 
 The seed script creates a Detroit demo profile and garden for an existing
@@ -337,8 +354,8 @@ Firebase Auth user. It does not create Auth users.
 User selection:
 
 - `SEED_USER_UID` and `SEED_USER_EMAIL` use an explicit user id and email.
-- otherwise `SEED_USER_EMAIL` or the first `VITE_ALLOWED_EMAILS` entry is looked
-  up in Firebase Auth.
+- otherwise `SEED_USER_EMAIL` or the first mock/local `VITE_ALLOWED_EMAILS`
+  entry is looked up in Firebase Auth.
 
 Seeded data:
 
@@ -386,12 +403,13 @@ Optional:
 
 - set `FIREBASE_AUTH_DOMAINS=example.com,preview.example.com` to append additional domains
 
-## Allowlist limitation
+## Access limitation
 
-The two-email allowlist is enough for the current fallback, but it is not a hard
-pre-auth restriction. The app has no public sign-up UI and the data layer
-requires membership claims, but Firebase Email/Password projects without
-Identity Platform do not provide app-level blocking triggers.
+The mock/local two-email allowlist is not a production access-control boundary.
+The app has no public sign-up UI, Firebase runtime checks membership claims in
+the ID token, and the data layer requires the same claims. Firebase
+Email/Password projects without Identity Platform still do not provide
+pre-auth app-level blocking triggers.
 
 Future hard enforcement option:
 

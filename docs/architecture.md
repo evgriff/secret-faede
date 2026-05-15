@@ -12,7 +12,7 @@ Route map:
 - `/`: redirect based on auth and authorization state
 - `/sign-in`: email/password sign-in for provisioned accounts
 - `/auth/complete`: legacy redirect back to `/sign-in`
-- `/access-denied`: show access-denied handling after allowlist rejection
+- `/access-denied`: show access-denied handling after access rejection
 - `/app`: authenticated shell index; redirects to `/app/plan`
 - `/app/plan`: canvas-first Plan workspace for saved garden editing, optimizer
   walkthroughs, review, publish, and revert
@@ -32,7 +32,7 @@ Route map:
 - parses `VITE_APP_RUNTIME`
 - parses `VITE_USE_FIREBASE_EMULATORS`
 - parses `VITE_ENABLE_PWA`
-- parses `VITE_ALLOWED_EMAILS`
+- parses `VITE_ALLOWED_EMAILS` for mock/local email gating
 - parses Firebase web config
 - falls back from requested Firebase mode to mock mode when web config is incomplete
 
@@ -117,51 +117,57 @@ Route map:
    auth.
 3. Auth persistence defaults to local device persistence and falls back to
    session persistence only when the user disables remember-device.
-4. The auth provider normalizes the signed-in email and compares it against the
-   two-email allowlist from config.
-5. Allowed users enter `/app/plan` inside the authenticated app shell.
-6. Non-allowlisted users are immediately signed out and redirected to `/access-denied`.
-7. `/auth/complete` is a dead legacy URL and redirects to `/sign-in`.
-8. The garden editor loads the shared workspace draft/published state from
+4. In mock mode, the auth provider normalizes the signed-in email and compares
+   it against the two-email allowlist from config.
+5. In Firebase mode, the auth provider checks the signed-in user's ID token for
+   `gardenAccess: true` and `secretFaeriesMember: true`.
+6. Authorized users enter `/app/plan` inside the authenticated app shell.
+7. Rejected users are immediately signed out and redirected to `/access-denied`.
+8. `/auth/complete` is a dead legacy URL and redirects to `/sign-in`.
+9. The garden editor loads the shared workspace draft/published state from
    `gardenWorkspaces/main`, using `gardens/{uid}` only as a legacy migration
    source when needed.
-9. If the user has no saved garden or only an empty demo-default profile, Plan
-   shows a slim first-run setup for garden name, plot type, plot size, and
-   starter template selection. Location, timezone, coordinates, and climate
-   defaults use editable Detroit-derived values and sit behind optional setup
-   details or later Settings edits, and the route scrolls instead of clipping
-   at normal desktop zoom.
-10. Add Plant searches the local crop catalog, asks for quantity first, applies
+10. If the user has no saved garden or only an empty demo-default profile, Plan
+    shows a slim first-run setup for garden name, plot type, plot size, and
+    starter template selection. Location, timezone, coordinates, and climate
+    defaults use editable Detroit-derived values and sit behind optional setup
+    details or later Settings edits, and the route scrolls instead of clipping
+    at normal desktop zoom.
+11. Add Plant searches the local crop catalog, asks for quantity first, applies
     the recommended arrangement form, creates individual plant instances with
     crop spacing, sun, and water defaults, and phrases fit guidance against the
     current garden day in the saved timezone.
-11. User edits mark the garden dirty; Save writes plot dimensions and plant
+12. User edits mark the garden dirty; Save writes plot dimensions and plant
     positions. Offline saves are accepted locally and surfaced as queued/saved
     locally in the shell.
-12. Update Weather fetches provider data, builds a weather snapshot, refreshes
+13. Update Weather fetches provider data, builds a weather snapshot, refreshes
     the saved watering schedule, and persists the updated garden.
-13. Active watering and weather alerts create in-app notification logs that are
+14. Active watering and weather alerts create in-app notification logs that are
     visible in the garden operations panel.
-14. Settings lets the user manage alert types, push delivery, quiet hours,
+15. Settings lets the user manage alert types, push delivery, quiet hours,
     daily check time, location/timezone, web/native push registration, local
     notification support, and sample-garden enter/reset/restore controls.
-15. `/app/today` syncs generated work from the saved garden plan, watering
+16. `/app/today` syncs generated work from the saved garden plan, watering
     schedule entries, editable frost dates, crop catalog defaults, and actual
     planting events recorded from Plan or Today.
-16. `/app/feed` records notes, structured issues, photo attachments, harvests,
+17. `/app/feed` records notes, structured issues, photo attachments, harvests,
     compact season summaries, actual watering events, and planting-event
     memories from the same garden aggregate.
-17. The authenticated shell shows online/offline state and uses mobile bottom
+18. The authenticated shell shows online/offline state and uses mobile bottom
     navigation for field use.
-18. In the Capacitor shell, native network state feeds the same sync indicator,
+19. In the Capacitor shell, native network state feeds the same sync indicator,
     native camera capture can attach field photos, and Settings can register
     native push or local alerts when platform entitlements are present.
 
 Important note:
 
-- the app shell still uses the configured email allowlist as a user-facing gate
-- Firestore and Storage rules enforce the production authorization boundary with
-  Firebase Auth `gardenAccess: true` and `secretFaeriesMember: true` custom claims
+- mock/local mode still uses the configured email allowlist as a user-facing gate
+- Firebase mode uses Firebase Auth `gardenAccess: true` and
+  `secretFaeriesMember: true` custom claims as the app and data authorization
+  boundary
+- `npm run auth:sync-access` grants those claims to the two configured
+  production account emails from secure environment values and revokes them from
+  stale Auth users
 - the browser app exposes no account creation route; production accounts are
   seeded through the admin script
 - Identity Platform blocking triggers are the next step if pre-auth membership

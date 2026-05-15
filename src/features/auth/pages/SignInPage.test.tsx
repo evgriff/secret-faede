@@ -104,6 +104,29 @@ describe('SignInPage', () => {
     expect(await screen.findByText('Password reset email sent.')).toBeVisible();
   });
 
+  it('does not use the client email allowlist in Firebase runtime', async () => {
+    const user = userEvent.setup();
+    const services = await createTestServices({
+      allowedEmails: ['different@example.com'],
+      allowlistError:
+        'VITE_ALLOWED_EMAILS must contain exactly two distinct email addresses.',
+      environment: {
+        requestedMode: 'firebase',
+        runtimeMode: 'firebase',
+      },
+    });
+
+    renderRoute('/sign-in', services);
+
+    await user.type(screen.getByLabelText('Email'), 'member@example.com');
+    await user.type(screen.getByLabelText('Password'), 'password');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Set up your garden' }),
+    ).toBeVisible();
+  });
+
   it('shows a fail-closed configuration message when the allowlist is invalid', async () => {
     const services = await createTestServices({
       allowlistError:

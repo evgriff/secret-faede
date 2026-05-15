@@ -4,9 +4,15 @@ Auth model:
 
 - Firebase email/password auth stays behind `AuthService`.
 - There is no public sign-up route.
-- The app-level allowlist gates the two provisioned email addresses after sign-in.
-- Non-allowlisted users are signed out and routed to `/access-denied`.
-- Production data protection relies on Firestore and Storage rules with Firebase Auth custom claims, not only the browser allowlist.
+- Mock/local mode uses the app-level allowlist to gate the two provisioned email addresses after sign-in.
+- Firebase production mode gates app access with ID token claims:
+  `gardenAccess: true` and `secretFaeriesMember: true`.
+- Users missing the runtime's required access signal are signed out and routed
+  to `/access-denied`.
+- Production membership emails live in secure `APP_LOGIN_*` environment values;
+  `npm run auth:sync-access` grants those two Auth users the required custom
+  claims and revokes stale member claims from other Auth users.
+- Production data protection relies on Firestore and Storage rules with Firebase Auth custom claims, never the browser allowlist.
 
 Profile model:
 

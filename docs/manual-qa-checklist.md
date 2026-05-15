@@ -209,8 +209,11 @@ Date: 2026-04-21
 ## Production Release
 
 - Confirm the GitHub `Hosting Live` workflow has `FIREBASE_PROJECT_ID`,
-  `FIREBASE_SERVICE_ACCOUNT`, and all required `VITE_*` variables configured.
+  `FIREBASE_SERVICE_ACCOUNT`, all required `VITE_*` variables, and production
+  `APP_LOGIN_*` access secrets configured.
 - Run `npm run auth:seed-users -- --dry-run`, then seed Primary Gardener and Partner Gardener.
+- Run `npm run auth:sync-access -- --dry-run`, then sync production access
+  claims.
 - Confirm both Firebase Auth users have `gardenAccess: true` and
   `secretFaeriesMember: true`, then have each user sign out and back in so the
   token refreshes.

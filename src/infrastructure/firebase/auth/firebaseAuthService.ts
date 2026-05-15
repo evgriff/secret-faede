@@ -1,11 +1,13 @@
 import {
   browserLocalPersistence,
   browserSessionPersistence,
+  getIdTokenResult,
   onAuthStateChanged,
   sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
   signOut,
+  type User,
 } from 'firebase/auth';
 
 import type {
@@ -13,28 +15,50 @@ import type {
   AuthStateListener,
   PasswordSignInOptions,
 } from '../../../domain/auth/AuthService';
-import type { AuthUser } from '../../../domain/auth/types';
+import type { AuthAccessClaims, AuthUser } from '../../../domain/auth/types';
 import type { AppEnvironment } from '../../../shared/config/env';
 import { getFirebaseAuthClient } from '../app';
 import { getFirebaseAuthErrorMessage } from './firebaseAuthErrors';
 
-function mapFirebaseUser(
+function createFirebaseUser(
   user: {
     displayName: string | null;
     email: string | null;
     uid: string;
-  } | null,
+  },
+  accessClaims: AuthAccessClaims | null,
 ): AuthUser | null {
   if (!user?.email) {
     return null;
   }
 
   return {
+    accessClaims,
     displayName: user.displayName,
     email: user.email,
     provider: 'firebase',
     uid: user.uid,
   };
+}
+
+function readAccessClaims(claims: Record<string, unknown>): AuthAccessClaims {
+  return {
+    gardenAccess: claims.gardenAccess === true,
+    secretFaeriesMember: claims.secretFaeriesMember === true,
+  };
+}
+
+async function mapFirebaseUser(
+  user: User | null,
+  options?: { forceRefresh?: boolean },
+): Promise<AuthUser | null> {
+  if (!user?.email) {
+    return null;
+  }
+
+  const tokenResult = await getIdTokenResult(user, options?.forceRefresh);
+
+  return createFirebaseUser(user, readAccessClaims(tokenResult.claims));
 }
 
 export class FirebaseAuthService implements AuthService {
@@ -50,7 +74,9 @@ export class FirebaseAuthService implements AuthService {
   }
 
   getCurrentUser(): AuthUser | null {
-    return mapFirebaseUser(this.authClient.currentUser);
+    return this.authClient.currentUser
+      ? createFirebaseUser(this.authClient.currentUser, null)
+      : null;
   }
 
   async sendPasswordReset(email: string): Promise<void> {
@@ -75,7 +101,7 @@ export class FirebaseAuthService implements AuthService {
         options.email.trim().toLowerCase(),
         options.password,
       );
-      const user = mapFirebaseUser(result.user);
+      const user = await mapFirebaseUser(result.user, { forceRefresh: true });
 
       if (!user) {
         throw new Error('Firebase auth returned an incomplete user record.');
@@ -92,8 +118,22 @@ export class FirebaseAuthService implements AuthService {
   }
 
   subscribe(listener: AuthStateListener): () => void {
+    let sequence = 0;
+
     return onAuthStateChanged(this.authClient, (user) => {
-      listener(mapFirebaseUser(user));
+      const currentSequence = (sequence += 1);
+
+      void mapFirebaseUser(user)
+        .then((mappedUser) => {
+          if (currentSequence === sequence) {
+            listener(mappedUser);
+          }
+        })
+        .catch(() => {
+          if (currentSequence === sequence) {
+            listener(user ? createFirebaseUser(user, null) : null);
+          }
+        });
     });
   }
 }

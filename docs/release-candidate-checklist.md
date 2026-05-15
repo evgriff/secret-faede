@@ -88,7 +88,8 @@ Required before live tester release:
 
 - Configure Firebase project, web app, authorized domains, Firestore indexes,
   Firestore rules, Storage rules, Functions, and Hosting.
-- Provision only Primary Gardener and Partner Gardener, then set `gardenAccess: true` and
+- Provision only Primary Gardener and Partner Gardener, then run
+  `npm run auth:sync-access` so only those users have `gardenAccess: true` and
   `secretFaeriesMember: true` custom claims.
 - Set required `VITE_*` repository variables, including the FCM web push VAPID
   key.

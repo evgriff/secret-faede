@@ -3,7 +3,7 @@ import type {
   AuthStateListener,
   PasswordSignInOptions,
 } from '../../../domain/auth/AuthService';
-import type { AuthUser } from '../../../domain/auth/types';
+import type { AuthAccessClaims, AuthUser } from '../../../domain/auth/types';
 import {
   readJsonStorageValue,
   removeStorageValue,
@@ -13,18 +13,26 @@ import {
 const mockLocalSessionKey = 'secret-faeries.auth.mock.session';
 const mockSessionSessionKey = 'secret-faeries.auth.mock.session-tab';
 const mockPassword = 'password';
+const defaultMockAccessClaims: AuthAccessClaims = {
+  gardenAccess: true,
+  secretFaeriesMember: true,
+};
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-function createMockUser(email: string): AuthUser {
+function createMockUser(
+  email: string,
+  accessClaims: AuthAccessClaims,
+): AuthUser {
   const normalizedEmail = normalizeEmail(email);
   const safeId = normalizedEmail
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 
   return {
+    accessClaims,
     displayName: getDisplayName(normalizedEmail),
     email: normalizedEmail,
     provider: 'mock',
@@ -33,12 +41,18 @@ function createMockUser(email: string): AuthUser {
 }
 
 export class MockAuthService implements AuthService {
+  private readonly accessClaims: AuthAccessClaims;
   private listeners = new Set<AuthStateListener>();
 
+  constructor(accessClaims: AuthAccessClaims = defaultMockAccessClaims) {
+    this.accessClaims = accessClaims;
+  }
+
   getCurrentUser(): AuthUser | null {
-    return (
+    return withAccessClaims(
       readJsonStorageValue<AuthUser>(mockLocalSessionKey) ??
-      readSessionUser(mockSessionSessionKey)
+        readSessionUser(mockSessionSessionKey),
+      this.accessClaims,
     );
   }
 
@@ -57,7 +71,7 @@ export class MockAuthService implements AuthService {
       throw new Error('The email or password is incorrect.');
     }
 
-    const user = createMockUser(normalizedEmail);
+    const user = createMockUser(normalizedEmail, this.accessClaims);
 
     removeStorageValue(mockLocalSessionKey);
     removeSessionUser(mockSessionSessionKey);
@@ -104,6 +118,18 @@ function getDisplayName(email: string) {
   }
 
   return null;
+}
+
+function withAccessClaims(
+  user: AuthUser | null,
+  accessClaims: AuthAccessClaims,
+): AuthUser | null {
+  return user
+    ? {
+        ...user,
+        accessClaims: user.accessClaims ?? accessClaims,
+      }
+    : null;
 }
 
 function readSessionUser(key: string) {

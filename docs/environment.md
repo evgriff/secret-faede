@@ -5,7 +5,8 @@ Date: 2026-04-21
 ## Browser Environment
 
 - `VITE_APP_RUNTIME`: `mock` or `firebase`.
-- `VITE_ALLOWED_EMAILS`: exactly two allowlisted emails.
+- `VITE_ALLOWED_EMAILS`: exactly two mock/local allowlisted emails. Do not use
+  this for production membership.
 - `VITE_FIREBASE_API_KEY`
 - `VITE_FIREBASE_APP_ID`
 - `VITE_FIREBASE_AUTH_DOMAIN`
@@ -30,6 +31,8 @@ to the browser values above:
 
 - `FIREBASE_PROJECT_ID`: target live project.
 - `FIREBASE_SERVICE_ACCOUNT`: deploy service-account JSON for Firebase CLI.
+- `APP_LOGIN_PRIMARY_EMAIL`: Primary Gardener's Firebase Auth email.
+- `APP_LOGIN_PARTNER_EMAIL`: Partner Gardener's Firebase Auth email.
 
 Do not put Functions-only secrets into `VITE_*` workflow variables.
 
@@ -42,8 +45,8 @@ Do not put Functions-only secrets into `VITE_*` workflow variables.
 
 ## Auth Seed Environment
 
-These values are used by `npm run auth:seed-users` and must stay out of browser
-build env:
+These values are used by `npm run auth:seed-users` and
+`npm run auth:sync-access` and must stay out of browser build env:
 
 - `APP_LOGIN_PRIMARY_EMAIL`: Primary Gardener's Firebase Auth email.
 - `APP_LOGIN_PARTNER_EMAIL`: Partner Gardener's Firebase Auth email.
@@ -56,6 +59,11 @@ enables the accounts, and grants `gardenAccess: true` plus
 `secretFaeriesMember: true`. Existing passwords are not changed unless
 `-- --reset-passwords` is passed.
 
+The sync script requires only `APP_LOGIN_PRIMARY_EMAIL`,
+`APP_LOGIN_PARTNER_EMAIL`, and Firebase admin credentials. It grants those two
+Auth users `gardenAccess: true` plus `secretFaeriesMember: true` and removes
+those managed claims from any other Auth user.
+
 ## Carrier Messaging Scope
 
 Carrier messaging is no longer part of the product scope. Do not add
@@ -65,7 +73,8 @@ logs, web push, and optional native/local notifications.
 
 ## Secret Handling
 
-- Browser `VITE_*` values are public by design.
+- Browser `VITE_*` values are public by design. Production account emails must
+  be stored in secure workflow/local environment values, not in `VITE_*`.
 - Tomorrow.io server key and auth seed passwords belong only in Functions
   environment/secrets or local uncommitted env.
 - Native Firebase files stay local or in the native build secret system:

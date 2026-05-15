@@ -1,4 +1,10 @@
+export interface AuthAccessClaims {
+  gardenAccess: boolean;
+  secretFaeriesMember: boolean;
+}
+
 export interface AuthUser {
+  accessClaims: AuthAccessClaims | null;
   displayName: string | null;
   email: string;
   provider: 'firebase' | 'mock';

@@ -12,7 +12,6 @@ Required:
 1. Create or choose a Firebase project.
 2. Register a web app.
 3. Set these live build repository variables:
-   - `VITE_ALLOWED_EMAILS`
    - `VITE_FIREBASE_API_KEY`
    - `VITE_FIREBASE_APP_ID`
    - `VITE_FIREBASE_AUTH_DOMAIN`
@@ -20,18 +19,21 @@ Required:
    - `VITE_FIREBASE_PROJECT_ID`
    - `VITE_FIREBASE_STORAGE_BUCKET`
    - `VITE_FIREBASE_MESSAGING_VAPID_KEY`
-4. Enable Authentication Email/Password. Do not add a public sign-up path in
+4. Set these production environment secrets:
+   - `APP_LOGIN_PRIMARY_EMAIL`
+   - `APP_LOGIN_PARTNER_EMAIL`
+5. Enable Authentication Email/Password. Do not add a public sign-up path in
    the app.
-5. Add authorized domains for local, preview, live Hosting, and any custom
+6. Add authorized domains for local, preview, live Hosting, and any custom
    domain.
-6. Deploy Firestore and Storage rules before using Firebase mode with real data.
+7. Deploy Firestore and Storage rules before using Firebase mode with real data.
 
 ## Production Login Users
 
 Only Primary Gardener and Partner Gardener should be provisioned for production. Firestore, Storage, and
 callable Functions require both `gardenAccess: true` and
-`secretFaeriesMember: true`. The browser allowlist does not grant data access by
-itself.
+`secretFaeriesMember: true`. The browser allowlist is mock/local only and does
+not grant production access.
 
 Preferred seed flow:
 
@@ -45,6 +47,8 @@ export APP_LOGIN_PARTNER_TEMP_PASSWORD='replace-with-long-temp-password'
 npm --prefix functions ci
 npm run auth:seed-users -- --dry-run
 npm run auth:seed-users
+npm run auth:sync-access -- --dry-run
+npm run auth:sync-access
 ```
 
 Use `npm run auth:seed-users -- --reset-passwords` only when intentionally
@@ -158,7 +162,7 @@ regression.
 
 - Live password auth on the production domain with the seeded Primary Gardener and Partner Gardener
   accounts.
-- Live Firestore and Storage access with an allowlisted user who has
+- Live Firestore and Storage access with a production user who has
   `gardenAccess: true` and `secretFaeriesMember: true`.
 - Live FCM registration and delivery.
 - Live NWS/Tomorrow weather refresh from a saved garden location.
