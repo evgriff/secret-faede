@@ -29,6 +29,12 @@ Repository rules:
 - Mock mode must remain functional with localStorage-backed adapters.
 - Seed/sample fixtures should stay public-safe: generic user identities, Detroit sample climate/location defaults, and no private project, address, provider, or archived-planning artifacts.
 
+Verification:
+
+- `GardenEditorScreen.test.tsx` covers the full Choose Plants optimizer input
+  path; that longer UI-path unit test has an explicit 30s timeout for GitHub CI
+  parity.
+
 Offline behavior:
 
 - Firestore persistent local cache is enabled when available.
