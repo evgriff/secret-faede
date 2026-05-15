@@ -91,10 +91,10 @@ Required before live tester release:
 - Provision only Primary Gardener and Partner Gardener, then run
   `npm run auth:sync-access` so only those users have `gardenAccess: true` and
   `secretFaeriesMember: true` custom claims.
-- Set required `VITE_*` repository variables, including the FCM web push VAPID
-  key.
+- Set required Firebase `VITE_*` repository variables, plus the FCM web push
+  VAPID key when web push is enabled.
 - Smoke live Auth, Firestore, Storage photo upload, FCM foreground/background
-  delivery, and weather refresh.
+  delivery when web push is enabled, and weather refresh.
 - Add native Firebase config files outside the repository before native push or
   camera demos.
 - Do not configure carrier-delivery providers or phone-number seed data.

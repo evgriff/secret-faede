@@ -106,6 +106,9 @@ GitHub repository variables for live builds:
 - `VITE_FIREBASE_MESSAGING_SENDER_ID`
 - `VITE_FIREBASE_PROJECT_ID`
 - `VITE_FIREBASE_STORAGE_BUCKET`
+
+Optional GitHub repository variable for web push registration:
+
 - `VITE_FIREBASE_MESSAGING_VAPID_KEY`
 
 GitHub production environment secrets for live access sync:

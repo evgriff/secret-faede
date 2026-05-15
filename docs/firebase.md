@@ -76,7 +76,7 @@ VITE_FIREBASE_PROJECT_ID=...
 VITE_FIREBASE_STORAGE_BUCKET=...
 VITE_FIREBASE_MESSAGING_SENDER_ID=...
 VITE_FIREBASE_APP_ID=...
-VITE_FIREBASE_MESSAGING_VAPID_KEY=...
+VITE_FIREBASE_MESSAGING_VAPID_KEY=... # Optional unless web push is enabled.
 VITE_FIREBASE_EMULATOR_HOST=127.0.0.1
 VITE_FIREBASE_AUTH_EMULATOR_PORT=9099
 VITE_FIREBASE_FIRESTORE_EMULATOR_PORT=8080
@@ -300,7 +300,7 @@ the saved journal entry metadata. In Firebase emulator mode, Storage connects to
 Client web push:
 
 - `VITE_FIREBASE_MESSAGING_VAPID_KEY` must be set for real FCM token
-  registration.
+  registration; Hosting deploys can run without it when web push is not enabled.
 - The client registers `public/firebase-messaging-sw.js` and stores web tokens
   under `users/{uid}/pushTokens/{tokenId}`.
 - Foreground messages are bridged into browser notifications when permission is

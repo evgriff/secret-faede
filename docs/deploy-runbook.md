@@ -20,6 +20,7 @@ Functions, FCM web/native push, and optional Capacitor shells.
   - `VITE_FIREBASE_MESSAGING_SENDER_ID`
   - `VITE_FIREBASE_PROJECT_ID`
   - `VITE_FIREBASE_STORAGE_BUCKET`
+- Confirm optional live build repository variables for web push registration:
   - `VITE_FIREBASE_MESSAGING_VAPID_KEY`
 - Confirm live production secrets:
   - `APP_LOGIN_PRIMARY_EMAIL`
@@ -201,9 +202,9 @@ variables, and the production access secrets are configured.
 - Firebase Auth: Email/Password enabled, no public sign-up surface, Primary Gardener and
   Partner Gardener provisioned, required custom claims set, and both users have refreshed
   tokens after claims assignment.
-- FCM web push: VAPID key configured, service worker deployed at the origin
-  root, token docs written for each production user, and one foreground plus one
-  background notification smoke tested.
+- FCM web push, if enabled: VAPID key configured, service worker deployed at
+  the origin root, token docs written for each production user, and one
+  foreground plus one background notification smoke tested.
 - Capacitor native push/local notifications, if shipping native shells:
   platform Firebase config files installed locally, APNs/Play signing handled
   outside the repo, release keystore or App Store signing ready, and local

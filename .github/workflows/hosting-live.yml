@@ -81,7 +81,6 @@ jobs:
           test -n "$VITE_FIREBASE_APP_ID"
           test -n "$VITE_FIREBASE_AUTH_DOMAIN"
           test -n "$VITE_FIREBASE_MESSAGING_SENDER_ID"
-          test -n "$VITE_FIREBASE_MESSAGING_VAPID_KEY"
           test -n "$VITE_FIREBASE_PROJECT_ID"
           test -n "$VITE_FIREBASE_STORAGE_BUCKET"
 

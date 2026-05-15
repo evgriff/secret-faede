@@ -18,15 +18,16 @@ Required:
    - `VITE_FIREBASE_MESSAGING_SENDER_ID`
    - `VITE_FIREBASE_PROJECT_ID`
    - `VITE_FIREBASE_STORAGE_BUCKET`
-   - `VITE_FIREBASE_MESSAGING_VAPID_KEY`
-4. Set these production environment secrets:
+4. Optionally set `VITE_FIREBASE_MESSAGING_VAPID_KEY` after generating a
+   Firebase Web Push certificate.
+5. Set these production environment secrets:
    - `APP_LOGIN_PRIMARY_EMAIL`
    - `APP_LOGIN_PARTNER_EMAIL`
-5. Enable Authentication Email/Password. Do not add a public sign-up path in
+6. Enable Authentication Email/Password. Do not add a public sign-up path in
    the app.
-6. Add authorized domains for local, preview, live Hosting, and any custom
+7. Add authorized domains for local, preview, live Hosting, and any custom
    domain.
-7. Deploy Firestore and Storage rules before using Firebase mode with real data.
+8. Deploy Firestore and Storage rules before using Firebase mode with real data.
 
 ## Production Login Users
 
@@ -99,9 +100,9 @@ Required for Hosting preview/live workflows:
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_SERVICE_ACCOUNT`
 
-Live workflow also requires the `VITE_*` repository variables listed above. The
-live workflow now runs the full release gate, deploys Firestore rules/indexes,
-Storage rules, Functions, and then Hosting.
+Live workflow also requires the Firebase `VITE_*` repository variables listed
+above. The live workflow now runs the full release gate, deploys Firestore
+rules/indexes, Storage rules, Functions, and then Hosting.
 
 ## Web Push
 

@@ -13,7 +13,8 @@ Date: 2026-04-21
 - `VITE_FIREBASE_MESSAGING_SENDER_ID`
 - `VITE_FIREBASE_PROJECT_ID`
 - `VITE_FIREBASE_STORAGE_BUCKET`
-- `VITE_FIREBASE_MESSAGING_VAPID_KEY`: required for web push registration.
+- `VITE_FIREBASE_MESSAGING_VAPID_KEY`: optional unless web push registration is
+  enabled.
 - `VITE_USE_FIREBASE_EMULATORS=true`: routes Firebase clients to emulators.
 - `VITE_FIREBASE_AUTH_EMULATOR_PORT`: default `9099`.
 - `VITE_FIREBASE_FIRESTORE_EMULATOR_PORT`: default `8080`.
