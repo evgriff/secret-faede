@@ -30,6 +30,10 @@ Default verification gate from `AGENTS.md`:
 - `npm run build`
 - `npm run ci`
 
+GitHub `Hosting Live` validates required Firebase build variables, treats the
+web push VAPID variable as optional unless web push registration is enabled,
+then runs `npm run ci` before syncing Auth access claims and deploying.
+
 Add targeted checks when relevant:
 
 - `npm run test:integration`
