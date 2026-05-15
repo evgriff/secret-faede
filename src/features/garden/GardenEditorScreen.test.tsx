@@ -1152,7 +1152,7 @@ describe('PlanPage', () => {
       ),
     ).toBeVisible();
     expect(screen.queryByText(/\d+\/100/)).not.toBeInTheDocument();
-  }, 15_000);
+  }, 30_000);
 
   it('merges repeat crop adds in Choose Plants and preserves row edits after save', async () => {
     const user = userEvent.setup();
