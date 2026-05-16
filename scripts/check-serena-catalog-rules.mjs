@@ -10,7 +10,7 @@ export const policyScanPaths = [
   '.serena/project.yml',
   'plugins/serena/.codex-plugin/plugin.json',
   'plugins/serena/codex-context.yml',
-  'plugins/serena/scripts/ensure-project-mcp.sh',
+  'plugins/serena/scripts/start-project-mcp-stdio.sh',
 ];
 
 export const memoryChangeRules = [

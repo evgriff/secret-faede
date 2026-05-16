@@ -5,23 +5,20 @@ Purpose: keep Codex connected to one project-scoped Serena MCP for Secret Faerie
 Tracked wiring:
 
 - `.agents/plugins/marketplace.json` installs the repo-local `plugins/serena` plugin by default.
-- `.codex/hooks.json` runs `plugins/serena/scripts/ensure-project-mcp.sh` on Codex session startup, resume, and clear.
-- `.codex/config.toml` and `plugins/serena/.mcp.json` connect Codex to `http://127.0.0.1:9127/mcp`.
+- `.codex/config.toml` and `plugins/serena/.mcp.json` launch `plugins/serena/scripts/start-project-mcp-stdio.sh` as the Serena stdio MCP.
 - `plugins/serena/codex-context.yml` exposes symbol tools, read-only discovery helpers, memory tools, dashboard access, and language-server restart while excluding Serena shell and file-write helpers.
 - `.serena/project.yml` registers project name `secret-faeries`, TypeScript LSP, and `query-projects` mode.
 
 Startup behavior:
 
-- `ensure-project-mcp.sh` derives the repo root from its own path.
-- It may reuse a process only when the command line matches this repo, port `9127`, Streamable HTTP, and the current repo path.
-- It must initialize the MCP and confirm the instructions say the `secret-faeries` project at the current repo path is active.
-- It treats a matching process as stale when it predates `.serena/project.yml`, `plugins/serena/codex-context.yml`, or the bootstrap script.
-- It may restart only a matching repo-owned stale Serena process.
-- It must not take over the port from an unrelated process.
+- `start-project-mcp-stdio.sh` derives the repo root from its own path.
+- It starts Serena with `--transport stdio`, `--project <repo-root>`, and the repo-local Codex context.
+- It enables the Serena dashboard but does not open it automatically.
+- It avoids local MCP URLs so Codex does not need to allowlist `127.0.0.1` or `localhost`.
 
 Maintenance commands:
 
-- `bash -n plugins/serena/scripts/ensure-project-mcp.sh`
+- `bash -n plugins/serena/scripts/start-project-mcp-stdio.sh`
 - `serena project health-check <repo-path>`
 - `serena project index <repo-path> --log-level INFO --timeout 20`
 - `serena print-system-prompt <repo-path> --context=plugins/serena/codex-context.yml --only-instructions`

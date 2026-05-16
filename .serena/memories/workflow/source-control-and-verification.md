@@ -43,7 +43,7 @@ Add targeted checks when relevant:
 - `npm run functions:test`
 - `npm run auth:sync-access -- --dry-run` before syncing production Auth access
   claims or deploying access-model changes
-- `bash -n plugins/serena/scripts/ensure-project-mcp.sh` for Serena shell changes
+- `bash -n plugins/serena/scripts/start-project-mcp-stdio.sh` for Serena shell changes
 - `npm run quality:serena` for app, workflow, architecture, or Serena catalog changes
 
 Primary local sources:

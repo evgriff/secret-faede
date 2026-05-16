@@ -1,7 +1,7 @@
 {
   "name": "serena",
-  "version": "0.3.0",
-  "description": "Expose the project-scoped Serena MCP singleton for symbol-aware navigation, topic memories, targeted read-only discovery, on-demand dashboard access, and refactors in Secret Faeries.",
+  "version": "0.4.0",
+  "description": "Expose project-scoped Serena MCP over stdio for symbol-aware navigation, topic memories, targeted read-only discovery, on-demand dashboard access, and refactors in Secret Faeries.",
   "author": {
     "name": "Secret Faeries",
     "url": "https://github.com/evgriff/secret-faeries"
@@ -20,8 +20,8 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Serena",
-    "shortDescription": "Use the shared Secret Faeries Serena MCP for symbol-aware navigation, topic memories, targeted reads, and refactors",
-    "longDescription": "Connect Codex to the project-scoped Secret Faeries Serena MCP singleton so chats in this repo reuse one local Streamable HTTP server for symbol overview, symbol lookup, reference search, topic memories, read-only discovery helpers, on-demand dashboard access, and symbol-safe refactors.",
+    "shortDescription": "Use Secret Faeries Serena MCP for symbol-aware navigation, topic memories, targeted reads, and refactors",
+    "longDescription": "Connect Codex directly to project-scoped Secret Faeries Serena MCP over stdio for symbol overview, symbol lookup, reference search, topic memories, read-only discovery helpers, on-demand dashboard access, and symbol-safe refactors.",
     "developerName": "Secret Faeries",
     "category": "Coding",
     "capabilities": ["Interactive", "Read", "Write"],
