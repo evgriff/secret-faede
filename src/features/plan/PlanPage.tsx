@@ -31,6 +31,7 @@ import {
   findPlanWarnings,
   isInspectorPlanWarning,
   isUserFacingPlanWarning,
+  type PlanWarning,
 } from '../garden/gardenPlanning';
 import {
   buildReviewSuggestions,
@@ -260,25 +261,42 @@ export function PlanPage() {
     'drag' | 'idle' | 'marquee' | 'pan' | 'press' | 'resize'
   >('idle');
   const trackedWarningIds = useRef<Set<string>>(new Set());
+  const [planWarnings, setPlanWarnings] = useState<PlanWarning[]>([]);
   const activeSunLayer = useMemo(
     () => (garden ? findSunShadeLayer(garden, sunSeason) : null),
     [garden, sunSeason],
   );
-  const planWarnings = useMemo(
-    () =>
-      garden
-        ? findPlanWarnings(
-            garden,
-            activeSunLayer
-              ? {
-                  sunLayer: activeSunLayer,
-                  sunSeason,
-                }
-              : { sunSeason },
-          )
-        : [],
-    [activeSunLayer, garden, sunSeason],
-  );
+
+  useEffect(() => {
+    if (!garden) {
+      setPlanWarnings([]);
+      return undefined;
+    }
+
+    let canceled = false;
+    const timeoutId = window.setTimeout(() => {
+      if (canceled) {
+        return;
+      }
+
+      setPlanWarnings(
+        findPlanWarnings(
+          garden,
+          activeSunLayer
+            ? {
+                sunLayer: activeSunLayer,
+                sunSeason,
+              }
+            : { sunSeason },
+        ),
+      );
+    }, 0);
+
+    return () => {
+      canceled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [activeSunLayer, garden, sunSeason]);
   const activePlanWarnings = useMemo(
     () =>
       planWarnings.filter(
@@ -1840,6 +1858,7 @@ export function PlanPage() {
             onClose={() => setIsHistoryOpen(false)}
             onRevert={(revisionId) => void handleRevert(revisionId)}
             revisions={workspace.revisions}
+            timezone={garden.plot.location.timezone}
           />
         </Suspense>
       ) : null}

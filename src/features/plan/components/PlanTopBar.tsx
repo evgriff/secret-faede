@@ -140,6 +140,17 @@ export function PlanTopBar({
             {saveStatus === 'saving' ? 'Saving...' : 'Save'}
           </button>
         ) : null}
+        {workspaceState === 'stale' && canDiscardDraft ? (
+          <button
+            className={styles.inlineWarningButton}
+            disabled={saveStatus === 'saving'}
+            onClick={onDiscardDraft}
+            title="Discard this stale private draft and use the current published plan"
+            type="button"
+          >
+            Use published
+          </button>
+        ) : null}
         <button
           className={`${styles.secondaryButton} ${styles.publishButton}`}
           disabled={!canPublish || saveStatus === 'saving'}

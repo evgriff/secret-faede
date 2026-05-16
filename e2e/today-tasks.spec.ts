@@ -150,7 +150,7 @@ test('Today keeps the remaining watering deficit visible after a partial waterin
   await expect(page.getByRole('dialog', { name: 'Add photo' })).toHaveCount(0);
 });
 
-test('Today refreshes Detroit NWS weather without stale impossible rain totals', async ({
+test('Today auto-refreshes Detroit NWS weather without stale impossible rain totals', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1365, height: 768 });
@@ -168,6 +168,9 @@ test('Today refreshes Detroit NWS weather without stale impossible rain totals',
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
 
   await page.goto('/app/today');
+  await expect(page.getByText('0.17in')).toBeVisible();
+  await expect(page.getByText('500in')).toHaveCount(0);
+
   await page.getByRole('button', { name: 'Mark planted' }).click();
   await expect(page.getByText('Crop status updated.')).toBeVisible();
   await page

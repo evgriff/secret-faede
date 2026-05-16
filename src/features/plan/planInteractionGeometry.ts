@@ -52,7 +52,6 @@ export interface PlanItemRectUpdate extends PlanItemPositionUpdate {
 
 export interface SnapGuide {
   axis: 'x' | 'y';
-  label: string;
   valueFt: number;
 }
 
@@ -69,9 +68,8 @@ export interface SnapRectResult {
   rect: FootRect;
 }
 
-interface SnapTarget {
+export interface SnapTarget {
   axis: 'x' | 'y';
-  label: string;
   valueFt: number;
 }
 
@@ -163,6 +161,7 @@ export function snapItemPoint({
   sourceRect,
   snap = true,
   snapExclusions = [],
+  snapTargets,
 }: {
   freeMove?: boolean;
   garden: Garden;
@@ -171,6 +170,7 @@ export function snapItemPoint({
   sourceRect: FootRect;
   snap?: boolean;
   snapExclusions?: PlanItemRef[];
+  snapTargets?: SnapTarget[];
 }): SnapPointResult {
   const normalizedPoint = clampItemPointToPlot(
     item,
@@ -203,7 +203,7 @@ export function snapItemPoint({
     rectFromItemPoint(item, finePoint, sourceRect),
     garden.plot,
   );
-  const targets = buildSnapTargets(garden, snapExclusions);
+  const targets = snapTargets ?? buildSnapTargets(garden, snapExclusions);
   const xSnap = findBestSnap(
     buildAnchors(movingRect.xFt, movingRect.widthFt),
     targets.filter((target) => target.axis === 'x'),
@@ -289,6 +289,7 @@ export function snapResizeRect({
   rect,
   snap = true,
   snapExclusions = [],
+  snapTargets,
 }: {
   freeMove?: boolean;
   garden: Garden;
@@ -296,6 +297,7 @@ export function snapResizeRect({
   rect: FootRect;
   snap?: boolean;
   snapExclusions?: PlanItemRef[];
+  snapTargets?: SnapTarget[];
 }): SnapRectResult {
   if (freeMove || !snap) {
     return { guides: [], rect: clampRectToPlot(rect, garden.plot) };
@@ -312,7 +314,7 @@ export function snapResizeRect({
     },
     garden.plot,
   );
-  const targets = buildSnapTargets(garden, snapExclusions);
+  const targets = snapTargets ?? buildSnapTargets(garden, snapExclusions);
   const activeXAnchors = buildResizeAnchors(
     fineRect.xFt,
     fineRect.widthFt,
@@ -397,60 +399,56 @@ export function areSamePlanItem(left: PlanItemRef, right: PlanItemRef) {
   );
 }
 
-function buildSnapTargets(
+export function buildSnapTargets(
   garden: Garden,
   exclusions: PlanItemRef[],
 ): SnapTarget[] {
-  const excludedKeys = new Set(exclusions.map(getItemKey));
+  const excludedKeys = new Set(exclusions.map(getPlanItemKey));
   const targets: SnapTarget[] = [];
 
   for (const structure of garden.structures) {
-    if (excludedKeys.has(getItemKey({ id: structure.id, type: 'structure' }))) {
+    if (
+      excludedKeys.has(getPlanItemKey({ id: structure.id, type: 'structure' }))
+    ) {
       continue;
     }
 
-    addRectTargets(targets, getStructureFootprint(structure), structure.label);
+    addRectTargets(targets, getStructureFootprint(structure));
   }
 
   for (const planting of garden.plantings) {
-    if (excludedKeys.has(getItemKey({ id: planting.id, type: 'planting' }))) {
+    if (
+      excludedKeys.has(getPlanItemKey({ id: planting.id, type: 'planting' }))
+    ) {
       continue;
     }
 
-    addRectTargets(targets, getPlantingFootprint(planting), planting.label);
+    addRectTargets(targets, getPlantingFootprint(planting));
   }
 
   targets.push(
-    { axis: 'x', label: 'plot left edge', valueFt: 0 },
-    { axis: 'x', label: 'plot centerline', valueFt: garden.plot.widthFt / 2 },
-    { axis: 'x', label: 'plot right edge', valueFt: garden.plot.widthFt },
-    { axis: 'y', label: 'plot top edge', valueFt: 0 },
-    { axis: 'y', label: 'plot centerline', valueFt: garden.plot.depthFt / 2 },
-    { axis: 'y', label: 'plot bottom edge', valueFt: garden.plot.depthFt },
+    { axis: 'x', valueFt: 0 },
+    { axis: 'x', valueFt: garden.plot.widthFt / 2 },
+    { axis: 'x', valueFt: garden.plot.widthFt },
+    { axis: 'y', valueFt: 0 },
+    { axis: 'y', valueFt: garden.plot.depthFt / 2 },
+    { axis: 'y', valueFt: garden.plot.depthFt },
   );
 
   return targets;
 }
 
-function addRectTargets(targets: SnapTarget[], rect: FootRect, label: string) {
+function addRectTargets(targets: SnapTarget[], rect: FootRect) {
   const right = rect.xFt + rect.widthFt;
   const bottom = rect.yFt + rect.depthFt;
 
   targets.push(
-    { axis: 'x', label: `${label} left edge`, valueFt: rect.xFt },
-    {
-      axis: 'x',
-      label: `${label} centerline`,
-      valueFt: rect.xFt + rect.widthFt / 2,
-    },
-    { axis: 'x', label: `${label} right edge`, valueFt: right },
-    { axis: 'y', label: `${label} top edge`, valueFt: rect.yFt },
-    {
-      axis: 'y',
-      label: `${label} centerline`,
-      valueFt: rect.yFt + rect.depthFt / 2,
-    },
-    { axis: 'y', label: `${label} bottom edge`, valueFt: bottom },
+    { axis: 'x', valueFt: rect.xFt },
+    { axis: 'x', valueFt: rect.xFt + rect.widthFt / 2 },
+    { axis: 'x', valueFt: right },
+    { axis: 'y', valueFt: rect.yFt },
+    { axis: 'y', valueFt: rect.yFt + rect.depthFt / 2 },
+    { axis: 'y', valueFt: bottom },
   );
 }
 
@@ -509,7 +507,6 @@ function findBestSnap(anchors: SnapAnchor[], targets: SnapTarget[]) {
           distanceFt,
           guide: {
             axis: target.axis,
-            label: target.label,
             valueFt: target.valueFt,
           },
         };
@@ -592,10 +589,6 @@ function handleIncludesNorth(handle: ResizeHandle) {
 
 function handleIncludesSouth(handle: ResizeHandle) {
   return handle === 'south' || handle === 'southEast' || handle === 'southWest';
-}
-
-function getItemKey(item: PlanItemRef) {
-  return `${item.type}:${item.id}:${item.instanceId ?? 'group'}`;
 }
 
 function findPlantingInstance(

@@ -1,4 +1,4 @@
-import { memo, type CSSProperties, type PointerEvent } from 'react';
+import { memo, type PointerEvent } from 'react';
 
 import type { Structure } from '../../../domain/gardens/GardenRepository';
 import { formatFeet } from '../../garden/gardenMath';
@@ -9,14 +9,10 @@ import {
 import {
   getStructureFootprint,
   hasWarningForItem,
-  type FootRect,
   type PlanWarning,
 } from '../../garden/gardenPlanning';
 import type { SelectedGardenItem } from '../../garden/useGarden';
-import type {
-  PlanPreviewOffset,
-  ResizeHandle,
-} from '../planInteractionGeometry';
+import { getPlanItemKey, type ResizeHandle } from '../planInteractionGeometry';
 import { footprintStyle } from './planCanvasGeometry';
 import styles from './PlanCanvasItems.module.css';
 
@@ -31,8 +27,6 @@ export const PlanStructureBox = memo(function PlanStructureBox({
   onStructurePointerEnd,
   onStructurePointerMove,
   planWarnings,
-  previewOffset,
-  previewRect,
   selectedStructureIds,
   structure,
 }: {
@@ -63,23 +57,17 @@ export const PlanStructureBox = memo(function PlanStructureBox({
     structureId: string,
   ): void;
   planWarnings: PlanWarning[];
-  previewOffset: PlanPreviewOffset | null;
-  previewRect: FootRect | null;
   selectedStructureIds: string[];
   structure: Structure;
 }) {
-  const footprint = previewRect ?? getStructureFootprint(structure);
+  const footprint = getStructureFootprint(structure);
   const isSelected = selectedStructureIds.includes(structure.id);
   const hasWarning = hasWarningForItem(planWarnings, structure.id);
   const isPath = isPathStructure(structure);
   const isTrellis = structure.type === 'trellis';
   const showLabel = shouldShowStructureLabel(structure);
   const walkablePathWidthFt = isPath ? getWalkablePathWidthFt(structure) : null;
-  const style = {
-    ...footprintStyle(footprint),
-    '--preview-offset-x': `${previewOffset?.xPx ?? 0}px`,
-    '--preview-offset-y': `${previewOffset?.yPx ?? 0}px`,
-  } as CSSProperties;
+  const style = footprintStyle(footprint);
 
   return (
     <div
@@ -103,6 +91,10 @@ export const PlanStructureBox = memo(function PlanStructureBox({
           : ''
       }`}
       data-plan-item="true"
+      data-plan-item-key={getPlanItemKey({
+        id: structure.id,
+        type: 'structure',
+      })}
       onClick={(event) => {
         if (event.detail === 0) {
           onSelectItem(

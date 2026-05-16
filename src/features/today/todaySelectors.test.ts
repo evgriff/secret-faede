@@ -130,6 +130,39 @@ describe('todaySelectors', () => {
     });
   });
 
+  it('marks visible days with significant rain forecasts', () => {
+    const garden: Garden = {
+      ...createDefaultGarden('user-a'),
+      weatherSnapshots: [
+        {
+          ...createSnapshot(),
+          forecastDays: [
+            {
+              conditionSummary: 'Cloudy',
+              date: '2026-06-21',
+              expectedRainIn: 0,
+              highF: 72,
+              precipitationChancePercent: 10,
+            },
+            {
+              conditionSummary: 'Chance Rain Showers',
+              date: '2026-06-22',
+              expectedRainIn: 0,
+              highF: 70,
+              precipitationChancePercent: 42,
+              rainLikely: true,
+            },
+          ],
+        },
+      ],
+    };
+
+    const days = buildCalendarDays(garden, [], '2026-06-21');
+
+    expect(days[0]?.markers).not.toContain('rain');
+    expect(days[1]?.markers).toContain('rain');
+  });
+
   it('ignores legacy generated harvest tasks in Today scheduling counts', () => {
     const tasks = [
       createTask({ dueDate: '2026-06-21', id: 'inspect', type: 'inspect' }),

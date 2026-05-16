@@ -9,12 +9,16 @@ Route and workflow:
 - primary route: `/app/feed`
 - legacy redirects: `/app/log` and `/app/journal`
 - Feed records notes, structured issues, photo updates, harvests, task/publish/watering history, and compact in-season summaries
+- publish history dates use the saved garden timezone so late-evening publishes
+  land on the same local day the user sees in the rest of the app
 
 Success criteria:
 
 - Feed remains private garden memory, not a social feed
 - one New entry launcher opens modes for note, issue, photo update, and harvest
 - photo updates can use image-led cards, while watering, issue, task, publish, and harvest memories remain compact
+- publish memories should derive their calendar date from the shared
+  timezone-date helper rather than slicing UTC timestamps
 - item-linked memories can jump to the relevant Plan selection or focused Feed card
 - offline text entries queue locally; photo behavior should explain browser/native limits clearly
 

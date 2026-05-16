@@ -891,31 +891,39 @@
   filter: grayscale(0.25) saturate(0.72);
 }
 
-.draggingPlant {
+.draggingPlant,
+.plant[data-plan-preview-active='drag'] {
   cursor: grabbing;
   z-index: 7;
   transform: translate(var(--preview-offset-x), var(--preview-offset-y))
     scale(1.02);
   transition: none;
+  will-change: transform;
 }
 
-.draggingPlantGroup {
+.draggingPlantGroup,
+.plantGroup[data-plan-preview-active='drag'] {
   z-index: 7;
   transform: translate(var(--preview-offset-x), var(--preview-offset-y))
     scale(1.02);
   transition: none;
+  will-change: transform;
 }
 
-.draggingPlantGroup .plantGroupSurface {
+.draggingPlantGroup .plantGroupSurface,
+.plantGroup[data-plan-preview-active='drag'] .plantGroupSurface {
   cursor: grabbing;
 }
 
-.resizingPlantGroup {
+.resizingPlantGroup,
+.plantGroup[data-plan-preview-active='resize'] {
   z-index: 7;
   transition: none;
+  will-change: left, top, width, height;
 }
 
-.resizingPlantGroup .plantGroupSurface {
+.resizingPlantGroup .plantGroupSurface,
+.plantGroup[data-plan-preview-active='resize'] .plantGroupSurface {
   cursor: default;
 }
 
@@ -1247,15 +1255,20 @@
     inset 0 0 0 1px rgba(255, 253, 247, 0.36);
 }
 
-.draggingStructure {
+.draggingStructure,
+.structure[data-plan-preview-active='drag'] {
   cursor: grabbing;
   z-index: 4;
   opacity: 0.9;
   transition: none;
+  will-change: transform;
 }
 
-.resizingStructure {
+.resizingStructure,
+.structure[data-plan-preview-active='resize'] {
   z-index: 4;
+  transition: none;
+  will-change: left, top, width, height;
 }
 
 .resizeHandle {

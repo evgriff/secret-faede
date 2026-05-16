@@ -13,7 +13,7 @@ import type { TodayTarget } from './todayActions';
 import { addDays } from './todayFormatters';
 import { buildTodayWateringGroups } from './todayWateringGroups';
 
-export type TodayCalendarMarker = 'alert' | 'plant' | 'watering';
+export type TodayCalendarMarker = 'alert' | 'plant' | 'rain' | 'watering';
 
 export interface TodayCalendarDay {
   count: number;
@@ -165,9 +165,16 @@ export function buildCalendarDays(
       const schedule = getPlantingHarvestSchedule(garden, planting, today);
       return schedule?.expectedHarvestDate === date;
     });
+    const forecastDay = latestWeather?.forecastDays?.find(
+      (day) => day.date === date,
+    );
 
     if (wateringCount > 0) {
       markers.add('watering');
+    }
+
+    if (forecastDay && isRainSignificantForCalendar(forecastDay)) {
+      markers.add('rain');
     }
 
     if (nonWaterTasks.length > 0 || hasHarvestWindow) {
@@ -184,6 +191,16 @@ export function buildCalendarDays(
       markers: [...markers],
     };
   });
+}
+
+function isRainSignificantForCalendar(
+  forecastDay: NonNullable<WeatherSnapshot['forecastDays']>[number],
+) {
+  return (
+    forecastDay.expectedRainIn >= 0.01 ||
+    forecastDay.rainLikely === true ||
+    (forecastDay.precipitationChancePercent ?? 0) >= 40
+  );
 }
 
 export function getCriticalCheckTasks(tasks: Task[]) {

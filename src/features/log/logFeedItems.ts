@@ -7,6 +7,7 @@ import type {
   Task,
 } from '../../domain/gardens/GardenRepository';
 import type { PublishedGardenRevision } from '../../domain/gardens/gardenWorkspace';
+import { formatDateStringInTimeZone } from '../../shared/lib/timezoneDate';
 import { formatHarvestAmount } from './logHelpers';
 import type { LogFeedTypeFilter, LogFilterState } from './logSelectors';
 
@@ -60,7 +61,9 @@ export function buildLogFeedItems({
     ...garden.tasks
       .filter(isFeedWorthyTask)
       .map((task) => createTaskFeedItem(garden, task)),
-    ...revisions.map((revision) => createPublishFeedItem(revision)),
+    ...revisions.map((revision) =>
+      createPublishFeedItem(revision, garden.plot.location.timezone),
+    ),
   ].sort((left, right) => right.sortKey.localeCompare(left.sortKey));
 }
 
@@ -250,13 +253,19 @@ function createTaskFeedItem(garden: Garden, task: Task): LogFeedItem {
   };
 }
 
-function createPublishFeedItem(revision: PublishedGardenRevision): LogFeedItem {
+function createPublishFeedItem(
+  revision: PublishedGardenRevision,
+  timezone: string | null | undefined,
+): LogFeedItem {
   return {
     bedId: null,
     authorLabel: getEmailLabel(revision.publishedByEmail),
     body: revision.changesetSummary.summaryItems.join(', '),
     cropId: null,
-    date: revision.publishedAtIso.slice(0, 10),
+    date: formatDateStringInTimeZone(
+      new Date(revision.publishedAtIso),
+      timezone,
+    ),
     id: `publish-${revision.id}`,
     issue: null,
     linkedTasks: [],

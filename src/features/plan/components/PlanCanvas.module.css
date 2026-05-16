@@ -309,28 +309,26 @@
   text-transform: uppercase;
 }
 
-.snapGuide {
+.plot [data-plan-snap-guide='true'] {
   position: absolute;
   z-index: 7;
+  background: rgba(179, 90, 63, 0.86);
+  box-shadow: 0 0 0 3px rgba(179, 90, 63, 0.14);
   pointer-events: none;
 }
 
-.snapGuideX {
+.plot [data-plan-snap-guide='true'][data-axis='x'] {
   top: 0;
   bottom: 0;
   width: 2px;
   transform: translateX(-1px);
-  background: rgba(179, 90, 63, 0.86);
-  box-shadow: 0 0 0 3px rgba(179, 90, 63, 0.14);
 }
 
-.snapGuideY {
+.plot [data-plan-snap-guide='true'][data-axis='y'] {
   right: 0;
   left: 0;
   height: 2px;
   transform: translateY(-1px);
-  background: rgba(179, 90, 63, 0.86);
-  box-shadow: 0 0 0 3px rgba(179, 90, 63, 0.14);
 }
 
 .marquee {

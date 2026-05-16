@@ -37,6 +37,7 @@
     "catalog:ingest:trefle": "node scripts/ingest-trefle-crops.mjs",
     "auth:seed-users": "node scripts/seed-login-users.mjs",
     "auth:sync-access": "node scripts/sync-auth-access.mjs",
+    "prod:repair-garden": "node scripts/repair-production-garden.mjs",
     "seed:dev": "node scripts/seed-dev.mjs",
     "setup:firebase:live": "node scripts/setup-live-firebase.mjs",
     "emulators": "firebase emulators:start --project demo-secret-faeries",

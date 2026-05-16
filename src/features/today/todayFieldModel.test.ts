@@ -240,6 +240,73 @@ describe('todayFieldModel', () => {
     });
   });
 
+  it('uses the selected day forecast when the saved observation is stale', () => {
+    const snapshot: WeatherSnapshot = {
+      ...createSnapshot(),
+      forecastDays: [
+        {
+          conditionSummary: 'Mostly Cloudy',
+          date: '2026-06-22',
+          expectedRainIn: 0.08,
+          highF: 66,
+          precipitationChancePercent: 42,
+          rainLikely: true,
+          rainWindowStartIso: '2026-06-22T12:00:00.000Z',
+        },
+      ],
+      nextRainIso: '2026-06-21T12:00:00.000Z',
+      observedForDate: '2026-06-21',
+    };
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      weatherSnapshots: [snapshot],
+    };
+
+    const selectedWeather = buildTodayFieldModel(
+      garden,
+      [],
+      '2026-06-22',
+      '2026-06-22',
+    ).selectedWeather;
+
+    expect(selectedWeather).toMatchObject({
+      conditionSummary: 'Mostly Cloudy',
+      displayDateLabel: 'Forecast for',
+      forecastRainIn: 0.08,
+      mode: 'forecast',
+      nextRainIso: '2026-06-22T12:00:00.000Z',
+      precipitationChancePercent: 42,
+    });
+  });
+
+  it('does not carry an earlier global next-rain time into later selected days', () => {
+    const snapshot: WeatherSnapshot = {
+      ...createSnapshot(),
+      forecastDays: [
+        {
+          conditionSummary: 'Mostly Sunny',
+          date: '2026-06-24',
+          expectedRainIn: 0,
+          highF: 74,
+          precipitationChancePercent: 13,
+        },
+      ],
+      nextRainIso: '2026-06-21T12:00:00.000Z',
+    };
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      weatherSnapshots: [snapshot],
+    };
+
+    expect(
+      buildTodayFieldModel(garden, [], '2026-06-24', '2026-06-21')
+        .selectedWeather,
+    ).toMatchObject({
+      conditionSummary: 'Mostly Sunny',
+      nextRainIso: null,
+    });
+  });
+
   it('surfaces qualitative NWS rain signals without inventing rain inches', () => {
     const snapshot: WeatherSnapshot = {
       ...createSnapshot(),
@@ -279,6 +346,27 @@ describe('todayFieldModel', () => {
         rainSummary: '78% rain chance; amount not published by NWS.',
       }),
     ]);
+  });
+
+  it('keeps all visible forecast days in the week rain summary data', () => {
+    const garden = {
+      ...createDefaultGarden('user-a'),
+      weatherSnapshots: [createSnapshot()],
+    };
+
+    const model = buildTodayFieldModel(garden, [], '2026-06-21', '2026-06-21');
+
+    expect(model.weekRain).toHaveLength(7);
+    expect(model.weekRain[0]).toMatchObject({
+      date: '2026-06-21',
+      rainLikely: false,
+      rainSummary: 'No rain expected.',
+    });
+    expect(model.weekRain[3]).toMatchObject({
+      date: '2026-06-24',
+      expectedRainIn: 0.35,
+      rainLikely: true,
+    });
   });
 });
 

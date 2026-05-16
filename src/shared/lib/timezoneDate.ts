@@ -39,3 +39,20 @@ export function getCalendarDateInTimeZone(
 
   return new Date(Date.UTC(year, Math.max(month - 1, 0), Math.max(day, 1), 12));
 }
+
+export function formatDateStringInTimeZone(
+  date: Date,
+  timezone: string | null | undefined,
+) {
+  if (Number.isNaN(date.getTime())) {
+    return '1970-01-01';
+  }
+
+  const { day, month, year } = getDatePartsInTimeZone(date, timezone);
+
+  return `${year}-${padDatePart(month)}-${padDatePart(day)}`;
+}
+
+function padDatePart(value: number) {
+  return String(value).padStart(2, '0');
+}

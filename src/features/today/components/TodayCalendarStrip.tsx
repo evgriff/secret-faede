@@ -34,6 +34,9 @@ export function TodayCalendarStrip({
               {day.markers.includes('watering') ? (
                 <WaterDropIcon className={styles.calendarMarkerIcon} />
               ) : null}
+              {day.markers.includes('rain') ? (
+                <WaterDropIcon className={styles.calendarMarkerIcon} />
+              ) : null}
               {day.markers.includes('plant') ? (
                 <PlantIcon className={styles.calendarMarkerIcon} title="" />
               ) : null}

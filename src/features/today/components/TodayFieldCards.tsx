@@ -411,7 +411,7 @@ function formatWeekRainSummary(weekRain: TodayWeekRainItem[]) {
   }
 
   return weekRain
-    .slice(0, 3)
+    .slice(0, 7)
     .map((item) => {
       const dayLabel = formatLongDate(item.date);
 

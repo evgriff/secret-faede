@@ -22,6 +22,7 @@ import type { PlanMode } from '../planModes';
 import {
   areSamePlanItem,
   calculateResizeRect,
+  buildSnapTargets,
   getPlanItemKey,
   getItemPointFromRect,
   getItemRect,
@@ -36,6 +37,7 @@ import {
   type PlanItemRef,
   type ResizeHandle,
   type SnapGuide,
+  type SnapTarget,
 } from '../planInteractionGeometry';
 import {
   canMoveLinkedPlanting,
@@ -53,6 +55,7 @@ type DragState = {
   originalRects: Array<{ item: PlanItemRef; rect: ItemRect }>;
   plotRect: PlotClientRect;
   pointerOffset: PlotPoint;
+  snapTargets: SnapTarget[];
   scrollLock: ScrollLock | null;
   selection: PlanItemRef[];
   sourceRect: ItemRect;
@@ -67,6 +70,7 @@ type ResizeState = {
   moved: boolean;
   originalRect: ItemRect;
   plotRect: PlotClientRect;
+  snapTargets: SnapTarget[];
   scrollLock: ScrollLock | null;
   startClientX: number;
   startClientY: number;
@@ -176,19 +180,26 @@ type ResizePreview = {
   update: PlanItemRectUpdate;
 };
 
-type InteractionPreviewState = {
-  dragOffsetsByItemKey: Record<string, PlanPreviewOffset>;
-  resizePreview: {
-    item: PlanItemRef;
-    rect: ItemRect;
-  } | null;
-  snapGuides: SnapGuide[];
-};
+type PendingDomPreview =
+  | {
+      kind: 'drag';
+      preview: DragPreview;
+    }
+  | {
+      item: PlanItemRef;
+      kind: 'resize';
+      preview: ResizePreview;
+    };
 
-const emptyInteractionPreviewState: InteractionPreviewState = {
-  dragOffsetsByItemKey: {},
-  resizePreview: null,
-  snapGuides: [],
+type PreviewElementState = {
+  element: HTMLElement;
+  mode: 'drag' | 'resize';
+  originalStyle: {
+    height: string;
+    left: string;
+    top: string;
+    width: string;
+  };
 };
 
 export type PlanPointerInteractionState =
@@ -240,18 +251,16 @@ export function usePlanPointerInteractions({
   const [resizingPlantId, setResizingPlantId] = useState<string | null>(null);
   const [interactionState, setInteractionState] =
     useState<PlanPointerInteractionState>('idle');
-  const [interactionPreviewState, setInteractionPreviewState] =
-    useState<InteractionPreviewState>(emptyInteractionPreviewState);
+  const activePreviewElementsRef = useRef<Map<string, PreviewElementState>>(
+    new Map(),
+  );
   const dragStateRef = useRef<DragState | null>(null);
-  const dragPreviewRef = useRef<DragPreview | null>(null);
   const itemPressRef = useRef<ItemPressState | null>(null);
   const marqueeStateRef = useRef<MarqueeState | null>(null);
-  const pendingPreviewStateRef = useRef<InteractionPreviewState>(
-    emptyInteractionPreviewState,
-  );
+  const pendingDomPreviewRef = useRef<PendingDomPreview | null>(null);
   const previewFrameRef = useRef<number | null>(null);
-  const resizePreviewRef = useRef<ResizePreview | null>(null);
   const resizeStateRef = useRef<ResizeState | null>(null);
+  const snapGuideElementsRef = useRef<HTMLElement[]>([]);
   const plotRef = useRef<HTMLDivElement | null>(null);
   const contextRef = useRef<PlanPointerInteractionContext>({
     garden,
@@ -273,6 +282,18 @@ export function usePlanPointerInteractions({
       ) {
         cancelAnimationFrame(previewFrameRef.current);
       }
+      activePreviewElementsRef.current.forEach((entry) => {
+        entry.element.style.removeProperty('--preview-offset-x');
+        entry.element.style.removeProperty('--preview-offset-y');
+        entry.element.style.left = entry.originalStyle.left;
+        entry.element.style.top = entry.originalStyle.top;
+        entry.element.style.width = entry.originalStyle.width;
+        entry.element.style.height = entry.originalStyle.height;
+        entry.element.removeAttribute('data-plan-preview-active');
+      });
+      activePreviewElementsRef.current.clear();
+      snapGuideElementsRef.current.forEach((element) => element.remove());
+      snapGuideElementsRef.current = [];
     },
     [],
   );
@@ -301,29 +322,50 @@ export function usePlanPointerInteractions({
     updateItemPositions,
   ]);
 
-  function queueInteractionPreview(nextState: InteractionPreviewState) {
-    pendingPreviewStateRef.current = nextState;
+  function queueDomPreview(nextPreview: PendingDomPreview) {
+    pendingDomPreviewRef.current = nextPreview;
 
     if (previewFrameRef.current !== null) {
       return;
     }
 
     if (typeof requestAnimationFrame !== 'function') {
-      setInteractionPreviewState(nextState);
+      flushDomPreview();
       return;
     }
 
     previewFrameRef.current = requestAnimationFrame(() => {
       previewFrameRef.current = null;
-      setInteractionPreviewState(pendingPreviewStateRef.current);
+      flushDomPreview();
     });
   }
 
-  function clearInteractionPreview() {
-    dragPreviewRef.current = null;
+  function flushDomPreview() {
+    const pendingPreview = pendingDomPreviewRef.current;
+
+    pendingDomPreviewRef.current = null;
+
+    if (!pendingPreview) {
+      return;
+    }
+
+    if (pendingPreview.kind === 'drag') {
+      applyDragPreview(pendingPreview.preview);
+      return;
+    }
+
+    applyResizePreview(pendingPreview.preview, pendingPreview.item);
+  }
+
+  function clearInteractionPreview({
+    defer = false,
+    restoreLayout = true,
+  }: {
+    defer?: boolean;
+    restoreLayout?: boolean;
+  } = {}) {
     itemPressRef.current = null;
-    resizePreviewRef.current = null;
-    pendingPreviewStateRef.current = emptyInteractionPreviewState;
+    pendingDomPreviewRef.current = null;
 
     if (
       previewFrameRef.current !== null &&
@@ -333,27 +375,179 @@ export function usePlanPointerInteractions({
       previewFrameRef.current = null;
     }
 
-    setInteractionPreviewState(emptyInteractionPreviewState);
+    const clearPreview = () => clearDomPreview({ restoreLayout });
+
+    if (defer && typeof queueMicrotask === 'function') {
+      queueMicrotask(clearPreview);
+      return;
+    }
+
+    clearPreview();
   }
 
   function syncDragPreviewState(preview: DragPreview) {
-    queueInteractionPreview({
-      dragOffsetsByItemKey: preview.hasChanged ? preview.offsetsByItemKey : {},
-      resizePreview: null,
-      snapGuides: preview.hasChanged ? preview.guides : [],
+    queueDomPreview({
+      kind: 'drag',
+      preview,
     });
   }
 
   function syncResizePreviewState(preview: ResizePreview, item: PlanItemRef) {
-    queueInteractionPreview({
-      dragOffsetsByItemKey: {},
-      resizePreview: preview.hasChanged
-        ? {
-            item,
-            rect: preview.rect,
-          }
-        : null,
-      snapGuides: preview.hasChanged ? preview.guides : [],
+    queueDomPreview({
+      item,
+      kind: 'resize',
+      preview,
+    });
+  }
+
+  function applyDragPreview(preview: DragPreview) {
+    const offsets = preview.hasChanged ? preview.offsetsByItemKey : {};
+    const activeKeys = new Set(Object.keys(offsets));
+
+    activePreviewElementsRef.current.forEach((entry, key) => {
+      if (entry.mode === 'drag' && !activeKeys.has(key)) {
+        clearPreviewElement(key, { restoreLayout: true });
+      }
+    });
+
+    Object.entries(offsets).forEach(([key, offset]) => {
+      const element = activatePreviewElementByKey(key, 'drag');
+
+      if (!element) {
+        return;
+      }
+
+      element.style.setProperty('--preview-offset-x', `${offset.xPx}px`);
+      element.style.setProperty('--preview-offset-y', `${offset.yPx}px`);
+    });
+
+    renderSnapGuides(preview.hasChanged ? preview.guides : []);
+  }
+
+  function applyResizePreview(preview: ResizePreview, item: PlanItemRef) {
+    if (!preview.hasChanged) {
+      clearPreviewElement(getPlanItemKey(item), { restoreLayout: true });
+      renderSnapGuides([]);
+      return;
+    }
+
+    const element = activatePreviewElementByKey(getPlanItemKey(item), 'resize');
+
+    if (element) {
+      element.style.left = `${roundPixels(preview.rect.xFt * pixelsPerFoot)}px`;
+      element.style.top = `${roundPixels(preview.rect.yFt * pixelsPerFoot)}px`;
+      element.style.width = `${roundPixels(
+        preview.rect.widthFt * pixelsPerFoot,
+      )}px`;
+      element.style.height = `${roundPixels(
+        preview.rect.depthFt * pixelsPerFoot,
+      )}px`;
+    }
+
+    renderSnapGuides(preview.guides);
+  }
+
+  function activatePreviewElementByKey(
+    key: string,
+    mode: PreviewElementState['mode'],
+  ) {
+    const element = getPlanItemElement(plotRef.current, key);
+
+    if (!element) {
+      return null;
+    }
+
+    const current = activePreviewElementsRef.current.get(key);
+
+    if (!current || current.element !== element) {
+      activePreviewElementsRef.current.set(key, {
+        element,
+        mode,
+        originalStyle: {
+          height: element.style.height,
+          left: element.style.left,
+          top: element.style.top,
+          width: element.style.width,
+        },
+      });
+    } else if (current.mode !== mode) {
+      current.mode = mode;
+    }
+
+    element.setAttribute('data-plan-preview-active', mode);
+
+    return element;
+  }
+
+  function clearDomPreview({ restoreLayout }: { restoreLayout: boolean }) {
+    Array.from(activePreviewElementsRef.current.keys()).forEach((key) =>
+      clearPreviewElement(key, { restoreLayout }),
+    );
+    renderSnapGuides([]);
+  }
+
+  function clearPreviewElement(
+    key: string,
+    {
+      restoreLayout,
+    }: {
+      restoreLayout: boolean;
+    },
+  ) {
+    const entry = activePreviewElementsRef.current.get(key);
+
+    if (!entry) {
+      return;
+    }
+
+    entry.element.style.removeProperty('--preview-offset-x');
+    entry.element.style.removeProperty('--preview-offset-y');
+
+    if (restoreLayout && entry.mode === 'resize') {
+      entry.element.style.left = entry.originalStyle.left;
+      entry.element.style.top = entry.originalStyle.top;
+      entry.element.style.width = entry.originalStyle.width;
+      entry.element.style.height = entry.originalStyle.height;
+    }
+
+    entry.element.removeAttribute('data-plan-preview-active');
+    activePreviewElementsRef.current.delete(key);
+  }
+
+  function renderSnapGuides(guides: SnapGuide[]) {
+    const plot = plotRef.current;
+
+    if (!plot) {
+      snapGuideElementsRef.current.forEach((element) => element.remove());
+      snapGuideElementsRef.current = [];
+      return;
+    }
+
+    guides.forEach((guide, index) => {
+      const element =
+        snapGuideElementsRef.current[index] ?? document.createElement('div');
+
+      if (!snapGuideElementsRef.current[index]) {
+        element.setAttribute('aria-hidden', 'true');
+        element.setAttribute('data-plan-snap-guide', 'true');
+        plot.appendChild(element);
+        snapGuideElementsRef.current[index] = element;
+      }
+
+      element.setAttribute('data-axis', guide.axis);
+
+      if (guide.axis === 'x') {
+        element.style.left = `${guide.valueFt * pixelsPerFoot}px`;
+        element.style.top = '';
+        return;
+      }
+
+      element.style.left = '';
+      element.style.top = `${guide.valueFt * pixelsPerFoot}px`;
+    });
+
+    snapGuideElementsRef.current.splice(guides.length).forEach((element) => {
+      element.remove();
     });
   }
 
@@ -379,6 +573,7 @@ export function usePlanPointerInteractions({
       sourceRect: dragState.sourceRect,
       snap: true,
       snapExclusions: dragState.selection,
+      snapTargets: dragState.snapTargets,
     });
     const sourcePoint =
       dragState.originalPoints.find((point) =>
@@ -468,6 +663,7 @@ export function usePlanPointerInteractions({
       handle: resizeState.handle,
       rect: baseRect,
       snapExclusions: [resizeState.item],
+      snapTargets: resizeState.snapTargets,
     });
 
     return {
@@ -557,6 +753,7 @@ export function usePlanPointerInteractions({
         xFt: pointerPoint.xFt - itemPoint.xFt,
         yFt: pointerPoint.yFt - itemPoint.yFt,
       },
+      snapTargets: buildSnapTargets(garden, dragSelection),
       scrollLock,
       selection: dragSelection,
       sourceRect,
@@ -608,7 +805,6 @@ export function usePlanPointerInteractions({
 
     const preview = buildDragPreview(event, dragState, garden);
 
-    dragPreviewRef.current = preview;
     restoreScrollLock(dragState.scrollLock);
     syncDragPreviewState(preview);
 
@@ -638,8 +834,6 @@ export function usePlanPointerInteractions({
     if (!canceled && dragState?.moved) {
       const preview = buildDragPreview(event, dragState, garden);
 
-      dragPreviewRef.current = preview;
-
       if (preview.hasChanged) {
         checkpointDrag(dragState, onCheckpoint);
         updateItemPositions(preview.updates, false, { saveAfterCommit: true });
@@ -662,7 +856,10 @@ export function usePlanPointerInteractions({
     setDraggingPlantId(null);
     setDraggingStructureId(null);
     setInteractionState('idle');
-    clearInteractionPreview();
+    clearInteractionPreview({
+      defer: !canceled && Boolean(dragState?.moved),
+      restoreLayout: canceled,
+    });
   }
 
   function beginResize(
@@ -696,6 +893,7 @@ export function usePlanPointerInteractions({
       moved: false,
       originalRect,
       plotRect,
+      snapTargets: buildSnapTargets(garden, [item]),
       scrollLock,
       startClientX: event.clientX,
       startClientY: event.clientY,
@@ -730,7 +928,6 @@ export function usePlanPointerInteractions({
 
     const preview = buildResizePreview(event, resizeStateRef.current, garden);
 
-    resizePreviewRef.current = preview;
     restoreScrollLock(resizeStateRef.current.scrollLock);
     syncResizePreviewState(preview, resizeStateRef.current.item);
 
@@ -756,12 +953,13 @@ export function usePlanPointerInteractions({
     event.preventDefault();
     event.stopPropagation();
     const canceled = event.type === 'pointercancel';
+    const didMove = resizeStateRef.current.moved;
 
     const preview = buildResizePreview(event, resizeStateRef.current, garden);
 
-    resizePreviewRef.current = preview;
+    const shouldCommitResize = !canceled && preview.hasChanged;
 
-    if (!canceled && preview.hasChanged) {
+    if (shouldCommitResize) {
       if (!resizeStateRef.current.checkpointed) {
         onCheckpoint();
         resizeStateRef.current.checkpointed = true;
@@ -786,7 +984,10 @@ export function usePlanPointerInteractions({
     setResizingPlantId(null);
     setResizingStructureId(null);
     setInteractionState('idle');
-    clearInteractionPreview();
+    clearInteractionPreview({
+      defer: shouldCommitResize && didMove,
+      restoreLayout: !shouldCommitResize,
+    });
   }
 
   function beginMarquee(event: PointerEvent<HTMLDivElement>) {
@@ -938,17 +1139,14 @@ export function usePlanPointerInteractions({
   );
 
   return {
-    dragPreviewOffsetsByItemKey: interactionPreviewState.dragOffsetsByItemKey,
     draggingPlantId,
     draggingStructureId,
     ...stableHandlers,
     interactionState,
     marqueeRect,
     plotRef,
-    resizePreview: interactionPreviewState.resizePreview,
     resizingPlantId,
     resizingStructureId,
-    snapGuides: interactionPreviewState.snapGuides,
   };
 }
 
@@ -1114,4 +1312,14 @@ function releasePointerCapture(event: PointerEvent<HTMLElement>) {
   ) {
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
+}
+
+function getPlanItemElement(plot: HTMLElement | null, key: string) {
+  return plot?.querySelector<HTMLElement>(
+    `[data-plan-item-key="${escapeAttributeValue(key)}"]`,
+  );
+}
+
+function escapeAttributeValue(value: string) {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }

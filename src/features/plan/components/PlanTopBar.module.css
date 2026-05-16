@@ -72,6 +72,7 @@
 .primaryButton,
 .secondaryButton,
 .iconButton,
+.inlineWarningButton,
 .warningButton {
   min-height: 2rem;
   border-radius: var(--radius-control);
@@ -100,9 +101,16 @@
 }
 
 .primaryButton:disabled,
-.secondaryButton:disabled {
+.secondaryButton:disabled,
+.inlineWarningButton:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.inlineWarningButton {
+  border: 1px solid rgba(163, 52, 40, 0.34);
+  background: rgba(163, 52, 40, 0.1);
+  color: #8f2d23;
 }
 
 .moreActions {

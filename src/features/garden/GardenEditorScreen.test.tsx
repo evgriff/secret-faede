@@ -909,6 +909,94 @@ describe('PlanPage', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('previews plant drag through CSS variables and commits only on pointer up', async () => {
+    const services = await createTestServices({
+      signedInEmail: 'primary.gardener@example.com',
+    });
+    const currentUser = services.authService.getCurrentUser();
+
+    if (!currentUser) {
+      throw new Error('Expected signed-in test user.');
+    }
+
+    await services.gardenRepository.saveGarden({
+      ...createDefaultGarden(currentUser.uid),
+      climateProfile: {
+        ...detroitClimateProfile,
+        source: 'user',
+      },
+      plantings: [
+        createDefaultPlanting({
+          id: 'planting-1',
+          label: 'Saved tomato',
+          xFt: 2,
+          yFt: 3,
+        }),
+      ],
+    });
+
+    const saveDraftSpy = vi.spyOn(services.gardenRepository, 'saveDraft');
+
+    renderRoute('/app/plan', services);
+
+    const plot = await screen.findByTestId('garden-plot');
+    const plant = await screen.findByRole('button', {
+      name: 'Saved tomato at X: 2.0 ft, Y: 3.0 ft',
+    });
+    const plantGroup = plant.closest<HTMLElement>('[data-plan-item-key]');
+
+    if (!plantGroup) {
+      throw new Error('Expected plant group wrapper.');
+    }
+
+    mockElementRect(plot, { height: 256, width: 384 });
+    saveDraftSpy.mockClear();
+
+    fireEvent.pointerDown(plant, {
+      button: 0,
+      buttons: 1,
+      clientX: 64,
+      clientY: 96,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
+    fireEvent.pointerMove(plant, {
+      buttons: 1,
+      clientX: 96,
+      clientY: 128,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
+
+    await waitFor(() => {
+      expect(plantGroup).toHaveAttribute('data-plan-preview-active', 'drag');
+      expect(plantGroup.style.getPropertyValue('--preview-offset-x')).not.toBe(
+        '',
+      );
+    });
+    expect(
+      screen.getByRole('button', {
+        name: 'Saved tomato at X: 2.0 ft, Y: 3.0 ft',
+      }),
+    ).toBeVisible();
+    expect(saveDraftSpy).not.toHaveBeenCalled();
+
+    fireEvent.pointerUp(plant, {
+      button: 0,
+      clientX: 96,
+      clientY: 128,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
+
+    expect(
+      await screen.findByRole('button', {
+        name: 'Saved tomato at X: 3.0 ft, Y: 4.0 ft',
+      }),
+    ).toBeVisible();
+    await waitFor(() => expect(saveDraftSpy).toHaveBeenCalledTimes(1));
+  });
+
   it('keeps drag autosave async and waits for the newest position before marking saved', async () => {
     const services = await createTestServices({
       signedInEmail: 'primary.gardener@example.com',

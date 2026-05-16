@@ -27,6 +27,59 @@ function hasSecretFaeriesAccess(auth) {
   );
 }
 
+function createDefaultUserProfile(uid, email, nowIso) {
+  return {
+    alertLocationQuery: 'Detroit, MI',
+    climateProfile: {
+      averageFirstFrost: '10-15',
+      averageLastFrost: '04-30',
+      editableByUser: true,
+      hardinessZone: '6b',
+      locationName: 'Detroit, MI',
+      source: 'demoDefault',
+      updatedAtIso: null,
+    },
+    createdAtIso: nowIso,
+    defaultGardenId: uid,
+    displayName: '',
+    email: email || '',
+    notificationPreference: {
+      alertTypes: {
+        frost: true,
+        heatStress: true,
+        severeWeather: true,
+        taskDue: true,
+        watering: true,
+      },
+      channelConsent: {
+        push: {
+          consentCopyVersion: '2026-04-20',
+          grantedAtIso: null,
+          revokedAtIso: null,
+          status: 'notRequested',
+        },
+      },
+      channels: {
+        inApp: true,
+        push: false,
+      },
+      defaultWateringCheckTime: '07:00',
+      frostAlertThresholdF: 36,
+      pushPermission: 'unknown',
+      pushTokenLastRegisteredAtIso: null,
+      quietHours: {
+        endLocalTime: '07:00',
+        startLocalTime: '21:00',
+      },
+      timezone: 'America/Detroit',
+      wateringAlertThresholdIn: 0.25,
+    },
+    timezone: 'America/Detroit',
+    uid,
+    updatedAtIso: nowIso,
+  };
+}
+
 exports.dailyWateringCheck = onSchedule(
   {
     schedule: '0 * * * *',
@@ -88,10 +141,18 @@ exports.refreshGardenOperations = onCall(async (request) => {
     );
   }
 
-  const profileSnapshot = await db.collection('users').doc(uid).get();
+  const profileRef = db.collection('users').doc(uid);
+  const profileSnapshot = await profileRef.get();
 
-  if (!profileSnapshot.exists) {
-    throw new HttpsError('not-found', 'No notification profile exists.');
+  let profile = profileSnapshot.exists ? profileSnapshot.data() : null;
+
+  if (!profile) {
+    profile = createDefaultUserProfile(
+      uid,
+      request.auth.token.email,
+      new Date().toISOString(),
+    );
+    await profileRef.set(profile, { merge: true });
   }
 
   const runGardenOperationsForUser = createOperationRunner({
@@ -100,7 +161,7 @@ exports.refreshGardenOperations = onCall(async (request) => {
     dispatchNotification,
     logger,
   });
-  const result = await runGardenOperationsForUser(uid, profileSnapshot.data(), {
+  const result = await runGardenOperationsForUser(uid, profile, {
     force: true,
     weatherProvider: createBackendWeatherProvider(logger),
   });

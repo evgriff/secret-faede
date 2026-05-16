@@ -76,6 +76,21 @@ describe('logFeedItems', () => {
     });
     expect(items.map((item) => item.id)).not.toContain('task-task-water-1');
   });
+
+  it('dates publish activity in the garden timezone instead of UTC', () => {
+    const garden = createFeedGarden();
+    const items = buildLogFeedItems({
+      garden,
+      revisions: [
+        createInitialGardenRevision('user-a', '2026-05-16T02:30:00.000Z'),
+      ],
+    });
+
+    expect(items.find((item) => item.type === 'publish')).toMatchObject({
+      date: '2026-05-15',
+      title: 'Published plan',
+    });
+  });
 });
 
 function createFeedGarden(): Garden {

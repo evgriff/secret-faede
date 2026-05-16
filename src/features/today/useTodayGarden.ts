@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useServices } from '../../app/providers';
 import {
@@ -7,13 +7,15 @@ import {
 } from '../../domain/gardens/GardenRepository';
 import { isBrowserOffline } from '../../shared/network/networkStatus';
 import { useAuth } from '../auth/auth-context';
+import { isSampleGarden } from '../demo/demoModeStorage';
 import { synchronizeGardenTasks, tasksAreEqual } from '../tasks/taskEngine';
 import {
   rebuildGardenWateringFromLatestSnapshot,
   refreshGardenWateringFromWeather,
 } from '../garden/wateringScheduleRefresh';
 import type { TodaySaveStatus } from './components/TodaySaveState';
-import { toErrorMessage } from './todayFormatters';
+import { toErrorMessage, toLocalDate } from './todayFormatters';
+import { shouldRunTodayWeatherAutoRefresh } from './todayWeatherRefreshPolicy';
 
 export type TodayLoadStatus = 'error' | 'loading' | 'ready';
 
@@ -30,6 +32,7 @@ export function useTodayGarden(today: Date, isOffline: boolean) {
   const [loadStatus, setLoadStatus] = useState<TodayLoadStatus>('loading');
   const [saveStatus, setSaveStatus] = useState<TodaySaveStatus>('idle');
   const [error, setError] = useState<string | null>(null);
+  const todayDate = toLocalDate(today);
 
   useEffect(() => {
     const userId = state.user?.uid;
@@ -206,76 +209,124 @@ export function useTodayGarden(today: Date, isOffline: boolean) {
     }
   }
 
+  const refreshWeatherAndWateringForGarden = useCallback(
+    async (baseGarden: Garden) => {
+      setSaveStatus('saving');
+      setError(null);
+
+      try {
+        const now = new Date();
+        const wasOffline = isBrowserOffline();
+        const authUser = state.user;
+        const backendResult = authUser
+          ? await gardenOperationsService
+              .refreshGardenOperations(authUser.uid)
+              .catch(() => null)
+          : null;
+
+        if (backendResult?.ok && backendResult.backendAvailable) {
+          const savedGarden = await gardenRepository.getGarden(
+            baseGarden.userId,
+          );
+
+          if (savedGarden) {
+            setGarden(savedGarden);
+            setSaveStatus(
+              wasOffline || isBrowserOffline() ? 'queued' : 'saved',
+            );
+            return true;
+          }
+        }
+
+        const profile =
+          authUser?.email && authUser.uid === baseGarden.userId
+            ? await userProfileRepository
+                .getUserProfile(authUser.uid, authUser.email)
+                .catch(() => null)
+            : null;
+        const updatedGarden = await refreshGardenWateringFromWeather(
+          baseGarden,
+          weatherProvider,
+          {
+            forceWeatherRefresh: true,
+            now,
+            profile,
+          },
+        );
+
+        const savedGarden = authUser?.email
+          ? await gardenRepository.saveSharedOperations({
+              actor: {
+                displayName: authUser.displayName,
+                email: authUser.email,
+                userId: authUser.uid,
+              },
+              baseGarden,
+              updatedGarden,
+              userId: authUser.uid,
+            })
+          : updatedGarden;
+
+        setGarden(savedGarden);
+        setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
+        return true;
+      } catch (refreshError) {
+        setError(
+          toErrorMessage(
+            refreshError,
+            'Unable to refresh weather and watering schedule.',
+          ),
+        );
+        setSaveStatus('error');
+        return false;
+      }
+    },
+    [
+      gardenOperationsService,
+      gardenRepository,
+      state.user,
+      userProfileRepository,
+      weatherProvider,
+    ],
+  );
+
+  useEffect(() => {
+    const authUser = state.user;
+
+    if (
+      isOffline ||
+      loadStatus !== 'ready' ||
+      !garden ||
+      isSampleGarden(garden) ||
+      !authUser?.email
+    ) {
+      return;
+    }
+
+    if (
+      !shouldRunTodayWeatherAutoRefresh(
+        `${authUser.uid}:${garden.id}:${todayDate}`,
+      )
+    ) {
+      return;
+    }
+
+    void refreshWeatherAndWateringForGarden(garden);
+  }, [
+    garden,
+    isOffline,
+    loadStatus,
+    refreshWeatherAndWateringForGarden,
+    state.user,
+    todayDate,
+  ]);
+
   async function refreshWeatherAndWatering() {
     if (!garden) {
       return false;
     }
 
-    setSaveStatus('saving');
-    setError(null);
-
-    try {
-      const now = new Date();
-      const wasOffline = isBrowserOffline();
-      const authUser = state.user;
-      const backendResult = authUser
-        ? await gardenOperationsService
-            .refreshGardenOperations(authUser.uid)
-            .catch(() => null)
-        : null;
-
-      if (backendResult?.ok && backendResult.backendAvailable) {
-        const savedGarden = await gardenRepository.getGarden(garden.userId);
-
-        if (savedGarden) {
-          setGarden(savedGarden);
-          setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
-          return true;
-        }
-      }
-
-      const profile =
-        authUser?.email && authUser.uid === garden.userId
-          ? await userProfileRepository
-              .getUserProfile(authUser.uid, authUser.email)
-              .catch(() => null)
-          : null;
-      const updatedGarden = await refreshGardenWateringFromWeather(
-        garden,
-        weatherProvider,
-        {
-          forceWeatherRefresh: true,
-          now,
-          profile,
-        },
-      );
-
-      const savedGarden = authUser?.email
-        ? await gardenRepository.saveSharedOperations({
-            actor: {
-              displayName: authUser.displayName,
-              email: authUser.email,
-              userId: authUser.uid,
-            },
-            baseGarden: garden,
-            updatedGarden,
-            userId: authUser.uid,
-          })
-        : updatedGarden;
-
-      setGarden(savedGarden);
-      setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
-      return true;
-    } catch (refreshError) {
-      setError(
-        toErrorMessage(
-          refreshError,
-          'Unable to refresh weather and watering schedule.',
-        ),
-      );
-      setSaveStatus('error');
-      return false;
-    }
+    return refreshWeatherAndWateringForGarden(garden);
   }
 
   return {

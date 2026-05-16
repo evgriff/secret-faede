@@ -35,8 +35,6 @@ describe('PlanPlantGroup', () => {
           }),
           cropId: 'tomato',
         }}
-        previewOffset={null}
-        previewRect={null}
         structures={[]}
         warnings={[]}
       />,
@@ -87,8 +85,6 @@ describe('PlanPlantGroup', () => {
           mode: 'block',
           plantCount: 4,
         }}
-        previewOffset={null}
-        previewRect={null}
         structures={[]}
         warnings={[]}
       />,

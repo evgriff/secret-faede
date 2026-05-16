@@ -76,8 +76,11 @@ describe('planInteractionGeometry', () => {
     });
 
     expect(result.point).toEqual({ xFt: 0, yFt: 0 });
-    expect(result.guides.map((guide) => guide.label)).toEqual(
-      expect.arrayContaining(['plot left edge', 'plot top edge']),
+    expect(result.guides).toEqual(
+      expect.arrayContaining([
+        { axis: 'x', valueFt: 0 },
+        { axis: 'y', valueFt: 0 },
+      ]),
     );
   });
 
@@ -99,8 +102,11 @@ describe('planInteractionGeometry', () => {
     });
 
     expect(result.point).toEqual({ xFt: 6, yFt: 2 });
-    expect(result.guides.map((guide) => guide.label)).toEqual(
-      expect.arrayContaining(['Spring bed right edge', 'Spring bed top edge']),
+    expect(result.guides).toEqual(
+      expect.arrayContaining([
+        { axis: 'x', valueFt: 6 },
+        { axis: 'y', valueFt: 2 },
+      ]),
     );
   });
 
@@ -122,10 +128,10 @@ describe('planInteractionGeometry', () => {
     });
 
     expect(result.point).toEqual({ xFt: 9, yFt: 6 });
-    expect(result.guides.map((guide) => guide.label)).toEqual(
+    expect(result.guides).toEqual(
       expect.arrayContaining([
-        'Pea trellis centerline',
-        'Pea trellis top edge',
+        { axis: 'x', valueFt: 9 },
+        { axis: 'y', valueFt: 6 },
       ]),
     );
   });
@@ -219,9 +225,7 @@ describe('planInteractionGeometry', () => {
 
     expect(result.rect.widthFt).toBe(4);
     expect(result.rect.xFt).toBe(2);
-    expect(result.guides.map((guide) => guide.label)).toContain(
-      'Spring bed right edge',
-    );
+    expect(result.guides).toContainEqual({ axis: 'x', valueFt: 6 });
   });
 
   it('snaps north-west resize handles to the plot corner', () => {
@@ -252,8 +256,11 @@ describe('planInteractionGeometry', () => {
       xFt: 0,
       yFt: 0,
     });
-    expect(result.guides.map((guide) => guide.label)).toEqual(
-      expect.arrayContaining(['plot left edge', 'plot top edge']),
+    expect(result.guides).toEqual(
+      expect.arrayContaining([
+        { axis: 'x', valueFt: 0 },
+        { axis: 'y', valueFt: 0 },
+      ]),
     );
   });
 });

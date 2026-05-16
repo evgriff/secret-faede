@@ -13,13 +13,11 @@ import {
   type Garden,
   type Planting,
 } from '../../../domain/gardens/GardenRepository';
-import { fitPlantingToAreaRect } from '../../../domain/gardens/plantingAreaFit';
 import { getPlantingInstances } from '../../../domain/gardens/plantingInstances';
 import { isPlantingAnchoredByLifecycle } from '../../garden/gardenImmutability';
 import { formatFeet, pixelsPerFoot } from '../../garden/gardenMath';
 import {
   getPlantingFootprint,
-  type FootRect,
   type PlanWarning,
 } from '../../garden/gardenPlanning';
 import {
@@ -35,10 +33,7 @@ import {
   getPlantGroupVisual,
   type PlantGroupLabelPlacement,
 } from '../plantVisuals';
-import type {
-  PlanPreviewOffset,
-  ResizeHandle,
-} from '../planInteractionGeometry';
+import { getPlanItemKey, type ResizeHandle } from '../planInteractionGeometry';
 import { PlantGroupIcon } from './PlantGroupIcon';
 import { footprintStyle } from './planCanvasGeometry';
 import itemStyles from './PlanCanvasItems.module.css';
@@ -67,8 +62,6 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
   onPlantResizePointerDown,
   onResizePointerEnd,
   onResizePointerMove,
-  previewOffset,
-  previewRect,
   onSelectItem,
   plant,
   structures,
@@ -107,8 +100,6 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
   ): void;
   onResizePointerEnd(event: PointerEvent<HTMLSpanElement>): void;
   onResizePointerMove(event: PointerEvent<HTMLSpanElement>): void;
-  previewOffset: PlanPreviewOffset | null;
-  previewRect: FootRect | null;
   onSelectItem(
     item: SelectedGardenItem,
     additive: boolean,
@@ -118,29 +109,18 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
   structures: Garden['structures'];
   warnings: PlanWarning[];
 }) {
-  const displayPlant = useMemo(
-    () =>
-      previewRect ? fitPlantingToAreaRect(plant, previewRect).planting : plant,
-    [plant, previewRect],
-  );
   const crop = plant.cropId ? getCropById(plant.cropId) : null;
-  const instances = useMemo(
-    () => getPlantingInstances(displayPlant),
-    [displayPlant],
-  );
-  const footprint = useMemo(
-    () => previewRect ?? getPlantingFootprint(displayPlant),
-    [displayPlant, previewRect],
-  );
-  const visual = getPlantGroupVisual(crop, displayPlant);
+  const instances = useMemo(() => getPlantingInstances(plant), [plant]);
+  const footprint = useMemo(() => getPlantingFootprint(plant), [plant]);
+  const visual = getPlantGroupVisual(crop, plant);
   const label = plant.label || crop?.commonName || `Plant ${index + 1}`;
-  const quantity = Math.max(instances.length, displayPlant.plantCount ?? 1, 1);
+  const quantity = Math.max(instances.length, plant.plantCount ?? 1, 1);
   const isAnchored = isPlantingAnchoredByLifecycle(plant);
   const showContextSignals = isSelected || isCropFocused;
   const supportState = getSupportState({
     crop,
     footprint,
-    plant: displayPlant,
+    plant,
     showContextSignals,
     structures,
     warnings,
@@ -210,8 +190,6 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
         '--plant-wrench-shadow-blur': `${plantWrenchMetrics.shadowBlurPx}px`,
         '--plant-wrench-shadow-y': `${plantWrenchMetrics.shadowYPx}px`,
         '--plant-wrench-size': `${plantWrenchMetrics.sizePx}px`,
-        '--preview-offset-x': `${previewOffset?.xPx ?? 0}px`,
-        '--preview-offset-y': `${previewOffset?.yPx ?? 0}px`,
       }) as CSSProperties,
     [
       footprint,
@@ -221,8 +199,6 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
       plantWrenchMetrics.shadowBlurPx,
       plantWrenchMetrics.shadowYPx,
       plantWrenchMetrics.sizePx,
-      previewOffset?.xPx,
-      previewOffset?.yPx,
       visual.palette.accent,
       visual.palette.dot,
       visual.palette.dotAlt,
@@ -234,7 +210,7 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
   return (
     <div
       className={`${itemStyles.plantGroup} ${
-        itemStyles[displayPlant.mode] ?? ''
+        itemStyles[plant.mode] ?? ''
       } ${itemStyles[plant.status] ?? ''} ${
         isSelected ? itemStyles.selectedPlantGroup : ''
       } ${isDragging ? itemStyles.draggingPlantGroup : ''} ${
@@ -254,6 +230,7 @@ export const PlanPlantGroup = memo(function PlanPlantGroup({
       }`}
       data-plant-group-id={plant.id}
       data-plan-item="true"
+      data-plan-item-key={getPlanItemKey({ id: plant.id, type: 'planting' })}
       onBlur={(event) => handleGroupBlur(event, onPlantHoverChange)}
       onPointerEnter={() => {
         if (!isDragging) {

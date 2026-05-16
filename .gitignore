@@ -2,6 +2,7 @@ node_modules
 dist
 coverage
 output
+.playwright-cli
 playwright-report
 test-results
 .DS_Store

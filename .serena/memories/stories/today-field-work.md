@@ -13,6 +13,11 @@ Route and workflow:
 Success criteria:
 
 - watering work leads with amount, target, reasoning, and direct actions
+- weather refreshes automatically on authenticated Today load; the manual refresh
+  button is a retry/repair action, not the normal path
+- every visible calendar day uses selected-date weather facts, including
+  forecast condition, rain chance/amount, and next-rain timing relative to that
+  selected day
 - generated tasks cover planting, supports, thinning, pruning, fertilizing, mulching, watering, harvest windows, and succession prompts
 - field actions are fast: water done, task done, issue, note/photo, and harvest logging
 - empty or quiet days collapse secondary panels instead of becoming dashboards

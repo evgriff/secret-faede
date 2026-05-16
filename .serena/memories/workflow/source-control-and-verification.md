@@ -43,6 +43,9 @@ Add targeted checks when relevant:
 - `npm run functions:test`
 - `npm run auth:sync-access -- --dry-run` before syncing production Auth access
   claims or deploying access-model changes
+- `npm run prod:repair-garden -- --dry-run` before any targeted production
+  garden data repair; the script writes an ignored Firestore backup before
+  reporting or applying stale draft/test data cleanup
 - `bash -n plugins/serena/scripts/start-project-mcp-stdio.sh` for Serena shell changes
 - `npm run quality:serena` for app, workflow, architecture, or Serena catalog changes
 

@@ -139,6 +139,10 @@ export function getFirebaseStorageClient(environment: AppEnvironment) {
 }
 
 export async function getFirebaseAnalyticsClient(environment: AppEnvironment) {
+  if (isAutomatedBrowser()) {
+    return null;
+  }
+
   if (!analyticsSupportedPromise) {
     analyticsSupportedPromise = isSupported().catch(() => false);
   }
@@ -164,4 +168,8 @@ export async function logFirebaseAnalyticsEvent(
   if (analytics) {
     logEvent(analytics, name, payload);
   }
+}
+
+function isAutomatedBrowser() {
+  return typeof navigator !== 'undefined' && navigator.webdriver === true;
 }

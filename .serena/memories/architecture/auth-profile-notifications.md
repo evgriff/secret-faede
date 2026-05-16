@@ -18,6 +18,10 @@ Profile model:
 
 - `UserProfileRepository` owns alert defaults and notification preferences at `users/{uid}`.
 - Settings is the user-facing surface for quiet hours, check time, thresholds, location, timezone, and consent state.
+- `refreshGardenOperations` creates a default Detroit profile for a
+  provisioned Firebase member if `users/{uid}` is missing, then continues the
+  refresh. The production repair script also reports and creates missing
+  profiles for provisioned members after backup.
 - Provisioned public examples use generic primary/partner gardener identities and placeholder Firebase configuration only.
 
 Notification model:

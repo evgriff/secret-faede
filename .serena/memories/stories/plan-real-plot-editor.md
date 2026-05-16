@@ -18,7 +18,10 @@ Success criteria:
 - Add Plants asks for crop and quantity, then uses arrangement-aware planting groups
 - grouped plant footprints expose individual plant nodes when needed
 - Review and Optimize present practical before/after choices, not numeric score dashboards
-- Publish, revert, and draft state are visible and recoverable
+- Publish, revert, stale draft conflicts, and draft recovery actions are visible
+  and recoverable from the primary Plan controls
+- pointer interactions should avoid forced synchronous React renders so drag,
+  resize, select, and pan stay responsive on production-sized gardens
 - weather, watering, sun, and operations panels support the editor rather than replacing it
 - layout suggestions and seasonal crop planning should keep climate-aware assertions tied to the public Detroit baseline
 

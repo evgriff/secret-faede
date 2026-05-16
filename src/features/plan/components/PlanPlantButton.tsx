@@ -11,6 +11,7 @@ import type { PlanWarning } from '../../garden/gardenPlanning';
 import { getCropSupportNeed } from '../../garden/gardenStructureRules';
 import { PlantIcon } from '../../garden/PlantIcon';
 import type { SelectedGardenItem } from '../../garden/useGarden';
+import { getPlanItemKey } from '../planInteractionGeometry';
 import { footprintStyle } from './planCanvasGeometry';
 import itemStyles from './PlanCanvasItems.module.css';
 
@@ -85,6 +86,11 @@ export const PlanPlantButton = memo(function PlanPlantButton({
         isFocusDimmed ? itemStyles.cropFocusDimmed : ''
       } ${hasWarning ? itemStyles.warningItem : ''}`}
       data-plan-item="true"
+      data-plan-item-key={getPlanItemKey({
+        id: plant.id,
+        instanceId: instance.id,
+        type: 'planting',
+      })}
       onClick={(event) => {
         if (event.detail === 0) {
           onSelectItem(

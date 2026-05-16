@@ -8,7 +8,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import { flushSync } from 'react-dom';
 
 import type {
   Garden,
@@ -469,9 +468,7 @@ export const PlanCanvas = memo(function PlanCanvas({
   );
   const syncInteractionState = useCallback(
     (state: PlanPointerInteractionState | 'pan') => {
-      flushSync(() => {
-        onInteractionStateChange(state);
-      });
+      onInteractionStateChange(state);
     },
     [onInteractionStateChange],
   );
@@ -611,9 +608,6 @@ export const PlanCanvas = memo(function PlanCanvas({
       >
         <PlanCanvasScene
           activeSunLayer={activeSunLayer}
-          dragPreviewOffsetsByItemKey={
-            pointerInteractions.dragPreviewOffsetsByItemKey
-          }
           draggingPlantId={pointerInteractions.draggingPlantId}
           draggingStructureId={pointerInteractions.draggingStructureId}
           focusedCropKey={focusedCropKey}
@@ -647,14 +641,12 @@ export const PlanCanvas = memo(function PlanCanvas({
           plotRef={pointerInteractions.plotRef}
           plotStyle={workbenchStyle}
           proposalDiffOverlay={proposalDiffOverlay}
-          resizePreview={pointerInteractions.resizePreview}
           resizingPlantId={pointerInteractions.resizingPlantId}
           resizingStructureId={pointerInteractions.resizingStructureId}
           sceneStyle={sceneStyle}
           selectedPlantIds={selectedPlantIds}
           selectedStructureIds={selectedStructureIds}
           showSunLayer={layers.sun}
-          snapGuides={pointerInteractions.snapGuides}
           sunSeason={sunSeason}
           visibleWarnings={immediateWarnings}
           visiblePlantLabelIds={visiblePlantLabelIds}

@@ -156,6 +156,7 @@ export function RevisionHistoryModal({
   onClose,
   onRevert,
   revisions,
+  timezone,
 }: {
   currentRevisionId: string;
   error: string | null;
@@ -163,6 +164,7 @@ export function RevisionHistoryModal({
   onClose(): void;
   onRevert(revisionId: string): void;
   revisions: PublishedGardenRevision[];
+  timezone: string | null | undefined;
 }) {
   return (
     <Modal
@@ -185,7 +187,7 @@ export function RevisionHistoryModal({
                 ) : null}
               </div>
               <p>
-                {formatDateTime(revision.publishedAtIso)} by{' '}
+                {formatDateTime(revision.publishedAtIso, timezone)} by{' '}
                 {revision.publishedByEmail}
               </p>
               <p>{revision.changesetSummary.summaryItems.join(', ')}</p>
@@ -235,12 +237,16 @@ function formatDecisionStatus(decision: GardenSuggestionDecision) {
   return decision.status === 'snoozed' ? 'ignored' : decision.status;
 }
 
-function formatDateTime(value: string) {
+function formatDateTime(value: string, timezone: string | null | undefined) {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
     return 'Unknown time';
   }
 
-  return date.toLocaleString();
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: timezone || 'UTC',
+  }).format(date);
 }

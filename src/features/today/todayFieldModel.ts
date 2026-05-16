@@ -3,6 +3,7 @@ import type {
   JournalEntry,
   Task,
   WeatherSnapshot,
+  WeatherSnapshotForecastDay,
 } from '../../domain/gardens/GardenRepository';
 import {
   getPlantingHarvestSchedule,
@@ -119,7 +120,7 @@ export function buildTodayFieldModel(
     latestWeather,
     nextWateringRun: wateringOutlook[0] ?? null,
     recentActivity: getRecentActivity(garden),
-    selectedWeather: getSelectedWeather(latestWeather, selectedDate, todayDate),
+    selectedWeather: getSelectedWeather(latestWeather, selectedDate),
     unresolvedIssues,
     urgentAlerts: getUrgentAlerts(
       garden,
@@ -137,7 +138,6 @@ export function buildTodayFieldModel(
 function getSelectedWeather(
   latestWeather: WeatherSnapshot | null,
   selectedDate: string,
-  todayDate: string,
 ): TodaySelectedWeather | null {
   if (!latestWeather) {
     return null;
@@ -145,34 +145,35 @@ function getSelectedWeather(
 
   const providerLabel =
     latestWeather.providerLabel ?? latestWeather.source ?? 'Manual';
+  const forecastDay = latestWeather.forecastDays?.find(
+    (day) => day.date === selectedDate,
+  );
 
-  if (selectedDate !== todayDate && latestWeather.forecastDays) {
-    const forecastDay = latestWeather.forecastDays.find(
-      (day) => day.date === selectedDate,
-    );
-
-    if (forecastDay) {
-      return {
-        alertSummaries: latestWeather.alertSummaries,
-        conditionSummary: forecastDay.conditionSummary,
-        date: forecastDay.date,
-        displayDateLabel: 'Forecast for',
-        forecastRainIn: forecastDay.expectedRainIn,
-        frostRisk: latestWeather.frostRisk,
-        heatRisk: latestWeather.heatRisk,
-        mode: 'forecast',
-        nextRainIso: latestWeather.nextRainIso,
-        precipitationChancePercent:
-          forecastDay.precipitationChancePercent ?? null,
-        providerLabel,
-        rainLikely: forecastDay.rainLikely ?? false,
-        rainSummary: forecastDay.rainSummary ?? null,
-        rainWindowEndIso: forecastDay.rainWindowEndIso ?? null,
-        rainWindowStartIso: forecastDay.rainWindowStartIso ?? null,
-        recentPrecipitation72hIn: null,
-        temperatureF: forecastDay.highF,
-      };
-    }
+  if (forecastDay && latestWeather.observedForDate !== selectedDate) {
+    return {
+      alertSummaries: latestWeather.alertSummaries,
+      conditionSummary: forecastDay.conditionSummary,
+      date: forecastDay.date,
+      displayDateLabel: 'Forecast for',
+      forecastRainIn: forecastDay.expectedRainIn,
+      frostRisk: latestWeather.frostRisk,
+      heatRisk: latestWeather.heatRisk,
+      mode: 'forecast',
+      nextRainIso: getNextRainIsoForDate(
+        latestWeather,
+        forecastDay,
+        selectedDate,
+      ),
+      precipitationChancePercent:
+        forecastDay.precipitationChancePercent ?? null,
+      providerLabel,
+      rainLikely: forecastDay.rainLikely ?? false,
+      rainSummary: forecastDay.rainSummary ?? null,
+      rainWindowEndIso: forecastDay.rainWindowEndIso ?? null,
+      rainWindowStartIso: forecastDay.rainWindowStartIso ?? null,
+      recentPrecipitation72hIn: null,
+      temperatureF: forecastDay.highF,
+    };
   }
 
   return {
@@ -184,25 +185,38 @@ function getSelectedWeather(
     frostRisk: latestWeather.frostRisk,
     heatRisk: latestWeather.heatRisk,
     mode: 'observed',
-    nextRainIso: latestWeather.nextRainIso,
+    nextRainIso: getNextRainIsoForDate(
+      latestWeather,
+      forecastDay,
+      selectedDate,
+    ),
     precipitationChancePercent: null,
     providerLabel,
-    rainLikely:
-      latestWeather.forecastDays?.some(
-        (day) => day.date === todayDate && day.rainLikely === true,
-      ) ?? false,
-    rainSummary:
-      latestWeather.forecastDays?.find((day) => day.date === todayDate)
-        ?.rainSummary ?? null,
-    rainWindowEndIso:
-      latestWeather.forecastDays?.find((day) => day.date === todayDate)
-        ?.rainWindowEndIso ?? null,
-    rainWindowStartIso:
-      latestWeather.forecastDays?.find((day) => day.date === todayDate)
-        ?.rainWindowStartIso ?? null,
+    rainLikely: forecastDay?.rainLikely ?? false,
+    rainSummary: forecastDay?.rainSummary ?? null,
+    rainWindowEndIso: forecastDay?.rainWindowEndIso ?? null,
+    rainWindowStartIso: forecastDay?.rainWindowStartIso ?? null,
     recentPrecipitation72hIn: latestWeather.recentPrecipitation72hIn,
     temperatureF: latestWeather.temperatureF,
   };
+}
+
+function getNextRainIsoForDate(
+  latestWeather: WeatherSnapshot,
+  forecastDay: WeatherSnapshotForecastDay | undefined,
+  selectedDate: string,
+) {
+  if (forecastDay?.rainWindowStartIso) {
+    return forecastDay.rainWindowStartIso;
+  }
+
+  if (!latestWeather.nextRainIso) {
+    return null;
+  }
+
+  const nextRainDate = latestWeather.nextRainIso.slice(0, 10);
+
+  return nextRainDate >= selectedDate ? latestWeather.nextRainIso : null;
 }
 
 function getWeekRain(
@@ -213,29 +227,25 @@ function getWeekRain(
     latestWeather?.forecastDays
       ?.filter((day) => day.date >= todayDate)
       .slice(0, 7)
-      .flatMap((day): TodayWeekRainItem[] => {
+      .map((day): TodayWeekRainItem => {
         const rainLikely =
           (day.expectedRainIn ?? 0) >= 0.01 || day.rainLikely === true;
 
-        if (!rainLikely) {
-          return [];
-        }
-
-        return [
-          {
-            date: day.date,
-            expectedRainIn: day.expectedRainIn,
-            precipitationChancePercent: day.precipitationChancePercent ?? null,
-            rainLikely,
-            rainSummary:
-              day.rainSummary ??
-              ((day.expectedRainIn ?? 0) >= 0.01
-                ? `${day.expectedRainIn.toFixed(2)} in expected rain.`
-                : 'Rain likely; amount not published by NWS.'),
-            rainWindowEndIso: day.rainWindowEndIso ?? null,
-            rainWindowStartIso: day.rainWindowStartIso ?? null,
-          },
-        ];
+        return {
+          date: day.date,
+          expectedRainIn: day.expectedRainIn,
+          precipitationChancePercent: day.precipitationChancePercent ?? null,
+          rainLikely,
+          rainSummary:
+            day.rainSummary ??
+            ((day.expectedRainIn ?? 0) >= 0.01
+              ? `${day.expectedRainIn.toFixed(2)} in expected rain.`
+              : rainLikely
+                ? 'Rain likely; amount not published by NWS.'
+                : 'No rain expected.'),
+          rainWindowEndIso: day.rainWindowEndIso ?? null,
+          rainWindowStartIso: day.rainWindowStartIso ?? null,
+        };
       }) ?? []
   );
 }
