@@ -9,6 +9,37 @@ import { renderRoute } from '../../test/render';
 import { createTestServices } from '../../test/testServices';
 
 describe('TodayPage', () => {
+  it('explains watering scheduling from the calendar help control', async () => {
+    const user = userEvent.setup();
+    const services = await createTestServices({
+      signedInEmail: 'primary.gardener@example.com',
+    });
+
+    renderRoute('/app/today', services);
+
+    const helpButton = await screen.findByRole('button', {
+      name: 'How are watering tasks scheduled?',
+    });
+
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+
+    await user.hover(helpButton);
+
+    const hoverTooltip = await screen.findByRole('tooltip');
+
+    expect(hoverTooltip).toHaveTextContent('How are watering tasks scheduled?');
+    expect(hoverTooltip).toHaveTextContent('subtracts recent rain');
+    expect(hoverTooltip).toHaveTextContent('crop or bed threshold');
+
+    helpButton.focus();
+    expect(helpButton).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    expect(helpButton).toHaveFocus();
+  });
+
   it('adds a quick manual field task', async () => {
     const user = userEvent.setup();
     const services = await createTestServices({

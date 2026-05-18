@@ -1,3 +1,5 @@
+import { useId, useState } from 'react';
+
 import { PlantIcon } from '../../garden/PlantIcon';
 import { formatMonthDay, formatWeekday } from '../todayFormatters';
 import styles from '../TodayPage.module.css';
@@ -14,43 +16,104 @@ export function TodayCalendarStrip({
   todayDate: string;
 }) {
   return (
-    <section aria-label="One week calendar" className={styles.calendar}>
-      {days.map((day) => (
-        <button
-          aria-pressed={day.date === selectedDate}
-          className={`${styles.calendarDay} ${
-            day.date === todayDate ? styles.today : ''
-          } ${day.date === selectedDate ? styles.selectedDay : ''}`}
-          key={day.date}
-          onClick={() => onSelectDate(day.date)}
-          type="button"
-        >
-          <span>
-            {day.date === todayDate ? 'Today' : formatWeekday(day.date)}
-          </span>
-          <strong>{formatMonthDay(day.date)}</strong>
-          {day.markers.length > 0 ? (
-            <span className={styles.calendarMarkers}>
-              {day.markers.includes('watering') ? (
-                <WaterDropIcon className={styles.calendarMarkerIcon} />
-              ) : null}
-              {day.markers.includes('rain') ? (
-                <WaterDropIcon className={styles.calendarMarkerIcon} />
-              ) : null}
-              {day.markers.includes('plant') ? (
-                <PlantIcon className={styles.calendarMarkerIcon} title="" />
-              ) : null}
-              {day.markers.includes('alert') ? (
-                <AlertIcon className={styles.calendarMarkerIcon} />
-              ) : null}
+    <section aria-label="One week calendar" className={styles.calendarWrap}>
+      <div className={styles.calendar}>
+        {days.map((day) => (
+          <button
+            aria-pressed={day.date === selectedDate}
+            className={`${styles.calendarDay} ${
+              day.date === todayDate ? styles.today : ''
+            } ${day.date === selectedDate ? styles.selectedDay : ''}`}
+            key={day.date}
+            onClick={() => onSelectDate(day.date)}
+            type="button"
+          >
+            <span>
+              {day.date === todayDate ? 'Today' : formatWeekday(day.date)}
             </span>
-          ) : null}
-          <small>
-            {day.count} {day.count === 1 ? 'task' : 'tasks'}
-          </small>
-        </button>
-      ))}
+            <strong>{formatMonthDay(day.date)}</strong>
+            {day.markers.length > 0 ? (
+              <span className={styles.calendarMarkers}>
+                {day.markers.includes('watering') ? (
+                  <WaterDropIcon className={styles.calendarMarkerIcon} />
+                ) : null}
+                {day.markers.includes('rain') ? (
+                  <WaterDropIcon className={styles.calendarMarkerIcon} />
+                ) : null}
+                {day.markers.includes('plant') ? (
+                  <PlantIcon className={styles.calendarMarkerIcon} title="" />
+                ) : null}
+                {day.markers.includes('alert') ? (
+                  <AlertIcon className={styles.calendarMarkerIcon} />
+                ) : null}
+              </span>
+            ) : null}
+            <small>
+              {day.count} {day.count === 1 ? 'task' : 'tasks'}
+            </small>
+          </button>
+        ))}
+      </div>
+      <WateringScheduleHelp />
     </section>
+  );
+}
+
+function WateringScheduleHelp() {
+  const [isOpen, setIsOpen] = useState(false);
+  const tooltipId = useId();
+  const title = 'How are watering tasks scheduled?';
+
+  return (
+    <span
+      className={styles.wateringHelp}
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+    >
+      <button
+        aria-describedby={isOpen ? tooltipId : undefined}
+        aria-expanded={isOpen}
+        aria-label={title}
+        className={styles.wateringHelpButton}
+        onBlur={() => setIsOpen(false)}
+        onClick={() => setIsOpen((current) => !current)}
+        onFocus={() => setIsOpen(true)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.stopPropagation();
+            setIsOpen(false);
+          }
+        }}
+        type="button"
+      >
+        ?
+      </button>
+      {isOpen ? (
+        <span
+          className={styles.wateringHelpTooltip}
+          id={tooltipId}
+          role="tooltip"
+        >
+          <strong>{title}</strong>
+          <span>
+            Today checks the saved plot, crops, beds, containers, soil, mulch,
+            crop stage, heat, and weather.
+          </span>
+          <span>
+            It subtracts recent rain, forecast rain, planting-day watering, and
+            watering already logged in Feed.
+          </span>
+          <span>
+            A watering task appears only when the remaining need passes that
+            crop or bed threshold.
+          </span>
+          <span>
+            Likely rain can wait until after the NWS rain window is rechecked,
+            and nearby beds are grouped into one practical run.
+          </span>
+        </span>
+      ) : null}
+    </span>
   );
 }
 

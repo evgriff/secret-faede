@@ -66,7 +66,11 @@ import {
   buildAutoLayoutProposalDiffOverlay,
   buildReviewSuggestionDiffOverlay,
 } from './proposalDiffOverlay';
-import { getPlanItemKey, type PlanItemRef } from './planInteractionGeometry';
+import {
+  areSamePlanItem,
+  getPlanItemKey,
+  type PlanItemRef,
+} from './planInteractionGeometry';
 import {
   buildAlignUpdates,
   buildDistributeHorizontalUpdates,
@@ -273,8 +277,12 @@ export function PlanPage() {
       return undefined;
     }
 
+    if (planInteractionState !== 'idle') {
+      return undefined;
+    }
+
     let canceled = false;
-    const timeoutId = window.setTimeout(() => {
+    const cancelWarningTask = scheduleIdlePlanTask(() => {
       if (canceled) {
         return;
       }
@@ -290,13 +298,13 @@ export function PlanPage() {
             : { sunSeason },
         ),
       );
-    }, 0);
+    });
 
     return () => {
       canceled = true;
-      window.clearTimeout(timeoutId);
+      cancelWarningTask();
     };
-  }, [activeSunLayer, garden, sunSeason]);
+  }, [activeSunLayer, garden, planInteractionState, sunSeason]);
   const activePlanWarnings = useMemo(
     () =>
       planWarnings.filter(
@@ -748,6 +756,16 @@ export function PlanPage() {
           !additive &&
           nextSelection.length === 1;
 
+        if (
+          !shouldOpenSurface &&
+          areSelectionsEqual(currentSelection, nextSelection) &&
+          selectedItem &&
+          primaryItem &&
+          areSamePlanItem(selectedItem, primaryItem)
+        ) {
+          return currentSelection;
+        }
+
         if (shouldOpenSurface) {
           setActiveMode('select');
         }
@@ -759,7 +777,7 @@ export function PlanPage() {
         return nextSelection;
       });
     },
-    [setSelectedItem, syncTransientPlantInteraction],
+    [selectedItem, setSelectedItem, syncTransientPlantInteraction],
   );
 
   const handleMarqueeSelect = useCallback(
@@ -777,6 +795,18 @@ export function PlanPage() {
           return currentSelection;
         }
 
+        if (
+          nextSelection.length === 0 &&
+          currentSelection.length === 0 &&
+          !selectedItem
+        ) {
+          return currentSelection;
+        }
+
+        if (areSelectionsEqual(currentSelection, nextSelection)) {
+          return currentSelection;
+        }
+
         setSelectedItem(primaryItem);
         syncTransientPlantInteraction(nextSelection, primaryItem, {
           openSurface: false,
@@ -786,6 +816,7 @@ export function PlanPage() {
     },
     [
       detailedViewState.isOpen,
+      selectedItem,
       selectedItemKey,
       setHoveredPlantGroupId,
       setPlantLabelVisibility,
@@ -1912,4 +1943,38 @@ function hasPlanWorkspaceChanges(summary: GardenChangesetSummary) {
     summary.wantedCropsChanged > 0 ||
     summary.wantedCropsRemoved > 0
   );
+}
+
+function areSelectionsEqual(left: PlanItemRef[], right: PlanItemRef[]) {
+  return (
+    left.length === right.length &&
+    left.every((item, index) => {
+      const rightItem = right[index];
+
+      return rightItem ? areSamePlanItem(item, rightItem) : false;
+    })
+  );
+}
+
+function scheduleIdlePlanTask(task: () => void) {
+  const browserWindow =
+    typeof window === 'undefined'
+      ? null
+      : (window as Window & {
+          cancelIdleCallback?(id: number): void;
+          requestIdleCallback?(
+            callback: () => void,
+            options?: { timeout: number },
+          ): number;
+        });
+
+  if (browserWindow?.requestIdleCallback) {
+    const idleId = browserWindow.requestIdleCallback(task, { timeout: 250 });
+
+    return () => browserWindow.cancelIdleCallback?.(idleId);
+  }
+
+  const timeoutId = globalThis.setTimeout(task, 0);
+
+  return () => globalThis.clearTimeout(timeoutId);
 }

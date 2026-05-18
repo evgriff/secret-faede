@@ -726,6 +726,8 @@ describe('PlanPage', () => {
       pointerType: 'mouse',
     });
 
+    expect(plantGroup).toHaveAttribute('data-plan-preview-active', 'resize');
+
     expect(
       await screen.findByRole('button', {
         name: /Saved lettuce group, [2-9][0-9]* plants at X:/,
@@ -988,6 +990,13 @@ describe('PlanPage', () => {
       pointerId: 1,
       pointerType: 'mouse',
     });
+
+    expect(saveDraftSpy).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole('button', {
+        name: 'Saved tomato at X: 2.0 ft, Y: 3.0 ft',
+      }),
+    ).toBeVisible();
 
     expect(
       await screen.findByRole('button', {

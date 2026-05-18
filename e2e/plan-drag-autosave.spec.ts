@@ -33,7 +33,9 @@ test('drag drop autosaves without blocking route navigation', async ({
     plantBox.y + plantBox.height / 2 + 32,
     { steps: 4 },
   );
+  await markNextDropPaint(page);
   await page.mouse.up();
+  await expect.poll(() => readDropPaintDelay(page)).toBeLessThan(120);
 
   const movedTomato = page
     .getByRole('button', { name: /^Tomato at X:/ })
@@ -62,6 +64,46 @@ async function addTomatoToPlan(page: Page) {
   await page.getByRole('searchbox', { name: 'Search crops' }).fill('tomato');
   await page.getByRole('button', { exact: true, name: 'Tomato crop' }).click();
   await page.getByRole('button', { exact: true, name: 'Add plant' }).click();
+}
+
+async function markNextDropPaint(page: Page) {
+  await page.evaluate(() => {
+    const browser = globalThis as unknown as {
+      addEventListener(
+        type: 'pointerup',
+        listener: () => void,
+        options: { capture: boolean; once: boolean },
+      ): void;
+      document: { documentElement: { dataset: Record<string, string> } };
+      performance: { now(): number };
+      requestAnimationFrame(callback: () => void): void;
+    };
+
+    browser.addEventListener(
+      'pointerup',
+      () => {
+        const pointerUpAt = browser.performance.now();
+
+        browser.requestAnimationFrame(() => {
+          browser.document.documentElement.dataset.dropPaintDelayMs = String(
+            Math.round(browser.performance.now() - pointerUpAt),
+          );
+        });
+      },
+      { capture: true, once: true },
+    );
+  });
+}
+
+async function readDropPaintDelay(page: Page) {
+  return page.evaluate(() => {
+    const browser = globalThis as unknown as {
+      document: { documentElement: { dataset: Record<string, string> } };
+    };
+    const value = browser.document.documentElement.dataset.dropPaintDelayMs;
+
+    return value ? Number(value) : Number.POSITIVE_INFINITY;
+  });
 }
 
 async function getBox(locator: Locator, errorMessage: string) {

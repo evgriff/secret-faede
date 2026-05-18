@@ -22,6 +22,8 @@ Success criteria:
   and recoverable from the primary Plan controls
 - pointer interactions should avoid forced synchronous React renders so drag,
   resize, select, and pan stay responsive on production-sized gardens
+- drop/release should keep the imperative preview visible, then commit feet-based
+  state and autosave after paint so pointer-up does not block the visual release
 - weather, watering, sun, and operations panels support the editor rather than replacing it
 - layout suggestions and seasonal crop planning should keep climate-aware assertions tied to the public Detroit baseline
 

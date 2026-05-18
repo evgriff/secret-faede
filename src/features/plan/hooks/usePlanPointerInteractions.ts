@@ -202,6 +202,13 @@ type PreviewElementState = {
   };
 };
 
+type PendingInteractionCommit = {
+  clearPreview: {
+    restoreLayout: boolean;
+  };
+  run(): void;
+};
+
 export type PlanPointerInteractionState =
   | 'drag'
   | 'idle'
@@ -258,6 +265,13 @@ export function usePlanPointerInteractions({
   const itemPressRef = useRef<ItemPressState | null>(null);
   const marqueeStateRef = useRef<MarqueeState | null>(null);
   const pendingDomPreviewRef = useRef<PendingDomPreview | null>(null);
+  const pendingInteractionCommitRef = useRef<PendingInteractionCommit | null>(
+    null,
+  );
+  const pendingInteractionCommitFrameRef = useRef<number | null>(null);
+  const pendingInteractionCommitTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const previewFrameRef = useRef<number | null>(null);
   const resizeStateRef = useRef<ResizeState | null>(null);
   const snapGuideElementsRef = useRef<HTMLElement[]>([]);
@@ -282,6 +296,7 @@ export function usePlanPointerInteractions({
       ) {
         cancelAnimationFrame(previewFrameRef.current);
       }
+      flushPendingInteractionCommit({ clearPreview: false });
       activePreviewElementsRef.current.forEach((entry) => {
         entry.element.style.removeProperty('--preview-offset-x');
         entry.element.style.removeProperty('--preview-offset-y');
@@ -295,6 +310,8 @@ export function usePlanPointerInteractions({
       snapGuideElementsRef.current.forEach((element) => element.remove());
       snapGuideElementsRef.current = [];
     },
+    // Cleanup reads refs and should only be registered once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -321,6 +338,79 @@ export function usePlanPointerInteractions({
     selectedItems,
     updateItemPositions,
   ]);
+
+  function queueInteractionCommit(commit: PendingInteractionCommit) {
+    cancelPendingInteractionCommit();
+    pendingInteractionCommitRef.current = commit;
+
+    const runAfterPaint = () => {
+      pendingInteractionCommitFrameRef.current = null;
+      pendingInteractionCommitTimerRef.current = setTimeout(() => {
+        pendingInteractionCommitTimerRef.current = null;
+        flushPendingInteractionCommit();
+      }, 0);
+    };
+
+    if (typeof requestAnimationFrame === 'function') {
+      pendingInteractionCommitFrameRef.current =
+        requestAnimationFrame(runAfterPaint);
+      return;
+    }
+
+    pendingInteractionCommitTimerRef.current = setTimeout(() => {
+      pendingInteractionCommitTimerRef.current = null;
+      flushPendingInteractionCommit();
+    }, 0);
+  }
+
+  function flushPendingInteractionCommit({
+    clearPreview = true,
+  }: {
+    clearPreview?: boolean;
+  } = {}) {
+    const pendingCommit = pendingInteractionCommitRef.current;
+
+    if (!pendingCommit) {
+      return;
+    }
+
+    cancelPendingInteractionCommit();
+    pendingCommit.run();
+
+    if (clearPreview) {
+      schedulePreviewClearAfterCommit(pendingCommit.clearPreview);
+    }
+  }
+
+  function cancelPendingInteractionCommit() {
+    pendingInteractionCommitRef.current = null;
+
+    if (
+      pendingInteractionCommitFrameRef.current !== null &&
+      typeof cancelAnimationFrame === 'function'
+    ) {
+      cancelAnimationFrame(pendingInteractionCommitFrameRef.current);
+      pendingInteractionCommitFrameRef.current = null;
+    }
+
+    if (pendingInteractionCommitTimerRef.current !== null) {
+      clearTimeout(pendingInteractionCommitTimerRef.current);
+      pendingInteractionCommitTimerRef.current = null;
+    }
+  }
+
+  function schedulePreviewClearAfterCommit({
+    restoreLayout,
+  }: PendingInteractionCommit['clearPreview']) {
+    const clear = () => clearInteractionPreview({ restoreLayout });
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(clear);
+      return;
+    }
+
+    setTimeout(clear, 0);
+  }
 
   function queueDomPreview(nextPreview: PendingDomPreview) {
     pendingDomPreviewRef.current = nextPreview;
@@ -686,6 +776,7 @@ export function usePlanPointerInteractions({
 
     event.preventDefault();
     event.stopPropagation();
+    flushPendingInteractionCommit();
     itemPressRef.current = {
       additive: event.shiftKey,
       item,
@@ -830,16 +921,29 @@ export function usePlanPointerInteractions({
     event.preventDefault();
     event.stopPropagation();
     const canceled = event.type === 'pointercancel';
+    let commitQueued = false;
 
     if (!canceled && dragState?.moved) {
       const preview = buildDragPreview(event, dragState, garden);
 
       if (preview.hasChanged) {
-        checkpointDrag(dragState, onCheckpoint);
-        updateItemPositions(preview.updates, false, { saveAfterCommit: true });
-      }
+        const shouldSelectSingleItem = dragState.selection.length === 1;
 
-      if (dragState.selection.length === 1) {
+        queueInteractionCommit({
+          clearPreview: { restoreLayout: false },
+          run() {
+            checkpointDrag(dragState, onCheckpoint);
+            updateItemPositions(preview.updates, false, {
+              saveAfterCommit: true,
+            });
+
+            if (shouldSelectSingleItem) {
+              onSelectItem(item, false, { openSurface: false });
+            }
+          },
+        });
+        commitQueued = true;
+      } else if (dragState.selection.length === 1) {
         onSelectItem(item, false, { openSurface: false });
       }
     } else if (!canceled && pressState && !pressState.moved) {
@@ -856,10 +960,13 @@ export function usePlanPointerInteractions({
     setDraggingPlantId(null);
     setDraggingStructureId(null);
     setInteractionState('idle');
-    clearInteractionPreview({
-      defer: !canceled && Boolean(dragState?.moved),
-      restoreLayout: canceled,
-    });
+
+    if (!commitQueued) {
+      clearInteractionPreview({
+        defer: !canceled && Boolean(dragState?.moved),
+        restoreLayout: canceled,
+      });
+    }
   }
 
   function beginResize(
@@ -871,6 +978,7 @@ export function usePlanPointerInteractions({
 
     event.preventDefault();
     event.stopPropagation();
+    flushPendingInteractionCommit();
     setInteractionState('press');
 
     if (!garden || !canItemBeResized(garden, item)) {
@@ -903,37 +1011,39 @@ export function usePlanPointerInteractions({
   function continueResize(event: PointerEvent<HTMLSpanElement>) {
     const { garden, onCheckpoint } = contextRef.current;
 
-    if (!garden || !resizeStateRef.current) {
+    const resizeState = resizeStateRef.current;
+
+    if (!garden || !resizeState) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
-    restoreScrollLock(resizeStateRef.current.scrollLock);
+    restoreScrollLock(resizeState.scrollLock);
 
-    const wasMoved = resizeStateRef.current.moved;
+    const wasMoved = resizeState.moved;
 
-    if (!markMoved(event, resizeStateRef.current)) {
+    if (!markMoved(event, resizeState)) {
       return;
     }
 
     if (!wasMoved) {
       setInteractionState('resize');
-      if (resizeStateRef.current.item.type === 'planting') {
-        setResizingPlantId(resizeStateRef.current.item.id);
+      if (resizeState.item.type === 'planting') {
+        setResizingPlantId(resizeState.item.id);
       } else {
-        setResizingStructureId(resizeStateRef.current.item.id);
+        setResizingStructureId(resizeState.item.id);
       }
     }
 
-    const preview = buildResizePreview(event, resizeStateRef.current, garden);
+    const preview = buildResizePreview(event, resizeState, garden);
 
-    restoreScrollLock(resizeStateRef.current.scrollLock);
-    syncResizePreviewState(preview, resizeStateRef.current.item);
+    restoreScrollLock(resizeState.scrollLock);
+    syncResizePreviewState(preview, resizeState.item);
 
-    if (preview.hasChanged && !resizeStateRef.current.checkpointed) {
+    if (preview.hasChanged && !resizeState.checkpointed) {
       onCheckpoint();
-      resizeStateRef.current.checkpointed = true;
+      resizeState.checkpointed = true;
     }
   }
 
@@ -946,52 +1056,66 @@ export function usePlanPointerInteractions({
       resizeStructureRect,
     } = contextRef.current;
 
-    if (!garden || !resizeStateRef.current) {
+    const resizeState = resizeStateRef.current;
+
+    if (!garden || !resizeState) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
     const canceled = event.type === 'pointercancel';
-    const didMove = resizeStateRef.current.moved;
+    const didMove = resizeState.moved;
 
-    const preview = buildResizePreview(event, resizeStateRef.current, garden);
+    const preview = buildResizePreview(event, resizeState, garden);
 
     const shouldCommitResize = !canceled && preview.hasChanged;
+    let commitQueued = false;
 
     if (shouldCommitResize) {
-      if (!resizeStateRef.current.checkpointed) {
-        onCheckpoint();
-        resizeStateRef.current.checkpointed = true;
-      }
+      queueInteractionCommit({
+        clearPreview: { restoreLayout: false },
+        run() {
+          if (!resizeState.checkpointed) {
+            onCheckpoint();
+            resizeState.checkpointed = true;
+          }
 
-      if (resizeStateRef.current.item.type === 'planting') {
-        resizePlantingRect(preview.update, false);
-      } else {
-        resizeStructureRect(preview.update, false);
-      }
+          if (resizeState.item.type === 'planting') {
+            resizePlantingRect(preview.update, false);
+          } else {
+            resizeStructureRect(preview.update, false);
+          }
+
+          onSelectItem(resizeState.item, false, { openSurface: false });
+        },
+      });
+      commitQueued = true;
+    } else if (!canceled) {
+      onSelectItem(resizeState.item, false, { openSurface: false });
     }
 
-    if (!canceled) {
-      onSelectItem(resizeStateRef.current.item, false, { openSurface: false });
-    }
-
-    restoreScrollLock(resizeStateRef.current.scrollLock);
-    restoreScrollLockAfterPaint(resizeStateRef.current.scrollLock);
-    releaseScrollLock(resizeStateRef.current.scrollLock);
+    restoreScrollLock(resizeState.scrollLock);
+    restoreScrollLockAfterPaint(resizeState.scrollLock);
+    releaseScrollLock(resizeState.scrollLock);
     releasePointerCapture(event);
     resizeStateRef.current = null;
     setResizingPlantId(null);
     setResizingStructureId(null);
     setInteractionState('idle');
-    clearInteractionPreview({
-      defer: shouldCommitResize && didMove,
-      restoreLayout: !shouldCommitResize,
-    });
+
+    if (!commitQueued) {
+      clearInteractionPreview({
+        defer: shouldCommitResize && didMove,
+        restoreLayout: !shouldCommitResize,
+      });
+    }
   }
 
   function beginMarquee(event: PointerEvent<HTMLDivElement>) {
     const { garden, mode } = contextRef.current;
+
+    flushPendingInteractionCommit();
 
     if (mode !== 'select' || !garden) {
       return;

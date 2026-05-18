@@ -124,6 +124,8 @@ type QueuedDraftSave = {
   revision: number;
 };
 
+type PostPaintTask = () => void;
+
 const arrangementFields: Array<keyof GardenPlant> = [
   'blockDepthFt',
   'blockWidthFt',
@@ -489,7 +491,7 @@ export function useGarden(userId: string | null) {
         }
       };
 
-      void Promise.resolve().then(run);
+      schedulePostPaintTask(run);
     },
     [enqueueDraftSave],
   );
@@ -1251,10 +1253,6 @@ export function useGarden(userId: string | null) {
           );
         }),
       });
-      const autosaveRevision = gardenEditRevisionRef.current + 1;
-      const autosaveGarden =
-        options.saveAfterCommit && garden ? applyPositionUpdates(garden) : null;
-
       commitGardenUpdate(
         applyPositionUpdates,
         updates.at(0) ?? undefined,
@@ -1262,12 +1260,8 @@ export function useGarden(userId: string | null) {
         false,
         options.saveAfterCommit ? scheduleDraftAutosave : undefined,
       );
-
-      if (autosaveGarden) {
-        scheduleDraftAutosave(autosaveGarden, autosaveRevision);
-      }
     },
-    [commitGardenUpdate, garden, scheduleDraftAutosave],
+    [commitGardenUpdate, scheduleDraftAutosave],
   );
 
   const resizeStructure = useCallback(
@@ -2636,6 +2630,20 @@ function createItemId(prefix: string) {
   }
 
   return `${prefix}-${Date.now()}`;
+}
+
+function schedulePostPaintTask(task: PostPaintTask) {
+  if (
+    typeof window !== 'undefined' &&
+    typeof window.requestAnimationFrame === 'function'
+  ) {
+    window.requestAnimationFrame(() => {
+      window.setTimeout(task, 0);
+    });
+    return;
+  }
+
+  globalThis.setTimeout(task, 0);
 }
 
 function needsProfileSetup(garden: Garden) {

@@ -18,6 +18,9 @@ Success criteria:
 - every visible calendar day uses selected-date weather facts, including
   forecast condition, rain chance/amount, and next-rain timing relative to that
   selected day
+- the watering calendar includes a keyboard-accessible question-mark help popup
+  explaining how watering tasks are scheduled from crop need, rain, weather, and
+  logged watering
 - generated tasks cover planting, supports, thinning, pruning, fertilizing, mulching, watering, harvest windows, and succession prompts
 - field actions are fast: water done, task done, issue, note/photo, and harvest logging
 - empty or quiet days collapse secondary panels instead of becoming dashboards

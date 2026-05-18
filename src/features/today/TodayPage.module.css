@@ -116,12 +116,75 @@
   text-decoration: none;
 }
 
+.calendarWrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: start;
+  position: relative;
+}
+
 .calendar {
   display: grid;
   grid-template-columns: repeat(14, minmax(4.8rem, 1fr));
   gap: 0.45rem;
   overflow-x: auto;
   padding-bottom: 0.25rem;
+}
+
+.wateringHelp {
+  position: relative;
+  display: inline-flex;
+}
+
+.wateringHelpButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.3rem;
+  height: 2.3rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface-solid);
+  color: var(--color-text-strong);
+  cursor: help;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 820;
+  line-height: 1;
+  transition:
+    background-color var(--motion-micro) var(--ease-standard),
+    border-color var(--motion-micro) var(--ease-standard),
+    box-shadow var(--motion-micro) var(--ease-standard),
+    transform var(--motion-instant) var(--ease-standard);
+}
+
+.wateringHelpButton:focus-visible {
+  outline: 2px solid var(--color-plant-sky);
+  outline-offset: 2px;
+}
+
+.wateringHelpTooltip {
+  position: absolute;
+  z-index: 35;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  display: grid;
+  gap: 0.45rem;
+  width: min(22rem, calc(100vw - 2rem));
+  border: 1px solid rgba(54, 48, 40, 0.16);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-solid);
+  box-shadow: var(--shadow-panel);
+  color: var(--color-text);
+  font-size: var(--font-size-small);
+  line-height: 1.35;
+  padding: 0.75rem;
+}
+
+.wateringHelpTooltip strong {
+  color: var(--color-text-strong);
+  font-size: 0.95rem;
 }
 
 .calendarDay {
@@ -406,6 +469,7 @@
   .taskActions a:hover,
   .taskActions button:not([data-ui='action']):hover,
   .successionCard button:hover,
+  .wateringHelpButton:hover,
   .calendarDay:hover {
     border-color: var(--color-accent-strong);
     background: var(--color-surface-alt);
@@ -414,6 +478,7 @@
   .calendarDay:hover,
   .taskCard:hover,
   .successionCard:hover,
+  .wateringHelpButton:hover,
   .priorityItem:hover {
     transform: translateY(-1px);
   }
@@ -492,6 +557,7 @@
 @media (prefers-reduced-motion: reduce) {
   .page,
   .selectedDay,
+  .wateringHelpButton,
   .priorityPanel,
   .clearDay,
   .priorityItem,

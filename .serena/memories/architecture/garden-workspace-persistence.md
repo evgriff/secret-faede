@@ -26,6 +26,9 @@ Repository rules:
 - `GardenRepository` owns garden persistence and publish/discard/revert operations.
 - `GardenOperationsService` can build higher-level operations on repository data.
 - UI code should not bypass the repository for garden workspace writes.
+- Plan drag autosave should use the committed post-paint garden snapshot, not a
+  second precomputed copy, so drop/release stays visually responsive while
+  repository persistence remains latest-wins.
 - Mock mode must remain functional with localStorage-backed adapters.
 - Production repair work must create an ignored `output/production-backups/`
   Firestore backup before deleting shared operation records or resetting stale
