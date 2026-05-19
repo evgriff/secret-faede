@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 import { useServices } from '../../app/providers';
 import { getCropById } from '../../domain/crops/cropCatalog';
@@ -115,13 +116,30 @@ export type GardenItemPositionUpdate = SelectedGardenItem & {
 };
 
 export interface GardenPositionUpdateOptions {
-  saveAfterCommit?: boolean;
+  afterCommit?: (() => void) | undefined;
+  quietSaveStatus?: boolean | undefined;
+  saveAfterCommit?: boolean | undefined;
 }
+
+export type GardenRectUpdateOptions = GardenPositionUpdateOptions;
+
+export type GardenInteractionCommitOptions = GardenPositionUpdateOptions;
 
 type QueuedDraftSave = {
   garden: Garden;
+  quiet: boolean;
   resolvers: Array<(saved: boolean) => void>;
   revision: number;
+};
+
+type ScheduledDraftSave = {
+  garden: Garden;
+  quiet: boolean;
+  revision: number;
+};
+
+type PendingInteractionCommit = {
+  run(): void;
 };
 
 type PostPaintTask = () => void;
@@ -173,11 +191,13 @@ export function useGarden(userId: string | null) {
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [garden, setGarden] = useState<Garden | null>(null);
+  const latestGardenRef = useRef<Garden | null>(null);
   const [gardenPlanningState, setGardenPlanningState] =
     useState<GardenPlanningState | null>(null);
   const latestGardenPlanningState = useRef<GardenPlanningState | null>(null);
   const [redoStack, setRedoStack] = useState<Garden[]>([]);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [interactionSavePending, setInteractionSavePending] = useState(false);
   const [selectedItem, setSelectedItem] = useState<SelectedGardenItem | null>(
     null,
   );
@@ -206,11 +226,15 @@ export function useGarden(userId: string | null) {
   });
   const gardenEditRevisionRef = useRef(0);
   const isMountedRef = useRef(true);
+  const pendingInteractionCommitRef = useRef<PendingInteractionCommit | null>(
+    null,
+  );
+  const pendingInteractionCommitFrameRef = useRef<number | null>(null);
+  const pendingInteractionCommitTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const queuedDraftSaveRef = useRef<QueuedDraftSave | null>(null);
-  const scheduledDraftSaveRef = useRef<{
-    garden: Garden;
-    revision: number;
-  } | null>(null);
+  const scheduledDraftSaveRef = useRef<ScheduledDraftSave | null>(null);
   const saveTaskScheduledRef = useRef(false);
   const saveInFlightRef = useRef(false);
 
@@ -221,6 +245,10 @@ export function useGarden(userId: string | null) {
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    latestGardenRef.current = garden;
+  }, [garden]);
 
   useEffect(() => {
     draftSaveContextRef.current = {
@@ -253,11 +281,16 @@ export function useGarden(userId: string | null) {
         const loadedGarden = loadedWorkspace.draft.garden;
         const planningHydration = readGardenPlanningState(userId, loadedGarden);
 
+        latestGardenRef.current = loadedGarden;
         setGarden(loadedGarden);
         setGardenPlanningState(planningHydration.state);
         setDirty(false);
+        setInteractionSavePending(false);
         gardenEditRevisionRef.current = 0;
+        pendingInteractionCommitRef.current = null;
         queuedDraftSaveRef.current = null;
+        scheduledDraftSaveRef.current = null;
+        saveTaskScheduledRef.current = false;
         setRedoStack([]);
         setSaveStatus('idle');
         setSetupRequired(needsProfileSetup(loadedGarden));
@@ -286,10 +319,15 @@ export function useGarden(userId: string | null) {
         setWorkspace(liveWorkspace);
         setGarden((currentGarden) =>
           currentGarden && !needsProfileSetup(currentGarden)
-            ? overlaySharedGardenOperations(
-                currentGarden,
-                getSharedGardenOperations(liveWorkspace.draft.garden),
-              )
+            ? (() => {
+                const updatedGarden = overlaySharedGardenOperations(
+                  currentGarden,
+                  getSharedGardenOperations(liveWorkspace.draft.garden),
+                );
+
+                latestGardenRef.current = updatedGarden;
+                return updatedGarden;
+              })()
             : currentGarden,
         );
       },
@@ -385,7 +423,7 @@ export function useGarden(userId: string | null) {
       return false;
     }
 
-    if (isMountedRef.current) {
+    if (isMountedRef.current && !job.quiet) {
       setSaveStatus('saving');
       setError(null);
     }
@@ -405,7 +443,15 @@ export function useGarden(userId: string | null) {
       if (isMountedRef.current) {
         if (job.revision === gardenEditRevisionRef.current) {
           setDirty(false);
-          setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
+          if (job.quiet) {
+            setInteractionSavePending(false);
+            setSaveStatus('idle');
+          } else {
+            setInteractionSavePending(false);
+            setSaveStatus(
+              wasOffline || isBrowserOffline() ? 'queued' : 'saved',
+            );
+          }
           setSuggestionDecisions(nextWorkspace.draft.suggestionDecisions);
           setWorkspace(nextWorkspace);
         } else if (!queuedDraftSaveRef.current) {
@@ -418,6 +464,9 @@ export function useGarden(userId: string | null) {
     } catch (saveError) {
       if (isMountedRef.current) {
         setError(toErrorMessage(saveError, 'Unable to save your garden.'));
+        if (job.quiet) {
+          setInteractionSavePending(false);
+        }
         setSaveStatus('error');
       }
 
@@ -445,19 +494,26 @@ export function useGarden(userId: string | null) {
   }, [writeQueuedDraftSave]);
 
   const enqueueDraftSave = useCallback(
-    (draftGarden: Garden, revision = gardenEditRevisionRef.current) =>
+    (
+      draftGarden: Garden,
+      revision = gardenEditRevisionRef.current,
+      options: { quiet?: boolean | undefined } = {},
+    ) =>
       new Promise<boolean>((resolve) => {
         const queuedSave = queuedDraftSaveRef.current;
+        const quiet = Boolean(options.quiet);
 
         queuedDraftSaveRef.current = {
           garden: draftGarden,
+          quiet,
           resolvers: queuedSave
             ? [...queuedSave.resolvers, resolve]
             : [resolve],
           revision,
         };
 
-        if (isMountedRef.current) {
+        if (isMountedRef.current && !quiet) {
+          setInteractionSavePending(false);
           setSaveStatus('saving');
           setError(null);
         }
@@ -468,11 +524,20 @@ export function useGarden(userId: string | null) {
   );
 
   const scheduleDraftAutosave = useCallback(
-    (draftGarden: Garden, revision: number) => {
+    (
+      draftGarden: Garden,
+      revision: number,
+      options: { quiet?: boolean | undefined } = {},
+    ) => {
       scheduledDraftSaveRef.current = {
         garden: draftGarden,
+        quiet: Boolean(options.quiet),
         revision,
       };
+
+      if (options.quiet && isMountedRef.current) {
+        setInteractionSavePending(true);
+      }
 
       if (saveTaskScheduledRef.current) {
         return;
@@ -487,7 +552,9 @@ export function useGarden(userId: string | null) {
         saveTaskScheduledRef.current = false;
 
         if (nextSave) {
-          void enqueueDraftSave(nextSave.garden, nextSave.revision);
+          void enqueueDraftSave(nextSave.garden, nextSave.revision, {
+            quiet: nextSave.quiet,
+          });
         }
       };
 
@@ -505,6 +572,81 @@ export function useGarden(userId: string | null) {
       return enqueueDraftSave(draftGarden, revision);
     },
     [enqueueDraftSave, userId, workspace],
+  );
+
+  const cancelScheduledInteractionCommit = useCallback(() => {
+    if (
+      pendingInteractionCommitFrameRef.current !== null &&
+      typeof window !== 'undefined' &&
+      typeof window.cancelAnimationFrame === 'function'
+    ) {
+      window.cancelAnimationFrame(pendingInteractionCommitFrameRef.current);
+    }
+
+    if (pendingInteractionCommitTimerRef.current !== null) {
+      clearTimeout(pendingInteractionCommitTimerRef.current);
+    }
+
+    pendingInteractionCommitFrameRef.current = null;
+    pendingInteractionCommitTimerRef.current = null;
+  }, []);
+
+  const flushInteractionCommits = useCallback(() => {
+    const pendingCommit = pendingInteractionCommitRef.current;
+
+    if (!pendingCommit) {
+      return;
+    }
+
+    pendingInteractionCommitRef.current = null;
+    cancelScheduledInteractionCommit();
+    flushSync(() => {
+      pendingCommit.run();
+    });
+  }, [cancelScheduledInteractionCommit]);
+
+  const queueGardenInteractionCommit = useCallback(
+    (commit: PendingInteractionCommit) => {
+      pendingInteractionCommitRef.current = commit;
+
+      if (
+        pendingInteractionCommitFrameRef.current !== null ||
+        pendingInteractionCommitTimerRef.current !== null
+      ) {
+        return;
+      }
+
+      const runAfterPaint = () => {
+        pendingInteractionCommitFrameRef.current = null;
+        pendingInteractionCommitTimerRef.current = setTimeout(() => {
+          pendingInteractionCommitTimerRef.current = null;
+          flushInteractionCommits();
+        }, 0);
+      };
+
+      if (
+        typeof window !== 'undefined' &&
+        typeof window.requestAnimationFrame === 'function'
+      ) {
+        pendingInteractionCommitFrameRef.current =
+          window.requestAnimationFrame(runAfterPaint);
+        return;
+      }
+
+      pendingInteractionCommitTimerRef.current = setTimeout(() => {
+        pendingInteractionCommitTimerRef.current = null;
+        flushInteractionCommits();
+      }, 0);
+    },
+    [flushInteractionCommits],
+  );
+
+  useEffect(
+    () => () => {
+      flushInteractionCommits();
+      cancelScheduledInteractionCommit();
+    },
+    [cancelScheduledInteractionCommit, flushInteractionCommits],
   );
 
   const commitGardenUpdate = useCallback(
@@ -551,6 +693,7 @@ export function useGarden(userId: string | null) {
         }
 
         afterCommit?.(updatedGarden, revision);
+        latestGardenRef.current = updatedGarden;
         return updatedGarden;
       });
     },
@@ -1258,7 +1401,17 @@ export function useGarden(userId: string | null) {
         updates.at(0) ?? undefined,
         trackHistory,
         false,
-        options.saveAfterCommit ? scheduleDraftAutosave : undefined,
+        options.saveAfterCommit || options.afterCommit
+          ? (updatedGarden, revision) => {
+              if (options.saveAfterCommit) {
+                scheduleDraftAutosave(updatedGarden, revision, {
+                  quiet: options.quietSaveStatus,
+                });
+              }
+
+              options.afterCommit?.();
+            }
+          : undefined,
       );
     },
     [commitGardenUpdate, scheduleDraftAutosave],
@@ -1304,7 +1457,11 @@ export function useGarden(userId: string | null) {
   );
 
   const resizeStructureRect = useCallback(
-    (update: GardenStructureRectUpdate, trackHistory = true) => {
+    (
+      update: GardenStructureRectUpdate,
+      trackHistory = true,
+      options: GardenRectUpdateOptions = {},
+    ) => {
       commitGardenUpdate(
         (currentGarden) => ({
           ...currentGarden,
@@ -1329,13 +1486,28 @@ export function useGarden(userId: string | null) {
         { id: update.id, type: 'structure' },
         trackHistory,
         true,
+        options.saveAfterCommit || options.afterCommit
+          ? (updatedGarden, revision) => {
+              if (options.saveAfterCommit) {
+                scheduleDraftAutosave(updatedGarden, revision, {
+                  quiet: options.quietSaveStatus,
+                });
+              }
+
+              options.afterCommit?.();
+            }
+          : undefined,
       );
     },
-    [commitGardenUpdate],
+    [commitGardenUpdate, scheduleDraftAutosave],
   );
 
   const resizePlantingRect = useCallback(
-    (update: GardenPlantingRectUpdate, trackHistory = true) => {
+    (
+      update: GardenPlantingRectUpdate,
+      trackHistory = true,
+      options: GardenRectUpdateOptions = {},
+    ) => {
       commitGardenUpdate(
         (currentGarden) => ({
           ...currentGarden,
@@ -1353,9 +1525,70 @@ export function useGarden(userId: string | null) {
         { id: update.id, type: 'planting' },
         trackHistory,
         true,
+        options.saveAfterCommit || options.afterCommit
+          ? (updatedGarden, revision) => {
+              if (options.saveAfterCommit) {
+                scheduleDraftAutosave(updatedGarden, revision, {
+                  quiet: options.quietSaveStatus,
+                });
+              }
+
+              options.afterCommit?.();
+            }
+          : undefined,
       );
     },
-    [commitGardenUpdate],
+    [commitGardenUpdate, scheduleDraftAutosave],
+  );
+
+  const queueInteractionPositionCommit = useCallback(
+    (
+      updates: GardenItemPositionUpdate[],
+      options: GardenInteractionCommitOptions = {},
+    ) => {
+      if (updates.length === 0) {
+        options.afterCommit?.();
+        return;
+      }
+
+      queueGardenInteractionCommit({
+        run() {
+          updateItemPositions(updates, true, {
+            afterCommit: options.afterCommit,
+            quietSaveStatus: options.quietSaveStatus ?? true,
+            saveAfterCommit: options.saveAfterCommit ?? true,
+          });
+        },
+      });
+    },
+    [queueGardenInteractionCommit, updateItemPositions],
+  );
+
+  const queueInteractionRectCommit = useCallback(
+    (
+      update: (GardenPlantingRectUpdate | GardenStructureRectUpdate) & {
+        type: 'planting' | 'structure';
+      },
+      options: GardenInteractionCommitOptions = {},
+    ) => {
+      queueGardenInteractionCommit({
+        run() {
+          const rectOptions = {
+            afterCommit: options.afterCommit,
+            quietSaveStatus: options.quietSaveStatus ?? true,
+            saveAfterCommit: options.saveAfterCommit ?? true,
+          };
+
+          if (update.type === 'planting') {
+            resizePlantingRect(update, true, rectOptions);
+            return;
+          }
+
+          resizeStructureRect(update, true, rectOptions);
+        },
+      });
+    },
+    [queueGardenInteractionCommit, resizePlantingRect, resizeStructureRect],
   );
 
   const applyPlotSettings = useCallback(
@@ -1426,12 +1659,16 @@ export function useGarden(userId: string | null) {
   );
 
   const saveGarden = useCallback(async () => {
-    if (!garden || !dirty) {
+    flushInteractionCommits();
+
+    const currentGarden = latestGardenRef.current;
+
+    if (!currentGarden || !dirty) {
       return;
     }
 
-    await saveCurrentDraft(garden);
-  }, [dirty, garden, saveCurrentDraft]);
+    await saveCurrentDraft(currentGarden);
+  }, [dirty, flushInteractionCommits, saveCurrentDraft]);
 
   const saveDraftGarden = useCallback(
     async (draftGarden: Garden) => saveCurrentDraft(draftGarden),
@@ -1440,12 +1677,16 @@ export function useGarden(userId: string | null) {
 
   const publishDraft = useCallback(
     async (userEmail: string, force = false) => {
-      if (!garden || !userId) {
+      flushInteractionCommits();
+
+      const currentGarden = latestGardenRef.current;
+
+      if (!currentGarden || !userId) {
         return null;
       }
 
       if (dirty) {
-        const saved = await saveCurrentDraft(garden);
+        const saved = await saveCurrentDraft(currentGarden);
 
         if (!saved) {
           return null;
@@ -1459,6 +1700,7 @@ export function useGarden(userId: string | null) {
       });
 
       if (result.status === 'published') {
+        latestGardenRef.current = result.workspace.draft.garden;
         setGarden(result.workspace.draft.garden);
         setDirty(false);
         setRedoStack([]);
@@ -1473,10 +1715,18 @@ export function useGarden(userId: string | null) {
 
       return result;
     },
-    [dirty, garden, gardenRepository, saveCurrentDraft, userId],
+    [
+      dirty,
+      flushInteractionCommits,
+      gardenRepository,
+      saveCurrentDraft,
+      userId,
+    ],
   );
 
   const discardDraft = useCallback(async () => {
+    flushInteractionCommits();
+
     if (!userId) {
       return;
     }
@@ -1484,6 +1734,7 @@ export function useGarden(userId: string | null) {
     const draft = await gardenRepository.discardDraft(userId);
     const nextWorkspace = await gardenRepository.getWorkspace(userId);
 
+    latestGardenRef.current = draft.garden;
     setGarden(draft.garden);
     setDirty(false);
     setRedoStack([]);
@@ -1493,7 +1744,7 @@ export function useGarden(userId: string | null) {
     setSuggestionDecisions(draft.suggestionDecisions);
     setUndoStack([]);
     setWorkspace(nextWorkspace);
-  }, [gardenRepository, userId]);
+  }, [flushInteractionCommits, gardenRepository, userId]);
 
   const revertToRevision = useCallback(
     async (revisionId: string, userEmail: string) => {
@@ -1507,6 +1758,7 @@ export function useGarden(userId: string | null) {
         userId,
       });
 
+      latestGardenRef.current = result.workspace.draft.garden;
       setGarden(result.workspace.draft.garden);
       setDirty(false);
       setRedoStack([]);
@@ -1543,6 +1795,7 @@ export function useGarden(userId: string | null) {
           : null;
 
         if (savedGarden) {
+          latestGardenRef.current = savedGarden;
           setGarden(savedGarden);
           setDirty(false);
           setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
@@ -1573,6 +1826,7 @@ export function useGarden(userId: string | null) {
           })
         : updatedGarden;
 
+      latestGardenRef.current = savedGarden;
       setGarden(savedGarden);
       setDirty(false);
       setSaveStatus(wasOffline || isBrowserOffline() ? 'queued' : 'saved');
@@ -2094,6 +2348,8 @@ export function useGarden(userId: string | null) {
 
   const deleteItems = useCallback(
     (items: SelectedGardenItem[]) => {
+      flushInteractionCommits();
+
       if (items.length === 0) {
         return;
       }
@@ -2173,7 +2429,7 @@ export function useGarden(userId: string | null) {
         true,
       );
     },
-    [commitGardenUpdate],
+    [commitGardenUpdate, flushInteractionCommits],
   );
 
   const deleteSelectedItem = useCallback(() => {
@@ -2185,6 +2441,8 @@ export function useGarden(userId: string | null) {
   }, [deleteItems, selectedItem]);
 
   const undoGardenChange = useCallback(() => {
+    flushInteractionCommits();
+
     if (!garden || undoStack.length === 0) {
       return;
     }
@@ -2195,15 +2453,18 @@ export function useGarden(userId: string | null) {
       return;
     }
 
+    latestGardenRef.current = previousGarden;
     setGarden(previousGarden);
     setUndoStack(undoStack.slice(0, -1));
     setRedoStack((stack) => [...stack.slice(-24), garden]);
     setDirty(true);
     setSaveStatus('idle');
     setSelectedItem(null);
-  }, [garden, undoStack]);
+  }, [flushInteractionCommits, garden, undoStack]);
 
   const redoGardenChange = useCallback(() => {
+    flushInteractionCommits();
+
     if (!garden || redoStack.length === 0) {
       return;
     }
@@ -2214,13 +2475,14 @@ export function useGarden(userId: string | null) {
       return;
     }
 
+    latestGardenRef.current = nextGarden;
     setGarden(nextGarden);
     setRedoStack(redoStack.slice(0, -1));
     setUndoStack((stack) => [...stack.slice(-24), garden]);
     setDirty(true);
     setSaveStatus('idle');
     setSelectedItem(null);
-  }, [garden, redoStack]);
+  }, [flushInteractionCommits, garden, redoStack]);
 
   return {
     acceptReviewSuggestion,
@@ -2249,9 +2511,11 @@ export function useGarden(userId: string | null) {
     duplicatePlanting,
     duplicateStructure,
     error,
+    flushInteractionCommits,
     garden,
     hoveredPlantGroupId: gardenPlanningState?.hoveredPlantGroupId ?? null,
     hidePlantGroupLabel,
+    interactionSavePending,
     labelVisibility: gardenPlanningState?.labelVisibility ?? {
       groupIds: [],
       mode: 'auto' as const,
@@ -2274,6 +2538,8 @@ export function useGarden(userId: string | null) {
     paintSunShadeCell,
     plantEditorState: gardenPlanningState?.editor ?? closedPlantEditorState,
     plantGroups: gardenPlanningState?.plantGroups ?? [],
+    queueInteractionPositionCommit,
+    queueInteractionRectCommit,
     recalculateSunShade,
     refreshWeatherAndWatering,
     resizePlantingRect,

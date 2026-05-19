@@ -10,11 +10,13 @@ import {
 import type { Garden } from '../../../domain/gardens/GardenRepository';
 import {
   clientPointToPlotFeet,
+  clamp,
   pixelsPerFoot,
   type PlotClientRect,
   type PlotPoint,
 } from '../../garden/gardenMath';
 import type {
+  GardenInteractionCommitOptions,
   GardenPositionUpdateOptions,
   SelectedGardenItem,
 } from '../../garden/useGarden';
@@ -22,22 +24,18 @@ import type { PlanMode } from '../planModes';
 import {
   areSamePlanItem,
   calculateResizeRect,
-  buildSnapTargets,
   getPlanItemKey,
   getItemPointFromRect,
   getItemRect,
   getItemsInRect,
   rectFromPoints,
   rectFromItemPoint,
-  snapItemPoint,
-  snapResizeRect,
   type PlanItemPositionUpdate,
   type PlanPreviewOffset,
   type PlanItemRectUpdate,
   type PlanItemRef,
   type ResizeHandle,
   type SnapGuide,
-  type SnapTarget,
 } from '../planInteractionGeometry';
 import {
   canMoveLinkedPlanting,
@@ -48,29 +46,25 @@ import {
 type ItemRect = NonNullable<ReturnType<typeof getItemRect>>;
 
 type DragState = {
-  checkpointed: boolean;
   item: PlanItemRef;
+  lastPreview: DragPreview | null;
   moved: boolean;
   originalPoints: PlanItemPositionUpdate[];
   originalRects: Array<{ item: PlanItemRef; rect: ItemRect }>;
   plotRect: PlotClientRect;
-  pointerOffset: PlotPoint;
-  snapTargets: SnapTarget[];
   scrollLock: ScrollLock | null;
   selection: PlanItemRef[];
-  sourceRect: ItemRect;
   startClientX: number;
   startClientY: number;
 };
 
 type ResizeState = {
-  checkpointed: boolean;
   handle: ResizeHandle;
   item: PlanItemRef;
+  lastPreview: ResizePreview | null;
   moved: boolean;
   originalRect: ItemRect;
   plotRect: PlotClientRect;
-  snapTargets: SnapTarget[];
   scrollLock: ScrollLock | null;
   startClientX: number;
   startClientY: number;
@@ -102,9 +96,9 @@ type ScrollLock = {
 };
 
 type PlanPointerInteractionContext = {
+  flushInteractionCommits(): void;
   garden: Garden | null;
   mode: PlanMode;
-  onCheckpoint(): void;
   onMarqueeSelect(items: PlanItemRef[], additive: boolean): void;
   onSelectItem(
     item: SelectedGardenItem,
@@ -114,6 +108,14 @@ type PlanPointerInteractionContext = {
   resizePlantingRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
   resizeStructureRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
   selectedItems: PlanItemRef[];
+  queueInteractionPositionCommit(
+    updates: PlanItemPositionUpdate[],
+    options?: GardenInteractionCommitOptions,
+  ): void;
+  queueInteractionRectCommit(
+    update: PlanItemRectUpdate,
+    options?: GardenInteractionCommitOptions,
+  ): void;
   updateItemPositions(
     updates: PlanItemPositionUpdate[],
     trackHistory?: boolean,
@@ -217,19 +219,21 @@ export type PlanPointerInteractionState =
   | 'resize';
 
 export function usePlanPointerInteractions({
+  flushInteractionCommits,
   garden,
   mode,
-  onCheckpoint,
   onMarqueeSelect,
   onSelectItem,
+  queueInteractionPositionCommit,
+  queueInteractionRectCommit,
   resizePlantingRect,
   resizeStructureRect,
   selectedItems,
   updateItemPositions,
 }: {
+  flushInteractionCommits(): void;
   garden: Garden | null;
   mode: PlanMode;
-  onCheckpoint(): void;
   onMarqueeSelect(items: PlanItemRef[], additive: boolean): void;
   onSelectItem(
     item: SelectedGardenItem,
@@ -238,6 +242,14 @@ export function usePlanPointerInteractions({
   ): void;
   resizePlantingRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
   resizeStructureRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
+  queueInteractionPositionCommit(
+    updates: PlanItemPositionUpdate[],
+    options?: GardenInteractionCommitOptions,
+  ): void;
+  queueInteractionRectCommit(
+    update: PlanItemRectUpdate,
+    options?: GardenInteractionCommitOptions,
+  ): void;
   selectedItems: PlanItemRef[];
   updateItemPositions(
     updates: PlanItemPositionUpdate[],
@@ -277,11 +289,13 @@ export function usePlanPointerInteractions({
   const snapGuideElementsRef = useRef<HTMLElement[]>([]);
   const plotRef = useRef<HTMLDivElement | null>(null);
   const contextRef = useRef<PlanPointerInteractionContext>({
+    flushInteractionCommits,
     garden,
     mode,
-    onCheckpoint,
     onMarqueeSelect,
     onSelectItem,
+    queueInteractionPositionCommit,
+    queueInteractionRectCommit,
     resizePlantingRect,
     resizeStructureRect,
     selectedItems,
@@ -317,51 +331,31 @@ export function usePlanPointerInteractions({
 
   useLayoutEffect(() => {
     contextRef.current = {
+      flushInteractionCommits,
       garden,
       mode,
-      onCheckpoint,
       onMarqueeSelect,
       onSelectItem,
+      queueInteractionPositionCommit,
+      queueInteractionRectCommit,
       resizePlantingRect,
       resizeStructureRect,
       selectedItems,
       updateItemPositions,
     };
   }, [
+    flushInteractionCommits,
     garden,
     mode,
-    onCheckpoint,
     onMarqueeSelect,
     onSelectItem,
+    queueInteractionPositionCommit,
+    queueInteractionRectCommit,
     resizePlantingRect,
     resizeStructureRect,
     selectedItems,
     updateItemPositions,
   ]);
-
-  function queueInteractionCommit(commit: PendingInteractionCommit) {
-    cancelPendingInteractionCommit();
-    pendingInteractionCommitRef.current = commit;
-
-    const runAfterPaint = () => {
-      pendingInteractionCommitFrameRef.current = null;
-      pendingInteractionCommitTimerRef.current = setTimeout(() => {
-        pendingInteractionCommitTimerRef.current = null;
-        flushPendingInteractionCommit();
-      }, 0);
-    };
-
-    if (typeof requestAnimationFrame === 'function') {
-      pendingInteractionCommitFrameRef.current =
-        requestAnimationFrame(runAfterPaint);
-      return;
-    }
-
-    pendingInteractionCommitTimerRef.current = setTimeout(() => {
-      pendingInteractionCommitTimerRef.current = null;
-      flushPendingInteractionCommit();
-    }, 0);
-  }
 
   function flushPendingInteractionCommit({
     clearPreview = true,
@@ -646,31 +640,15 @@ export function usePlanPointerInteractions({
     dragState: DragState,
     currentGarden: Garden,
   ): DragPreview {
-    const pointerPoint = clientPointToPlotFeet(
-      event,
-      dragState.plotRect,
-      currentGarden.plot,
-    );
-    const nextPoint = {
-      xFt: pointerPoint.xFt - dragState.pointerOffset.xFt,
-      yFt: pointerPoint.yFt - dragState.pointerOffset.yFt,
+    const effectivePixelsPerFoot =
+      dragState.plotRect.width && dragState.plotRect.width > 0
+        ? dragState.plotRect.width / currentGarden.plot.widthFt
+        : pixelsPerFoot;
+    const delta = {
+      xFt: (event.clientX - dragState.startClientX) / effectivePixelsPerFoot,
+      yFt: (event.clientY - dragState.startClientY) / effectivePixelsPerFoot,
     };
-    const snapResult = snapItemPoint({
-      freeMove: event.altKey,
-      garden: currentGarden,
-      item: dragState.item,
-      point: nextPoint,
-      sourceRect: dragState.sourceRect,
-      snap: true,
-      snapExclusions: dragState.selection,
-      snapTargets: dragState.snapTargets,
-    });
-    const sourcePoint =
-      dragState.originalPoints.find((point) =>
-        areSamePlanItem(point, dragState.item),
-      ) ?? dragState.originalPoints[0];
-
-    if (!sourcePoint) {
+    if (dragState.originalPoints.length === 0) {
       return {
         guides: [],
         hasChanged: false,
@@ -679,15 +657,35 @@ export function usePlanPointerInteractions({
       };
     }
 
-    const delta = {
-      xFt: snapResult.point.xFt - sourcePoint.xFt,
-      yFt: snapResult.point.yFt - sourcePoint.yFt,
-    };
-    const updates = dragState.originalPoints.map((point) => ({
-      ...point,
-      xFt: roundFeet(point.xFt + delta.xFt),
-      yFt: roundFeet(point.yFt + delta.yFt),
-    }));
+    const originalRectsByKey = new Map(
+      dragState.originalRects.map((entry) => [
+        getPlanItemKey(entry.item),
+        entry,
+      ]),
+    );
+    const updates = dragState.originalPoints.map((point) => {
+      const originalRect = originalRectsByKey.get(getPlanItemKey(point))?.rect;
+
+      if (!originalRect) {
+        return point;
+      }
+
+      const nextPoint = clampItemPointToPlot(
+        point,
+        {
+          xFt: point.xFt + delta.xFt,
+          yFt: point.yFt + delta.yFt,
+        },
+        originalRect,
+        currentGarden.plot,
+      );
+
+      return {
+        ...point,
+        xFt: roundFeet(nextPoint.xFt),
+        yFt: roundFeet(nextPoint.yFt),
+      };
+    });
     const updatesByKey = new Map(
       updates.map((update) => [getPlanItemKey(update), update]),
     );
@@ -724,7 +722,7 @@ export function usePlanPointerInteractions({
     });
 
     return {
-      guides: event.altKey ? [] : snapResult.guides,
+      guides: [],
       hasChanged,
       offsetsByItemKey,
       updates,
@@ -747,36 +745,30 @@ export function usePlanPointerInteractions({
       handle: resizeState.handle,
       originalRect: resizeState.originalRect,
     });
-    const snapResult = snapResizeRect({
-      freeMove: event.altKey,
-      garden: currentGarden,
-      handle: resizeState.handle,
-      rect: baseRect,
-      snapExclusions: [resizeState.item],
-      snapTargets: resizeState.snapTargets,
-    });
 
     return {
-      guides: event.altKey ? [] : snapResult.guides,
-      hasChanged: !areRectsEqual(snapResult.rect, resizeState.originalRect),
-      rect: snapResult.rect,
+      guides: [],
+      hasChanged: !areRectsEqual(baseRect, resizeState.originalRect),
+      rect: baseRect,
       update: {
-        depthFt: snapResult.rect.depthFt,
+        depthFt: baseRect.depthFt,
         id: resizeState.item.id,
         type: resizeState.item.type,
-        widthFt: snapResult.rect.widthFt,
-        xFt: snapResult.rect.xFt,
-        yFt: snapResult.rect.yFt,
+        widthFt: baseRect.widthFt,
+        xFt: baseRect.xFt,
+        yFt: baseRect.yFt,
       },
     };
   }
 
   function beginItemDrag(event: PointerEvent<HTMLElement>, item: PlanItemRef) {
-    const { garden, selectedItems } = contextRef.current;
+    const { flushInteractionCommits, garden, selectedItems } =
+      contextRef.current;
 
     event.preventDefault();
     event.stopPropagation();
     flushPendingInteractionCommit();
+    flushInteractionCommits();
     itemPressRef.current = {
       additive: event.shiftKey,
       item,
@@ -798,8 +790,6 @@ export function usePlanPointerInteractions({
     }
 
     const scrollLock = captureScrollLock(event.currentTarget);
-    const pointerPoint = clientPointToPlotFeet(event, rect, garden.plot);
-    const itemPoint = getItemPointFromRect(item, sourceRect);
     const baseDragSelection =
       selectedItems.some((selected) => areSamePlanItem(selected, item)) &&
       selectedItems.length > 1
@@ -834,20 +824,14 @@ export function usePlanPointerInteractions({
 
     event.currentTarget.setPointerCapture?.(event.pointerId);
     dragStateRef.current = {
-      checkpointed: false,
       item,
+      lastPreview: null,
       moved: false,
       originalPoints,
       originalRects,
       plotRect: rect,
-      pointerOffset: {
-        xFt: pointerPoint.xFt - itemPoint.xFt,
-        yFt: pointerPoint.yFt - itemPoint.yFt,
-      },
-      snapTargets: buildSnapTargets(garden, dragSelection),
       scrollLock,
       selection: dragSelection,
-      sourceRect,
       startClientX: event.clientX,
       startClientY: event.clientY,
     };
@@ -857,7 +841,7 @@ export function usePlanPointerInteractions({
     event: PointerEvent<HTMLElement>,
     item: PlanItemRef,
   ) {
-    const { garden, onCheckpoint } = contextRef.current;
+    const { garden } = contextRef.current;
 
     if (!garden) {
       return;
@@ -873,8 +857,6 @@ export function usePlanPointerInteractions({
     event.stopPropagation();
     restoreScrollLock(dragState.scrollLock);
 
-    const wasMoved = dragState.moved;
-
     if (!markMoved(event, dragState)) {
       const pressState = itemPressRef.current;
 
@@ -885,27 +867,15 @@ export function usePlanPointerInteractions({
       return;
     }
 
-    if (!wasMoved) {
-      setInteractionState('drag');
-      if (item.type === 'planting') {
-        setDraggingPlantId(item.instanceId ?? item.id);
-      } else {
-        setDraggingStructureId(item.id);
-      }
-    }
-
     const preview = buildDragPreview(event, dragState, garden);
 
     restoreScrollLock(dragState.scrollLock);
+    dragState.lastPreview = preview;
     syncDragPreviewState(preview);
-
-    if (preview.hasChanged) {
-      checkpointDrag(dragState, onCheckpoint);
-    }
   }
 
   function endItemDrag(event: PointerEvent<HTMLElement>, item: PlanItemRef) {
-    const { garden, onCheckpoint, onSelectItem, updateItemPositions } =
+    const { garden, onSelectItem, queueInteractionPositionCommit } =
       contextRef.current;
     const dragState = dragStateRef.current;
     const pressState = itemPressRef.current;
@@ -924,23 +894,21 @@ export function usePlanPointerInteractions({
     let commitQueued = false;
 
     if (!canceled && dragState?.moved) {
-      const preview = buildDragPreview(event, dragState, garden);
+      const preview =
+        dragState.lastPreview ?? buildDragPreview(event, dragState, garden);
 
       if (preview.hasChanged) {
         const shouldSelectSingleItem = dragState.selection.length === 1;
 
-        queueInteractionCommit({
-          clearPreview: { restoreLayout: false },
-          run() {
-            checkpointDrag(dragState, onCheckpoint);
-            updateItemPositions(preview.updates, false, {
-              saveAfterCommit: true,
-            });
-
+        queueInteractionPositionCommit(preview.updates, {
+          afterCommit() {
+            schedulePreviewClearAfterCommit({ restoreLayout: false });
             if (shouldSelectSingleItem) {
               onSelectItem(item, false, { openSurface: false });
             }
           },
+          quietSaveStatus: true,
+          saveAfterCommit: true,
         });
         commitQueued = true;
       } else if (dragState.selection.length === 1) {
@@ -974,11 +942,12 @@ export function usePlanPointerInteractions({
     item: PlanItemRef,
     handle: ResizeHandle,
   ) {
-    const { garden } = contextRef.current;
+    const { flushInteractionCommits, garden } = contextRef.current;
 
     event.preventDefault();
     event.stopPropagation();
     flushPendingInteractionCommit();
+    flushInteractionCommits();
     setInteractionState('press');
 
     if (!garden || !canItemBeResized(garden, item)) {
@@ -995,13 +964,12 @@ export function usePlanPointerInteractions({
     const scrollLock = captureScrollLock(event.currentTarget);
     event.currentTarget.setPointerCapture?.(event.pointerId);
     resizeStateRef.current = {
-      checkpointed: false,
       handle,
       item,
+      lastPreview: null,
       moved: false,
       originalRect,
       plotRect,
-      snapTargets: buildSnapTargets(garden, [item]),
       scrollLock,
       startClientX: event.clientX,
       startClientY: event.clientY,
@@ -1009,7 +977,7 @@ export function usePlanPointerInteractions({
   }
 
   function continueResize(event: PointerEvent<HTMLSpanElement>) {
-    const { garden, onCheckpoint } = contextRef.current;
+    const { garden } = contextRef.current;
 
     const resizeState = resizeStateRef.current;
 
@@ -1021,40 +989,20 @@ export function usePlanPointerInteractions({
     event.stopPropagation();
     restoreScrollLock(resizeState.scrollLock);
 
-    const wasMoved = resizeState.moved;
-
     if (!markMoved(event, resizeState)) {
       return;
-    }
-
-    if (!wasMoved) {
-      setInteractionState('resize');
-      if (resizeState.item.type === 'planting') {
-        setResizingPlantId(resizeState.item.id);
-      } else {
-        setResizingStructureId(resizeState.item.id);
-      }
     }
 
     const preview = buildResizePreview(event, resizeState, garden);
 
     restoreScrollLock(resizeState.scrollLock);
+    resizeState.lastPreview = preview;
     syncResizePreviewState(preview, resizeState.item);
-
-    if (preview.hasChanged && !resizeState.checkpointed) {
-      onCheckpoint();
-      resizeState.checkpointed = true;
-    }
   }
 
   function endResize(event: PointerEvent<HTMLSpanElement>) {
-    const {
-      garden,
-      onCheckpoint,
-      onSelectItem,
-      resizePlantingRect,
-      resizeStructureRect,
-    } = contextRef.current;
+    const { garden, onSelectItem, queueInteractionRectCommit } =
+      contextRef.current;
 
     const resizeState = resizeStateRef.current;
 
@@ -1067,28 +1015,20 @@ export function usePlanPointerInteractions({
     const canceled = event.type === 'pointercancel';
     const didMove = resizeState.moved;
 
-    const preview = buildResizePreview(event, resizeState, garden);
+    const preview =
+      resizeState.lastPreview ?? buildResizePreview(event, resizeState, garden);
 
     const shouldCommitResize = !canceled && preview.hasChanged;
     let commitQueued = false;
 
     if (shouldCommitResize) {
-      queueInteractionCommit({
-        clearPreview: { restoreLayout: false },
-        run() {
-          if (!resizeState.checkpointed) {
-            onCheckpoint();
-            resizeState.checkpointed = true;
-          }
-
-          if (resizeState.item.type === 'planting') {
-            resizePlantingRect(preview.update, false);
-          } else {
-            resizeStructureRect(preview.update, false);
-          }
-
+      queueInteractionRectCommit(preview.update, {
+        afterCommit() {
+          schedulePreviewClearAfterCommit({ restoreLayout: false });
           onSelectItem(resizeState.item, false, { openSurface: false });
         },
+        quietSaveStatus: true,
+        saveAfterCommit: true,
       });
       commitQueued = true;
     } else if (!canceled) {
@@ -1113,9 +1053,10 @@ export function usePlanPointerInteractions({
   }
 
   function beginMarquee(event: PointerEvent<HTMLDivElement>) {
-    const { garden, mode } = contextRef.current;
+    const { flushInteractionCommits, garden, mode } = contextRef.current;
 
     flushPendingInteractionCommit();
+    flushInteractionCommits();
 
     if (mode !== 'select' || !garden) {
       return;
@@ -1301,15 +1242,6 @@ function markMoved(
   return true;
 }
 
-function checkpointDrag(dragState: DragState, onCheckpoint: () => void) {
-  if (dragState.checkpointed) {
-    return;
-  }
-
-  onCheckpoint();
-  dragState.checkpointed = true;
-}
-
 function isItemLocked(garden: Garden, item: PlanItemRef) {
   return item.type === 'planting'
     ? !canPlantingBeMoved(garden, item.id)
@@ -1351,6 +1283,22 @@ function areRectsEqual(left: ItemRect, right: ItemRect) {
     left.widthFt === right.widthFt &&
     left.depthFt === right.depthFt
   );
+}
+
+function clampItemPointToPlot(
+  item: PlanItemRef,
+  point: { xFt: number; yFt: number },
+  sourceRect: ItemRect,
+  plot: Garden['plot'],
+) {
+  const nextRect = rectFromItemPoint(item, point, sourceRect);
+  const clampedRect = {
+    ...nextRect,
+    xFt: clamp(nextRect.xFt, 0, Math.max(plot.widthFt - nextRect.widthFt, 0)),
+    yFt: clamp(nextRect.yFt, 0, Math.max(plot.depthFt - nextRect.depthFt, 0)),
+  };
+
+  return getItemPointFromRect(item, clampedRect);
 }
 
 function getFrozenPlotRect(element: HTMLElement | null): PlotClientRect | null {

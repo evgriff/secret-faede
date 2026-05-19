@@ -46,7 +46,7 @@ test('allowlisted mock sign-in reaches and saves Plan', async ({ page }) => {
   );
   await page.mouse.up();
   await expect(
-    page.getByRole('button', { name: 'Tomato at X: 7.8 ft, Y: 5.0 ft' }),
+    page.getByRole('button', { name: 'Tomato at X: 7.8 ft, Y: 4.9 ft' }),
   ).toBeVisible();
   await openPlanTool(page, 'Structure');
   await page

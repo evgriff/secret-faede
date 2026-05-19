@@ -29,6 +29,10 @@ Repository rules:
 - Plan drag autosave should use the committed post-paint garden snapshot, not a
   second precomputed copy, so drop/release stays visually responsive while
   repository persistence remains latest-wins.
+- Interaction autosave from Plan drags/resizes should remain quiet: local
+  feet-based commits queue through `useGarden`, repository persistence runs
+  after paint, and the top bar should not churn through transient Saving/Saved
+  states during pointer movement.
 - Mock mode must remain functional with localStorage-backed adapters.
 - Production repair work must create an ignored `output/production-backups/`
   Firestore backup before deleting shared operation records or resetting stale

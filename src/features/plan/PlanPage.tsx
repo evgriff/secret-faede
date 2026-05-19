@@ -163,7 +163,6 @@ export function PlanPage() {
     addStructure,
     applyAutoLayoutProposal,
     applyPlotSettings,
-    checkpointGarden,
     closeDetailedView,
     closePlantGroupEditor,
     completeGardenSetup,
@@ -176,9 +175,11 @@ export function PlanPage() {
     duplicatePlanting,
     duplicateStructure,
     error,
+    flushInteractionCommits,
     garden,
     hidePlantGroupLabel,
     hoveredPlantGroupId,
+    interactionSavePending,
     labelVisibility,
     linkSupportStructure,
     markPlantingsPlanted,
@@ -187,6 +188,8 @@ export function PlanPage() {
     paintSunShadeCell,
     plantEditorState,
     publishDraft,
+    queueInteractionPositionCommit,
+    queueInteractionRectCommit,
     recalculateSunShade,
     recordSuggestionDecision,
     redoGardenChange,
@@ -428,6 +431,7 @@ export function PlanPage() {
       : hasPlanChanges || dirty
         ? 'draft'
         : 'published';
+  const topBarDirty = dirty && !interactionSavePending;
   const nextPlacementSunArea = useMemo(() => {
     if (!garden || !activeSunLayer) {
       return null;
@@ -1550,7 +1554,7 @@ export function PlanPage() {
           <PlanTopBar
             canDiscardDraft={Boolean(workspace?.hasDraft && hasPlanChanges)}
             canPublish={canPublish || dirty}
-            dirty={dirty}
+            dirty={topBarDirty}
             garden={garden}
             isOffline={isOffline}
             onAddPlants={() => {
@@ -1610,6 +1614,7 @@ export function PlanPage() {
         <div className={styles.canvasColumn}>
           <PlanCanvas
             activeSunLayer={activeSunLayer}
+            flushInteractionCommits={flushInteractionCommits}
             garden={garden}
             focusedCropKey={null}
             hoveredPlantGroupId={planCanvasHoveredPlantGroupId}
@@ -1617,7 +1622,6 @@ export function PlanPage() {
             manualSunEdit={manualSunEdit}
             manualSunExposure={manualSunExposure}
             mode={activeMode}
-            onCheckpoint={checkpointGarden}
             onInteractionStateChange={setPlanInteractionState}
             onMarqueeSelect={handleMarqueeSelect}
             onPaintSunShadeCell={paintSunShadeCell}
@@ -1629,6 +1633,8 @@ export function PlanPage() {
             plantingPreview={addPlantPreview}
             planWarnings={activePlanWarnings}
             proposalDiffOverlay={proposalDiffOverlay}
+            queueInteractionPositionCommit={queueInteractionPositionCommit}
+            queueInteractionRectCommit={queueInteractionRectCommit}
             resizePlantingRect={resizePlantingRect}
             resizeStructureRect={resizeStructureRect}
             selectedItems={selectedItems}

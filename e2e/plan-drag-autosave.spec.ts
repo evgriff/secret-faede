@@ -17,6 +17,7 @@ test('drag drop autosaves without blocking route navigation', async ({
   await expect(
     page.getByRole('complementary', { name: 'Crop focus' }),
   ).toHaveCount(0);
+  await startLongTaskObserver(page);
 
   const plant = page.getByRole('button', {
     name: 'Tomato at X: 6.0 ft, Y: 4.0 ft',
@@ -31,18 +32,21 @@ test('drag drop autosaves without blocking route navigation', async ({
   await page.mouse.move(
     plantBox.x + plantBox.width / 2 + 64,
     plantBox.y + plantBox.height / 2 + 32,
-    { steps: 4 },
+    { steps: 32 },
   );
+  await expect(page.getByText('Saving', { exact: true })).toHaveCount(0);
+  await expect.poll(() => readLongTaskCount(page)).toBe(0);
   await markNextDropPaint(page);
   await page.mouse.up();
-  await expect.poll(() => readDropPaintDelay(page)).toBeLessThan(120);
+  await expect.poll(() => readDropPaintDelay(page)).toBeLessThan(50);
 
   const movedTomato = page
     .getByRole('button', { name: /^Tomato at X:/ })
     .first();
 
   await expect(movedTomato).toBeVisible();
-  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await expect(page.getByText('Private draft', { exact: true })).toBeVisible();
+  await expect(page.getByText('Saving', { exact: true })).toHaveCount(0);
 
   await page.getByRole('link', { name: 'Today' }).click();
   await expect(
@@ -91,6 +95,57 @@ async function markNextDropPaint(page: Page) {
         });
       },
       { capture: true, once: true },
+    );
+  });
+}
+
+async function startLongTaskObserver(page: Page) {
+  await page.evaluate(() => {
+    const browser = globalThis as unknown as {
+      PerformanceObserver?: {
+        new (
+          callback: (list: {
+            getEntries(): Array<{ duration: number }>;
+          }) => void,
+        ): {
+          observe(options: { entryTypes: string[] }): void;
+        };
+        supportedEntryTypes?: string[];
+      };
+      document: { documentElement: { dataset: Record<string, string> } };
+    };
+
+    browser.document.documentElement.dataset.dragLongTaskCount = '0';
+
+    if (
+      !browser.PerformanceObserver?.supportedEntryTypes?.includes('longtask')
+    ) {
+      return;
+    }
+
+    const observer = new browser.PerformanceObserver((list) => {
+      const current = Number(
+        browser.document.documentElement.dataset.dragLongTaskCount ?? '0',
+      );
+      const next =
+        current +
+        list.getEntries().filter((entry) => entry.duration >= 50).length;
+
+      browser.document.documentElement.dataset.dragLongTaskCount = String(next);
+    });
+
+    observer.observe({ entryTypes: ['longtask'] });
+  });
+}
+
+async function readLongTaskCount(page: Page) {
+  return page.evaluate(() => {
+    const browser = globalThis as unknown as {
+      document: { documentElement: { dataset: Record<string, string> } };
+    };
+
+    return Number(
+      browser.document.documentElement.dataset.dragLongTaskCount ?? '0',
     );
   });
 }

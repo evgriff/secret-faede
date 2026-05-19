@@ -976,6 +976,9 @@ describe('PlanPage', () => {
         '',
       );
     });
+    expect(screen.getByText('Private draft', { exact: true })).toBeVisible();
+    expect(screen.queryByText('Unsaved edits')).not.toBeInTheDocument();
+    expect(screen.queryByText('Saving')).not.toBeInTheDocument();
     expect(
       screen.getByRole('button', {
         name: 'Saved tomato at X: 2.0 ft, Y: 3.0 ft',
@@ -1003,7 +1006,66 @@ describe('PlanPage', () => {
         name: 'Saved tomato at X: 3.0 ft, Y: 4.0 ft',
       }),
     ).toBeVisible();
+    expect(screen.getByText('Private draft', { exact: true })).toBeVisible();
     await waitFor(() => expect(saveDraftSpy).toHaveBeenCalledTimes(1));
+  });
+
+  it('keeps locked plantings anchored during drag gestures', async () => {
+    const services = await createTestServices({
+      signedInEmail: 'primary.gardener@example.com',
+    });
+    const currentUser = services.authService.getCurrentUser();
+
+    if (!currentUser) {
+      throw new Error('Expected signed-in test user.');
+    }
+
+    await services.gardenRepository.saveGarden({
+      ...createDefaultGarden(currentUser.uid),
+      climateProfile: {
+        ...detroitClimateProfile,
+        source: 'user',
+      },
+      plantings: [
+        {
+          ...createDefaultPlanting({
+            id: 'planting-locked',
+            label: 'Anchored tomato',
+            xFt: 2,
+            yFt: 3,
+          }),
+          locked: true,
+        },
+      ],
+    });
+
+    const saveDraftSpy = vi.spyOn(services.gardenRepository, 'saveDraft');
+
+    renderRoute('/app/plan', services);
+
+    const plot = await screen.findByTestId('garden-plot');
+    const plant = await screen.findByRole('button', {
+      name: 'Anchored tomato at X: 2.0 ft, Y: 3.0 ft',
+    });
+    const plantGroup = plant.closest<HTMLElement>('[data-plan-item-key]');
+
+    if (!plantGroup) {
+      throw new Error('Expected plant group wrapper.');
+    }
+
+    mockElementRect(plot, { height: 256, width: 384 });
+    saveDraftSpy.mockClear();
+
+    dragElement(plant, { endX: 128, endY: 160, startX: 64, startY: 96 });
+
+    expect(plantGroup).not.toHaveAttribute('data-plan-preview-active');
+    expect(
+      screen.getByRole('button', {
+        name: 'Anchored tomato at X: 2.0 ft, Y: 3.0 ft',
+      }),
+    ).toBeVisible();
+    expect(saveDraftSpy).not.toHaveBeenCalled();
+    expect(screen.getByText('Private draft', { exact: true })).toBeVisible();
   });
 
   it('keeps drag autosave async and waits for the newest position before marking saved', async () => {
@@ -1067,7 +1129,9 @@ describe('PlanPage', () => {
       screen.queryByRole('complementary', { name: 'Crop focus' }),
     ).not.toBeInTheDocument();
     await waitFor(() => expect(pendingSaves).toHaveLength(1));
-    expect(screen.getByText('Saving')).toBeVisible();
+    expect(screen.getByText('Private draft', { exact: true })).toBeVisible();
+    expect(screen.queryByText('Saving')).not.toBeInTheDocument();
+    expect(screen.queryByText('Unsaved edits')).not.toBeInTheDocument();
 
     dragElement(
       screen.getByRole('button', {
@@ -1085,12 +1149,16 @@ describe('PlanPage', () => {
     pendingSaves.shift()?.();
 
     await waitFor(() => expect(pendingSaves).toHaveLength(1));
-    expect(screen.getByText('Saving')).toBeVisible();
+    expect(screen.getByText('Private draft', { exact: true })).toBeVisible();
+    expect(screen.queryByText('Saving')).not.toBeInTheDocument();
     expect(screen.queryByText('Saved')).not.toBeInTheDocument();
 
     pendingSaves.shift()?.();
 
-    await waitFor(() => expect(screen.getByText('Saved')).toBeVisible());
+    await waitFor(() =>
+      expect(screen.getByText('Private draft', { exact: true })).toBeVisible(),
+    );
+    expect(screen.queryByText('Saved')).not.toBeInTheDocument();
 
     const savedGarden = await services.gardenRepository.getGarden(
       currentUser.uid,

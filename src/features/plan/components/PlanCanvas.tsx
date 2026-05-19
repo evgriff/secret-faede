@@ -52,13 +52,13 @@ import styles from './PlanCanvas.module.css';
 export const PlanCanvas = memo(function PlanCanvas({
   activeSunLayer,
   focusedCropKey,
+  flushInteractionCommits,
   garden,
   hoveredPlantGroupId,
   influenceOverlay,
   manualSunEdit,
   manualSunExposure,
   mode,
-  onCheckpoint,
   onMarqueeSelect,
   onPaintSunShadeCell,
   onPlantHoverChange,
@@ -70,6 +70,8 @@ export const PlanCanvas = memo(function PlanCanvas({
   plantingPreview,
   planWarnings,
   proposalDiffOverlay,
+  queueInteractionPositionCommit,
+  queueInteractionRectCommit,
   resizePlantingRect,
   resizeStructureRect,
   selectedItems,
@@ -81,6 +83,7 @@ export const PlanCanvas = memo(function PlanCanvas({
   visiblePlantLabelIds,
 }: {
   activeSunLayer: { areas: SunShadeArea[] };
+  flushInteractionCommits(): void;
   focusedCropKey: string | null;
   garden: Garden;
   hoveredPlantGroupId: string | null;
@@ -88,7 +91,6 @@ export const PlanCanvas = memo(function PlanCanvas({
   manualSunEdit: boolean;
   manualSunExposure: SunExposure;
   mode: PlanMode;
-  onCheckpoint(): void;
   onMarqueeSelect(items: PlanItemRef[], additive: boolean): void;
   onPaintSunShadeCell(
     season: SunSeason,
@@ -109,6 +111,14 @@ export const PlanCanvas = memo(function PlanCanvas({
   plantingPreview: Planting | null;
   planWarnings: PlanWarning[];
   proposalDiffOverlay: ProposalDiffOverlayModel | null;
+  queueInteractionPositionCommit(
+    updates: PlanItemPositionUpdate[],
+    options?: GardenPositionUpdateOptions,
+  ): void;
+  queueInteractionRectCommit(
+    update: PlanItemRectUpdate,
+    options?: GardenPositionUpdateOptions,
+  ): void;
   resizePlantingRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
   resizeStructureRect(update: PlanItemRectUpdate, trackHistory?: boolean): void;
   selectedItems: PlanItemRef[];
@@ -131,11 +141,13 @@ export const PlanCanvas = memo(function PlanCanvas({
   });
   const [isPanMode, setIsPanMode] = useState(false);
   const pointerInteractions = usePlanPointerInteractions({
+    flushInteractionCommits,
     garden,
     mode,
-    onCheckpoint,
     onMarqueeSelect,
     onSelectItem,
+    queueInteractionPositionCommit,
+    queueInteractionRectCommit,
     resizePlantingRect,
     resizeStructureRect,
     selectedItems,

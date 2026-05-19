@@ -24,6 +24,10 @@ Success criteria:
   resize, select, and pan stay responsive on production-sized gardens
 - drop/release should keep the imperative preview visible, then commit feet-based
   state and autosave after paint so pointer-up does not block the visual release
+- drag and resize pointer-move paths must stay compositor-only: no snapping,
+  warning analysis, autosave, dirty/save-status flips, or selection churn while
+  the pointer is moving
+- locked or anchored plot items must not preview or commit movement when dragged
 - weather, watering, sun, and operations panels support the editor rather than replacing it
 - layout suggestions and seasonal crop planning should keep climate-aware assertions tied to the public Detroit baseline
 
