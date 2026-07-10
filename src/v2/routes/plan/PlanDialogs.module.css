@@ -1,0 +1,185 @@
+.hint {
+  color: var(--sf2-ink-soft);
+  font-size: 0.86rem;
+  margin: 0;
+}
+
+.formStack {
+  display: grid;
+  gap: var(--sf2-space-4);
+}
+
+.formGrid {
+  display: grid;
+  gap: var(--sf2-space-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.selectField {
+  display: grid;
+  gap: var(--sf2-space-2);
+  min-inline-size: 0;
+}
+
+.selectField > span,
+.cropResults legend,
+.templateChoices legend {
+  color: var(--sf2-ink);
+  font-weight: 750;
+}
+
+.selectField select {
+  background: var(--sf2-surface-raised);
+  border: 1px solid var(--sf2-border-strong);
+  border-radius: var(--sf2-radius-small);
+  inline-size: 100%;
+  min-block-size: var(--sf2-control-min);
+  padding: 0.62rem 2rem 0.62rem 0.75rem;
+}
+
+.waterCard {
+  background: var(--sf2-info-soft);
+  border: 1px solid var(--sf2-info);
+  border-radius: var(--sf2-radius);
+  display: grid;
+  gap: var(--sf2-space-3);
+  padding: var(--sf2-space-4);
+}
+
+.inspectorActions {
+  border-block-start: 1px solid var(--sf2-rule);
+  padding-block-start: var(--sf2-space-4);
+}
+
+.cropResults,
+.templateChoices {
+  border: 0;
+  display: grid;
+  gap: var(--sf2-space-2);
+  margin: 0;
+  max-block-size: min(42vh, 24rem);
+  overflow: auto;
+  padding: 0;
+}
+
+.cropResults legend,
+.templateChoices legend {
+  margin-block-end: var(--sf2-space-2);
+}
+
+.cropChoice,
+.templateChoices label {
+  align-items: start;
+  background: var(--sf2-surface);
+  border: 1px solid var(--sf2-border);
+  border-radius: var(--sf2-radius-small);
+  cursor: pointer;
+  display: flex;
+  gap: var(--sf2-space-3);
+  min-block-size: var(--sf2-control-min);
+  padding: var(--sf2-space-3);
+}
+
+.cropChoice:has(input:checked),
+.templateChoices label:has(input:checked) {
+  background: var(--sf2-leaf-soft);
+  border-color: var(--sf2-leaf);
+  box-shadow: inset 0 0 0 1px var(--sf2-leaf);
+}
+
+.cropChoice input,
+.templateChoices input {
+  accent-color: var(--sf2-leaf);
+  block-size: 1.2rem;
+  flex: 0 0 auto;
+  inline-size: 1.2rem;
+}
+
+.cropChoice span,
+.templateChoices span {
+  display: grid;
+  gap: var(--sf2-space-1);
+  min-inline-size: 0;
+}
+
+.cropChoice small,
+.templateChoices small {
+  color: var(--sf2-ink-soft);
+}
+
+.formError {
+  color: var(--sf2-danger);
+  font-weight: 750;
+  margin: 0;
+}
+
+.reviewList,
+.proposalList,
+.historyList,
+.confirmRestore {
+  display: grid;
+  gap: var(--sf2-space-3);
+}
+
+.reviewList > p,
+.confirmRestore > p {
+  margin: 0;
+}
+
+.reviewList article,
+.proposalList article,
+.historyList article {
+  background: var(--sf2-surface);
+  border: 1px solid var(--sf2-border);
+  border-radius: var(--sf2-radius-small);
+  display: grid;
+  gap: var(--sf2-space-2);
+  padding: var(--sf2-space-3);
+}
+
+.reviewList article h3,
+.reviewList article h4,
+.reviewList article p {
+  margin: 0;
+}
+
+.reviewList article small {
+  color: var(--sf2-warning);
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.proposalList article,
+.historyList article {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.historyList article > div {
+  display: grid;
+  gap: var(--sf2-space-1);
+}
+
+.historyList article span,
+.proposalList article span {
+  color: var(--sf2-ink-soft);
+  font-size: 0.86rem;
+}
+
+.confirmRestore > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sf2-space-2);
+}
+
+@media (max-width: 42rem) {
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .proposalList article,
+  .historyList article {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+}

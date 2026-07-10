@@ -2,13 +2,13 @@ import type {
   CropLifecycle,
   CropProfile,
   CropWaterNeed,
-  GardenLocation,
-  MonthDayString,
   PlantDifficulty,
   PlantPlacementMode,
   PlantSupportType,
   SunExposure,
-} from '../gardens/GardenRepository';
+} from './cropCatalogTypes';
+
+type MonthDayString = string;
 
 export type PlantPreferredSeason =
   | 'coolSeason'
@@ -20,15 +20,6 @@ export type PlantHarvestCycle =
   | 'cutAndComeAgain'
   | 'single'
   | 'successive';
-export type PlantLocationMatchBand = 'good' | 'poor' | 'strong' | 'watch';
-export type PlantLocationMatchConfidence = 'high' | 'low' | 'medium';
-export type PlantTimingStatus =
-  | 'goodForFall'
-  | 'plantNow'
-  | 'possibleNowWithProtection'
-  | 'startIndoorsNow'
-  | 'tooLateForSpringWindow'
-  | 'waitUntilAfterFrost';
 
 export interface MonthDayRange {
   end: MonthDayString;
@@ -93,42 +84,4 @@ export interface PlantCatalogEntry {
   sunPreference: SunExposure;
   timing: PlantLifecycleTiming;
   waterNeed: CropWaterNeed;
-}
-
-export interface PlantLocationContext {
-  averageFirstFrost: MonthDayString;
-  averageLastFrost: MonthDayString;
-  confidence: PlantLocationMatchConfidence;
-  firstFallFrostWindow: MonthDayRange;
-  hardinessZone: string;
-  lastSpringFrostWindow: MonthDayRange;
-  location: GardenLocation;
-  regionName: string;
-  seasonWindows: {
-    coolFall: MonthDayRange;
-    coolSpring: MonthDayRange;
-    warmSeason: MonthDayRange;
-  };
-  source: 'detroitDefault' | 'gardenProfile';
-}
-
-export interface PlantLocationMatch {
-  band: PlantLocationMatchBand;
-  confidence: PlantLocationMatchConfidence;
-  label: string;
-  reasons: string[];
-  score: number;
-  warnings: string[];
-}
-
-export interface PlantLocationMatchRationale {
-  basis: string;
-  details: string[];
-  headline: string;
-}
-
-export interface PlantTimingGuidance {
-  detail: string;
-  label: string;
-  status: PlantTimingStatus;
 }

@@ -1,0 +1,50 @@
+:root {
+  color-scheme: light;
+  --sf2-paper: #f7f3e8;
+  --sf2-paper-deep: #eee7d6;
+  --sf2-surface: #fffdf7;
+  --sf2-surface-raised: #ffffff;
+  --sf2-ink: #20251f;
+  --sf2-ink-soft: #4d584b;
+  --sf2-ink-muted: #626c5f;
+  --sf2-border: #a5ad9e;
+  --sf2-border-strong: #667260;
+  --sf2-rule: rgba(72, 91, 70, 0.13);
+  --sf2-leaf: #315f3d;
+  --sf2-leaf-hover: #244b30;
+  --sf2-leaf-soft: #e4eee3;
+  --sf2-sky: #125f8c;
+  --sf2-focus: #006ca6;
+  --sf2-danger: #8d2828;
+  --sf2-danger-soft: #f8e7e3;
+  --sf2-warning: #6b4e00;
+  --sf2-warning-soft: #fbf0cf;
+  --sf2-success: #285b38;
+  --sf2-success-soft: #e1eee3;
+  --sf2-info: #205a78;
+  --sf2-info-soft: #e1eef4;
+  --sf2-shadow: 0 1.2rem 3rem rgba(42, 51, 40, 0.12);
+  --sf2-shadow-small: 0 0.25rem 1rem rgba(42, 51, 40, 0.1);
+  --sf2-font-body:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+  --sf2-font-note: Georgia, 'Times New Roman', serif;
+  --sf2-radius-small: 0.5rem;
+  --sf2-radius: 0.75rem;
+  --sf2-radius-large: 1rem;
+  --sf2-space-1: 0.25rem;
+  --sf2-space-2: 0.5rem;
+  --sf2-space-3: 0.75rem;
+  --sf2-space-4: 1rem;
+  --sf2-space-5: 1.5rem;
+  --sf2-space-6: 2rem;
+  --sf2-space-7: 3rem;
+  --sf2-control-min: 2.75rem;
+  --sf2-readable: 44rem;
+  --sf2-wide: 92rem;
+  --sf2-rail: 15rem;
+  --sf2-bottom-nav: 4.5rem;
+  --sf2-motion-fast: 120ms;
+  --sf2-motion: 180ms;
+  --sf2-ease: cubic-bezier(0.2, 0, 0, 1);
+}

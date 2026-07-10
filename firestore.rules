@@ -1,99 +1,422 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
     function hasGardenAccess() {
       return request.auth != null
-        && request.auth.token.keys().hasAny(['gardenAccess'])
         && request.auth.token.gardenAccess == true
-        && request.auth.token.keys().hasAny(['secretFaeriesMember'])
         && request.auth.token.secretFaeriesMember == true;
     }
-
     function isOwner(userId) {
-      return hasGardenAccess()
-        && request.auth.uid == userId;
+      return hasGardenAccess() && request.auth.uid == userId;
     }
-
+    function boundedText(value, minimum, maximum) {
+      return value is string
+        && value.size() >= minimum
+        && value.size() <= maximum;
+    }
+    function validIso(value) {
+      return value is string
+        && value.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[.][0-9]{3}Z');
+    }
+    function validLocalDate(value) {
+      return value is string
+        && value.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}');
+    }
+    function validLocalTime(value) {
+      return value is string
+        && value.matches('([01][0-9]|2[0-3]):[0-5][0-9]');
+    }
+    function validAlertKinds(value) {
+      return value is map
+        && value.keys().hasOnly([
+          'frost', 'heat', 'severeWeather', 'taskDue', 'watering'
+        ])
+        && value.frost is bool
+        && value.heat is bool
+        && value.severeWeather is bool
+        && value.taskDue is bool
+        && value.watering is bool;
+    }
+    function validPreferences(value) {
+      return value is map
+        && value.keys().hasOnly([
+          'alertKinds', 'dailyCheckTime', 'minimumWateringDeficitInches',
+          'pushEnabled', 'quietHours'
+        ])
+        && validAlertKinds(value.alertKinds)
+        && validLocalTime(value.dailyCheckTime)
+        && value.minimumWateringDeficitInches is number
+        && value.minimumWateringDeficitInches >= 0.05
+        && value.minimumWateringDeficitInches <= 2
+        && value.pushEnabled is bool
+        && value.quietHours is map
+        && value.quietHours.keys().hasOnly(['end', 'start'])
+        && validLocalTime(value.quietHours.end)
+        && validLocalTime(value.quietHours.start);
+    }
+    function validProfile(userId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'displayName', 'email', 'notificationPreferences', 'schemaVersion',
+          'timezone', 'updatedAtIso', 'userId'
+        ])
+        && data.userId == userId
+        && data.schemaVersion == 2
+        && boundedText(data.displayName, 1, 100)
+        && boundedText(data.email, 3, 320)
+        && data.email.matches('[^@ ]+@[^@ ]+[.][^@ ]+')
+        && boundedText(data.timezone, 1, 100)
+        && validIso(data.updatedAtIso)
+        && validPreferences(data.notificationPreferences);
+    }
+    function validPushToken(userId, tokenId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'createdAtIso', 'firstRegisteredAt', 'firstRegisteredAtIso',
+          'installationId', 'lastSeenAt', 'lastSeenAtIso', 'permission',
+          'permissionLastCheckedAtIso', 'platform', 'provider', 'status',
+          'token', 'tokenId', 'userAgent'
+        ])
+        && data.tokenId == tokenId
+        && boundedText(data.token, 1, 4096)
+        && boundedText(data.installationId, 16, 128)
+        && boundedText(data.platform, 1, 30)
+        && boundedText(data.userAgent, 1, 1000)
+        && data.permission == 'granted'
+        && data.provider == 'firebaseCloudMessaging'
+        && data.status == 'active'
+        && validIso(data.createdAtIso)
+        && validIso(data.firstRegisteredAtIso)
+        && validIso(data.lastSeenAtIso)
+        && validIso(data.permissionLastCheckedAtIso)
+        && data.firstRegisteredAt is timestamp
+        && data.lastSeenAt is timestamp;
+    }
+    function validMonthDay(value) {
+      return value is string
+        && value.matches('(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])');
+    }
+    function validCoordinates(value) {
+      return value == null || (
+        value is map
+        && value.keys().hasOnly(['latitude', 'longitude'])
+        && value.latitude is number
+        && value.latitude >= -90
+        && value.latitude <= 90
+        && value.longitude is number
+        && value.longitude >= -180
+        && value.longitude <= 180
+      );
+    }
+    function validClimate(value) {
+      return value is map
+        && value.keys().hasOnly([
+          'firstFrost', 'hardinessZone', 'lastFrost'
+        ])
+        && validMonthDay(value.firstFrost)
+        && value.hardinessZone is string
+        && value.hardinessZone.matches('([1-9]|1[0-3])[aAbB]')
+        && validMonthDay(value.lastFrost);
+    }
+    function validLocation(value) {
+      return value is map
+        && value.keys().hasOnly([
+          'coordinates', 'label', 'query', 'timezone'
+        ])
+        && validCoordinates(value.coordinates)
+        && boundedText(value.label, 0, 200)
+        && boundedText(value.query, 0, 500)
+        && boundedText(value.timezone, 1, 100);
+    }
+    function validPlot(value) {
+      return value is map
+        && value.keys().hasOnly([
+          'climate', 'depthFt', 'location', 'northDegrees', 'snapFt', 'widthFt'
+        ])
+        && validClimate(value.climate)
+        && value.depthFt is number
+        && value.depthFt >= 1
+        && value.depthFt <= 500
+        && validLocation(value.location)
+        && value.northDegrees is number
+        && value.northDegrees >= 0
+        && value.northDegrees < 360
+        && value.snapFt is number
+        && value.snapFt >= 0.0625
+        && value.snapFt <= 1
+        && value.widthFt is number
+        && value.widthFt >= 1
+        && value.widthFt <= 500;
+    }
+    function validPlan(value) {
+      return value is map
+        && value.keys().hasOnly([
+          'createdAtIso', 'id', 'name', 'plantings', 'plot',
+          'reviewDecisions', 'schemaVersion', 'setupCompleted', 'structures',
+          'updatedAtIso'
+        ])
+        && value.schemaVersion == 9
+        && value.setupCompleted is bool
+        && boundedText(value.id, 1, 128)
+        && boundedText(value.name, 1, 200)
+        && validIso(value.createdAtIso)
+        && validIso(value.updatedAtIso)
+        && validPlot(value.plot)
+        // Rules cannot iterate arbitrary list members. The client and trusted
+        // operation runner must validate every structure, planting (including
+        // schema-9 wateringStage), plant instance, and review decision.
+        && value.structures is list
+        && value.structures.size() <= 128
+        && value.plantings is list
+        && value.plantings.size() <= 512
+        && value.reviewDecisions is list
+        && value.reviewDecisions.size() <= 1000;
+    }
+    function validTarget(value) {
+      return value is map
+        && value.keys().hasOnly(['id', 'kind', 'label'])
+        && (value.id == null || boundedText(value.id, 1, 128))
+        && value.kind in ['garden', 'plantingGroup', 'structure']
+        && boundedText(value.label, 1, 200);
+    }
+    function validJournalBase(data, entryId) {
+      return data.id == entryId
+        && data.type in ['issue', 'note', 'photo']
+        && boundedText(data.title, 1, 200)
+        && boundedText(data.body, 0, 10000)
+        && boundedText(data.createdByUserId, 1, 128)
+        && validIso(data.createdAtIso)
+        && validLocalDate(data.occurredOn)
+        && validTarget(data.target)
+        && data.photos is list
+        && data.photos.size() <= 12;
+    }
+    function validJournal(data, entryId) {
+      let baseKeys = [
+        'body', 'createdAtIso', 'createdByUserId', 'id', 'occurredOn',
+        'photos', 'target', 'title', 'type'
+      ];
+      return validJournalBase(data, entryId)
+        && (
+          (data.type in ['note', 'photo'] && data.keys().hasOnly(baseKeys))
+          || (
+            data.type == 'issue'
+            && data.keys().hasOnly(baseKeys.concat([
+              'category', 'resolvedAtIso', 'severity', 'status'
+            ]))
+            && data.category in [
+              'disease', 'general', 'irrigation', 'nutrient', 'pest',
+              'weatherDamage'
+            ]
+            && (data.resolvedAtIso == null || validIso(data.resolvedAtIso))
+            && data.severity in ['high', 'low', 'medium']
+            && data.status in ['inProgress', 'open', 'resolved']
+          )
+        );
+    }
+    function validHarvest(data, harvestId) {
+      return data.keys().hasOnly([
+          'amount', 'createdAtIso', 'createdByUserId', 'cropId', 'id', 'notes',
+          'occurredOn', 'plantingGroupId', 'unit'
+        ])
+        && data.id == harvestId
+        && (data.amount == null || (data.amount is number && data.amount >= 0))
+        && validIso(data.createdAtIso)
+        && boundedText(data.createdByUserId, 1, 128)
+        && boundedText(data.cropId, 1, 128)
+        && boundedText(data.notes, 0, 5000)
+        && validLocalDate(data.occurredOn)
+        && boundedText(data.plantingGroupId, 1, 128)
+        && data.unit in ['bunch', 'count', 'freeform', 'lb', 'oz'];
+    }
+    function validTask(data, taskId) {
+      return data.keys().hasOnly([
+          'completedAtIso', 'createdAtIso', 'dueOn', 'id', 'kind', 'notes',
+          'priority', 'reason', 'sourceId', 'status', 'target', 'title',
+          'updatedAtIso'
+        ])
+        && data.id == taskId
+        && (data.completedAtIso == null || validIso(data.completedAtIso))
+        && validIso(data.createdAtIso)
+        && validLocalDate(data.dueOn)
+        && data.kind in [
+          'feed', 'fertilize', 'harvest', 'inspect', 'mulch', 'plant', 'prune',
+          'support', 'thin', 'water', 'weed'
+        ]
+        && boundedText(data.notes, 0, 5000)
+        && data.priority in ['high', 'low', 'medium']
+        && boundedText(data.reason, 0, 1000)
+        && (data.sourceId == null || boundedText(data.sourceId, 1, 128))
+        && data.status in ['deferred', 'done', 'open', 'snoozed']
+        && validTarget(data.target)
+        && boundedText(data.title, 1, 200)
+        && validIso(data.updatedAtIso);
+    }
+    function validWaterAmount(value) {
+      return value is map && (
+        (
+          value.keys().hasOnly(['depthInches', 'unit'])
+          && value.unit == 'inches'
+          && value.depthInches is number
+          && value.depthInches > 0
+          && value.depthInches <= 10
+        ) || (
+          value.keys().hasOnly(['area', 'gallons', 'unit'])
+          && value.unit == 'gallons'
+          && value.gallons is number
+          && value.gallons > 0
+          && value.gallons <= 10000
+          && value.area is map
+          && value.area.reliability in [
+            'estimated', 'geometry', 'measured', 'unknown'
+          ]
+          && (value.area.squareFeet == null
+            || (value.area.squareFeet is number && value.area.squareFeet > 0))
+        ) || (
+          value.keys().hasOnly(['unit']) && value.unit == 'unknown'
+        )
+      );
+    }
+    function validEfficiency(value) {
+      return value is map
+        && value.keys().hasOnly(['confidence', 'fraction', 'source'])
+        && value.confidence in ['high', 'low', 'medium']
+        && value.fraction is number
+        && value.fraction > 0
+        && value.fraction <= 1
+        && value.source in ['calibrated', 'estimated', 'manufacturer', 'manual'];
+    }
+    function validWaterApplication(data, applicationId) {
+      let baseKeys = [
+        'appliedAtIso', 'cropGroupId', 'id', 'method', 'outcome',
+        'recordedAtIso', 'recordedByUserId', 'revision'
+      ];
+      return data.id == applicationId
+        && boundedText(data.cropGroupId, 1, 128)
+        && validIso(data.appliedAtIso)
+        && validIso(data.recordedAtIso)
+        && boundedText(data.recordedByUserId, 1, 128)
+        && data.revision is int
+        && data.revision >= 1
+        && data.method in ['drip', 'hand', 'hose', 'other', 'sprinkler']
+        && (
+          (
+            data.outcome in ['applied', 'partial']
+            && data.keys().hasOnly(baseKeys.concat(['amount', 'efficiency']))
+            && validWaterAmount(data.amount)
+            && validEfficiency(data.efficiency)
+          ) || (
+            data.outcome == 'skipped'
+            && data.keys().hasOnly(baseKeys.concat(['skipReason']))
+            && boundedText(data.skipReason, 1, 1000)
+          )
+        );
+    }
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
-
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && validProfile(userId);
+      allow delete: if false;
       match /pushTokens/{tokenId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && validPushToken(userId, tokenId);
+        allow delete: if isOwner(userId);
       }
-
-    }
-
-    match /gardens/{userId} {
-      allow read, write: if isOwner(userId);
-
-      match /structures/{structureId} {
-        allow read, write: if isOwner(userId);
-      }
-
-      match /plantings/{plantingId} {
-        allow read, write: if isOwner(userId);
-      }
-
-      match /tasks/{taskId} {
-        allow read, write: if isOwner(userId);
-      }
-
-      match /journal/{entryId} {
-        allow read, write: if isOwner(userId);
-      }
-
-      match /harvests/{harvestId} {
-        allow read, write: if isOwner(userId);
-      }
-
-      match /notifications/{notificationId} {
-        allow read, write: if isOwner(userId);
+      match /notificationDeliveries/{deliveryId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
       }
     }
-
     match /gardenWorkspaces/main {
-      allow read, write: if hasGardenAccess();
-
-      match /drafts/{userId} {
-        allow read, write: if isOwner(userId);
+      allow read: if hasGardenAccess();
+      allow write: if false;
+      match /plans/{planId} {
+        allow read: if hasGardenAccess() && planId == 'published';
+        allow write: if false;
       }
-
+      match /drafts/{userId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.keys().hasOnly([
+            'baseRevisionId', 'plan', 'updatedAtIso', 'userId'
+          ])
+          && request.resource.data.userId == userId
+          && request.resource.data.baseRevisionId
+            == getAfter(/databases/$(database)/documents/gardenWorkspaces/main).data.publishedRevisionId
+          && validPlan(request.resource.data.plan)
+          && validIso(request.resource.data.updatedAtIso);
+        allow delete: if isOwner(userId);
+      }
       match /revisions/{revisionId} {
         allow read: if hasGardenAccess();
-        allow write: if hasGardenAccess();
+        allow write: if false;
       }
-
       match /journal/{entryId} {
-        allow read, write: if hasGardenAccess();
+        allow read: if hasGardenAccess();
+        allow create: if hasGardenAccess()
+          && validJournal(request.resource.data, entryId)
+          && request.resource.data.createdByUserId == request.auth.uid;
+        allow update: if hasGardenAccess()
+          && validJournal(request.resource.data, entryId)
+          && request.resource.data.createdByUserId == resource.data.createdByUserId
+          && request.resource.data.createdAtIso == resource.data.createdAtIso;
+        allow delete: if hasGardenAccess();
       }
-
       match /harvests/{harvestId} {
-        allow read, write: if hasGardenAccess();
+        allow read: if hasGardenAccess();
+        allow create: if hasGardenAccess()
+          && validHarvest(request.resource.data, harvestId)
+          && request.resource.data.createdByUserId == request.auth.uid;
+        allow update: if hasGardenAccess()
+          && validHarvest(request.resource.data, harvestId)
+          && request.resource.data.createdByUserId == resource.data.createdByUserId
+          && request.resource.data.createdAtIso == resource.data.createdAtIso;
+        allow delete: if hasGardenAccess();
       }
-
       match /tasks/{taskId} {
-        allow read, write: if hasGardenAccess();
+        allow read: if hasGardenAccess();
+        allow create, update: if hasGardenAccess()
+          && validTask(request.resource.data, taskId);
+        allow delete: if hasGardenAccess();
       }
-
-      match /wateringSchedule/{entryId} {
-        allow read, write: if hasGardenAccess();
+      match /waterApplications/{applicationId} {
+        allow read: if hasGardenAccess();
+        allow create: if hasGardenAccess()
+          && validWaterApplication(request.resource.data, applicationId)
+          && request.resource.data.recordedByUserId == request.auth.uid
+          && request.resource.data.revision == 1;
+        allow update: if hasGardenAccess()
+          && validWaterApplication(request.resource.data, applicationId)
+          && request.resource.data.revision == resource.data.revision + 1
+          && request.resource.data.cropGroupId == resource.data.cropGroupId
+          && request.resource.data.recordedByUserId
+            == resource.data.recordedByUserId;
+        allow delete: if false;
       }
-
+      match /wateringRecommendations/{recommendationId} {
+        allow read: if hasGardenAccess();
+        allow write: if false;
+      }
+      match /waterBalances/{cropGroupId} {
+        allow read: if hasGardenAccess();
+        allow write: if false;
+      }
       match /weatherSnapshots/{snapshotId} {
-        allow read, write: if hasGardenAccess();
+        allow read: if hasGardenAccess();
+        allow write: if false;
       }
-
-      match /notifications/{notificationId} {
-        allow read, write: if hasGardenAccess();
+      match /alerts/{alertId} {
+        allow read: if hasGardenAccess();
+        allow write: if false;
+      }
+      match /notificationJobs/{jobId} {
+        allow read, write: if false;
       }
     }
-
     match /catalog/{cropId} {
       allow read: if hasGardenAccess();
       allow write: if false;
     }
-
     match /{document=**} {
       allow read, write: if false;
     }

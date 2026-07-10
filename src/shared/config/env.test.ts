@@ -39,14 +39,12 @@ describe('resolveAppEnvironmentFromEnv', () => {
     expect(environment.fallbackReason).toContain('VITE_FIREBASE_*');
   });
 
-  it('keeps the optional browser geocoding key outside Firebase mode checks', () => {
+  it('keeps the web push key outside Firebase mode checks', () => {
     const environment = resolveAppEnvironmentFromEnv({
       VITE_FIREBASE_MESSAGING_VAPID_KEY: 'vapid-key',
-      VITE_GOOGLE_MAPS_API_KEY: 'maps-key',
     });
 
     expect(environment.runtimeMode).toBe('mock');
-    expect(environment.geocodingApiKey).toBe('maps-key');
     expect(environment.messagingVapidKey).toBe('vapid-key');
   });
 

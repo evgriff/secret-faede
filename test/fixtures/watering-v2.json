@@ -1,0 +1,27 @@
+{
+  "calculationRevision": 1,
+  "modelVersion": "crop-water-balance-v2",
+  "scenario": "mixed-crops-one-bed",
+  "recommendations": [
+    {
+      "cropGroupId": "tomato-group",
+      "cropName": "Tomato",
+      "status": "due",
+      "balanceInches": 1.53,
+      "triggerInches": 1.404,
+      "rootZoneCapacityInches": 3.12,
+      "recommendedDepthInches": 1.53,
+      "recommendedGallons": 5.719
+    },
+    {
+      "cropGroupId": "lettuce-group",
+      "cropName": "Lettuce",
+      "status": "scheduled",
+      "balanceInches": 0.26,
+      "triggerInches": 0.416,
+      "rootZoneCapacityInches": 1.04,
+      "recommendedDepthInches": 0.42,
+      "recommendedGallons": 1.047
+    }
+  ]
+}

@@ -1,178 +1,170 @@
 # Secret Faeries
 
-Secret Faeries is a private garden planner for one real home food garden. It uses
-Firebase email/password auth for exactly two provisioned accounts, then routes
-the signed-in user into Plan, Today, Feed, and Settings around one shared
-published garden with private drafts.
+Secret Faeries is a private garden plot planner and field-operations app for one
+real home food garden. Two provisioned Firebase email/password accounts share
+one published workspace while each account keeps its own unpublished draft.
 
-## MVP
+The active client is the v2 implementation under `src/v2`. It is deliberately
+small: Plan describes the garden, Today turns that plan into practical work,
+Feed records what happened, and Settings controls trustworthy alerts.
 
-Included:
+## Product scope
 
-- React + TypeScript + Vite PWA shell
-- routes for `/`, `/sign-in`, `/access-denied`, `/app`, `/app/plan`,
-  `/app/today`, `/app/feed`, `/app/settings`, legacy redirects from
-  `/auth/complete`, `/app/garden`, `/app/tasks`, `/app/log`,
-  `/app/journal`, and `*`
-- Firebase email/password auth behind `AuthService`, with no public sign-up UI
-- mock runtime and Firebase runtime from one env parser
-- mock/local email allowlist for exactly two configured email addresses
-- Firebase production access controlled by Auth custom claims
-- one shared published garden with one private draft per authenticated user
-- one shared operations stream for Feed and Today activity across both users
-- canvas-first Plan workspace with compact tool launchers, stable overlays, and
-  publish/revert review
-- plot width/depth in feet with a 1 square foot visual grid
-- plant and planting-instance positions stored as `xFt` and `yFt`
-- quantity-first Add Plant and Choose Plants flows that create individual plant
-  nodes inside arrangement-aware groups
-- date-aware crop fit guidance that answers what to plant now in the garden
-  timezone
-- problem inbox and one checked whole-plot layout suggestion with before/after
-  diff overlays, explicit apply or keep-current actions, and no decorative
-  scoring surface
-- authenticated app shell for Plan, Today, Feed, and Settings
-- editable settings for alert location, timezone, check time, thresholds, push
-  delivery, quiet hours, and local/native notification support
-- weather provider layer with NWS default, optional Tomorrow.io, and a saved
-  watering schedule
-- in-app notification logs, FCM web/native push registration, and local native
-  alerts
-- generated task timeline for planting, support setup, thinning, pruning,
-  fertilizing, mulching, watering, harvest windows, and succession prompts
-- actual planting-event tracking for started-inside, direct-sow, planted-out,
-  and thinned work, with derived follow-up tasks
-- journal, issue tracking, photo attachments, harvest logging, and in-season
-  summaries
-- one-tap Today field actions and contextual photo follow-up for harvest/photo
-  workflows
-- Feed memory cards with a single New entry launcher and image-led photo
-  updates
-- sample garden controls in Settings plus a shell-level **Back to my garden**
-  restore path while the sample is active on the current device
-- Firebase Cloud Functions source for daily watering checks and weather-driven
-  frost, heat, and severe-weather alerts
-- Firebase Storage for shared authenticated journal photos
-- Firebase Hosting and Local Emulator Suite scaffolding
-- ESLint, Prettier, Vitest, React Testing Library, Playwright, Husky, lint-staged, and GitHub Actions
+Implemented:
 
-Not implemented in this foundation pass:
+- guarded routes for `/sign-in`, `/access-denied`, `/app/plan`, `/app/today`,
+  `/app/feed`, and `/app/settings`, plus intentional legacy redirects
+- a feet-based plot editor for structures, crop groups, and individual planting
+  instances; saved coordinates are always `xFt`/`yFt`, never pixels
+- exact first-run operational setup for location/query, latitude/longitude,
+  IANA timezone, hardiness zone, and typical frost dates; nothing is geocoded or
+  inferred from a default city
+- private drafts, optimistic conflict detection, server-callable publishing,
+  revision history, revert, review decisions, and checked layout suggestions
+- one deterministic watering recommendation for every active crop group
+- generated task work, completion/defer/snooze actions, journal notes, issues,
+  photo attachments, harvest records, and watering logs
+- user-owned alert preferences, quiet hours, and private notification history;
+  web/native push adapters remain visibly unavailable until their platform
+  configuration is complete
+- Firebase Auth, Firestore, Storage, Functions, Hosting, emulators, rules, CI,
+  unit/integration/rules/E2E/visual tests, and a backup-first v2 migration
 
-- multiple gardens
-- runtime external plant APIs
-- maps, collaboration, public onboarding, dashboards, AI features, and carrier
-  messaging
-- email delivery
+Intentionally out of scope:
+
+- multiple gardens, public registration, collaboration, maps, dashboards,
+  charts, lore, onboarding, AI, carrier messaging, and email delivery
+- runtime crop-data APIs; watering inputs are saved, versioned snapshots so a
+  catalog update cannot silently change an existing crop group
+
+## Watering contract
+
+Watering advice is calculated independently per active crop group with the
+versioned `crop-water-balance-v2` deterministic model. The result records all
+inputs and reasons needed to explain it:
+
+- the crop group's saved weekly need, root depth, depletion fraction, and stage
+  coefficient
+- lifecycle/stage, crop area, structure type, soil depth/type, drainage, mulch,
+  container adjustment, and application efficiency
+- the durable prior root-zone balance, observed rain and evapotranspiration,
+  forecast rain/evapotranspiration, and credited manual water applications
+- confidence, data quality, trigger, projected depletion, recommended depth,
+  optional gallons, suppression time, recheck time, and deep link
+
+Each result explicitly identifies the crop stage, whether that stage was saved
+or derived from lifecycle, its coefficient, the saved profile source/version,
+profile fingerprint, and weather source IDs. The same inputs always produce the
+same output. Missing or stale evidence is not
+invented. A new or incompatible balance, unreliable area, unknown water amount,
+low-confidence crop profile, or incomplete weather can downgrade the result to
+an explicit soil check instead of presenting false precision. A garden without
+coordinates can still generate non-weather tasks and safe soil checks, but it
+does not send automatic weather-derived watering push alerts.
+
+Applied and partial watering credit only the amount actually recorded for that
+crop group; skipped watering receives zero credit. Corrections keep the same
+record ID, crop group, and original recorder while advancing the record
+revision, so recalculation replaces prior credit instead of duplicating it.
+
+Only actionable, due crop-group recommendations with a positive amount can
+become watering alerts. Delivery also honors each account's enabled alert kinds,
+minimum deficit, push consent, timezone, and quiet hours. Web notifications use
+data-only FCM handling; configured native builds use native push handling.
+Alert IDs make retries idempotent, while crop-group IDs keep separate
+recommendations from overwriting one another.
 
 ## Quick start
 
-1. Use Node 22.
-2. Run `npm ci`.
-3. Start the default mock workflow with `npm run dev`.
+Use Node 22 and npm 11.
 
-Optional local config:
+```sh
+npm ci
+npm run dev
+```
 
-- copy `.env.local.example` to `.env.local` for Firebase or emulator work
-- keep `.env.example` committed and generic
+The default runtime is mock mode. Sign in with either configured mock account
+and password `password`. Mock plan/profile data is stored locally and normalized
+to the current schemas on read.
 
-## Plan interaction model
+For Firebase emulator work:
 
-Plan now centers on grouped plant footprints. Add Plants asks for crop and
-quantity first, then derives row, block, cluster, or trellis-line arrangement
-geometry from spacing data. Plant-level supports stay as compact badges on the
-plant group, while saved trellis structures can be explicitly linked to the
-planting so app-created trellises move with it.
-On the plot, clicking a plant group opens crop focus, and the wrench or
-**Open details** opens the plant editor. Detailed View keeps that editor
-available while moving between relevant items. Review Problems opens the
-problem inbox, Generate layout walks through one checked layout suggestion, and
-Sun shows modeled direct sun plus maturity-based shade sources. Crop fit and
-planting-window guidance use the current garden day in the saved timezone, and
-recorded planting events drive the next derived Today tasks and Feed history.
+```sh
+npm run emulators
+npm run dev:firebase:emulators
+```
+
+Copy `.env.local.example` to `.env.local` only when local Firebase configuration
+is needed. Do not put membership emails or credentials in `VITE_*` variables.
 
 ## Runtime modes
 
 `mock`
 
-- default local and CI baseline
-- no Firebase config required
-- sign-in accepts an allowlisted email with the mock password `password`
-- garden persistence uses localStorage by user id
-- user profile persistence uses localStorage by user id
-- journal photos are stored as local data URLs in the saved mock garden record
+- default for local development and browser tests
+- no Firebase project required
+- two-account allowlist and local persistence
+- no production push delivery
 
 `firebase`
 
-- set `VITE_APP_RUNTIME=firebase`
-- provide all `VITE_FIREBASE_*` values
-- keep production membership emails out of `VITE_*` values
-- grant production access with `npm run auth:sync-access` from secure
-  `APP_LOGIN_PRIMARY_EMAIL` and `APP_LOGIN_PARTNER_EMAIL` environment values
-- shared draft/publish persistence uses Firestore path `gardenWorkspaces/main`
-- legacy `gardens/{uid}` data remains a migration source
-- user profile persistence uses Firestore path `users/{uid}`
-- journal photo binaries use Firebase Storage under
-  `gardenWorkspaces/main/journal/...`
+- set `VITE_APP_RUNTIME=firebase` and all required `VITE_FIREBASE_*` values
+- authorization is enforced by Auth custom claims, Firestore rules, and Storage
+  rules
+- canonical workspace: `gardenWorkspaces/main`
+- profiles and private delivery receipts: `users/{uid}`
+- photo objects:
+  `gardenWorkspaces/main/journal/{entryId}/{uid}/{photoId}-{fileName}`
+- publishing, revert, and shared location/climate publication use authenticated
+  Functions callables; direct client writes to metadata, published plans, and
+  revisions are denied
 
 `firebase + emulators`
 
-- run `npm run emulators`
-- run `npm run dev:firebase:emulators`
+- set `VITE_USE_FIREBASE_EMULATORS=true`, normally through
+  `npm run dev:firebase:emulators`
+- uses local Auth, Firestore, Storage, and Functions endpoints
 
-If Firebase mode is requested without complete web config, the app falls back to mock mode and shows a visible notice.
+Incomplete Firebase web configuration falls back to mock mode with a visible
+runtime notice; production migration errors do not silently fall back.
 
-## Scripts
+## Main commands
 
-- `npm run dev`: default mock-first dev server
-- `npm run dev:firebase:emulators`: dev server pointed at Firebase emulators
-- `npm run emulators`: start Auth, Firestore, Storage, Functions, Hosting, and Emulator UI
-- `npm run setup:firebase:live`: enable Email/Password auth and authorized domains for a live Firebase project
-- `npm run auth:seed-users`: create or update the Primary Gardener and Partner Gardener Firebase Auth users from `APP_LOGIN_*` env
-- `npm run auth:sync-access`: grant production custom claims to the two
-  configured account emails and revoke stale member claims from other Auth users
-- `npm run mobile:sync`: build the PWA bundle and sync it into the Capacitor iOS/Android shells
-- `npm run mobile:ios` / `npm run mobile:android`: open the native shell projects
-- `npm run functions:build`: syntax-check Cloud Functions source
-- `npm run functions:test`: run Cloud Functions notification logic tests
-- `npm run catalog:build`: rebuild the checked-in offline home-garden plant catalog
-- `npm run catalog:ingest:trefle`: refresh local catalog provenance/enrichment with Trefle when `TREFLE_API_TOKEN` is available
-- `npm run lint`
-- `npm run typecheck`
-- `npm run test:unit`
-- `npm run test:rules`
-- `npm run test:e2e`
-- `npm run test:visual` / `npm run test:visual:update`
-- `npm run quality:deps`
-- `npm run quality:files`
-- `npm run quality:bundle`
-- `npm run build`
-- `npm run ci`
-- `npm run seed:dev`: seed an existing Firebase Auth user with the Detroit
-  sample garden data
+- `npm run lint`, `npm run typecheck`, `npm run format:check`
+- `npm run test:unit`, `npm run test:integration`, `npm run test:rules`
+- `npm run functions:build`, `npm run functions:test`
+- `npm run test:e2e`, `npm run test:visual`
+- `npm run quality:deps`, `npm run quality:files`,
+  `npm run quality:serena`, `npm run quality:bundle`
+- `npm run audit:prod`: reject high-severity client or Functions production
+  dependency advisories
+- `npm run build`: production web build
+- `npm run ci`: complete release gate
+- `npm run auth:seed-users`: provision the two password accounts
+- `npm run auth:sync-access`: synchronize production access claims
+- `npm run setup:firebase:live`: configure supported Firebase project settings
+- `node scripts/migrate-workspace-v2.mjs --project <id>`: create a local backup
+  and dry-run the schema migration
+- `node scripts/migrate-workspace-v2.mjs --project <id> --apply`: apply the
+  reviewed, idempotent migration
+- `npm run deploy:all`: run CI, then deploy rules, indexes, Storage, Functions,
+  and Hosting; migration is a separate pre-deploy release step
 
-## Firebase and deployment
+## Release rule
 
-The mock allowlist is a local UX gate. Production access is controlled by
-Firebase Auth custom claims synced from secure environment values, and the app
-exposes no public sign-up path. For stronger pre-auth enforcement, upgrade the
-project to Identity Platform and add Auth blocking triggers.
+A green build is necessary but not sufficient for deployment. A release also
+requires the reviewed production migration to be applied and rechecked,
+current access claims, matching protected/public Firebase project IDs, the
+production NWS identity and web VAPID key, device-tested platform configuration
+for every native target advertised, and production smoke checks for both
+provisioned accounts. See [docs/deployment.md](docs/deployment.md) and
+[docs/deploy-runbook.md](docs/deploy-runbook.md).
 
-Firestore and Storage rules require the signed-in user to own the document path
-and carry the Firebase Auth custom claims `gardenAccess: true` and
-`secretFaeriesMember: true`.
-
-See:
+Architecture and operations references:
 
 - [docs/architecture.md](docs/architecture.md)
 - [docs/data-model.md](docs/data-model.md)
-- [docs/ux-architecture.md](docs/ux-architecture.md)
-- [docs/motion-guidelines.md](docs/motion-guidelines.md)
-- [docs/release-candidate-checklist.md](docs/release-candidate-checklist.md)
-- [docs/testing-plan.md](docs/testing-plan.md)
-- [docs/demo-script.md](docs/demo-script.md)
 - [docs/firebase.md](docs/firebase.md)
 - [docs/testing-ci.md](docs/testing-ci.md)
-- [docs/deployment.md](docs/deployment.md)
-- [docs/local-setup.md](docs/local-setup.md)
-- [docs/repo-audit.md](docs/repo-audit.md)
-- [docs/manual-setup-blockers.md](docs/manual-setup-blockers.md)
+- [docs/manual-qa-checklist.md](docs/manual-qa-checklist.md)
+- [docs/release-candidate-checklist.md](docs/release-candidate-checklist.md)

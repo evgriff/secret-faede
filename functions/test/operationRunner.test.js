@@ -1,440 +1,330 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { createOperationRunner } = require('../operationRunner');
+const {
+  CANONICAL_WEATHER_SNAPSHOT_PATH,
+  createOperationRunner,
+} = require('../operationRunner');
+const { createMemoryFirestore } = require('./testFirestore');
+const { validateCanonicalWorkspace } = require('../operationValidation');
+const { balance, now, plan, provider, shared } = require('./v2Fixtures');
 
-const uid = 'user-a';
-const now = new Date('2026-06-21T12:00:00.000Z');
-const baseGarden = {
-  harvestEvents: [],
-  journalEntries: [],
-  notificationLogs: [],
-  plantings: [
-    {
-      id: 'tomato-1',
-      label: 'Tomato',
-      plantedOn: '2026-06-01',
-      status: 'harvest-ready',
-      weeklyWaterNeedInches: 1.3,
-      xFt: 2,
-      yFt: 2,
+const manualTask = {
+  completedAtIso: null,
+  createdAtIso: '2026-06-21T10:00:00.000Z',
+  dueOn: '2026-06-21',
+  id: 'manual-task',
+  kind: 'inspect',
+  notes: '',
+  priority: 'medium',
+  reason: 'Manual field check',
+  sourceId: null,
+  status: 'open',
+  target: { id: 'tomato-group', kind: 'plantingGroup', label: 'Tomato' },
+  title: 'Inspect tomato support',
+  updatedAtIso: '2026-06-21T10:00:00.000Z',
+};
+
+function createDb() {
+  const initial = {
+    'gardenWorkspaces/main': {
+      id: 'main',
+      publishedRevisionId: 'revision-1',
+      schemaVersion: 2,
+      updatedAtIso: now.toISOString(),
     },
-  ],
-  plot: {
-    location: {
-      latitude: 42.3314,
-      locationName: 'Detroit, MI',
-      longitude: -83.0458,
-      timezone: 'America/Detroit',
+    'gardenWorkspaces/main/drafts/user-a': {
+      baseRevisionId: 'revision-1',
+      plan: { ...plan, name: 'Private A' },
+      userId: 'user-a',
     },
-  },
-  structures: [
-    {
-      depthFt: 4,
-      drainageProfile: 'fast',
-      id: 'bed-a',
-      irrigationZone: 'Zone 1',
-      label: 'Bed A',
-      mulched: true,
-      soilType: 'sandy',
-      type: 'raisedBed',
-      widthFt: 8,
-      xFt: 0,
-      yFt: 0,
+    'gardenWorkspaces/main/drafts/user-b': {
+      baseRevisionId: 'revision-1',
+      plan: { ...plan, name: 'Private B' },
+      userId: 'user-b',
     },
-  ],
-  sunShadeLayers: [],
-  tasks: [],
-  updatedAtIso: now.toISOString(),
-  wateringSchedule: [],
-  weatherSnapshots: [],
-};
-
-const weatherProvider = {
-  id: 'nationalWeatherService',
-  label: 'National Weather Service',
-  getCurrentConditions: () =>
-    Promise.resolve({
-      capturedAtIso: now.toISOString(),
-      conditionSummary: 'Hot',
-      feelsLikeF: 96,
-      humidityPercent: 55,
-      observationTimeIso: now.toISOString(),
-      precipitationLastHourIn: 0,
-      providerId: 'nationalWeatherService',
-      sourceLabel: 'National Weather Service',
-      temperatureF: 92,
-      windMph: 5,
-    }),
-  getForecast: () =>
-    Promise.resolve({
-      dailyHighF: 92,
-      days: [
-        {
-          conditionSummary: 'Hot',
-          date: '2026-06-21',
-          expectedRainIn: 0,
-          highF: 92,
-          precipitationChancePercent: null,
-        },
-      ],
-      generatedAtIso: now.toISOString(),
-      next24hPrecipIn: 0,
-      next48hPrecipIn: 0,
-      nextRainIso: null,
-      overnightLowF: 68,
-      periods: [{ startIso: now.toISOString(), temperatureF: 92 }],
-      providerId: 'nationalWeatherService',
-      summary: 'Hot',
-    }),
-  getOptionalAgricultureMetrics: () =>
-    Promise.resolve({
-      evapotranspirationIn: 0.18,
-      evapotranspirationNext24hIn: 0.18,
-      generatedAtIso: now.toISOString(),
-      notes: [],
-      providerId: 'nationalWeatherService',
-    }),
-  getRecentPrecipitation: () =>
-    Promise.resolve({
-      generatedAtIso: now.toISOString(),
-      hours: 72,
-      last24hIn: 0,
-      last72hIn: 0,
-      observations: [],
-      providerId: 'nationalWeatherService',
-      totalIn: 0,
-    }),
-  getWeatherAlerts: () => Promise.resolve([]),
-};
-
-const dueProfile = {
-  notificationPreference: {
-    defaultWateringCheckTime: '07:30',
-    timezone: 'America/Detroit',
-    wateringAlertThresholdIn: 0.25,
-  },
-  timezone: 'America/Detroit',
-};
-
-const scheduledProfile = {
-  notificationPreference: {
-    defaultWateringCheckTime: '09:00',
-    timezone: 'America/Detroit',
-    wateringAlertThresholdIn: 0.25,
-  },
-  timezone: 'America/Detroit',
-};
-
-function createSnapshot(data) {
-  return {
-    data: () => data,
-    exists: data !== null,
+    'gardenWorkspaces/main/plans/published': {
+      plan,
+      publishedAtIso: now.toISOString(),
+      publishedByUserId: 'user-a',
+      revisionId: 'revision-1',
+    },
+    'gardenWorkspaces/main/tasks/manual-task': manualTask,
+    'gardenWorkspaces/main/waterBalances/tomato-group': balance('tomato-group'),
+    'gardenWorkspaces/main/waterBalances/lettuce-group':
+      balance('lettuce-group'),
+    'users/user-a': { schemaVersion: 2 },
+    'users/user-b': { schemaVersion: 2 },
   };
-}
-
-function deepMerge(target, source) {
-  if (!isRecord(target) || !isRecord(source)) {
-    return source;
+  for (const application of shared().waterApplications) {
+    initial[`gardenWorkspaces/main/waterApplications/${application.id}`] =
+      application;
   }
-
-  const merged = { ...target };
-
-  for (const [key, value] of Object.entries(source)) {
-    merged[key] =
-      isRecord(value) && isRecord(merged[key])
-        ? deepMerge(merged[key], value)
-        : value;
-  }
-
-  return merged;
+  return createMemoryFirestore(initial);
 }
 
-function isRecord(value) {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
-
-function createMockDb({
-  drafts = {},
-  legacy = {},
-  shared = {},
-  workspace = null,
-} = {}) {
-  const state = {
-    drafts: { ...drafts },
-    legacy: { ...legacy },
-    shared: {
-      harvests: [],
-      journal: [],
-      notifications: [],
-      tasks: [],
-      wateringSchedule: [],
-      weatherSnapshots: [],
-      ...shared,
-    },
-    workspace,
-  };
-
-  return {
-    state,
-    batch() {
-      const operations = [];
-
-      return {
-        delete(ref) {
-          operations.push(() => ref.delete());
-        },
-        set(ref, value, options) {
-          operations.push(() => ref.set(value, options));
-        },
-        async commit() {
-          await Promise.all(operations.map((operation) => operation()));
-        },
-      };
-    },
-    collection(name) {
-      if (name === 'gardenWorkspaces') {
-        return {
-          doc(id) {
-            assert.equal(id, 'main');
-            return {
-              collection(child) {
-                if (child !== 'drafts') {
-                  return {
-                    doc(docId) {
-                      return createSharedDocRef(state, child, docId);
-                    },
-                    async get() {
-                      const items = Array.isArray(state.shared[child])
-                        ? state.shared[child]
-                        : [];
-
-                      return {
-                        docs: items.map((item) => ({
-                          data: () => item,
-                          id: item.id,
-                        })),
-                      };
-                    },
-                  };
-                }
-
-                return {
-                  doc(docId) {
-                    return {
-                      async get() {
-                        return createSnapshot(state.drafts[docId] ?? null);
-                      },
-                      async set(value, options = {}) {
-                        const current = state.drafts[docId] ?? null;
-                        state.drafts[docId] =
-                          options.merge && current
-                            ? deepMerge(current, value)
-                            : value;
-                      },
-                    };
-                  },
-                };
-              },
-              async get() {
-                return createSnapshot(state.workspace);
-              },
-              async set(value, options = {}) {
-                state.workspace =
-                  options.merge && state.workspace
-                    ? deepMerge(state.workspace, value)
-                    : value;
-              },
-            };
-          },
-        };
-      }
-
-      if (name === 'gardens') {
-        return {
-          doc(docId) {
-            return {
-              async get() {
-                return createSnapshot(state.legacy[docId] ?? null);
-              },
-              collection(child) {
-                return {
-                  async get() {
-                    const items =
-                      state.legacy[docId]?.[child] &&
-                      Array.isArray(state.legacy[docId][child])
-                        ? state.legacy[docId][child]
-                        : [];
-                    return {
-                      docs: items.map((item) => ({
-                        data: () => item,
-                        id: item.id,
-                      })),
-                    };
-                  },
-                };
-              },
-            };
-          },
-        };
-      }
-
-      throw new Error(`Unsupported collection ${name}`);
-    },
-  };
-}
-
-function createSharedDocRef(state, collectionName, docId) {
-  return {
-    async delete() {
-      state.shared[collectionName] = (
-        state.shared[collectionName] || []
-      ).filter((item) => item.id !== docId);
-    },
-    async set(value) {
-      const items = state.shared[collectionName] || [];
-      const nextValue = { id: docId, ...value };
-
-      state.shared[collectionName] = [
-        nextValue,
-        ...items.filter((item) => item.id !== docId),
-      ];
-    },
-  };
-}
-
-function createRunner(db, dispatchNotification) {
+function createRunner(db) {
   return createOperationRunner({
     admin: {
       firestore: {
-        FieldValue: {
-          serverTimestamp: () => '__SERVER_TIMESTAMP__',
-        },
+        FieldValue: { serverTimestamp: () => '__SERVER_TIMESTAMP__' },
       },
     },
     db,
-    dispatchNotification,
-    logger: {
-      info() {},
-      warn() {},
-    },
+    logger: { info() {}, warn() {} },
   });
 }
 
 (async () => {
-  const publishedDb = createMockDb({
-    workspace: {
-      garden: {
-        ...baseGarden,
-        id: 'published-garden',
-        userId: 'shared',
-      },
-      id: 'revision-1',
-    },
-  });
-  const publishedAlerts = [];
-  const publishedRunner = createRunner(publishedDb, async (notification) => {
-    publishedAlerts.push(notification);
-  });
-  const publishedResult = await publishedRunner(uid, dueProfile, {
-    force: true,
-    now,
-    weatherProvider,
-  });
-  const publishedDraft = publishedDb.state.drafts[uid];
-
-  assert.equal(publishedResult.generated, true);
-  assert.equal(publishedDraft.baseRevisionId, 'revision-1');
-  assert.equal(publishedDraft.garden.id, uid);
-  assert.equal(publishedDraft.garden.userId, uid);
-  assert.equal(publishedDraft.garden.wateringSchedule.length, 0);
-  assert.equal(publishedDb.state.shared.wateringSchedule.length, 1);
-  assert.equal(publishedDb.state.shared.wateringSchedule[0].status, 'due');
-  assert.equal(publishedAlerts.length, 1);
-
-  const scheduledDb = createMockDb({
-    drafts: {
-      [uid]: {
-        baseRevisionId: 'revision-1',
-        garden: {
-          ...baseGarden,
-          id: uid,
-          userId: uid,
-        },
-        suggestionDecisions: [],
-        userId: uid,
-      },
-    },
-  });
-  const scheduledAlerts = [];
-  const scheduledRunner = createRunner(scheduledDb, async (notification) => {
-    scheduledAlerts.push(notification);
-  });
-  await scheduledRunner(uid, scheduledProfile, {
-    force: true,
-    now,
-    weatherProvider,
-  });
-
   assert.equal(
-    scheduledDb.state.shared.wateringSchedule[0].status,
-    'scheduled',
+    CANONICAL_WEATHER_SNAPSHOT_PATH,
+    'gardenWorkspaces/main/weatherSnapshots/{snapshotId}',
   );
-  assert.equal(scheduledAlerts.length, 0);
 
-  const snoozedId = 'water-bed-bed-a-2026-06-21';
-  const snoozedDb = createMockDb({
-    drafts: {
-      [uid]: {
-        baseRevisionId: 'revision-1',
-        garden: {
-          ...baseGarden,
-          id: uid,
-          userId: uid,
-          wateringSchedule: [
-            {
-              appliedAmountInches: null,
-              createdAtIso: '2026-06-21T10:00:00.000Z',
-              deficitInches: 0.8,
-              dueDate: '2026-06-21',
-              dueWindowEndIso: '2026-06-22T12:00:00.000Z',
-              dueWindowStartIso: '2026-06-21T22:00:00.000Z',
-              gardenId: uid,
-              id: snoozedId,
-              lastWateredAtIso: null,
-              nextRecalculationAtIso: '2026-06-22T12:00:00.000Z',
-              reasonDetails: ['Moved to tonight.'],
-              reasonSummary: 'Moved to tonight.',
-              source: 'client',
-              status: 'snoozed',
-              targetAmountInches: 0.8,
-              targetId: 'bed-a',
-              targetKind: 'bed',
-              targetLabel: 'Bed A',
-              updatedAtIso: '2026-06-21T10:00:00.000Z',
-              urgency: 'high',
-              wateringZoneId: 'Zone 1',
-              weatherSnapshotId: 'weather-old',
-            },
-          ],
-        },
-        suggestionDecisions: [],
-        userId: uid,
-      },
+  const db = createDb();
+  const draftA = structuredClone(
+    db.dump()['gardenWorkspaces/main/drafts/user-a'],
+  );
+  const draftB = structuredClone(
+    db.dump()['gardenWorkspaces/main/drafts/user-b'],
+  );
+  let actionApplied = false;
+  const weather = provider({
+    onRead: async () => {
+      if (actionApplied) return;
+      actionApplied = true;
+      await db
+        .collection('gardenWorkspaces')
+        .doc('main')
+        .collection('tasks')
+        .doc('manual-task')
+        .set(
+          {
+            completedAtIso: '2026-06-21T12:00:30.000Z',
+            dueOn: '2026-06-28',
+            status: 'done',
+            updatedAtIso: '2026-06-21T12:00:30.000Z',
+          },
+          { merge: true },
+        );
     },
   });
-  const snoozedAlerts = [];
-  const snoozedRunner = createRunner(snoozedDb, async (notification) => {
-    snoozedAlerts.push(notification);
+  const runner = createRunner(db);
+  const [first, second] = await Promise.all([
+    runner({ now, runId: 'run-user-a', weatherProvider: weather }),
+    runner({ now, runId: 'run-user-b', weatherProvider: weather }),
+  ]);
+  const generated = [first, second].filter((result) => result.generated);
+  const skipped = [first, second].filter((result) => !result.generated);
+
+  assert.equal(generated.length, 1);
+  assert.equal(skipped[0].skipped, 'runInProgress');
+  assert.equal(
+    weather.readCount,
+    1,
+    'operations run once, never once per user',
+  );
+  assert.deepEqual(db.dump()['gardenWorkspaces/main/drafts/user-a'], draftA);
+  assert.deepEqual(db.dump()['gardenWorkspaces/main/drafts/user-b'], draftB);
+  assert.equal(
+    db.dump()['gardenWorkspaces/main/tasks/manual-task'].status,
+    'done',
+    'transactional merge preserves concurrent Today actions',
+  );
+  assert.equal(
+    db.dump()['gardenWorkspaces/main/tasks/manual-task'].dueOn,
+    '2026-06-28',
+    'transactional merge preserves a concurrent Today reschedule',
+  );
+  assert.equal(
+    generated[0].alerts.some((alert) => alert.taskId === 'manual-task'),
+    false,
+    'a task completed during generation must not emit a stale due alert',
+  );
+  assert.ok(db.dump()['gardenWorkspaces/main/waterBalances/tomato-group']);
+  assert.ok(
+    db.dump()['gardenWorkspaces/main/wateringRecommendations/tomato-group'],
+  );
+  assert.ok(
+    Object.keys(db.dump()).some((path) =>
+      path.startsWith('gardenWorkspaces/main/weatherSnapshots/weather:'),
+    ),
+  );
+  assert.equal(generated[0].alerts[0].targetId, 'tomato-group');
+  assert.equal(
+    generated[0].alerts[0].deepLink,
+    '/app/today?focus=watering&cropGroupId=tomato-group',
+  );
+
+  const idempotent = await runner({
+    now,
+    runId: 'run-again',
+    weatherProvider: weather,
   });
-  await snoozedRunner(uid, dueProfile, {
+  assert.equal(idempotent.generated, false);
+  assert.equal(idempotent.skipped, 'alreadyGenerated');
+  assert.equal(weather.readCount, 1);
+
+  const taskDb = createDb();
+  const taskResult = await createRunner(taskDb)({
     force: true,
     now,
-    weatherProvider,
+    runId: 'task-due',
+    weatherProvider: provider(),
   });
+  const taskAlert = taskResult.alerts.find(
+    (candidate) => candidate.taskId === 'manual-task',
+  );
+  assert.equal(taskAlert.type, 'taskDue');
+  assert.equal(taskAlert.deepLink, '/app/today?focus=task&taskId=manual-task');
+  assert.match(taskAlert.dedupeKey, /task:manual-task:2026-06-21/);
 
-  assert.equal(snoozedDb.state.shared.wateringSchedule[0].status, 'snoozed');
-  assert.equal(snoozedAlerts.length, 0);
+  const applicationDb = createDb();
+  const applicationProvider = provider({
+    onRead: () =>
+      applicationDb
+        .collection('gardenWorkspaces')
+        .doc('main')
+        .collection('waterApplications')
+        .doc('concurrent-water')
+        .set({
+          amount: { depthInches: 0.4, unit: 'inches' },
+          appliedAtIso: now.toISOString(),
+          cropGroupId: 'tomato-group',
+          efficiency: { confidence: 'high', fraction: 1, source: 'manual' },
+          id: 'concurrent-water',
+          method: 'hose',
+          outcome: 'applied',
+          recordedAtIso: now.toISOString(),
+          recordedByUserId: 'user-a',
+          revision: 1,
+        }),
+  });
+  const applicationConflict = await createRunner(applicationDb)({
+    force: true,
+    now,
+    runId: 'application-conflict',
+    weatherProvider: applicationProvider,
+  });
+  assert.equal(applicationConflict.generated, false);
+  assert.equal(applicationConflict.skipped, 'sharedOperationsChanged');
+
+  const revisionDb = createDb();
+  const revisionProvider = provider({
+    onRead: () =>
+      revisionDb
+        .collection('gardenWorkspaces')
+        .doc('main')
+        .set({ publishedRevisionId: 'revision-2' }, { merge: true }),
+  });
+  const revisionConflict = await createRunner(revisionDb)({
+    force: true,
+    now,
+    runId: 'revision-conflict',
+    weatherProvider: revisionProvider,
+  });
+  assert.equal(revisionConflict.generated, false);
+  assert.equal(revisionConflict.skipped, 'revisionChanged');
+
+  const invalidDb = createDb();
+  await invalidDb
+    .collection('gardenWorkspaces')
+    .doc('main')
+    .collection('plans')
+    .doc('published')
+    .set(
+      {
+        plan: {
+          ...plan,
+          plot: {
+            ...plan.plot,
+            location: {
+              ...plan.plot.location,
+              coordinates: { latitude: 999, longitude: -83 },
+            },
+          },
+        },
+      },
+      { merge: true },
+    );
+  const invalid = await createRunner(invalidDb)({
+    force: true,
+    now,
+    weatherProvider: provider(),
+  });
+  assert.equal(invalid.generated, false);
+  assert.equal(invalid.skipped, 'invalidWorkspace');
+  assert.match(invalid.validationErrors.join(' '), /latitude/);
+
+  const noCoordinatesDb = createDb();
+  await noCoordinatesDb
+    .collection('gardenWorkspaces')
+    .doc('main')
+    .collection('plans')
+    .doc('published')
+    .set(
+      {
+        plan: {
+          ...plan,
+          plot: {
+            ...plan.plot,
+            location: { ...plan.plot.location, coordinates: null },
+          },
+        },
+      },
+      { merge: true },
+    );
+  const noCoordinatesProvider = provider();
+  const noCoordinates = await createRunner(noCoordinatesDb)({
+    force: true,
+    now,
+    runId: 'no-coordinates',
+    weatherProvider: noCoordinatesProvider,
+  });
+  assert.equal(noCoordinates.generated, true);
+  assert.equal(noCoordinates.providerId, 'unavailable');
+  assert.equal(noCoordinatesProvider.readCount, 0, 'weather is not requested');
+  const noCoordinateRecommendations = Object.entries(noCoordinatesDb.dump())
+    .filter(([path]) =>
+      path.startsWith('gardenWorkspaces/main/wateringRecommendations/'),
+    )
+    .map(([, value]) => value);
+  assert.ok(
+    noCoordinateRecommendations.every(
+      (item) =>
+        item.status === 'checkSoil' &&
+        item.confidence === 'low' &&
+        item.recommendedDepthInches === null,
+    ),
+  );
+  assert.equal(
+    noCoordinates.alerts.some((alert) =>
+      ['frost', 'heatStress', 'severeWeather', 'watering'].includes(alert.type),
+    ),
+    false,
+    'missing coordinates never produce weather or automatic watering pushes',
+  );
+
+  const invalidProfilePlan = structuredClone(plan);
+  invalidProfilePlan.plantings[0].waterProfile = {
+    ...invalidProfilePlan.plantings[0].waterProfile,
+    stageCoefficients: {
+      ...invalidProfilePlan.plantings[0].waterProfile.stageCoefficients,
+      fruiting: null,
+    },
+  };
+  const profileValidation = validateCanonicalWorkspace({
+    metadata: {
+      publishedRevisionId: 'revision-1',
+      schemaVersion: 2,
+    },
+    published: { plan: invalidProfilePlan, revisionId: 'revision-1' },
+  });
+  assert.equal(profileValidation.valid, false);
+  assert.match(
+    profileValidation.errors.join(' '),
+    /stageCoefficients\.fruiting/,
+  );
 
   console.log('operationRunner tests passed');
 })().catch((error) => {

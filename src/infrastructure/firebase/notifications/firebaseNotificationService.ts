@@ -8,6 +8,7 @@ import type { AppEnvironment } from '../../../shared/config/env';
 import { getFirebaseMessagingClient, getFirestoreClient } from '../app';
 import {
   doc,
+  getDoc,
   serverTimestamp,
   setDoc,
   type Firestore,
@@ -18,6 +19,7 @@ import {
   onMessage,
   type MessagePayload,
 } from 'firebase/messaging';
+import { getPushInstallationId } from './pushInstallationId';
 
 export class FirebaseNotificationService implements NotificationService {
   private readonly firestore: Firestore;
@@ -37,6 +39,16 @@ export class FirebaseNotificationService implements NotificationService {
       };
     }
 
+    const nativePlatform = Capacitor.getPlatform();
+    if (nativePlatform === 'ios') {
+      return {
+        message:
+          'iOS push is not available until the native shell provides a Firebase Cloud Messaging token. An APNs token will not be registered as FCM.',
+        status: 'unavailable',
+        tokenRegisteredAtIso: null,
+      };
+    }
+
     const { PushNotifications } = await import('@capacitor/push-notifications');
     const permission = await PushNotifications.requestPermissions();
 
@@ -52,7 +64,7 @@ export class FirebaseNotificationService implements NotificationService {
     const tokenRegisteredAtIso = new Date().toISOString();
 
     await this.persistPushToken({
-      platform: `native-${Capacitor.getPlatform()}`,
+      platform: `native-${nativePlatform}`,
       token,
       tokenRegisteredAtIso,
       userId,
@@ -135,13 +147,51 @@ export class FirebaseNotificationService implements NotificationService {
     }
 
     let unsubscribe: (() => void) | null = null;
+    let removeNativeListeners: Array<() => Promise<void>> = [];
     let active = true;
 
-    void isSupported().then((supported) => {
-      if (!supported || !active) {
+    void import('@capacitor/core').then(async ({ Capacitor }) => {
+      if (!active) return;
+      if (Capacitor.isNativePlatform()) {
+        const { PushNotifications } =
+          await import('@capacitor/push-notifications');
+        const listeners = await Promise.all([
+          PushNotifications.addListener(
+            'pushNotificationReceived',
+            (notification) => {
+              const data = (notification.data ?? {}) as Record<string, unknown>;
+              handleMessage({
+                body: notification.body ?? stringValue(data.body),
+                link: stringValue(data.link) || '/app/today',
+                title:
+                  (notification.title ?? stringValue(data.title)) ||
+                  'Garden alert',
+                type: stringValue(data.type) || 'weather',
+              });
+            },
+          ),
+          PushNotifications.addListener(
+            'pushNotificationActionPerformed',
+            (action) => {
+              const data = (action.notification.data ?? {}) as Record<
+                string,
+                unknown
+              >;
+              navigateToPushLink(stringValue(data.link) || '/app/today');
+            },
+          ),
+        ]);
+        if (!active) {
+          await Promise.all(listeners.map((listener) => listener.remove()));
+          return;
+        }
+        removeNativeListeners = listeners.map(
+          (listener) => () => listener.remove(),
+        );
         return;
       }
-
+      const supported = await isSupported();
+      if (!supported || !active) return;
       unsubscribe = onMessage(
         getFirebaseMessagingClient(this.environment),
         (payload) => handleMessage(toForegroundPushMessage(payload)),
@@ -151,6 +201,7 @@ export class FirebaseNotificationService implements NotificationService {
     return () => {
       active = false;
       unsubscribe?.();
+      void Promise.all(removeNativeListeners.map((remove) => remove()));
     };
   }
 
@@ -165,19 +216,34 @@ export class FirebaseNotificationService implements NotificationService {
     tokenRegisteredAtIso: string;
     userId: string;
   }) {
-    const tokenId = await hashToken(token);
+    const installationId = await getPushInstallationId();
+    const tokenId = await hashToken(installationId);
+    const tokenRef = doc(
+      this.firestore,
+      'users',
+      userId,
+      'pushTokens',
+      tokenId,
+    );
+    const existing = await getDoc(tokenRef);
 
     await setDoc(
-      doc(this.firestore, 'users', userId, 'pushTokens', tokenId),
+      tokenRef,
       {
-        createdAtIso: tokenRegisteredAtIso,
-        firstRegisteredAt: serverTimestamp(),
-        firstRegisteredAtIso: tokenRegisteredAtIso,
+        ...(existing.exists()
+          ? {}
+          : {
+              createdAtIso: tokenRegisteredAtIso,
+              firstRegisteredAt: serverTimestamp(),
+              firstRegisteredAtIso: tokenRegisteredAtIso,
+            }),
+        installationId,
         lastSeenAt: serverTimestamp(),
         lastSeenAtIso: tokenRegisteredAtIso,
         permissionLastCheckedAtIso: tokenRegisteredAtIso,
         permission: 'granted',
         platform,
+        provider: 'firebaseCloudMessaging',
         status: 'active',
         token,
         tokenId,
@@ -191,22 +257,29 @@ export class FirebaseNotificationService implements NotificationService {
   }
 }
 
+function stringValue(value: unknown) {
+  return typeof value === 'string' ? value : '';
+}
+
 async function registerMessagingServiceWorker(environment: AppEnvironment) {
   if (!environment.firebaseConfig) {
     throw new Error('Firebase messaging config is missing.');
   }
 
-  const url = new URL('/firebase-messaging-sw.js', window.location.origin);
-
-  const entries = Object.entries(environment.firebaseConfig) as Array<
-    [string, string]
-  >;
-
-  entries.forEach(([key, value]) => {
-    url.searchParams.set(key, value);
+  return navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+    scope: '/',
+    updateViaCache: 'none',
   });
+}
 
-  return navigator.serviceWorker.register(url.pathname + url.search);
+function navigateToPushLink(link: string) {
+  const target = new URL(link, window.location.origin);
+  if (target.origin !== window.location.origin) return;
+
+  const nextPath = `${target.pathname}${target.search}${target.hash}`;
+  window.history.pushState(null, '', nextPath);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+  window.focus();
 }
 
 function toForegroundPushMessage(

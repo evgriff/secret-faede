@@ -1,59 +1,92 @@
 # Garden Workspace Persistence
 
-Canonical model:
+Canonical contract:
 
-- one shared published garden workspace
-- one private draft per authenticated user
-- shared operations stream for Feed and Today
-- legacy `gardens/{uid}` remains a migration source only where documented
+- one shared published workspace at `gardenWorkspaces/main`
+- workspace schema 2, plan schema 9, and one current published revision ID
+- one private draft per authenticated member
+- shared journal, harvest, task, and water-application records
+- server-owned weather, balance, recommendation, alert, and automation output
+- legacy `gardens/{uid}` and older workspace shapes are one-way migration inputs,
+  never active v2 persistence
 
-Current Firebase paths:
+Firestore paths:
 
-- published workspace: `gardenWorkspaces/main`
-- per-user drafts: `gardenWorkspaces/main/drafts/{uid}`
-- published revisions: `gardenWorkspaces/main/revisions/{revisionId}`
-- journal entries: `gardenWorkspaces/main/journal/{entryId}`
+- metadata: `gardenWorkspaces/main`
+- published plan: `gardenWorkspaces/main/plans/published`
+- private drafts: `gardenWorkspaces/main/drafts/{uid}`
+- publish history: `gardenWorkspaces/main/revisions/{revisionId}`
+- journal: `gardenWorkspaces/main/journal/{entryId}`
 - harvests: `gardenWorkspaces/main/harvests/{harvestId}`
 - tasks: `gardenWorkspaces/main/tasks/{taskId}`
-- watering schedule: `gardenWorkspaces/main/wateringSchedule/{entryId}`
+- explicit applied/skipped water:
+  `gardenWorkspaces/main/waterApplications/{applicationId}`
+- per-crop balance:
+  `gardenWorkspaces/main/waterBalances/{plantingGroupId}`
+- per-crop recommendation:
+  `gardenWorkspaces/main/wateringRecommendations/{plantingGroupId}`
 - weather snapshots: `gardenWorkspaces/main/weatherSnapshots/{snapshotId}`
-- notifications: `gardenWorkspaces/main/notifications/{notificationId}`
-- user profiles and push tokens: `users/{uid}` and `users/{uid}/pushTokens/{tokenId}`
-- Firebase Storage journal photos: `gardenWorkspaces/main/journal/{entryId}/{photoId}-{fileName}`
+- shared alerts: `gardenWorkspaces/main/alerts/{alertId}`
+- profiles/tokens/private receipts: `users/{uid}` plus `pushTokens` and
+  `notificationDeliveries`
+- photo objects:
+  `gardenWorkspaces/main/journal/{entryId}/{uid}/{photoId}-{fileName}`
 
-Repository rules:
+Repository contract:
 
-- `GardenRepository` owns garden persistence and publish/discard/revert operations.
-- `GardenOperationsService` can build higher-level operations on repository data.
-- UI code should not bypass the repository for garden workspace writes.
-- Plan drag autosave should use the committed post-paint garden snapshot, not a
-  second precomputed copy, so drop/release stays visually responsive while
-  repository persistence remains latest-wins.
-- Interaction autosave from Plan drags/resizes should remain quiet: local
-  feet-based commits queue through `useGarden`, repository persistence runs
-  after paint, and the top bar should not churn through transient Saving/Saved
-  states during pointer movement.
-- Mock mode must remain functional with localStorage-backed adapters.
-- Production repair work must create an ignored `output/production-backups/`
-  Firestore backup before deleting shared operation records or resetting stale
-  private drafts; targeted repairs live in `scripts/repair-production-garden.mjs`.
-- Seed/sample fixtures should stay public-safe: generic user identities, Detroit sample climate/location defaults, and no private project, address, provider, or archived-planning artifacts.
+- `GardenRepository` is the only client workspace boundary. UI modules receive
+  a `GardenWorkspaceView` and never write Firestore directly.
+- `UserProfileRepository` separately owns the signed-in user's profile.
+- Draft save validates schema/geometry and preserves its expected published
+  revision. Authenticated Functions callables own publish, revert, and shared
+  location/climate publication. They verify both claims and the complete plan,
+  then transactionally create a revision and update published/metadata linkage.
+- Firestore rules deny clients any direct metadata, published-plan, or revision
+  write. Shared-settings publication preserves unrelated published plan content
+  and rebases an existing actor draft.
+- A mismatch returns a conflict; the repository never silently overwrites the
+  other account's publication.
+- Operation records validate stable IDs/owners/targets. Active mock/Firebase
+  adapters return committed only after their authoritative storage/SDK/callable
+  operation succeeds, or propagate an error. The shared result type's `queued`
+  variant is an unused extension seam, not an offline guarantee.
+- Mock repositories mirror validation, conflicts, subscriptions, per-user
+  isolation, schema normalization, and operation semantics in localStorage.
 
-Verification:
+Watering persistence:
 
-- `GardenEditorScreen.test.tsx` covers the full Choose Plants optimizer input
-  path; that longer UI-path unit test has an explicit 30s timeout for GitHub CI
-  parity.
+- every active `PlantingGroup.id` owns its own saved water-profile snapshot,
+  balance document, recommendation document, and application ledger slice
+- unrelated crops are never pooled, even when they share a structure or zone
+- applied/partial water records require an explicit amount/efficiency and credit
+  only that amount; skipped records require a reason and contain no credit
+- every application is actor-attributed and revisioned; correction keeps the
+  same ID/crop/original recorder and replaces ledger credit at revision +1
+- Functions commit balances/recommendations only if the claimed published
+  revision and shared application fingerprint still match
+- stable model/revision/profile fingerprints and application IDs prevent
+  double-credit after retries
 
-Offline behavior:
+Migration and offline behavior:
 
-- Firestore persistent local cache is enabled when available.
-- Firebase garden saves also queue a pending aggregate save in localStorage while offline.
-- Reconnect compares draft base revision metadata before syncing so stale offline drafts do not silently overwrite newer published state.
+- `scripts/migrate-workspace-v2.mjs` is dry-run by default, creates a private
+  backup first, produces deterministic/idempotent v2 writes, and requires
+  explicit `--apply`. It preflights every published/draft/revision source,
+  redacts report identities, emits zero actions while blockers remain, and
+  refuses apply before the first write.
+- The 2026-07-10 production dry run is `canApply: false`: 105 geometry blockers
+  remain because legacy plantings have no bed/container growing areas, with
+  additional instance/plot containment issues. No production write was made.
+- Ambiguous legacy water notes are warned and uncredited. Invalid coordinates
+  are cleared; invalid timezones become `UTC`; no city fallback is introduced.
+- no active repository promises durable offline synchronization for text,
+  profile, operation, publish, revert, or settings commands
+- photo bytes have no durable offline queue
 
 Primary local sources:
 
 - `docs/architecture.md`
 - `docs/firebase.md`
 - `docs/data-model.md`
+- `docs/deployment.md`
 - `README.md`

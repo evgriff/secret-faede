@@ -1,6 +1,7 @@
 'use strict';
 
 const cache = new Map();
+const cacheMetadata = new WeakMap();
 const metersToInches = 39.3701;
 const millimetersToInches = 0.0393701;
 const kilometersPerHourToMph = 0.621371;
@@ -10,7 +11,7 @@ async function cachedJson({ headers, logger, ttlMs, url }) {
   const cached = cache.get(cacheKey);
 
   if (cached && Date.now() - cached.cachedAtMs < ttlMs) {
-    return cached.value;
+    return cachedResult(cached.value, cached.cachedAtMs, 'cached');
   }
 
   try {
@@ -21,19 +22,65 @@ async function cachedJson({ headers, logger, ttlMs, url }) {
     }
 
     const value = await response.json();
-    cache.set(cacheKey, { cachedAtMs: Date.now(), value });
-    return value;
+    const cachedAtMs = Date.now();
+    cache.set(cacheKey, { cachedAtMs, value });
+    return markCacheMetadata(value, cachedAtMs, 'fresh');
   } catch (error) {
     if (cached) {
       logger.warn('Using stale cached weather after provider failure.', {
         error: error instanceof Error ? error.message : String(error),
         url: cacheKey,
       });
-      return cached.value;
+      return cachedResult(cached.value, cached.cachedAtMs, 'stale');
     }
 
     throw error;
   }
+}
+
+function cachedResult(value, fetchedAtMs, cacheState) {
+  return markCacheMetadata(structuredClone(value), fetchedAtMs, cacheState);
+}
+
+function markCacheMetadata(value, fetchedAtMs, cacheState) {
+  if (value && typeof value === 'object') {
+    cacheMetadata.set(value, {
+      cacheState,
+      fetchedAtIso: new Date(fetchedAtMs).toISOString(),
+    });
+  }
+  return value;
+}
+
+function getCachedJsonMetadata(value) {
+  return value && typeof value === 'object'
+    ? (cacheMetadata.get(value) ?? null)
+    : null;
+}
+
+function combineCachedJsonMetadata(values, fallbackDate = new Date()) {
+  const entries = values
+    .map(getCachedJsonMetadata)
+    .filter((entry) => entry !== null);
+  if (entries.length === 0) {
+    return {
+      cacheState: 'fresh',
+      fetchedAtIso: fallbackDate.toISOString(),
+    };
+  }
+  const ranks = { cached: 1, fresh: 0, stale: 2 };
+  const cacheState = entries.reduce(
+    (worst, entry) =>
+      ranks[entry.cacheState] > ranks[worst] ? entry.cacheState : worst,
+    'fresh',
+  );
+  const fetchedAtMs = Math.min(
+    ...entries.map((entry) => Date.parse(entry.fetchedAtIso)),
+  );
+  return {
+    cacheState,
+    fetchedAtIso: new Date(fetchedAtMs).toISOString(),
+  };
 }
 
 function parseHourlyPeriods(payload) {
@@ -581,10 +628,12 @@ module.exports = {
   buildForecastDays,
   cachedJson,
   celsiusToFahrenheit,
+  combineCachedJsonMetadata,
   findNextGridRainIso,
   findNextProbabilityRainIso,
   findNextRainIso,
   hours,
+  getCachedJsonMetadata,
   kilometersPerHourToMph,
   maxTemperature,
   metersToOptionalInches,

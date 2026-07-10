@@ -1,9 +1,7 @@
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import process from 'node:process';
 
 const summaryPath = 'output/bundle-analysis/bundle-summary.json';
-const indexPath = 'dist/index.html';
 
 const budgets = [
   {
@@ -29,17 +27,24 @@ const budgets = [
 ];
 
 const summary = JSON.parse(await readFile(summaryPath, 'utf8'));
-const indexHtml = await readFile(indexPath, 'utf8');
 const assetsByPath = new Map(
   summary.assets.map((asset) => [asset.path, asset]),
 );
-const referencedJsAssets = getReferencedJsAssets(indexHtml);
-const entryJsAsset = getEntryJsAsset(indexHtml);
+const referencedJsAssets = requireAssetList(
+  summary.moduleGraph?.initialJsAssets,
+  'initial JavaScript assets',
+);
+const entryJsAsset = requireAssetPath(
+  summary.moduleGraph?.entryJsAsset,
+  'app entry JavaScript asset',
+);
+const planRouteAssets = requireAssetList(
+  summary.moduleGraph?.routes?.plan?.jsAssets,
+  'Plan route JavaScript assets',
+);
 const initialJsGzipBytes = sumGzip(referencedJsAssets, assetsByPath);
 const entryJsGzipBytes = getGzip(entryJsAsset, assetsByPath);
-const planRouteGzipBytes = summary.assets
-  .filter((asset) => /^dist\/assets\/PlanPage-.*\.js$/.test(asset.path))
-  .reduce((total, asset) => total + asset.gzipBytes, 0);
+const planRouteGzipBytes = sumGzip(planRouteAssets, assetsByPath);
 
 const context = {
   entryJsGzipBytes,
@@ -76,6 +81,8 @@ const forbiddenInitialChunks = referencedJsAssets.filter(
     assetPath.includes('capacitor-vendor') ||
     assetPath.includes('cropCatalog'),
 );
+const cropCatalogInitialChunks =
+  summary.moduleGraph?.contentMarkers?.cropCatalogInitialJsAssets ?? [];
 
 if (forbiddenInitialChunks.length > 0) {
   failures.push(
@@ -83,6 +90,18 @@ if (forbiddenInitialChunks.length > 0) {
       ', ',
     )}`,
   );
+}
+
+if (cropCatalogInitialChunks.length > 0) {
+  failures.push(
+    `crop catalog data is present in initial JavaScript: ${cropCatalogInitialChunks.join(
+      ', ',
+    )}`,
+  );
+}
+
+if (planRouteGzipBytes === 0) {
+  failures.push('Plan route JavaScript resolved to 0 B');
 }
 
 if (failures.length > 0) {
@@ -95,28 +114,24 @@ if (failures.length > 0) {
   process.exitCode = 1;
 }
 
-function getReferencedJsAssets(html) {
-  const paths = new Set();
-  const jsReferencePattern =
-    /(?:src|href)="\/(assets\/[^"]+\.js)(?:\?[^"]*)?"/g;
-
-  for (const match of html.matchAll(jsReferencePattern)) {
-    paths.add(join('dist', match[1]));
-  }
-
-  return [...paths];
-}
-
-function getEntryJsAsset(html) {
-  const match = html.match(/<script[^>]+type="module"[^>]+src="\/([^"]+\.js)"/);
-
-  if (!match) {
+function requireAssetList(value, label) {
+  if (!Array.isArray(value) || value.length === 0) {
     throw new Error(
-      'Could not find the module entry script in dist/index.html',
+      'Bundle analysis did not identify ' +
+        label +
+        '. Run npm run quality:bundle.',
     );
   }
 
-  return join('dist', match[1]);
+  return value.map((assetPath) => requireAssetPath(assetPath, label));
+}
+
+function requireAssetPath(value, label) {
+  if (typeof value !== 'string' || !value.endsWith('.js')) {
+    throw new Error('Bundle analysis did not identify ' + label + '.');
+  }
+
+  return value;
 }
 
 function getGzip(assetPath, assetsByPath) {

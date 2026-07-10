@@ -1,4 +1,4 @@
-import type { IsoDateString } from './models';
+import type { IsoDateString } from '../../v2/domain/plan';
 
 export interface GardenOperationsRefreshResult {
   backendAvailable: boolean;

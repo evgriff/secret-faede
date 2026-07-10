@@ -1,0 +1,246 @@
+.button,
+.linkButton {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--sf2-radius-small);
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 750;
+  gap: var(--sf2-space-2);
+  justify-content: center;
+  min-block-size: var(--sf2-control-min);
+  padding: 0.62rem 1rem;
+  text-align: center;
+  text-decoration: none;
+  transition:
+    background-color var(--sf2-motion-fast) var(--sf2-ease),
+    border-color var(--sf2-motion-fast) var(--sf2-ease),
+    color var(--sf2-motion-fast) var(--sf2-ease),
+    transform var(--sf2-motion-fast) var(--sf2-ease);
+}
+
+.button:active,
+.linkButton:active {
+  transform: translateY(1px);
+}
+
+.primary {
+  background: var(--sf2-leaf);
+  color: #fff;
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--sf2-leaf-hover);
+}
+
+.secondary {
+  background: var(--sf2-surface);
+  border-color: var(--sf2-border-strong);
+  color: var(--sf2-ink);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--sf2-leaf-soft);
+  border-color: var(--sf2-leaf);
+}
+
+.quiet {
+  background: transparent;
+  color: var(--sf2-leaf);
+}
+
+.quiet:hover:not(:disabled) {
+  background: var(--sf2-leaf-soft);
+}
+
+.danger {
+  background: var(--sf2-danger);
+  color: #fff;
+}
+
+.danger:hover:not(:disabled) {
+  background: #6f1f1f;
+}
+
+.spinner {
+  animation: spin 700ms linear infinite;
+  block-size: 1em;
+  border: 0.15em solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  inline-size: 1em;
+}
+
+.field {
+  display: grid;
+  gap: var(--sf2-space-2);
+  min-inline-size: 0;
+}
+
+.label {
+  color: var(--sf2-ink);
+  font-weight: 750;
+}
+
+.required {
+  color: var(--sf2-danger);
+  font-weight: 700;
+}
+
+.input {
+  background: var(--sf2-surface-raised);
+  border: 1px solid var(--sf2-border-strong);
+  border-radius: var(--sf2-radius-small);
+  inline-size: 100%;
+  min-block-size: var(--sf2-control-min);
+  min-inline-size: 0;
+  padding: 0.65rem 0.75rem;
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--sf2-leaf);
+}
+
+.invalid {
+  border-color: var(--sf2-danger);
+  border-width: 2px;
+}
+
+.hint,
+.fieldError {
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.hint {
+  color: var(--sf2-ink-soft);
+}
+
+.fieldError {
+  color: var(--sf2-danger);
+  font-weight: 650;
+}
+
+.checkbox {
+  align-items: flex-start;
+  cursor: pointer;
+  display: flex;
+  gap: var(--sf2-space-3);
+  min-block-size: var(--sf2-control-min);
+  padding-block: 0.55rem;
+}
+
+.checkbox input {
+  accent-color: var(--sf2-leaf);
+  block-size: 1.25rem;
+  flex: 0 0 auto;
+  inline-size: 1.25rem;
+  margin-block-start: 0.14rem;
+}
+
+.banner {
+  border: 1px solid;
+  border-inline-start-width: 0.35rem;
+  border-radius: var(--sf2-radius-small);
+  display: grid;
+  gap: var(--sf2-space-2);
+  padding: var(--sf2-space-3) var(--sf2-space-4);
+}
+
+.banner p,
+.bannerTitle {
+  margin: 0;
+}
+
+.bannerTitle {
+  font-weight: 800;
+}
+
+.info {
+  background: var(--sf2-info-soft);
+  border-color: var(--sf2-info);
+  color: #153f54;
+}
+
+.success {
+  background: var(--sf2-success-soft);
+  border-color: var(--sf2-success);
+  color: #1f4a2e;
+}
+
+.warning {
+  background: var(--sf2-warning-soft);
+  border-color: var(--sf2-warning);
+  color: #513c00;
+}
+
+.error {
+  background: var(--sf2-danger-soft);
+  border-color: var(--sf2-danger);
+  color: #6f1f1f;
+}
+
+.bannerActions,
+.stateActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sf2-space-2);
+}
+
+.statePanel {
+  background: var(--sf2-surface);
+  border: 1px solid var(--sf2-border);
+  border-radius: var(--sf2-radius);
+  display: grid;
+  gap: var(--sf2-space-3);
+  max-inline-size: var(--sf2-readable);
+  padding: clamp(1rem, 4vw, 1.5rem);
+}
+
+.statePanel h2,
+.statePanel p {
+  margin: 0;
+}
+
+.statePanel h2 {
+  font-family: var(--sf2-font-note);
+  font-size: clamp(1.35rem, 5vw, 1.75rem);
+  line-height: 1.2;
+}
+
+.saveStatus {
+  align-items: center;
+  display: inline-flex;
+  font-size: 0.9rem;
+  font-weight: 750;
+  gap: var(--sf2-space-2);
+  min-block-size: 1.75rem;
+}
+
+.saveDot {
+  background: currentColor;
+  block-size: 0.55rem;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  inline-size: 0.55rem;
+}
+
+.srOnly {
+  block-size: 1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  inline-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

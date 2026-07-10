@@ -1,181 +1,156 @@
 # codex.md
 
-## Project philosophy
+## Product contract
 
-This repo is intentionally small. Secret Faeries should keep simple password auth
-for exactly two provisioned accounts and a saved real-world garden plot editor
-as the product center while growing only the operations features that help
-gardeners manage that plot.
+Secret Faeries is a functionality-first planner and garden-operations app for
+one real shared food garden. Exactly two provisioned password accounts can use
+one published workspace; drafts and notification delivery receipts remain
+private to each account.
 
-Core principles:
+The plot is the source of operational truth. Plan changes feed Today tasks and
+crop-group watering, completed work feeds the durable ledger, Feed preserves
+field memory, and Settings controls alert consent. Features that do not make
+that loop more useful do not belong in the app.
 
-- mock-first by default
-- PWA-first, with native support only as an additive shell
-- explicit seams for auth and garden persistence
-- small modules over helper sprawl
-- docs that prevent repo drift
-- Firebase-native infrastructure when the feature is ready for it
+## Active v2 foundation
 
-## Current foundation target
+- `src/main.tsx` mounts `src/v2/app/V2App.tsx`
+- route guards use the `AuthService` boundary; there is no registration route
+- `GardenRepository` is the only client boundary for shared workspace data
+- `UserProfileRepository` is the only client boundary for private settings
+- canonical Firestore workspace is `gardenWorkspaces/main`
+- workspace schema is 2; plan schema is 9; user-profile schema is 2
+- published plans and revisions are shared; drafts live at
+  `gardenWorkspaces/main/drafts/{uid}`
+- publish, revert, and shared settings publication cross authenticated callable
+  Functions; clients cannot write metadata, published plans, or revisions
+- plot, structures, crop groups, and planting instances store feet-based
+  coordinates from the plot's left/top edges
+- every active crop group receives its own deterministic watering balance and
+  recommendation
+- watering results retain explicit stage/stage-source, crop-profile, weather,
+  and calculation provenance; applied/partial/skipped history is actor-attributed
+  and revisioned
+- in-app, web push, and native push adapters use the same durable alert/receipt
+  pipeline and exact route deep links; web/native registration stays
+  unavailable until the corresponding platform configuration is complete
+- the previous client is removed; only explicit one-way migration readers for
+  legacy persisted data remain in the v2 data layer
 
-- route map: `/`, `/sign-in`, `/access-denied`, `/app`, `/app/plan`,
-  `/app/today`, `/app/feed`, `/app/settings`, legacy redirects from
-  `/auth/complete`, `/app/garden`, `/app/tasks`, `/app/log`, `/app/journal`,
-  `*`
-- Firebase email/password auth behind `AuthService`; no public sign-up route
-- application-level two-email allowlist enforced after sign-in
-- mock and Firebase runtimes selected from centralized config
-- `GardenRepository` active for one shared published garden plus one draft per
-  user
-- `UserProfileRepository` active for alert defaults at `users/{uid}`
-- `WeatherProvider` active for provider-cached weather reads
-- `NotificationService` active for FCM web push registration and foreground
-  message handling
-- `MediaStorageService` active for journal photo uploads
-- Firestore path `gardens/{uid}` in Firebase mode
-- plot dimensions stored in feet
-- plant and planting-instance centers stored as `xFt` and `yFt`, never pixels
-- authenticated shell with durable Plan, Today, Feed, and Settings routes
+## Deterministic watering safety
 
-## Boundaries
+The client and Functions implementations share the
+`crop-water-balance-v2` behavior contract. Recommendation output must be a pure
+function of saved plan/profile inputs, prior balance, weather observations and
+forecast periods, water applications, timezone, and calculation instant.
 
-Active now:
+Required invariants:
 
-- auth/session state
-- runtime config parsing
-- route guards
-- Firebase Auth, Firestore, Hosting, and emulator support
-- Plan workspace for saved garden editing
-- editable settings for Detroit alert defaults
-- weather/watering operations panel
-- in-app notification logs for watering and weather alerts
-- task engine and `/app/today` timeline for generated garden work
-- journal, issue tracking, photo attachments, harvest logging, and in-season
-  summaries
-- Cloud Functions source for scheduled watering checks and weather-driven alert
-  dispatch
-- authenticated app shell
-- tests and CI
+- calculate separately for each `PlantingGroup.id`
+- persist one durable balance per crop group and never pool unrelated crops
+- retain a versioned water-profile snapshot on the planting group
+- never substitute Detroit or any other location when coordinates/timezone are
+  missing or invalid
+- treat a skipped water log as zero credit
+- credit a partial log only by its explicit recorded amount and replace prior
+  ledger credit when the same application advances revision
+- do not infer gallons when growing area is unreliable
+- downgrade uncertain evidence to `checkSoil`/low confidence rather than
+  inventing an amount
+- keep reason codes, source IDs, profile fingerprint, calculation revision, and
+  model version with the result
+- send watering push only for actionable, due, positive recommendations that
+  pass the recipient's alert threshold and consent settings
+- use stable alert/delivery IDs so retrying cannot duplicate a notification
 
-Deferred until the local product model needs them:
+## Repository map
 
-- multiple gardens
-- runtime external plant metadata and species libraries
-- maps, collaboration, dashboards, AI, onboarding, and carrier messaging
-- email delivery
+`src/v2/app`
 
-## Repo navigation
+- composition, auth/runtime/workspace providers, guarded routes, and adapters
+  for weather, media, notifications, and operations refresh
 
-Use Serena when its tools are available:
+`src/v2/domain`
 
-- activate this project as `secret-faeries`
-- prefer symbol overview, symbol lookup, and reference-search tools for code
-  navigation before reading whole source files
-- prefer Serena symbol refactors for whole-symbol changes where they apply
-- read relevant topic memories from `.serena/memories/` when their names match
-  the current task; treat `_archive/` memories as historical onboarding output
-- `npm run quality:serena` is the guardrail that keeps the topic catalog current
-  during normal app work
-- use shell, git, npm, and Playwright commands directly for repo workflow and
-  verification
+- plan, profile, operations, workspace, garden-time, and deterministic watering
+  contracts; no UI or Firebase concerns
 
-`src/app`
+`src/v2/data`
 
-- composition root
-- router
-- route guards
+- mock/Firebase repository implementations, validation, subscriptions, default
+  state, and one-way legacy migration readers
 
-`src/features/auth`
+`src/v2/routes`
 
-- sign-in
-- access denied
-- auth context
+- `auth` and `system`: sign-in, access-denied, and recovery surfaces
+- `plan`: setup, plot editing, inspectors, review, layout, draft/publish/history
+- `today`: independent watering cards, task actions, and water logging
+- `feed`: journal/issue/photo/harvest composition and activity history
+- `settings`: location/timezone, alert consent/thresholds, delivery state
 
-`src/features/plan`
+`src/v2/ui`
 
-- Plan page, compact tool launcher, canvas-first workspace, overlays,
-  inspector, review/optimizer walkthroughs, and operations panel
-- pointer interaction hook for explicit pan, plot drag/resize, and stable
-  feet-based object movement
-
-`src/features/garden`
-
-- compatibility exports, plot settings and add-plant modals, garden state hook,
-  coordinate math, sun/shade, and watering engines
-
-`src/features/today`
-
-- Today page, field action cards, task groups, calendar strip, and succession
-  context
-
-`src/features/tasks`
-
-- compatibility export and generated task engine
-
-`src/features/log`
-
-- Feed route implementation, New entry composer, harvest forms, private memory
-  cards, and compact season summaries
-
-`src/features/journal`
-
-- compatibility export plus Feed summary helpers
-- harvest logging
-- compact in-season summaries
-
-`src/features/settings`
-
-- alert default and notification preference editing
+- accessible shell, modal/focus behavior, async/error states, status messages,
+  and the visual token layer
 
 `src/infrastructure`
 
-- Firebase and mock adapters
-- runtime service selection
-- weather provider adapters and cache
-- notification adapters
-- media storage adapters
+- reusable runtime adapters selected by the v2 service composition; adapters do
+  not own v2 garden persistence
 
 `functions`
 
-- scheduled and event-driven notification dispatch
-- notification code stays focused on in-app and push delivery; carrier-message
-  paths are outside product scope
+- canonical scheduled/on-demand operations, weather provider access, crop-group
+  water balances, task generation, durable alerts, quiet-hour deferral, push
+  fan-out, retry, and delivery receipts
 
-`src/shared`
+`scripts/migrate-workspace-v2*`
 
-- config parsing
-- allowlist helpers
-- reusable shell UI
-- global styles
+- backup-first, dry-run-by-default production migration to workspace schema 2,
+  plan schema 9, and profile schema 2
 
-`src/domain/gardens`
+`e2e` and `test/rules`
 
-- canonical garden model and persistence interface
+- semantic browser journeys and Firebase authorization/shape contracts
 
-## Dependency admission checklist
+## Product boundaries
 
-Do not add a dependency until all answers are yes:
+Do not add multiple gardens, public onboarding, dashboards, charts, maps,
+collaboration, lore, AI, carrier messaging, or email delivery. Weather, tasks,
+journal, notifications, and mobile support are in scope only where they directly
+support the saved plot and real field work.
 
-1. Is the platform or current stack insufficient?
-2. Is it needed for the current MVP?
-3. Does it reduce total code and cognitive load?
-4. Does it avoid forcing a larger architecture pattern?
-5. Will the reason be documented in `docs/adr/` before the package lands?
+Do not add dependencies until the platform is insufficient, the need is in
+current scope, total code is reduced, architecture remains smaller, and an ADR
+documents the decision.
 
-## Future-agent checklist
+## Engineering rules
 
-1. Re-read `AGENTS.md`, `codex.md`, `docs/architecture.md`, and
-   `docs/source-control-protocol.md`.
-2. Start with `git status --short --branch` and keep agent work on `main`
-   unless the user explicitly asks for a different branch strategy.
-3. Activate/use Serena for symbol-aware code navigation and refactors when its
-   tools are available.
-4. Keep mock mode working.
-5. Keep `AuthService` explicit and avoid bypassing it from UI code.
-6. Keep `GardenRepository` as the only garden persistence boundary and
-   `UserProfileRepository` as the user-profile persistence boundary.
-7. Store plot and plant data in feet, not pixels.
-8. Update docs when runtime, scripts, persistence, or deployment requirements change.
-9. Re-run `npm run lint`, `npm run typecheck`, `npm run quality:serena`, `npm run test:unit`, `npm run test:e2e`, `npm run build`, and `npm run ci`.
-10. Do not reintroduce carrier messaging as product scope; treat any new carrier
-    delivery path as a scope regression.
+- use named exports, plain TypeScript, small files, and readable route guards
+- keep `AuthService`, `GardenRepository`, and `UserProfileRepository` explicit
+- use `xFt` from the left and `yFt` from the top; never persist pixels
+- use IANA timezone calculations for all garden-day and quiet-hour decisions
+- make runtime fallback visible; never hide persistence corruption or migration
+  requirements behind mock data
+- validate data at repository and Firebase-rule boundaries
+- preserve user-owned dirty files and follow `docs/source-control-protocol.md`
+- use Serena symbol navigation/refactors when its repo plugin is available and
+  update the matching stable-topic memories when contracts change
+
+## Required verification
+
+Before release, run at minimum:
+
+1. `npm run lint`
+2. `npm run typecheck`
+3. `npm run quality:serena`
+4. `npm run test:unit`
+5. `npm run test:e2e`
+6. `npm run build`
+7. `npm run ci`
+
+`npm run ci` is the authoritative aggregate gate and also covers formatting,
+dependency/file-quality checks, high-severity production dependency audits for
+the client and Functions, integration tests, Firebase rules, Functions, bundle
+analysis, and visual regression. Production deployment additionally requires
+the migration and manual checks documented in `docs/deployment.md`.

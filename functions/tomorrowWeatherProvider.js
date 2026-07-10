@@ -5,6 +5,7 @@ const {
   asRecord,
   cachedJson,
   findNextRainIso,
+  getCachedJsonMetadata,
   maxTemperature,
   minutes,
   overnightLow,
@@ -75,19 +76,31 @@ class TomorrowIoProvider {
           : [];
       });
       const now = new Date();
+      const futurePeriods = clipForecastPeriods(periods, now);
+      const source = getCachedJsonMetadata(payload) ?? {
+        cacheState: 'fresh',
+        fetchedAtIso: now.toISOString(),
+      };
       const in24h = addHours(now, 24);
       const in48h = addHours(now, 48);
 
       return {
-        dailyHighF: maxTemperature(periods, now, in24h),
-        days: buildTomorrowForecastDays(periods, location.timezone),
-        generatedAtIso: now.toISOString(),
-        next24hPrecipIn: roundTo(sumForecastPrecip(periods, now, in24h), 2),
-        next48hPrecipIn: roundTo(sumForecastPrecip(periods, now, in48h), 2),
-        nextRainIso: findNextRainIso(periods, now),
-        overnightLowF: overnightLow(periods, now),
-        periods,
+        dailyHighF: maxTemperature(futurePeriods, now, in24h),
+        days: buildTomorrowForecastDays(futurePeriods, location.timezone),
+        generatedAtIso: source.fetchedAtIso,
+        next24hPrecipIn: roundTo(
+          sumForecastPrecip(futurePeriods, now, in24h),
+          2,
+        ),
+        next48hPrecipIn: roundTo(
+          sumForecastPrecip(futurePeriods, now, in48h),
+          2,
+        ),
+        nextRainIso: findNextRainIso(futurePeriods, now),
+        overnightLowF: overnightLow(futurePeriods, now),
+        periods: futurePeriods,
         providerId: this.id,
+        qualityHint: source.cacheState,
         summary: periods[0]?.shortForecast || 'Tomorrow.io forecast',
       };
     } catch (error) {
@@ -108,6 +121,10 @@ class TomorrowIoProvider {
     try {
       const payload = await this.getForecastPayload(location);
       const now = new Date();
+      const source = getCachedJsonMetadata(payload) ?? {
+        cacheState: 'fresh',
+        fetchedAtIso: now.toISOString(),
+      };
       const next24h = addHours(now, 24);
       const values = getHourlyTimelines(payload).flatMap((timeline) => {
         const timeIso = readStringOrNull(timeline.time);
@@ -130,11 +147,12 @@ class TomorrowIoProvider {
         evapotranspirationNext24hIn: values.length
           ? roundTo(next24Value, 2)
           : null,
-        generatedAtIso: now.toISOString(),
+        generatedAtIso: source.fetchedAtIso,
         notes: values.length
           ? ['Tomorrow.io evapotranspiration was included.']
           : ['Tomorrow.io response did not include evapotranspiration fields.'],
         providerId: this.id,
+        qualityHint: source.cacheState,
       };
     } catch (error) {
       this.logFallback(error, 'agricultureMetrics');
@@ -229,6 +247,35 @@ function buildTomorrowForecastDays(periods, timezone) {
     }));
 }
 
+function clipForecastPeriods(periods, now) {
+  return periods.flatMap((period) => {
+    const start = new Date(period.startIso);
+    const end = new Date(period.endIso);
+    if (
+      Number.isNaN(start.getTime()) ||
+      Number.isNaN(end.getTime()) ||
+      end <= now
+    ) {
+      return [];
+    }
+    if (start >= now) return [period];
+    const durationMs = end.getTime() - start.getTime();
+    const remainingMs = end.getTime() - now.getTime();
+    return durationMs > 0
+      ? [
+          {
+            ...period,
+            precipitationAmountIn:
+              period.precipitationAmountIn === null
+                ? null
+                : period.precipitationAmountIn * (remainingMs / durationMs),
+            startIso: now.toISOString(),
+          },
+        ]
+      : [];
+  });
+}
+
 function formatLocalDate(date, timezone) {
   const parts = new Intl.DateTimeFormat('en-US', {
     day: '2-digit',
@@ -251,4 +298,5 @@ function formatWeatherCode(value) {
 
 module.exports = {
   TomorrowIoProvider,
+  clipForecastPeriods,
 };

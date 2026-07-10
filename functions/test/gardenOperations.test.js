@@ -1,258 +1,290 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { generateGardenOperations } = require('../gardenOperations');
-const { isUserDueForWateringCheck } = require('../operationTime');
-const { mergeWaterRecommendations } = require('../wateringLogic');
-
-const profile = {
-  notificationPreference: {
-    defaultWateringCheckTime: '07:30',
-    timezone: 'America/Detroit',
-  },
-  timezone: 'America/Detroit',
-};
-
-assert.equal(
-  isUserDueForWateringCheck(profile, new Date('2026-06-21T11:45:00.000Z')),
-  true,
-);
-assert.equal(
-  isUserDueForWateringCheck(profile, new Date('2026-06-21T14:00:00.000Z')),
-  false,
-);
-
-const now = new Date('2026-06-21T12:00:00.000Z');
-const garden = {
-  id: 'user-a',
-  journalEntries: [
-    {
-      body: 'Watered Bed A 0.25 inches',
-      createdAtIso: '2026-06-21T10:00:00.000Z',
-      occurredOn: '2026-06-21',
-      id: 'note-1',
-      structureId: 'bed-a',
-      targetLabel: 'Bed A',
-      title: 'Water done',
-    },
-  ],
-  plantings: [
-    {
-      id: 'tomato-1',
-      label: 'Tomato',
-      plantedOn: '2026-06-01',
-      status: 'harvest-ready',
-      weeklyWaterNeedInches: 1.3,
-      xFt: 2,
-      yFt: 2,
-    },
-    {
-      id: 'radish-inside',
-      label: 'Radish inside window',
-      plannedFor: '2026-06-27',
-      status: 'planned',
-      xFt: 3,
-      yFt: 2,
-    },
-    {
-      id: 'radish-outside',
-      label: 'Radish outside window',
-      plannedFor: '2026-06-28',
-      status: 'planned',
-      xFt: 4,
-      yFt: 2,
-    },
-  ],
-  plot: {
-    location: {
-      latitude: 42.3314,
-      locationName: 'Detroit, MI',
-      longitude: -83.0458,
-      timezone: 'America/Detroit',
-    },
-  },
-  structures: [
-    {
-      depthFt: 4,
-      drainageProfile: 'fast',
-      id: 'bed-a',
-      irrigationZone: 'Zone 1',
-      label: 'Bed A',
-      mulched: true,
-      soilType: 'sandy',
-      type: 'raisedBed',
-      widthFt: 8,
-      xFt: 0,
-      yFt: 0,
-    },
-  ],
-  tasks: [],
-  userId: 'user-a',
-  wateringSchedule: [],
-  weatherSnapshots: [],
-};
-
-const weatherProvider = {
-  id: 'nationalWeatherService',
-  label: 'National Weather Service',
-  getCurrentConditions: () =>
-    Promise.resolve({
-      capturedAtIso: now.toISOString(),
-      conditionSummary: 'Hot',
-      feelsLikeF: 98,
-      humidityPercent: 55,
-      observationTimeIso: now.toISOString(),
-      precipitationLastHourIn: 0,
-      providerId: 'nationalWeatherService',
-      sourceLabel: 'National Weather Service',
-      temperatureF: 96,
-      windMph: 5,
-    }),
-  getForecast: () =>
-    Promise.resolve({
-      dailyHighF: 96,
-      days: [
-        {
-          conditionSummary: 'Hot',
-          date: '2026-06-21',
-          expectedRainIn: 0,
-          highF: 96,
-          precipitationChancePercent: null,
-        },
-      ],
-      generatedAtIso: now.toISOString(),
-      next24hPrecipIn: 0,
-      next48hPrecipIn: 0,
-      nextRainIso: null,
-      overnightLowF: 70,
-      periods: [{ startIso: now.toISOString(), temperatureF: 96 }],
-      providerId: 'nationalWeatherService',
-      summary: 'Hot',
-    }),
-  getOptionalAgricultureMetrics: () =>
-    Promise.resolve({
-      evapotranspirationIn: 0.18,
-      evapotranspirationNext24hIn: 0.18,
-      generatedAtIso: now.toISOString(),
-      notes: [],
-      providerId: 'nationalWeatherService',
-    }),
-  getRecentPrecipitation: () =>
-    Promise.resolve({
-      generatedAtIso: now.toISOString(),
-      hours: 72,
-      last24hIn: 0,
-      last72hIn: 0,
-      observations: [],
-      providerId: 'nationalWeatherService',
-      totalIn: 0,
-    }),
-  getWeatherAlerts: () => Promise.resolve([]),
-};
+const {
+  buildWeatherInputs,
+  generateGardenOperations,
+  weatherSignalQuality,
+} = require('../gardenOperations');
+const { resolveLocalDateTimeIso } = require('../operationTime');
+const {
+  calculateWateringRecommendations,
+  createCropGroupTargets,
+} = require('../wateringModelV2');
+const { balance, now, plan, provider, shared } = require('./v2Fixtures');
 
 (async () => {
+  const targets = createCropGroupTargets(plan, []);
+  assert.deepEqual(
+    targets.map((target) => target.planting.id),
+    ['tomato-group', 'lettuce-group'],
+  );
+  assert.equal(targets[0].stage, 'fruiting');
+  assert.equal(targets[0].stageSource, 'lifecycleFallback');
+
   const result = await generateGardenOperations({
-    garden,
     logger: { warn() {} },
     now,
-    profile,
-    weatherProvider,
+    operationsSettings: { defaultWateringCheckTime: '07:00' },
+    plan,
+    sharedOperations: shared(),
+    weatherProvider: provider(),
   });
+  const tomato = result.recommendations.find(
+    (item) => item.target.cropGroupId === 'tomato-group',
+  );
+  const lettuce = result.recommendations.find(
+    (item) => item.target.cropGroupId === 'lettuce-group',
+  );
 
-  assert.equal(result.snapshot.heatRisk, 'warning');
-  assert.equal(result.recommendations[0].source, 'backend');
-  assert.equal(result.recommendations[0].dataQuality, 'complete');
-  assert.equal(result.recommendations[0].status, 'partial');
-  assert.equal(result.recommendations[0].targetId, 'bed-a');
-  assert.equal(result.recommendations[0].targetKind, 'bed');
+  assert.equal(result.snapshot.quality.historical, 'fresh');
+  assert.equal(result.snapshot.quality.forecast, 'fresh');
+  assert.equal(tomato.modelVersion, 'crop-water-balance-v2');
+  assert.equal(tomato.target.kind, 'cropGroup');
+  assert.equal(tomato.target.cropGroupLabel, 'Tomato in Bed A');
+  assert.deepEqual(tomato.target.plantingIds, ['tomato-group']);
   assert.equal(
-    result.recommendations[0].waterBalance.rootZoneCapacitySource,
-    'estimated',
+    tomato.target.deepLink,
+    '/app/today?focus=watering&cropGroupId=tomato-group',
   );
+  assert.equal(tomato.basis.cropProfile.stage, 'fruiting');
+  assert.equal(tomato.basis.cropProfile.stageSource, 'lifecycleFallback');
+  assert.ok(
+    tomato.balance.depletionInches > lettuce.balance.depletionInches,
+    'crop groups retain their own profile and root-zone balance',
+  );
+  assert.notEqual(
+    tomato.recommendedDepthInches,
+    lettuce.recommendedDepthInches,
+    'each crop group receives its own watering amount',
+  );
+  assert.ok(tomato.reasonCodes.includes('SKIPPED_APPLICATION_ZERO_CREDIT'));
   assert.equal(
-    result.recommendations[0].waterBalance.currentDepletionInches,
-    result.recommendations[0].waterBalance.effectiveDeficitInches,
+    tomato.balance.applicationLedger.find(
+      (entry) => entry.applicationId === 'skip-a',
+    ).creditedDepthInches,
+    0,
+    'skipped watering receives exactly zero credit',
   );
-  assert.ok(
-    result.recommendations[0].waterBalance.actionableDeficitInches >= 0,
+  assert.ok(result.tasks.every((task) => task.dueOn && task.target));
+  assert.equal(
+    result.tasks.find((task) => task.sourceId === tomato.id).target.label,
+    'Tomato in Bed A',
   );
-  assert.match(result.recommendations[0].reasonDetails.join(' '), /Zone 1/);
-  assert.ok(result.tasks.some((task) => task.type === 'water'));
-  assert.ok(result.tasks.some((task) => task.id === 'weather-heat-2026-06-21'));
-  assert.ok(
-    result.tasks.some((task) => task.id === 'planting-radish-inside-plant'),
+
+  const repeated = await generateGardenOperations({
+    logger: { warn() {} },
+    now,
+    operationsSettings: { defaultWateringCheckTime: '07:00' },
+    plan,
+    sharedOperations: shared(),
+    weatherProvider: provider(),
+  });
+  assert.deepEqual(
+    repeated.recommendations,
+    result.recommendations,
+    'identical plan, ledger, weather, and clock inputs are deterministic',
   );
-  assert.ok(
-    !result.tasks.some((task) => task.id === 'planting-radish-outside-plant'),
+
+  const withPartialWater = await generateGardenOperations({
+    logger: { warn() {} },
+    now,
+    operationsSettings: { defaultWateringCheckTime: '07:00' },
+    plan,
+    sharedOperations: shared({
+      waterApplications: [
+        {
+          amount: { depthInches: 0.25, unit: 'inches' },
+          appliedAtIso: '2026-06-20T12:00:00.000Z',
+          cropGroupId: 'tomato-group',
+          efficiency: {
+            confidence: 'high',
+            fraction: 1,
+            source: 'calibrated',
+          },
+          id: 'partial-water',
+          method: 'drip',
+          outcome: 'partial',
+          recordedAtIso: '2026-06-20T12:05:00.000Z',
+          recordedByUserId: 'user-a',
+          revision: 1,
+        },
+      ],
+    }),
+    weatherProvider: provider(),
+  });
+  assert.deepEqual(
+    withPartialWater.recommendations
+      .find((item) => item.target.cropGroupId === 'tomato-group')
+      .balance.applicationLedger.find(
+        (entry) => entry.applicationId === 'partial-water',
+      ),
+    {
+      applicationId: 'partial-water',
+      creditedDepthInches: 0.25,
+      outcome: 'partial',
+      revision: 1,
+    },
+    'partial watering retains its outcome and receives measured credit',
   );
+
+  const missing = await generateGardenOperations({
+    logger: { warn() {} },
+    now,
+    operationsSettings: { defaultWateringCheckTime: '07:00' },
+    plan,
+    sharedOperations: shared(),
+    weatherProvider: provider({ failPrecipitation: true }),
+  });
+  assert.equal(missing.snapshot.quality.historical, 'insufficient');
   assert.ok(
-    result.tasks.some((task) =>
-      task.id.startsWith('succession-review-tomato-1'),
+    missing.recommendations.every(
+      (recommendation) =>
+        recommendation.status === 'checkSoil' &&
+        recommendation.recommendedDepthInches === null,
     ),
   );
 
-  const preserved = mergeWaterRecommendations(
-    [{ ...result.recommendations[0], status: 'completed' }],
-    result.recommendations,
-    now,
+  assert.equal(
+    weatherSignalQuality('2026-06-20T00:00:00.000Z', false, now),
+    'stale',
+  );
+  assert.equal(
+    weatherSignalQuality(now.toISOString(), false, now, 'cached'),
+    'cached',
+  );
+  assert.equal(
+    weatherSignalQuality(now.toISOString(), false, now, 'stale'),
+    'stale',
   );
 
-  assert.equal(preserved[0].status, 'completed');
-
-  const scheduledResult = await generateGardenOperations({
-    garden: {
-      ...garden,
-      journalEntries: [],
+  const timestampedBalances = [
+    {
+      ...balance('tomato-group'),
+      asOfIso: '2026-06-21T11:00:00.000Z',
     },
-    logger: { warn() {} },
-    now: new Date('2026-06-21T11:00:00.000Z'),
-    profile,
-    weatherProvider,
-  });
-
-  assert.equal(scheduledResult.recommendations[0].status, 'scheduled');
-  assert.equal(
-    Date.parse(scheduledResult.recommendations[0].dueWindowStartIso),
-    Date.parse('2026-06-21T11:30:00.000Z'),
-  );
-  assert.equal(
-    scheduledResult.recommendations[0].waterBalance.modelVersion,
-    'water-balance-v1',
-  );
-
-  const plantingDayResult = await generateGardenOperations({
-    garden: {
-      ...garden,
-      journalEntries: [],
-      plantings: [
+    {
+      ...balance('lettuce-group'),
+      asOfIso: '2026-06-21T08:00:00.000Z',
+    },
+  ];
+  const timestampedWeather = buildWeatherInputs({
+    context: weatherContext({
+      observations: [
         {
-          ...garden.plantings[0],
-          plantedOn: '2026-06-21',
-          plantingEvents: [
-            {
-              id: 'planting-event:plantedOut:2026-06-21',
-              occurredOn: '2026-06-21',
-              type: 'plantedOut',
-            },
-          ],
-          status: 'planted',
+          observedAtIso: '2026-06-21T10:00:00.000Z',
+          precipitationIn: 0.4,
         },
       ],
-    },
-    logger: { warn() {} },
+    }),
     now,
-    profile,
-    weatherProvider,
+    priorBalances: timestampedBalances,
+    timezone: 'America/Detroit',
   });
-
-  assert.equal(plantingDayResult.recommendations.length, 0);
-
-  const snoozed = mergeWaterRecommendations(
-    [{ ...scheduledResult.recommendations[0], status: 'snoozed' }],
-    scheduledResult.recommendations,
-    now,
+  const timestampedResult = calculateWateringRecommendations({
+    applications: [],
+    checkTimeLocal: '07:00',
+    forecastWeather: timestampedWeather.forecastWeather,
+    gardenId: plan.id,
+    historicalWeather: timestampedWeather.historicalWeather,
+    nowIso: now.toISOString(),
+    priorBalances: timestampedBalances,
+    targets,
+    timezone: 'America/Detroit',
+  });
+  assert.equal(
+    timestampedResult.recommendations
+      .find((item) => item.target.cropGroupId === 'tomato-group')
+      .reasonCodes.includes('OBSERVED_RAIN_CREDITED'),
+    false,
+    'rain before a crop-group balance boundary is not credited again',
+  );
+  assert.equal(
+    timestampedResult.recommendations
+      .find((item) => item.target.cropGroupId === 'lettuce-group')
+      .reasonCodes.includes('OBSERVED_RAIN_CREDITED'),
+    true,
+    'rain inside an earlier crop-group balance window is credited',
   );
 
-  assert.equal(snoozed[0].status, 'snoozed');
+  const midday = new Date('2026-06-21T16:00:00.000Z');
+  const forecastInputs = buildWeatherInputs({
+    context: weatherContext({
+      days: [
+        {
+          date: '2026-06-21',
+          expectedRainIn: 0.4,
+          precipitationChancePercent: 75,
+        },
+        {
+          date: '2026-06-22',
+          expectedRainIn: 0.2,
+          precipitationChancePercent: 50,
+        },
+      ],
+      evapotranspirationNext24hIn: 0.24,
+    }),
+    now: midday,
+    priorBalances: [],
+    timezone: 'America/Detroit',
+  }).forecastWeather.periods;
+  assert.equal(forecastInputs[0].startIso, midday.toISOString());
+  assert.equal(
+    forecastInputs[0].expectedRainInches,
+    0.4,
+    'provider future-only daily rain is not scaled a second time at midday',
+  );
+  assert.ok(
+    Math.abs(
+      forecastInputs.reduce(
+        (total, period) => total + (period.referenceEtInches || 0),
+        0,
+      ) - 0.24,
+    ) < 1e-9,
+    'next-24-hour ET is distributed once across local forecast days',
+  );
+
+  assert.equal(
+    resolveLocalDateTimeIso('2026-11-01', '01:30', 'America/Detroit'),
+    '2026-11-01T06:30:00.000Z',
+    'the Functions runtime resolves an ambiguous local time to the later instant',
+  );
+
   console.log('gardenOperations tests passed');
-})();
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
+
+function weatherContext({
+  days = [
+    {
+      date: '2026-06-21',
+      expectedRainIn: 0,
+      precipitationChancePercent: 0,
+    },
+  ],
+  evapotranspirationNext24hIn = 0,
+  observations = [],
+} = {}) {
+  return {
+    agricultureMetrics: {
+      evapotranspirationNext24hIn,
+      generatedAtIso: now.toISOString(),
+      providerId: 'test-weather',
+    },
+    forecast: {
+      days,
+      generatedAtIso: now.toISOString(),
+      providerId: 'test-weather',
+    },
+    forecastQuality: 'fresh',
+    historicalQuality: 'fresh',
+    recentPrecipitation: {
+      available: true,
+      generatedAtIso: now.toISOString(),
+      observations,
+      providerId: 'test-weather',
+    },
+  };
+}

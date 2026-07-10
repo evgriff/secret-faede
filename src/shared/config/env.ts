@@ -20,7 +20,6 @@ export interface AppEnvironment {
   firebaseConfig: FirebaseRuntimeConfig | null;
   firestoreEmulatorPort: number;
   functionsEmulatorPort: number;
-  geocodingApiKey: string | null;
   messagingVapidKey: string | null;
   pwaEnabled: boolean;
   requestedMode: RuntimeMode;
@@ -46,7 +45,6 @@ export interface AppEnvSource {
   VITE_FIREBASE_PROJECT_ID?: string;
   VITE_FIREBASE_STORAGE_EMULATOR_PORT?: string;
   VITE_FIREBASE_STORAGE_BUCKET?: string;
-  VITE_GOOGLE_MAPS_API_KEY?: string;
   VITE_FIREBASE_MESSAGING_VAPID_KEY?: string;
   VITE_TOMORROW_API_KEY?: string;
   VITE_ENABLE_TOMORROW_WEATHER?: string;
@@ -110,9 +108,6 @@ export function resolveAppEnvironmentFromEnv(
       env.VITE_FIREBASE_FUNCTIONS_EMULATOR_PORT,
       5001,
     ),
-    geocodingApiKey: hasText(env.VITE_GOOGLE_MAPS_API_KEY)
-      ? env.VITE_GOOGLE_MAPS_API_KEY.trim()
-      : null,
     messagingVapidKey: hasText(env.VITE_FIREBASE_MESSAGING_VAPID_KEY)
       ? env.VITE_FIREBASE_MESSAGING_VAPID_KEY.trim()
       : null,

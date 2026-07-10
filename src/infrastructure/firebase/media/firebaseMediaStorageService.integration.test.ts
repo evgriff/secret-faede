@@ -39,7 +39,6 @@ const environment: AppEnvironment = {
   firebaseConfig: null,
   firestoreEmulatorPort: 8080,
   functionsEmulatorPort: 5001,
-  geocodingApiKey: null,
   messagingVapidKey: null,
   pwaEnabled: false,
   requestedMode: 'mock',

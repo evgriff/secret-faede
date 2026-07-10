@@ -1,418 +1,253 @@
 # Firebase
 
-## What this milestone uses
+## Services in use
 
-- Firebase Authentication
-- Firestore
-- Firebase Hosting
-- Firebase Storage for journal photos
-- Firebase Cloud Messaging for web push registration and delivery
-- Firebase Cloud Functions for notification dispatch
-- Cloud Scheduler through scheduled Firebase Functions
-- Firebase Local Emulator Suite
+The production runtime uses:
 
-Not included now:
+- Firebase Authentication: email/password sessions for two provisioned users
+- Cloud Firestore: canonical workspace, operations, profiles, tokens, receipts
+- Cloud Storage: shared journal photos with uploader ownership
+- Cloud Functions v2: deterministic operations and alert delivery
+- Firebase Cloud Messaging: web and native push
+- Firebase Hosting: the Vite SPA/PWA
+- Local Emulator Suite: Auth, Firestore, Storage, Functions, and Hosting tests
 
-- blocking triggers
-- email delivery
-- carrier messaging
+There is no public account creation and no client-created membership record.
 
-## Required web-app setup
+## Browser configuration
 
-1. Create or choose a Firebase project.
-2. Register a web app in that project.
-3. Copy the Firebase web config values into `.env.local` or GitHub repository variables.
-4. Enable Authentication.
-5. Enable `Email/Password`.
-6. Leave public sign-up UI out of the app; create only the two intended users
-   through `npm run auth:seed-users`.
-7. Add authorized domains for every environment that will host the app.
-
-Important:
-
-- the app signs in with Firebase Email/Password only
-- `/auth/complete` is a legacy redirect back to `/sign-in`
-- do not add client account creation paths
-- in Firebase projects created after April 28, 2025, `localhost` is not added automatically; add it yourself
-
-## Authorized domains checklist
-
-Add these as needed:
-
-- `localhost`
-- `127.0.0.1`
-- your Firebase Hosting domain: `your-project.firebaseapp.com`
-- your Firebase Hosting site domain: `your-project.web.app`
-- any custom production domain
-
-Preview caution:
-
-- Firebase Hosting preview channels use separate preview URLs
-- those preview deployments still talk to real backend resources if you point them at a live Firebase project
-- this repo keeps preview builds mock-first by default, so preview auth should not be assumed to work unless you intentionally reconfigure it
-
-## Environment variables
-
-Required runtime variables:
-
-```bash
-VITE_APP_RUNTIME=mock|firebase
-VITE_ENABLE_PWA=true|false
-VITE_USE_FIREBASE_EMULATORS=true|false
-```
-
-Mock/local email gate:
-
-```bash
-VITE_ALLOWED_EMAILS=primary.gardener@example.com,partner.gardener@example.com
-```
-
-Firebase web config values for `firebase` runtime:
-
-```bash
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=...
-VITE_FIREBASE_PROJECT_ID=...
-VITE_FIREBASE_STORAGE_BUCKET=...
-VITE_FIREBASE_MESSAGING_SENDER_ID=...
-VITE_FIREBASE_APP_ID=...
-VITE_FIREBASE_MESSAGING_VAPID_KEY=... # Optional unless web push is enabled.
-VITE_FIREBASE_EMULATOR_HOST=127.0.0.1
-VITE_FIREBASE_AUTH_EMULATOR_PORT=9099
-VITE_FIREBASE_FIRESTORE_EMULATOR_PORT=8080
-VITE_FIREBASE_STORAGE_EMULATOR_PORT=9199
-VITE_GOOGLE_MAPS_API_KEY=...
-VITE_ENABLE_TOMORROW_WEATHER=false
-VITE_TOMORROW_API_KEY=...
-```
-
-Server-side function variables and secrets:
-
-```bash
-TOMORROW_API_KEY=...
-```
-
-Auth seed and access-sync variables:
-
-```bash
-APP_LOGIN_PRIMARY_EMAIL=...
-APP_LOGIN_PARTNER_EMAIL=...
-APP_LOGIN_PRIMARY_TEMP_PASSWORD=...
-APP_LOGIN_PARTNER_TEMP_PASSWORD=...
-FIREBASE_PROJECT_ID=...
-```
-
-Carrier messaging is no longer product scope. Do not configure phone-number
-seed values, carrier provider secrets, dry-run flags, or carrier webhooks for
-new work.
-
-`VITE_ALLOWED_EMAILS` rules:
-
-- exactly two entries
-- normalized to lowercase and trimmed before comparison
-- duplicates after normalization are invalid
-- invalid allowlist config fails closed with a visible UI error
-- used only for mock/local client gating, not production membership
-
-## Runtime switching
-
-Mock mode:
-
-- `npm run dev`
-- no Firebase config required
-
-Firebase emulator mode:
-
-- copy `.env.local.example` to `.env.local`
-- keep `VITE_APP_RUNTIME=firebase`
-- keep `VITE_USE_FIREBASE_EMULATORS=true`
-- run `npm run emulators`
-- run `npm run dev:firebase:emulators`
-
-Firebase live mode:
-
-- set `VITE_APP_RUNTIME=firebase`
-- set `VITE_USE_FIREBASE_EMULATORS=false`
-- provide all `VITE_FIREBASE_*` values
-- do not set production account membership through `VITE_ALLOWED_EMAILS`
-- grant production access with `npm run auth:sync-access` from secure
-  `APP_LOGIN_PRIMARY_EMAIL` and `APP_LOGIN_PARTNER_EMAIL` values
-- run `npm run dev`
-
-If Firebase mode is requested without complete web config, the app falls back to mock mode and tells the user why.
-
-## Firestore garden document
-
-Firebase mode stores one shared published garden with per-user drafts:
+Firebase mode requires all of these public browser values:
 
 ```text
-users/{uid}
-users/{uid}/pushTokens/{tokenId}
-gardenWorkspaces/main
-gardenWorkspaces/main/drafts/{uid}
-gardenWorkspaces/main/revisions/{revisionId}
-gardenWorkspaces/main/journal/{entryId}
-gardenWorkspaces/main/harvests/{harvestId}
-gardenWorkspaces/main/tasks/{taskId}
-gardenWorkspaces/main/wateringSchedule/{entryId}
-gardenWorkspaces/main/weatherSnapshots/{snapshotId}
-gardenWorkspaces/main/notifications/{notificationId}
-gardens/{uid}
-gardens/{uid}/structures/{structureId}
-gardens/{uid}/plantings/{plantingId}
-gardens/{uid}/tasks/{taskId}
-gardens/{uid}/journal/{entryId}
-gardens/{uid}/harvests/{harvestId}
-gardens/{uid}/notifications/{notificationId}
-catalog/{cropId}
+VITE_APP_RUNTIME=firebase
+VITE_FIREBASE_API_KEY
+VITE_FIREBASE_APP_ID
+VITE_FIREBASE_AUTH_DOMAIN
+VITE_FIREBASE_MESSAGING_SENDER_ID
+VITE_FIREBASE_PROJECT_ID
+VITE_FIREBASE_STORAGE_BUCKET
 ```
 
-`gardenWorkspaces/main` is the current published revision.
-`gardenWorkspaces/main/drafts/{uid}` is the user's private draft with
-`baseRevisionId`. `gardenWorkspaces/main/revisions/{revisionId}` stores
-published history for revert. Feed and Today operations live in the shared
-workspace subcollections so both provisioned users see activity immediately
-without publishing private Plan drafts. `gardens/{uid}` remains a migration
-source for older saved gardens and seed data.
+`VITE_FIREBASE_MESSAGING_VAPID_KEY` is required when web push registration is
+offered. `VITE_ENABLE_PWA=false` is recommended during local debugging. The
+Firebase web values are public configuration, but account emails, passwords,
+service-account JSON, and server weather keys are not browser variables.
 
-Garden document shape:
+For emulators, set `VITE_USE_FIREBASE_EMULATORS=true`; host/port defaults match
+`firebase.json` and can be overridden with:
 
-```ts
+```text
+VITE_FIREBASE_EMULATOR_HOST
+VITE_FIREBASE_AUTH_EMULATOR_PORT
+VITE_FIREBASE_FIRESTORE_EMULATOR_PORT
+VITE_FIREBASE_FUNCTIONS_EMULATOR_PORT
+VITE_FIREBASE_STORAGE_EMULATOR_PORT
+```
+
+The environment parser treats incomplete Firebase configuration as an explicit
+mock fallback and provides a user-visible reason. Once Firebase repositories
+are selected, missing or incompatible data is a recovery error, not a fallback.
+
+## Project setup
+
+Run `npm run setup:firebase:live` with `FIREBASE_PROJECT_ID` and suitable
+administrator credentials to enable supported Auth settings and authorized
+domains. Verify Email/Password sign-in in the Firebase console. Authorized
+domains must include the live Hosting domains and any explicit custom domain;
+do not add arbitrary origins.
+
+Provision accounts from secret environment values:
+
+```text
+APP_LOGIN_PRIMARY_EMAIL
+APP_LOGIN_PARTNER_EMAIL
+APP_LOGIN_PRIMARY_TEMP_PASSWORD
+APP_LOGIN_PARTNER_TEMP_PASSWORD
+```
+
+`npm run auth:seed-users` creates missing accounts and grants membership.
+Existing passwords change only with its explicit reset option.
+`npm run auth:sync-access` is the repeatable release command: it grants both
+required claims to the two configured accounts and removes those managed claims
+from any other Auth user.
+
+Every authorized account must have both custom claims:
+
+```json
 {
-  id: string,
-  userId: string,
-  updatedAt: serverTimestamp(),
-  updatedAtIso: string,
-  name: string,
-  climateProfile: {
-    hardinessZone: string,
-    averageLastFrost: "MM-DD",
-    averageFirstFrost: "MM-DD",
-    editableByUser: boolean
-  },
-  plot: {
-    widthFt: number,
-    depthFt: number,
-    orientationDegrees: number,
-    location: {
-      locationName: string,
-      locationQuery: string,
-      latitude: number | null,
-      longitude: number | null,
-      timezone: string
-    }
-  }
+  "gardenAccess": true,
+  "secretFaeriesMember": true
 }
 ```
 
-Sun/shade layers are stored on the garden document under `sunShadeLayers`.
-Generated and manually overridden cells use feet-based `xFt`, `yFt`, `widthFt`,
-and `depthFt` values; raw pixels are never persisted.
+After claims change, an existing session must refresh its ID token. The Firebase
+auth adapter subscribes to ID-token changes so the route guard can re-evaluate
+membership without storing account emails in the client bundle.
 
-Weather snapshots and watering schedule entries are stored on the garden
-document under `weatherSnapshots` and `wateringSchedule`. Schedule entries
-store target entity, current root-zone depletion, actionable watering amount,
-urgency, rationale, suppress-until time, status, and optional `waterBalance`
-metadata. Legacy `waterRecommendations` records still parse into
-`wateringSchedule` for compatibility. Snapshot forecast days may also include
-optional direct NWS rain metadata (`rainLikely`, `rainSignalSource`,
-`rainSummary`, `rainWindowStartIso`, `rainWindowEndIso`, and
-`rainAmountSource`). `expectedRainIn` remains quantitative QPF only; probability
-and text signals are qualitative context, not stored rain credit.
+## Firestore contract
 
-Tasks are stored in `gardens/{uid}/tasks/{taskId}`. Generated task ids are
-stable and source-linked, so completed/skipped work is not duplicated on the next
-schedule sync. Task records include bed label, due date, type, source, source
-id, priority, snoozed/deferred dates, completion timestamp, and related planting
-or structure ids.
+The live database must be migrated to workspace schema 2 and plan schema 9
+before deploying the v2 client. Core paths are:
 
-Journal entries are stored in `gardenWorkspaces/main/journal/{entryId}`.
-Entries can target the whole garden, one structure/bed, or one planting. Issue
-entries add category, severity, status, and poster metadata. Photo attachments
-store metadata on the journal entry while the image binary is stored in Firebase
-Storage under `gardenWorkspaces/main/journal/...`.
+```text
+gardenWorkspaces/main
+gardenWorkspaces/main/plans/published
+gardenWorkspaces/main/drafts/{uid}
+gardenWorkspaces/main/revisions/{revisionId}
+gardenWorkspaces/main/{journal|harvests|tasks|waterApplications}/{id}
+gardenWorkspaces/main/{weatherSnapshots|waterBalances|wateringRecommendations|alerts}/{id}
+users/{uid}
+users/{uid}/pushTokens/{tokenId}
+users/{uid}/notificationDeliveries/{deliveryId}
+```
 
-Harvest events are stored in `gardens/{uid}/harvests/{harvestId}`. Harvests can
-attach to plantings and support count, pounds, ounces, bunches, or freeform
-amount text.
+See `docs/data-model.md` for field contracts.
 
-Notification preferences are stored on `users/{uid}`. In-app history is always
-available. The production UI exposes push delivery, alert-type toggles for
-watering, frost, heat stress, severe weather, and task due; quiet hours; daily
-check time; thresholds; timezone; push consent; and push permission metadata.
-Legacy carrier-message, email delivery, and phone fields are ignored during
-parsing and are not exposed.
+Firestore rules enforce:
 
-Push tokens are stored in `users/{uid}/pushTokens/{tokenId}`. The browser writes
-these through Firebase Messaging registration after the user grants permission.
+- both membership claims on every app path
+- private draft/profile/token/delivery ownership
+- exact key sets, versions, IDs, bounds, dates/times, enums, and operation shape
+- no direct client writes to workspace metadata, the published plan, or
+  revisions
+- no client writes to weather snapshots, balances, recommendations, alerts,
+  delivery receipts, or automation leases
 
-Notification decisions are logged in
-`gardens/{uid}/notifications/{notificationId}` with the channel, type, body,
-provider, redacted recipient, status, dry-run flag, and optional error message.
+`publishGardenDraftV2`, `revertGardenPlanV2`, and
+`publishGardenSettingsV2` are authenticated callables. Each requires both
+membership claims, validates the complete schema-9 plan at the server boundary,
+checks the expected revision, and owns the atomic metadata/published/revision
+transaction. Shared settings publication preserves current published content
+outside location/climate and rebases an existing actor draft onto the new
+revision.
 
-Plantings are stored in `gardens/{uid}/plantings/{plantingId}`. Parent planting
-positions and child plant-instance positions are always `xFt` from the left
-plot edge and `yFt` from the top plot edge. Planting modes are `single`, `row`,
-`block`, `cluster`, and `trellisLine`.
+Rules are a data-shape and authorization boundary. They do not replace the
+TypeScript validators used for safe rendering and clearer errors.
 
-Offline behavior:
+Required indexes live in `firestore.indexes.json`. Repository reads use bounded,
+ordered queries; adding an unbounded collection scan is a design regression.
 
-- `getFirestoreClient()` initializes Firestore with `persistentLocalCache()` and
-  a multi-tab manager.
-- Firestore handles cached reads and its native offline write queue when
-  available in the browser.
-- `FirebaseGardenRepository` also stores the latest pending garden aggregate
-  save in localStorage while `navigator.onLine` reports offline, then flushes it
-  on the next online event or the next online load/save.
-- Online aggregate saves replace known nested garden subcollections and delete
-  stale nested documents that are no longer present in the saved garden. This
-  keeps demo reset, delete flows, and one-garden persistence consistent.
-- The backup queue is scoped to the garden aggregate and nested garden
-  collections. Firebase Storage photo uploads still require network access.
+## Production migration
 
-Rules require the signed-in user to carry Firebase Auth custom claims
-`gardenAccess: true` and `secretFaeriesMember: true`. Members can read and write
-the shared published workspace and revision history. Users can only read and
-write their own draft document, their own `users/{uid}` profile paths, and
-legacy `gardens/{uid}` paths. Authenticated garden members can read
-`catalog/{cropId}`; client writes to the catalog are blocked.
+The migration is manual and backup-first. It must run before any v2 Hosting
+deployment that would read a legacy workspace.
+
+Authenticate the Firebase CLI locally, then dry-run:
+
+```sh
+node scripts/migrate-workspace-v2.mjs --project <project-id>
+```
+
+The command always reads the legacy roots/collections and writes a permission
+mode `0600` JSON backup beneath ignored `output/production-backups/`. Dry run is
+the default. It reports the project, backup path, revision, warnings, and exact
+write count without changing Firestore.
+
+Review the backup and every warning, especially legacy watering logs that could
+not be assigned unambiguously to one crop group. Such logs are preserved as
+field history where possible but are never credited to an arbitrary balance.
+Then apply explicitly:
+
+```sh
+node scripts/migrate-workspace-v2.mjs --project <project-id> --apply
+```
+
+The migration creates the schema-9 published plan, matching immutable revision,
+schema-2 metadata, private v2 drafts, normalized profiles, shared field records,
+and only unambiguous water applications. Migrated applications receive the
+explicit non-user actor `migration`; runtime readers use `legacy` only for
+one-way normalization. It preserves server automation metadata and is idempotent
+once metadata and published revision agree.
+
+Do not run migration automatically on every CI deploy. It is an audited release
+step because the backup/report and ambiguous historical records require human
+review. Keep the backup until production smoke checks and rollback windows end.
 
 ## Storage
 
-Journal photos use Firebase Storage path:
+Journal objects use:
 
 ```text
-gardenWorkspaces/main/journal/{entryId}/{photoId}-{fileName}
+gardenWorkspaces/main/journal/{entryId}/{uid}/{photoId}-{fileName}
 ```
 
-`storage.rules` allows any authenticated member with `gardenAccess: true` and
-`secretFaeriesMember: true` to read or write shared journal images under
-`gardenWorkspaces/main/journal/...`. Writes are limited to image content types
-under 10 MB. The legacy `users/{uid}/journal/...` prefix remains readable and
-writable only by the owning user for old attachments.
+The upload includes `entryId` and `userId` metadata. Rules require an authorized
+uploader matching the UID path, an approved image content type, non-empty object,
+and a maximum of 10 MiB. Members can read shared photos; only the uploader can
+delete their objects; updates/overwrites are denied.
 
-In mock mode, `MockMediaStorageService` stores photo attachments as data URLs in
-the saved journal entry metadata. In Firebase emulator mode, Storage connects to
-`VITE_FIREBASE_STORAGE_EMULATOR_PORT`, default `9199`.
+The Feed composer additionally validates count, type, and size before upload.
+It creates IDs before uploading so Storage and Firestore metadata share the same
+stable entry identity.
 
-## Notifications
+## Functions and weather
 
-Client web push:
+The Functions package runs on Node 22. `dailyWateringCheck` executes hourly in
+UTC, then resolves each user's garden-local check/quiet hours. Running hourly
+avoids encoding either user's timezone in the Cloud Scheduler definition.
 
-- `VITE_FIREBASE_MESSAGING_VAPID_KEY` must be set for real FCM token
-  registration; Hosting deploys can run without it when web push is not enabled.
-- The client registers `public/firebase-messaging-sw.js` and stores web tokens
-  under `users/{uid}/pushTokens/{tokenId}`.
-- Foreground messages are bridged into browser notifications when permission is
-  granted.
-- Denied or unsupported push permission is handled without blocking the app.
+`refreshGardenOperations` is an authenticated callable. It checks both custom
+claims and requires the requested user ID to equal the caller. The operation
+claim/commit protocol prevents overlapping scheduled/manual runs from
+publishing competing balances and preserves concurrent task actions.
 
-Firebase Functions:
+NWS is the default U.S. backend provider. Production requires an identifying
+`NWS_USER_AGENT`; the configured live workflow writes it to a mode-`0600`
+`functions/.env.<project-id>` immediately before Functions deployment.
+Tomorrow.io is optional server-side enhancement only when both are present:
 
-- `dailyWateringCheck` runs hourly in UTC, then checks each user's saved
-  timezone and `defaultWateringCheckTime` before generating work. The Detroit
-  demo default is 7:15 AM `America/Detroit`.
-- `onGardenWeatherSnapshotUpdated` dispatches frost, heat-stress, and
-  severe-weather alerts when a new weather snapshot changes risk state.
+```text
+ENABLE_TOMORROW_WEATHER=true
+TOMORROW_API_KEY=<secret>
+```
 
-Carrier messaging:
+`TOMORROW_WEATHER_ENABLED=true` is also accepted for compatibility. Tomorrow.io
+falls back to NWS on provider failure. Provider gaps are recorded as data quality
+and reason codes; neither adapter fabricates rain or evapotranspiration.
 
-- Removed from current product scope.
-- Do not add setup steps, demo paths, phone-number seed values, dry-run flags,
-  provider secrets, webhooks, or new tests for carrier delivery behavior.
+Weather-derived operations require saved coordinates and an IANA timezone. With
+no coordinates, Functions generates safe crop-group soil checks and other plan
+tasks, but suppresses automatic weather/watering alerts.
 
-## Dev seed
+## Push delivery
 
-`npm run auth:seed-users`
+Web push requires a Firebase Web Push certificate and the public VAPID key in
+the browser build. Native push additionally requires the platform Firebase files
+in the native build system:
 
-The auth seed script creates or updates the two intended production users from
-environment variables:
+- `android/app/google-services.json`
+- `ios/App/App/GoogleService-Info.plist`
 
-- `APP_LOGIN_PRIMARY_EMAIL`
-- `APP_LOGIN_PARTNER_EMAIL`
-- `APP_LOGIN_PRIMARY_TEMP_PASSWORD`
-- `APP_LOGIN_PARTNER_TEMP_PASSWORD`
+Current repository status is asymmetric: the iOS plist is present in its app
+target, while `android/app/google-services.json` is absent. The iOS client also
+refuses to persist a raw APNs token as FCM; it remains unavailable until the
+native shell exposes a real FCM registration token. Android remains
+unconfigured until its Firebase file, signing, and real-device registration are
+completed. Neither platform is presently release evidence for native push.
 
-It assigns display names `Primary Gardener` and `Partner Gardener`, verifies email, enables the
-accounts, and sets `gardenAccess: true` plus `secretFaeriesMember: true`. Existing
-user passwords are not overwritten unless `-- --reset-passwords` is passed. Use
-`npm run auth:seed-users -- --dry-run` before writing to a live project.
+The client registers a token only after explicit user permission/consent.
+Functions resolve current claimed members and read their schema-2 profiles.
+Disabled kinds, disabled push, below-threshold watering, and quiet hours are
+resolved per recipient. Quiet-hour deliveries are deferred rather than dropped.
+Invalid tokens are retired. Delivery records are private and expose the exact
+title/body/link and retry outcome in Settings. A `sent` push status means FCM
+accepted the message; it does not prove device display or user receipt.
 
-`npm run auth:sync-access`
+Web payloads are data-only so the service worker is the single background system
+notification owner. Native payloads contain notification plus data fields for
+the platform. Foreground events become in-app banners and do not create a second
+page-owned system notification.
 
-The auth access sync script reads `APP_LOGIN_PRIMARY_EMAIL` and
-`APP_LOGIN_PARTNER_EMAIL`, grants those two existing Firebase Auth users
-`gardenAccess: true` plus `secretFaeriesMember: true`, and removes those
-managed claims from any other Auth user. Use
-`npm run auth:sync-access -- --dry-run` before writing to a live project.
+## Emulator verification
 
-`npm run seed:dev`
+Start interactive emulators with `npm run emulators`. The automated rules gate
+uses an isolated demo project:
 
-The seed script creates a Detroit demo profile and garden for an existing
-Firebase Auth user. It does not create Auth users.
+```sh
+npm run test:rules
+```
 
-User selection:
-
-- `SEED_USER_UID` and `SEED_USER_EMAIL` use an explicit user id and email.
-- otherwise `SEED_USER_EMAIL` or the first mock/local `VITE_ALLOWED_EMAILS`
-  entry is looked up in Firebase Auth.
-
-Seeded data:
-
-- `users/{uid}` with a Detroit climate profile and notification preferences
-- `gardens/{uid}` with a Detroit plot location and orientation
-- one raised bed, one trellis, and one pathway under `structures`
-- sample tomato, radish, and pole bean plantings under `plantings`
-- sample weather, watering, tasks, journal, harvest, and notification records
-  for demo-ready Plan, Today, Feed, and Settings surfaces
-- tomato, radish, and pole bean crop catalog records under `catalog`,
-  derived from the same curated crop catalog used by the editor
-
-Use `node scripts/seed-dev.mjs --dry-run` to validate the seed payload without
-writing to Firestore. Do not seed phone-number delivery data.
-
-Weather provider notes:
-
-- National Weather Service is the default provider and does not require a key.
-- `VITE_TOMORROW_API_KEY` is a browser-exposed optional key. Use only a
-  restricted key if enabling Tomorrow.io in the client; server-side Tomorrow
-  access should use `TOMORROW_API_KEY` from Cloud Functions later.
-
-## Crop catalog ingestion
-
-`npm run catalog:ingest:trefle`
-
-Use `npm run catalog:build` to rebuild the checked-in offline library at
-`src/domain/crops/homeGardenCropCatalog.generated.json`. The Trefle ingestion
-script reads that local catalog, queries Trefle search with `TREFLE_API_TOKEN`,
-normalizes refreshed records into the app `CropProfile` shape, and can write the
-local generated JSON catalog with `--write`. The runtime editor uses checked-in
-local catalog data and does not depend on Trefle availability during normal user
-interaction.
-
-## Live setup helper
-
-`npm run setup:firebase:live`
-
-This script does one thing only:
-
-- enables Email/Password sign-in
-- patches authorized domains for the supplied `FIREBASE_PROJECT_ID`
-
-Optional:
-
-- set `FIREBASE_AUTH_DOMAINS=example.com,preview.example.com` to append additional domains
-
-## Access limitation
-
-The mock/local two-email allowlist is not a production access-control boundary.
-The app has no public sign-up UI, Firebase runtime checks membership claims in
-the ID token, and the data layer requires the same claims. Firebase
-Email/Password projects without Identity Platform still do not provide
-pre-auth app-level blocking triggers.
-
-Future hard enforcement option:
-
-- Firebase Auth blocking triggers with Identity Platform
-
-That option is intentionally not implemented in this milestone.
+It verifies member/non-member access, private documents, denial of direct
+client publication writes, profile/token shape, actor/revision-safe field
+operations, immutable server collections, automation metadata protection,
+Storage ownership/content limits, and denial of all legacy/fallback paths.

@@ -28,6 +28,20 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
+    ...tseslint.configs.disableTypeChecked,
+    files: ['src/firebase-messaging-sw.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      globals: globals.serviceworker,
+      parserOptions: {
+        program: null,
+        project: false,
+        projectService: false,
+      },
+      sourceType: 'module',
+    },
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
       ecmaVersion: 'latest',

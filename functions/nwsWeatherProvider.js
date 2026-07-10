@@ -7,10 +7,12 @@ const {
   buildForecastDays,
   cachedJson,
   celsiusToFahrenheit,
+  combineCachedJsonMetadata,
   findNextGridRainIso,
   findNextProbabilityRainIso,
   findNextRainIso,
   hours,
+  getCachedJsonMetadata,
   kilometersPerHourToMph,
   maxTemperature,
   minutes,
@@ -87,6 +89,13 @@ class NationalWeatherServiceProvider {
       'probabilityOfPrecipitation',
     );
     const now = new Date();
+    const futureQpfValues = clipGridValues(qpfValues, now, true);
+    const futureProbabilityValues = clipGridValues(
+      probabilityValues,
+      now,
+      false,
+    );
+    const source = combineCachedJsonMetadata([forecast, hourly, grid], now);
     const in24h = addHours(now, 24);
     const in48h = addHours(now, 48);
 
@@ -94,11 +103,11 @@ class NationalWeatherServiceProvider {
       dailyHighF: maxTemperature(periods, now, in24h),
       days: buildForecastDays(
         dailyPeriods.length ? dailyPeriods : periods,
-        qpfValues,
-        probabilityValues,
+        futureQpfValues,
+        futureProbabilityValues,
         location.timezone,
       ),
-      generatedAtIso: now.toISOString(),
+      generatedAtIso: source.fetchedAtIso,
       next24hPrecipIn: roundTo(sumGridPrecip(qpfValues, now, in24h), 2),
       next48hPrecipIn: roundTo(sumGridPrecip(qpfValues, now, in48h), 2),
       nextRainIso:
@@ -108,6 +117,7 @@ class NationalWeatherServiceProvider {
       overnightLowF: overnightLow(periods, now),
       periods,
       providerId: this.id,
+      qualityHint: source.cacheState,
       summary: periods[0]?.shortForecast || 'NWS hourly forecast',
     };
   }
@@ -148,12 +158,18 @@ class NationalWeatherServiceProvider {
     const stationId = await this.getPrimaryStationId(location);
     const now = new Date();
     const start = addHours(now, -Math.max(requestedHours, 1));
-    const observations = stationId
+    const precipitation = stationId
       ? await this.getStationPrecipitation(stationId, start, now)
-      : [];
+      : { observations: [], source: null };
+    const observations = precipitation.observations;
+    const source = precipitation.source ?? {
+      cacheState: 'fresh',
+      fetchedAtIso: now.toISOString(),
+    };
 
     return {
-      generatedAtIso: now.toISOString(),
+      available: Boolean(stationId),
+      generatedAtIso: source.fetchedAtIso,
       hours: requestedHours,
       last24hIn: roundTo(
         sumObservationsSince(observations, addHours(now, -24)),
@@ -165,6 +181,7 @@ class NationalWeatherServiceProvider {
       ),
       observations,
       providerId: this.id,
+      qualityHint: source.cacheState,
       totalIn: roundTo(sumObservationPrecipitation(observations), 2),
     };
   }
@@ -232,7 +249,10 @@ class NationalWeatherServiceProvider {
       },
     );
 
-    return coalesceHourlyPrecipitationObservations(observations);
+    return {
+      observations: coalesceHourlyPrecipitationObservations(observations),
+      source: getCachedJsonMetadata(payload),
+    };
   }
 
   requestJson(url, ttlMs) {
@@ -270,6 +290,27 @@ function coalesceHourlyPrecipitationObservations(observations) {
   return [...observationsByHour.values()];
 }
 
+function clipGridValues(values, now, scaleValue) {
+  return values.flatMap((entry) => {
+    if (entry.end <= now) return [];
+    if (entry.start >= now) return [entry];
+    const durationMs = entry.end.getTime() - entry.start.getTime();
+    const remainingMs = entry.end.getTime() - now.getTime();
+    return durationMs > 0
+      ? [
+          {
+            ...entry,
+            start: now,
+            value: scaleValue
+              ? entry.value * (remainingMs / durationMs)
+              : entry.value,
+          },
+        ]
+      : [];
+  });
+}
+
 module.exports = {
   NationalWeatherServiceProvider,
+  clipGridValues,
 };

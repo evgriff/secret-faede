@@ -52,8 +52,9 @@ implementation before broad animation work starts.
    is allowed for sheets/drawers because their origin is spatial.
 4. **One primary motion at a time.** If a panel slides, its contents should fade
    subtly, not also scale, bounce, and stagger.
-5. **State beats flourish.** Completion, queued, saved, rejected, and applied
-   states can use a short acknowledgement. Avoid celebratory effects.
+5. **State beats flourish.** Pending, committed, rejected, and applied states
+   can use a short acknowledgement. Do not animate a pending command as though
+   it were durably queued or synced. Avoid celebratory effects.
 6. **Outdoor readability.** Motion must not rely on subtle color shifts alone.
    Maintain clear pressed, selected, disabled, and completed states.
 7. **Interruptible by design.** Users may tap quickly while outside. Animations

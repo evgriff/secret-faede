@@ -2,47 +2,67 @@
 
 User story:
 
-As a grower standing in the garden, I need Today to show the work that matters now, explain why it is due, and let me complete or defer it quickly.
+As a grower standing in the garden, I need Today to show separate, explainable
+watering decisions and the practical work due now, then record exactly what I
+did without corrupting another crop's history.
 
-Route and workflow:
+Route and ownership:
 
-- primary route: `/app/today`
+- canonical route: `/app/today`
 - legacy redirect: `/app/tasks`
-- Today is derived from the saved garden plan, watering schedule, weather, frost dates, crop defaults, planting events, issues, and harvest context
+- exact focus links use `focus=watering` with crop-group/recommendation ID,
+  `focus=task` with task ID, or `focus=weather` with snapshot/alert ID
+- active implementation: `src/v2/routes/today` with weather/recommendation/
+  persistence composition in `src/v2/app/TodayRoute.tsx`
+- `GardenRepository` writes tasks and water applications; Functions own
+  canonical generated balances/recommendations/tasks/alerts
 
-Success criteria:
+Watering success criteria:
 
-- watering work leads with amount, target, reasoning, and direct actions
-- weather refreshes automatically on authenticated Today load; the manual refresh
-  button is a retry/repair action, not the normal path
-- every visible calendar day uses selected-date weather facts, including
-  forecast condition, rain chance/amount, and next-rain timing relative to that
-  selected day
-- the watering calendar includes a keyboard-accessible question-mark help popup
-  explaining how watering tasks are scheduled from crop need, rain, weather, and
-  logged watering
-- generated tasks cover planting, supports, thinning, pruning, fertilizing, mulching, watering, harvest windows, and succession prompts
-- field actions are fast: water done, task done, issue, note/photo, and harvest logging
-- empty or quiet days collapse secondary panels instead of becoming dashboards
-- alerts should bring the user back to Today or the relevant route, not create a separate dashboard
-- public sample task timing is anchored to the generic Detroit climate baseline, so generated sow, harden-off, plant-out, seedling, and thinning dates should be validated against the Detroit frost dates
+- one card exists for every active crop group; shared beds/zones never pool
+  recommendations
+- cards expose crop target, status/action, confidence, data quality, root-zone
+  depletion/trigger, optional depth/gallons, recheck time, reasons/source IDs,
+  and saved calculation basis including explicit stage/stage source/coefficient
+  plus profile and weather provenance
+- the client prefers fresh persisted `crop-water-balance-v2` output and uses
+  only conservative per-crop soil-check fallback when it is absent/stale
+- missing coordinates or insufficient evidence show `checkSoil` without an
+  invented city, rainfall, amount, or automatic watering push
+- applied/partial logs contain an explicit amount/unit, method, and efficiency;
+  skipped logs require a reason, contain no amount, and receive zero credit
+- every log stores the signed-in actor and revision 1; partial credits only its
+  explicit amount
+- a saved Firebase application requests canonical refresh; the field update
+  reports committed only after the active repository succeeds, or surfaces an
+  error without promising offline sync
 
-Implementation ownership:
+Task/weather success criteria:
 
-- `src/features/today`: route, day overview, task grouping, field actions, local alert helpers
-- `src/features/tasks`: generated task engine
-- `src/features/garden`: watering and garden planning inputs
-- `GardenRepository`: persists user actions and generated state updates
+- generated work covers crop lifecycle/timeline, support, thinning, feeding,
+  pruning, mulch, inspection/weeding, watering, harvest, succession review, and
+  evidence-backed frost/heat preparation
+- task cards show passive target/reason/priority/date and support complete,
+  reopen, snooze, and defer without duplicate generated records
+- regenerated tasks preserve concurrent user actions
+- exact alert/task/watering deep links focus the intended card and degrade
+  safely when its ID is gone
+- weather refresh uses the saved coordinate pair/timezone, labels provider/
+  freshness/failure, and never treats qualitative rain as observed water
+- quiet/empty states remain compact rather than becoming a dashboard
 
-Off-scope traps:
+Interaction rules:
 
-- do not add analytics panels or dashboard-first summaries
-- do not make photo prompts mandatory for water/task completion
-- do not add carrier messaging
+- watering/task completion never requires a photo
+- Today is the alert landing surface, not a second planner or notification
+  command center
+- all garden dates and snooze/defer calculations use the saved IANA timezone
+  and explicit DST policy
 
 Primary local sources:
 
 - `docs/architecture.md`
-- `docs/demo-script.md`
-- `docs/manual-qa-checklist.md`
+- `docs/api-integrations.md`
+- `docs/ux-architecture.md`
+- `docs/testing-plan.md`
 - `README.md`

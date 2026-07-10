@@ -12,6 +12,9 @@ export default defineConfig(({ mode }) => {
       ...(pwaEnabled
         ? [
             VitePWA({
+              strategies: 'injectManifest',
+              srcDir: 'src',
+              filename: 'firebase-messaging-sw.js',
               registerType: 'autoUpdate',
               injectRegister: 'auto',
               includeAssets: [
@@ -88,23 +91,8 @@ export default defineConfig(({ mode }) => {
                   },
                 ],
               },
-              workbox: {
+              injectManifest: {
                 globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
-                cleanupOutdatedCaches: true,
-                navigateFallback: '/index.html',
-                runtimeCaching: [
-                  {
-                    urlPattern: /\.(?:ico|png|svg)$/,
-                    handler: 'CacheFirst',
-                    options: {
-                      cacheName: 'secret-faeries-app-assets',
-                      expiration: {
-                        maxAgeSeconds: 60 * 60 * 24 * 30,
-                        maxEntries: 48,
-                      },
-                    },
-                  },
-                ],
               },
               devOptions: {
                 enabled: false,

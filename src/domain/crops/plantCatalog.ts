@@ -2,11 +2,8 @@ import type {
   CropProfile,
   PlantDifficulty,
   PlantPlacementMode,
-} from '../gardens/GardenRepository';
-import {
-  getCropSupportNeed,
-  getCropSupportProfile,
-} from '../gardens/GardenRepository';
+} from './cropCatalogTypes';
+import { getCropSupportNeed, getCropSupportProfile } from './cropSupport';
 import {
   cropCatalog,
   filterCropCatalog,
@@ -27,11 +24,6 @@ export type {
   PlantClimateInputs,
   PlantHarvestCycle,
   PlantHarvestCycleInfo,
-  PlantLocationContext,
-  PlantLocationMatch,
-  PlantLocationMatchBand,
-  PlantLocationMatchConfidence,
-  PlantLocationMatchRationale,
   PlantLifecycleTiming,
   PlantPreferredSeason,
   PlantSeasonWindow,

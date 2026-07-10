@@ -1,0 +1,127 @@
+.page {
+  display: grid;
+  gap: var(--sf2-space-5);
+  inline-size: min(100%, var(--sf2-wide));
+  margin-inline: auto;
+}
+
+.page :where(h1, h2, h3, h4, p, dl) {
+  margin-block: 0;
+}
+
+.pageHeader,
+.sectionHeading {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--sf2-space-4);
+  justify-content: space-between;
+}
+
+.pageHeader {
+  align-items: flex-end;
+  padding-block: var(--sf2-space-2);
+}
+
+.pageHeader > div:first-child {
+  max-inline-size: 48rem;
+}
+
+.pageHeader h1 {
+  font-family: var(--sf2-font-note);
+  font-size: clamp(2.25rem, 7vw, 4rem);
+  letter-spacing: -0.035em;
+  line-height: 0.98;
+}
+
+.pageHeader p:last-child,
+.sectionHeading p:last-child {
+  color: var(--sf2-ink-soft);
+  margin-block-start: var(--sf2-space-2);
+}
+
+.eyebrow {
+  color: var(--sf2-ink-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.headerFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sf2-space-2);
+  justify-content: flex-end;
+}
+
+.headerFacts span {
+  background: var(--sf2-surface);
+  border: 1px solid var(--sf2-border);
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+}
+
+.section,
+.weatherPanel {
+  background: color-mix(in srgb, var(--sf2-surface) 88%, transparent);
+  border: 1px solid var(--sf2-border);
+  border-radius: var(--sf2-radius-large);
+  display: grid;
+  gap: var(--sf2-space-4);
+  padding: clamp(1rem, 3vw, 1.5rem);
+}
+
+[data-focused='true'] > .section,
+[data-focused='true'] > .weatherPanel,
+.section[data-focused='true'] {
+  box-shadow: 0 0 0 4px var(--sf2-info-soft);
+}
+
+.page [data-today-focus='true'] {
+  box-shadow: 0 0 0 4px var(--sf2-info-soft);
+}
+
+.sectionHeading h2 {
+  font-family: var(--sf2-font-note);
+  font-size: clamp(1.55rem, 4vw, 2rem);
+  line-height: 1.15;
+}
+
+.resultCount {
+  color: var(--sf2-ink-soft);
+  flex: 0 0 auto;
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
+.wateringGrid {
+  display: grid;
+  gap: var(--sf2-space-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr));
+}
+
+.inlineEmpty {
+  background: var(--sf2-surface-raised);
+  border: 1px solid var(--sf2-border);
+  border-radius: var(--sf2-radius);
+  display: grid;
+  gap: var(--sf2-space-2);
+  min-inline-size: 0;
+  padding: var(--sf2-space-4);
+}
+
+.inlineEmpty p {
+  color: var(--sf2-ink-soft);
+}
+
+@media (max-width: 48rem) {
+  .pageHeader,
+  .sectionHeading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .headerFacts {
+    justify-content: flex-start;
+  }
+}

@@ -2,7 +2,7 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   getIdTokenResult,
-  onAuthStateChanged,
+  onIdTokenChanged,
   sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
@@ -120,7 +120,7 @@ export class FirebaseAuthService implements AuthService {
   subscribe(listener: AuthStateListener): () => void {
     let sequence = 0;
 
-    return onAuthStateChanged(this.authClient, (user) => {
+    return onIdTokenChanged(this.authClient, (user) => {
       const currentSequence = (sequence += 1);
 
       void mapFirebaseUser(user)

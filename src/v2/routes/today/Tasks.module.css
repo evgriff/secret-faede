@@ -1,0 +1,132 @@
+.compactField {
+  display: grid;
+  gap: var(--sf2-space-1);
+  min-inline-size: 0;
+}
+
+.compactField span {
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.compactField select {
+  background: var(--sf2-surface-raised);
+  border: 1px solid var(--sf2-border-strong);
+  border-radius: var(--sf2-radius-small);
+  min-block-size: var(--sf2-control-min);
+  padding: 0.55rem 2rem 0.55rem 0.7rem;
+}
+
+.taskGroups,
+.taskList {
+  display: grid;
+  gap: var(--sf2-space-3);
+}
+
+.taskGroups > section {
+  display: grid;
+  gap: var(--sf2-space-2);
+}
+
+.taskGroups > section > h3 {
+  font-family: var(--sf2-font-note);
+  font-size: 1.25rem;
+}
+
+.taskCard {
+  background: var(--sf2-surface-raised);
+  border: 1px solid var(--sf2-border);
+  border-radius: var(--sf2-radius);
+  display: grid;
+  gap: var(--sf2-space-3);
+  min-inline-size: 0;
+  padding: var(--sf2-space-4);
+}
+
+.taskCard header,
+.taskFoot {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--sf2-space-4);
+  justify-content: space-between;
+}
+
+.taskMeta {
+  color: var(--sf2-ink-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.taskCard h4 {
+  font-size: 1.05rem;
+}
+
+.taskStatus {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.25rem 0.55rem;
+}
+
+.taskStatus[data-status='done'] {
+  background: var(--sf2-success-soft);
+  color: var(--sf2-success);
+}
+
+.taskStatus[data-status='deferred'],
+.taskStatus[data-status='snoozed'] {
+  background: var(--sf2-info-soft);
+  color: var(--sf2-info);
+}
+
+.taskStatus[data-status='open'] {
+  background: var(--sf2-warning-soft);
+  color: var(--sf2-warning);
+}
+
+.taskNotes {
+  background: var(--sf2-paper);
+  border-radius: var(--sf2-radius-small);
+  color: var(--sf2-ink-soft);
+  padding: var(--sf2-space-2) var(--sf2-space-3);
+}
+
+.taskFoot {
+  align-items: center;
+  border-block-start: 1px solid var(--sf2-rule);
+  color: var(--sf2-ink-soft);
+  font-size: 0.9rem;
+  padding-block-start: var(--sf2-space-2);
+}
+
+.inlineLink {
+  align-items: center;
+  display: inline-flex;
+  font-weight: 750;
+  min-block-size: var(--sf2-control-min);
+  padding: 0.55rem 0.2rem;
+}
+
+.taskActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sf2-space-2);
+}
+
+@media (max-width: 30rem) {
+  .taskCard header,
+  .taskFoot {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .taskActions > * {
+    flex: 1 1 100%;
+  }
+}

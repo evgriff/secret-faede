@@ -1,122 +1,96 @@
-# Release Candidate Checklist
+# Release candidate checklist
 
-Date: 2026-04-22
+## Scope
 
-## Scope Contract
+- [ ] One shared garden; exactly two provisioned password accounts
+- [ ] Plan, Today, Feed, and Settings remain the only product workspaces
+- [ ] No multiple gardens, public registration/onboarding, dashboards, charts,
+      maps, collaboration, lore, AI, carrier messaging, or email delivery
+- [ ] Weather/tasks/journal/notifications directly support the real plot
 
-Secret Faeries is release-candidate only if it still reads as a private Secret Faeries
-for one real home food garden:
+## Data and persistence
 
-- exactly two provisioned users behind Firebase Email/Password auth
-- one shared published garden with private per-user drafts
-- Plan, Today, Feed, and Settings as the working surfaces
-- mock-first local and CI behavior, with Firebase and native shells additive
-- geometry stored in feet with canonical `xFt` and `yFt`
-- `AuthService`, `GardenRepository`, and `UserProfileRepository` as explicit
-  architecture seams
-- no public sign-up, multi-garden routing, social growth loops, marketplace
-  behavior, maps, generic AI, dashboard-first surfaces, or carrier messaging
+- [ ] Active client is only `src/v2`; the removed client is not present or
+      mounted, and legacy data is read only by explicit migration readers
+- [ ] Workspace/profile/plan versions are 2/2/9
+- [ ] Plot, structures, crop groups, and instances persist feet, never pixels
+- [ ] One private draft per user; published plan/operations shared
+- [ ] Expected-revision conflicts never overwrite another publish
+- [ ] Firestore denies direct metadata/published/revision writes; authenticated
+      callables own publish, revert, and shared climate publication
+- [ ] Production migration dry run, 0600 backup, warnings, apply, and idempotent
+      rerun are complete
+- [ ] Rules deny all legacy/fallback paths and server-owned output writes
 
-## Acceptance Snapshot
+## Watering accuracy
 
-| Area                 | Candidate Status         | Evidence                                                                                                                                                           | Remaining Limit                                                                                     |
-| -------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| Plan                 | Ready for mock-mode demo | Canvas-first shell, individual plant nodes, crop focus, contextual influence, guided optimizer, Review diff, publish/revert, and visual baselines are implemented. | Real-device touch pass is still required for drag thresholds, handle size, and outdoor readability. |
-| Today                | Ready for mock-mode demo | One-tap watering/task/stage actions, contextual harvest photo follow-up, compact field cards, and task cross-links are covered by unit and browser smoke.          | Water skip/dismiss/custom amount controls are not implemented.                                      |
-| Feed                 | Ready for mock-mode demo | One **New entry** launcher, explicit composer modes, image-led private memory cards, offline text save copy, and photo caveats are covered by browser smoke.       | Offline photo binaries are not durably queued.                                                      |
-| Review and optimizer | Ready for mock-mode demo | Generated layouts open a visual walkthrough, proposal diffs show material changes, physical moves require preview, and publish summarizes accepted decisions.      | Optimizer remains conservative and source-bound; it is not agronomic advice.                        |
-| Demo controls        | Ready for mock-mode demo | Shell and Settings expose enter, reset, and exit controls; reset restores the Detroit baseline and exit restores the saved real draft.                             | Firebase-emulator stale nested document cleanup still needs broader coverage.                       |
-| Notifications        | Ready for mock-mode demo | Settings and shell describe in-app history, push, local/native reminders, quiet hours, and delivery reasons only.                                                  | Live FCM delivery still needs production smoke.                                                     |
-| PWA/native media     | Ready with caveats       | Browser picker/native-camera copy, previews, and offline media limitations are explicit.                                                                           | Native camera and local notification behavior still need device smoke after platform config.        |
+- [ ] One independent balance/recommendation per active crop-group ID
+- [ ] Saved crop water profile/version used; no mutable runtime catalog lookup
+- [ ] Root depth, soil/depth/drainage, container, mulch, stage, area, weather,
+      prior balance, applications, and efficiency are represented
+- [ ] Stage/stage-source/coefficient and profile/weather provenance are explicit
+- [ ] Applied/partial/skipped records are actor-attributed and revisioned;
+      correction replaces prior credit without changing crop or recorder
+- [ ] Skipped and unknown-amount applications receive zero invented credit
+- [ ] Gallons appear only with reliable saved area
+- [ ] Missing/stale evidence downgrades confidence or requests a soil check
+- [ ] Null coordinates never become Detroit, `0,0`, or another fallback
+- [ ] Safe mode still generates crop soil checks and non-weather tasks, without
+      automatic weather/watering push
+- [ ] Same inputs produce byte-stable semantic output/reason order
+- [ ] Separate crop alerts cannot overwrite one another; retries do coalesce
 
-## Automated Gate
+## Complete user flows
 
-Run and keep passing before tagging or demo handoff:
+- [ ] Sign-in, restore, sign-out, denied access, and recovery states
+- [ ] Setup, plot settings, structures, crop groups/instances, drag and keyboard
+      movement, inspectors, review decisions, layout preview/apply
+- [ ] Save/discard/publish/history/revert/conflict states
+- [ ] Today watering cards, applied/partial/skipped logs, exact task actions
+- [ ] Feed note, issue, photo, harvest, and water activity
+- [ ] Settings validation, thresholds, consent, quiet hours, device/delivery state
+- [ ] Offline/runtime banners make no unsupported durable-queue promise; pending,
+      committed, conflict, and failed outcomes are distinct
+- [ ] Exact deep links and focus restoration
 
-- `npm run lint`
-- `npm run typecheck`
-- `npm run test:unit`
-- `npm run test:e2e`
-- `npm run test:visual`
-- `npm run build`
-- `npm run ci`
+## Notifications
 
-The full `npm run ci` gate includes format check, dependency ADR guard,
-documented large-file guard, lint, typecheck, unit tests, Firebase adapter
-integration tests, emulator-backed rules tests, Functions build/tests,
-production build, bundle analysis, bundle budget, Playwright E2E, and visual
-regression.
+- [ ] Per-user kind, threshold, consent, timezone, and quiet hours enforced
+- [ ] Quiet-hour alerts defer and retry idempotently
+- [ ] Web data-only and native notification-plus-data payloads verified
+- [ ] Foreground receipt creates one in-app alert without duplicate system UI
+- [ ] Invalid tokens retire; private receipt records include title/body/link
+- [ ] Sent push is labeled provider-accepted, not device-delivered
+- [ ] Real background receipt/tap tested on each advertised platform
 
-## Manual Demo Rehearsal
+## Quality gate
 
-1. Start `npm run dev` in mock mode and sign in with an allowlisted email.
-2. Click **Enter demo** from the shell and confirm **Demo mode**, **Reset
-   seeded demo**, and **Exit demo** are visible.
-3. Open Plan. Confirm the 20 ft by 16 ft plot dominates, plant nodes are
-   legible, structures are subordinate, and selecting a plant opens a calm crop
-   focus card.
-4. Add a three-plant crop, confirm quantity-first placement, adjust the
-   arrangement, and verify each child node remains feet-based.
-5. Open Optimize, generate layouts, inspect before/after diff, apply one safe
-   candidate, and publish only after reading the summary.
-6. Open Review, preview a proposal diff, accept one low-risk decision, and
-   leave physical moves for deliberate one-at-a-time review unless the demo
-   story needs them.
-7. Open Today. Complete **Water done** or **Task done** in one tap, then log a
-   harvest and confirm the optional photo follow-up is contextual.
-8. Open Feed. Confirm image-led photo cards, the **New entry** launcher,
-   explicit composer modes, target links back to Plan, and short empty states.
-9. Toggle offline in the browser, save a text-only Feed entry, and confirm the
-   app says photos need connection without claiming binary upload.
-10. Open Settings, reset the seeded demo, then exit demo and confirm the saved
-    real draft returns.
+- [ ] `npm run lint`
+- [ ] `npm run typecheck`
+- [ ] `npm run quality:serena`
+- [ ] `npm run test:unit`
+- [ ] `npm run test:e2e`
+- [ ] `npm run build`
+- [ ] `npm run ci`
+- [ ] Browser console/network clean on desktop and 320-pixel viewport
+- [ ] Visual changes reviewed rather than blindly rebaselined
 
-## Real-Device QA
+## Production
 
-Required before live tester release:
+- [ ] Exact project ID and browser config verified
+- [ ] Protected `FIREBASE_PROJECT_ID` equals public
+      `VITE_FIREBASE_PROJECT_ID`
+- [ ] Auth domains and Email/Password provider configured
+- [ ] Exactly two intended users carry both access claims
+- [ ] NWS identity and optional Tomorrow.io server configuration verified
+- [ ] Live workflow creates the mode-0600 Functions environment file with the
+      configured NWS identity before deployment
+- [ ] Production VAPID key is present and web push is device-tested
+- [ ] Android is not advertised while `google-services.json` is absent
+- [ ] iOS is not advertised until a real FCM token path is device-tested
+- [ ] Last known-good release and migration backup retained
+- [ ] Quality and Hosting Live workflows both pass (not skip)
+- [ ] Two-account production smoke completes
 
-- iPhone Safari and Android Chrome PWA smoke for Plan drag, crop focus,
-  bottom sheets, Today one-tap actions, Feed composer, offline text save, and
-  photo picker.
-- Native iOS and Android shell smoke after platform config for camera capture,
-  push token registration, local reminders, notification permission states, and
-  app icon/splash behavior.
-- Outdoor readability pass for Plan nodes, Today actions, Feed photo cards,
-  shell status copy, and touch target comfort.
-
-## Production Setup Still Manual
-
-- Configure Firebase project, web app, authorized domains, Firestore indexes,
-  Firestore rules, Storage rules, Functions, and Hosting.
-- Provision only Primary Gardener and Partner Gardener, then run
-  `npm run auth:sync-access` so only those users have `gardenAccess: true` and
-  `secretFaeriesMember: true` custom claims.
-- Set required Firebase `VITE_*` repository variables, plus the FCM web push
-  VAPID key when web push is enabled.
-- Smoke live Auth, Firestore, Storage photo upload, FCM foreground/background
-  delivery when web push is enabled, and weather refresh.
-- Add native Firebase config files outside the repository before native push or
-  camera demos.
-- Do not configure carrier-delivery providers or phone-number seed data.
-
-## Known Limits
-
-- `Pasted text.txt` was not present in the checkout during the final sweep, so
-  local acceptance relied on the prompt-chain requirements and repo docs.
-- Offline photo upload is intentionally honest rather than queued.
-- Live Firebase, FCM, Storage, and weather-provider behavior are not proven by
-  mock-mode Playwright alone.
-- Real-device touch QA remains the biggest browser-demo risk because the Plan
-  redesign is interaction-heavy.
-- The offline crop catalog remains a large intentional route chunk protected by
-  the bundle budget.
-- Paid tiers, exports, inventory planning, public sharing, and additional user
-  management are outside this release candidate.
-
-## Go / No-Go
-
-Go for a mock-mode browser demo after the automated gate passes and the manual
-rehearsal completes once on desktop and mobile browser sizes.
-
-No-go for production tester launch until live Firebase setup, FCM delivery,
-Storage upload, weather refresh, and real-device touch QA are complete.
+Release is no-go if any safety, migration, authorization, push, or complete-CI
+item is unknown.

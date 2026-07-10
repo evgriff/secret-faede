@@ -1,4 +1,4 @@
-import type { PhotoAttachment } from '../gardens/GardenRepository';
+import type { PhotoAttachment } from '../../v2/domain/operations';
 
 export interface JournalPhotoUploadRequest {
   entryId: string;
@@ -7,8 +7,12 @@ export interface JournalPhotoUploadRequest {
   userId: string;
 }
 
+export interface UploadedPhotoAttachment extends PhotoAttachment {
+  downloadUrl: string;
+}
+
 export interface MediaStorageService {
   uploadJournalPhoto(
     request: JournalPhotoUploadRequest,
-  ): Promise<PhotoAttachment>;
+  ): Promise<UploadedPhotoAttachment>;
 }

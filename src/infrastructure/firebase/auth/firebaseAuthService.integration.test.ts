@@ -67,7 +67,6 @@ const environment: AppEnvironment = {
   },
   firestoreEmulatorPort: 8080,
   functionsEmulatorPort: 5001,
-  geocodingApiKey: null,
   messagingVapidKey: null,
   pwaEnabled: false,
   requestedMode: 'firebase',

@@ -1,251 +1,140 @@
-# Deploy Runbook
+# Deploy runbook
 
-Date: 2026-04-21
+Use this runbook for a v2 production release. `docs/deployment.md` explains the
+policy and rollback model; this file is the operator sequence.
 
-This runbook describes the production path the repo can actually run today:
-Firebase Hosting, Firebase Auth Email/Password, Firestore, Storage, Cloud
-Functions, FCM web/native push, and optional Capacitor shells.
+## 1. Freeze and identify the release
 
-## Preflight
+- Confirm `git status --short --branch` is on `main` and every release change is
+  understood.
+- Record the current production commit and Firebase project ID.
+- Use Node 22, npm 11, Java 21, and a current authenticated Firebase CLI.
+- Confirm the two account emails and project/service credentials are available
+  through secret environment values; do not print them.
 
-- Use Node 22 for local parity.
-- Run `npm ci` and `npm --prefix functions ci` after dependency changes.
-- Keep all private values out of browser env and source files.
-- Confirm live build repository variables:
-  - `VITE_APP_RUNTIME=firebase`
-  - `VITE_ENABLE_PWA=true`
-  - `VITE_FIREBASE_API_KEY`
-  - `VITE_FIREBASE_APP_ID`
-  - `VITE_FIREBASE_AUTH_DOMAIN`
-  - `VITE_FIREBASE_MESSAGING_SENDER_ID`
-  - `VITE_FIREBASE_PROJECT_ID`
-  - `VITE_FIREBASE_STORAGE_BUCKET`
-- Confirm optional live build repository variables for web push registration:
-  - `VITE_FIREBASE_MESSAGING_VAPID_KEY`
-- Confirm live production secrets:
-  - `APP_LOGIN_PRIMARY_EMAIL`
-  - `APP_LOGIN_PARTNER_EMAIL`
-- Run `npm run ci`. This now includes format, dependency ADR guard,
-  oversized-file guard, lint, typecheck, unit, Firebase adapter integration,
-  emulator-backed Firestore/Storage rules, Functions build/tests, build, bundle
-  analysis and budget, Playwright E2E, and visual regression.
+## 2. Verify project configuration
 
-## Firebase Auth Setup
+- Run `FIREBASE_PROJECT_ID=<id> npm run setup:firebase:live` when project Auth or
+  authorized-domain setup has changed.
+- Confirm Email/Password Auth is enabled.
+- Confirm Hosting/custom domains appear in authorized domains.
+- Confirm the Web app values match the same project and storage bucket.
+- Confirm protected `FIREBASE_PROJECT_ID` exactly matches public
+  `VITE_FIREBASE_PROJECT_ID`.
+- Confirm a Web Push certificate and production VAPID public key exist; the live
+  workflow requires the build variable.
+- Confirm Android is not advertised while `google-services.json` is absent and
+  iOS is not advertised until its shell supplies a real FCM token.
+- Confirm the configured production `NWS_USER_AGENT`; the live workflow writes
+  it to a mode-`0600` `functions/.env.<project-id>` immediately before deploy.
+  Confirm Tomorrow.io server key/enable flag only if that optional provider is
+  intentionally active.
+- Confirm the deploy service account can deploy Auth claims, Firestore rules and
+  indexes, Storage rules, Functions, and Hosting.
 
-1. Create or choose the Firebase project.
-2. Enable Firebase Authentication.
-3. Enable Email/Password.
-4. Add authorized domains:
-   - `localhost`
-   - `127.0.0.1`
-   - `<project>.firebaseapp.com`
-   - `<project>.web.app`
-   - the final custom domain
-   - any preview domain intentionally used with live Firebase
-5. Do not enable or link a public sign-up surface in Secret Faeries.
+## 3. Provision and synchronize access
 
-Mock/local builds use the client allowlist as a UX gate only. Firebase
-production access is controlled by Auth custom claims, and Firestore, Storage,
-and callable Functions require the same claims:
+For first setup, provide both account emails/temp passwords and run:
 
-```json
-{
-  "gardenAccess": true,
-  "secretFaeriesMember": true
-}
+```sh
+FIREBASE_PROJECT_ID=<id> npm run auth:seed-users
 ```
 
-## Account Seeding
+For every release, provide both account emails and run:
 
-Only Primary Gardener and Partner Gardener should be provisioned for production.
+```sh
+FIREBASE_PROJECT_ID=<id> npm run auth:sync-access
+```
 
-```bash
-export FIREBASE_PROJECT_ID=your-project-id
-export APP_LOGIN_PRIMARY_EMAIL=primary.gardener@example.com
-export APP_LOGIN_PARTNER_EMAIL=partner.gardener@example.com
-export APP_LOGIN_PRIMARY_TEMP_PASSWORD='replace-with-long-temp-password'
-export APP_LOGIN_PARTNER_TEMP_PASSWORD='replace-with-long-temp-password'
+Verify exactly the intended two enabled Auth users carry both
+`gardenAccess: true` and `secretFaeriesMember: true`.
 
+## 4. Back up and migrate the workspace
+
+Dry-run first:
+
+```sh
+node scripts/migrate-workspace-v2.mjs --project <id>
+```
+
+- Verify the 0600 backup under ignored `output/production-backups/`.
+- Review proposed writes and all warnings.
+- Inspect the migrated plan's dimensions, timezone, coordinates, structures,
+  crop groups, instances, water profiles, drafts, profiles, and field history.
+- Confirm ambiguous legacy water is not credited.
+
+If the workspace is already current, continue. Otherwise apply explicitly:
+
+```sh
+node scripts/migrate-workspace-v2.mjs --project <id> --apply
+node scripts/migrate-workspace-v2.mjs --project <id>
+```
+
+The second command must report current/idempotent state and no pending writes.
+
+## 5. Run the full release gate
+
+```sh
+npm ci
 npm --prefix functions ci
-npm run auth:seed-users -- --dry-run
-npm run auth:seed-users
-```
-
-The seed creates missing Auth users, sets display names, verifies email, enables
-the accounts, and grants the required claims. Existing passwords are unchanged
-unless `-- --reset-passwords` is passed. After claims change, users must sign out
-and sign back in.
-
-Use the access sync whenever the allowed production account emails change, and
-as part of the live deploy workflow:
-
-```bash
-export FIREBASE_PROJECT_ID=your-project-id
-export APP_LOGIN_PRIMARY_EMAIL=primary.gardener@example.com
-export APP_LOGIN_PARTNER_EMAIL=partner.gardener@example.com
-
-npm run auth:sync-access -- --dry-run
-npm run auth:sync-access
-```
-
-The sync grants the required claims to only those two Auth users and removes the
-managed access claims from any stale Auth users.
-
-## Demo Seed
-
-For local demos, mock mode is still the fastest path:
-
-```bash
-npm run dev
-```
-
-Sign in with an allowlisted email and click **Enter demo** from the shell, or
-use the matching demo card in Settings. **Reset seeded demo** restores the
-canonical Detroit baseline and returns to the active workspace; **Exit demo**
-restores the garden draft saved before demo mode. The demo includes beds, paths,
-crop supports, quiet planting-context objects, optimizer-ready wanted crops,
-Review proposals, Today tasks/alerts, Feed memories, a local SVG photo,
-harvests, and notification history.
-
-For a live Firebase demo account, use the script after the production user
-exists:
-
-```bash
-export FIREBASE_PROJECT_ID=your-project-id
-export SEED_USER_EMAIL=primary.gardener@example.com
-npm run seed:dev -- --dry-run
-npm run seed:dev
-```
-
-Do not seed phone-number delivery data. The live seed writes the legacy
-`gardens/{uid}` aggregate and nested collections used by Functions; the app
-will migrate that garden into the shared published workspace on first load.
-
-## Domain Setup
-
-1. In Firebase Hosting, add the custom domain.
-2. Add the DNS TXT verification record.
-3. Add Firebase-provided A/AAAA or CNAME records.
-4. Wait for certificate provisioning.
-5. Add the custom domain to Firebase Auth authorized domains.
-6. Load `/`, `/app/plan`, `/app/today`, `/app/feed`, and `/app/settings` on the
-   custom domain after deploy.
-
-## FCM Setup
-
-1. In Firebase Console, generate a Web Push certificate.
-2. Store the public VAPID key as `VITE_FIREBASE_MESSAGING_VAPID_KEY`.
-3. Confirm `public/firebase-messaging-sw.js` is deployed at the origin root.
-4. Sign in as Primary Gardener and Partner Gardener on the production domain.
-5. Enable push in Settings.
-6. Confirm token docs are written under
-   `users/{uid}/pushTokens/{tokenId}` with `platform: "web"`.
-7. Send one controlled foreground/background push before a real demo.
-
-## Carrier Messaging Setup
-
-None. Carrier messaging is outside product scope. Do not configure carrier
-delivery for demos or production deploys. There are no carrier-message
-Functions exports, webhook routes, provider secrets, or phone seed values to
-configure.
-
-## Native Mobile Setup
-
-The web/PWA release does not require native stores. If using the Capacitor shell:
-
-1. Run `npm run mobile:sync` after the final web build.
-2. iOS:
-   - Register bundle id `com.secretfaeries.app` or the final replacement.
-   - Enable Push Notifications.
-   - Upload an APNs auth key to Firebase Cloud Messaging.
-   - Add `GoogleService-Info.plist` to `ios/App/App/` and the Xcode target.
-   - Confirm `ios/App/PrivacyInfo.xcprivacy` is in the target before App Store
-     submission.
-3. Android:
-   - Create the Google Play app/package `com.secretfaeries.app` or final
-     replacement.
-   - Configure Play App Signing or a release keystore outside the repo.
-   - Add `android/app/google-services.json`.
-   - Add a final white transparent notification icon before public push tests.
-4. Smoke native push, local notifications, camera capture, and network status on
-   a real device or simulator/emulator.
-5. PIN/biometric quick unlock is not implemented; do not store secrets in
-   Capacitor Preferences.
-
-## Deploy
-
-Manual deploy commands:
-
-```bash
-export FIREBASE_PROJECT_ID=your-project-id
 npm run ci
-npm run deploy:rules
-npm run deploy:functions
-npm run deploy:hosting
 ```
 
-One-shot deploy:
+Do not skip a suite. Resolve formatting, Serena memory, rules, Functions,
+browser, visual, and bundle failures before proceeding.
 
-```bash
-export FIREBASE_PROJECT_ID=your-project-id
-npm run deploy:all
+Build once with the exact production `VITE_*` configuration. Open the build and
+verify Firebase mode is active with no fallback/migration banner and no console
+errors. Check desktop and 320-pixel viewport behavior.
+
+## 6. Publish
+
+Commit only the reviewed release files, push `main`, and monitor both Actions:
+
+- Quality
+- Hosting Live
+
+Hosting Live must run (not skip), pass its full CI gate, sync claims, deploy
+rules/indexes/Storage/Functions, and finish the live Hosting deployment.
+
+If an explicitly authorized local deploy is required instead:
+
+```sh
+FIREBASE_PROJECT_ID=<id> npm run deploy:all
 ```
 
-The `Hosting Live` GitHub workflow also runs the full release gate, syncs
-production Auth access claims from secure `APP_LOGIN_*` secrets, deploys
-Firestore rules/indexes, Storage rules, Functions, then deploys Hosting live
-when `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT`, all required `VITE_*`
-variables, and the production access secrets are configured.
+Local deployment does not replace the earlier migration or access-claim steps.
 
-## Production Checklist
+## 7. Smoke the live app
 
-- Firebase Auth: Email/Password enabled, no public sign-up surface, Primary Gardener and
-  Partner Gardener provisioned, required custom claims set, and both users have refreshed
-  tokens after claims assignment.
-- FCM web push, if enabled: VAPID key configured, service worker deployed at
-  the origin root, token docs written for each production user, and one
-  foreground plus one background notification smoke tested.
-- Capacitor native push/local notifications, if shipping native shells:
-  platform Firebase config files installed locally, APNs/Play signing handled
-  outside the repo, release keystore or App Store signing ready, and local
-  notification smoke completed on the target device class.
-- Live smoke: Plan, Today, Feed, Settings, demo enter/reset/exit,
-  optimize/apply, Review decision summary, publish/revert, push registration,
-  and offline text queue verified on the production domain.
+In a clean browser session:
 
-## Post-Deploy Smoke
+- verify the live URL, Firebase runtime, service worker, and console/network
+- sign in/out with both accounts; verify denied users cannot enter
+- compare shared published Plan/Today/Feed state in both accounts
+- verify a private draft and private delivery history remain account-scoped
+- verify every active crop group has its own correctly named watering card
+- inspect confidence, data quality, reasons, amount/null amount, and deep link
+- log applied, partial, and skipped water to separate crop groups; confirm
+  partial credits only its explicit amount and skipped gives zero credit after
+  operations refresh
+- correct a water record and verify the same ID/crop/original recorder,
+  revision +1, and replacement rather than duplicated credit
+- exercise task completion/defer/snooze, note/issue/harvest/photo, and settings
+- verify an alert tap focuses the exact task/crop group
+- verify background push on every advertised web/native platform; a provider-
+  accepted `sent` receipt alone is not a device-display result
+- verify keyboard focus, modals, and 320-pixel navigation
 
-- Desktop web:
-  - Primary Gardener signs in.
-  - Enter demo from the shell, reset the seeded demo, then exit back to the
-    saved real garden draft.
-  - Open Plan, Today, Feed, Settings.
-  - Generate optimizer proposals and open Review.
-- Mobile web:
-  - Partner Gardener signs in on the production domain.
-  - Confirm remembered session, bottom navigation, Today quick actions, Feed
-    composer, and Plan mode actions.
-- Shared garden:
-  - Publish a low-risk draft from one account.
-  - Reload from the other account and confirm the published state is visible.
-  - Use Review revert from History and accept the confirmation prompt only in a
-    controlled demo account.
-- Notifications:
-  - Register web push for one account.
-  - Confirm in-app alerts and notification center history.
-- Offline:
-  - Queue a text-only Feed entry offline.
-  - Reconnect and confirm queued state clears.
-  - Do not claim offline photo upload.
-- Native shell, if included:
-  - Run `npm run mobile:sync` and `npx cap doctor`.
-  - Smoke camera/network/local notification hooks after native Firebase config
-    files are installed locally.
+Record the released commit, workflow URLs, Hosting URL, Functions revision,
+migration backup path, and smoke result.
 
-## Rollback
+## 8. Rollback trigger
 
-- Hosting: redeploy the previous known-good build or Hosting release.
-- Functions: redeploy the previous known-good Functions source.
-- Rules: keep the previous deployed rules files available. If a tester is
-  unexpectedly blocked, verify custom claims and token refresh before rolling
-  back rules.
+Rollback immediately for authorization leakage, corrupt/overwritten plans,
+incorrect crop-group water credit, duplicated or unsafe watering alerts,
+unusable auth/navigation, or widespread startup failure.
+
+Redeploy the last known-good component versions. Preserve current live data and
+the pre-migration backup. Do not weaken rules or blindly restore old JSON over
+new field work. Prepare any data restore as a separate reviewed operation.

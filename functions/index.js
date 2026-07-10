@@ -2,81 +2,44 @@
 
 const admin = require('firebase-admin');
 const { logger } = require('firebase-functions');
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const { onDocumentWritten } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { HttpsError, onCall } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const {
-  buildFrostNotification,
-  buildHeatNotification,
-  buildSevereWeatherNotification,
-  createNotificationLog,
-  shouldSendNotification,
-} = require('./notificationLogic');
-const { createOperationRunner } = require('./operationRunner');
+  createNotificationDeliveryPipeline,
+} = require('./notificationDelivery');
+const {
+  CANONICAL_WEATHER_SNAPSHOT_PATH,
+  buildWeatherGardenAlerts,
+  createOperationRunner,
+} = require('./operationRunner');
+const { validateCanonicalWorkspace } = require('./operationValidation');
 const { createBackendWeatherProvider } = require('./weatherProviders');
+const { createWorkspaceMutationRunner } = require('./workspaceMutationHandler');
 
 admin.initializeApp();
 
+const auth = admin.auth();
 const db = admin.firestore();
 const messaging = admin.messaging();
+const runWorkspaceMutation = createWorkspaceMutationRunner({ db });
 
-function hasSecretFaeriesAccess(auth) {
+function hasSecretFaeriesAccess(authContext) {
   return (
-    auth?.token?.gardenAccess === true &&
-    auth?.token?.secretFaeriesMember === true
+    authContext?.token?.gardenAccess === true &&
+    authContext?.token?.secretFaeriesMember === true
   );
 }
 
-function createDefaultUserProfile(uid, email, nowIso) {
+function createPipelines() {
   return {
-    alertLocationQuery: 'Detroit, MI',
-    climateProfile: {
-      averageFirstFrost: '10-15',
-      averageLastFrost: '04-30',
-      editableByUser: true,
-      hardinessZone: '6b',
-      locationName: 'Detroit, MI',
-      source: 'demoDefault',
-      updatedAtIso: null,
-    },
-    createdAtIso: nowIso,
-    defaultGardenId: uid,
-    displayName: '',
-    email: email || '',
-    notificationPreference: {
-      alertTypes: {
-        frost: true,
-        heatStress: true,
-        severeWeather: true,
-        taskDue: true,
-        watering: true,
-      },
-      channelConsent: {
-        push: {
-          consentCopyVersion: '2026-04-20',
-          grantedAtIso: null,
-          revokedAtIso: null,
-          status: 'notRequested',
-        },
-      },
-      channels: {
-        inApp: true,
-        push: false,
-      },
-      defaultWateringCheckTime: '07:00',
-      frostAlertThresholdF: 36,
-      pushPermission: 'unknown',
-      pushTokenLastRegisteredAtIso: null,
-      quietHours: {
-        endLocalTime: '07:00',
-        startLocalTime: '21:00',
-      },
-      timezone: 'America/Detroit',
-      wateringAlertThresholdIn: 0.25,
-    },
-    timezone: 'America/Detroit',
-    uid,
-    updatedAtIso: nowIso,
+    delivery: createNotificationDeliveryPipeline({
+      auth,
+      db,
+      logger,
+      messaging,
+    }),
+    runOperations: createOperationRunner({ admin, db, logger }),
   };
 }
 
@@ -86,31 +49,32 @@ exports.dailyWateringCheck = onSchedule(
     timeZone: 'UTC',
   },
   async () => {
-    const weatherProvider = createBackendWeatherProvider(logger);
-    const runGardenOperationsForUser = createOperationRunner({
-      admin,
-      db,
-      dispatchNotification,
-      logger,
+    const pipelines = createPipelines();
+    const now = new Date();
+    const result = await pipelines.runOperations({
+      force: true,
+      now,
+      weatherProvider: createBackendWeatherProvider(logger),
     });
-    const usersSnapshot = await db.collection('users').get();
-    let generatedCount = 0;
+    let recipientCount = 0;
 
-    for (const userDocument of usersSnapshot.docs) {
-      const result = await runGardenOperationsForUser(
-        userDocument.id,
-        userDocument.data(),
-        { weatherProvider },
-      );
-
-      if (result.generated) {
-        generatedCount += 1;
+    if (result.generated) {
+      for (const alert of result.alerts) {
+        const fanout = await pipelines.delivery.publishAndFanOutAlert(alert, {
+          now,
+        });
+        recipientCount += fanout.recipientCount;
       }
     }
 
-    logger.info('Scheduled garden operations completed', {
-      generatedCount,
-      userCount: usersSnapshot.size,
+    const pending = await pipelines.delivery.processPendingDeliveries({ now });
+
+    logger.info('Scheduled canonical garden operations completed.', {
+      generated: result.generated,
+      pendingDeliveryCount: pending.processedCount,
+      recipientCount,
+      skipped: result.skipped || null,
+      workspaceRevisionId: result.workspaceRevisionId || null,
     });
   },
 );
@@ -130,415 +94,127 @@ exports.refreshGardenOperations = onCall(async (request) => {
     );
   }
 
-  const uid = request.auth.uid;
   const requestedUid =
-    typeof request.data?.userId === 'string' ? request.data.userId : uid;
+    typeof request.data?.userId === 'string'
+      ? request.data.userId
+      : request.auth.uid;
 
-  if (requestedUid !== uid) {
+  if (requestedUid !== request.auth.uid) {
     throw new HttpsError(
       'permission-denied',
-      'You can only refresh your own garden.',
+      'You can only request a refresh as the signed-in account.',
     );
   }
 
-  const profileRef = db.collection('users').doc(uid);
-  const profileSnapshot = await profileRef.get();
-
-  let profile = profileSnapshot.exists ? profileSnapshot.data() : null;
-
-  if (!profile) {
-    profile = createDefaultUserProfile(
-      uid,
-      request.auth.token.email,
-      new Date().toISOString(),
-    );
-    await profileRef.set(profile, { merge: true });
-  }
-
-  const runGardenOperationsForUser = createOperationRunner({
-    admin,
-    db,
-    dispatchNotification,
-    logger,
-  });
-  const result = await runGardenOperationsForUser(uid, profile, {
+  const pipelines = createPipelines();
+  const now = new Date();
+  const result = await pipelines.runOperations({
     force: true,
+    now,
     weatherProvider: createBackendWeatherProvider(logger),
   });
 
-  if (result.skipped === 'noGarden') {
-    throw new HttpsError('not-found', 'No garden exists for this user.');
+  if (result.skipped === 'noPublishedGarden') {
+    throw new HttpsError('not-found', 'No published garden workspace exists.');
+  }
+  if (result.skipped === 'invalidWorkspace') {
+    throw new HttpsError(
+      'failed-precondition',
+      `The published garden cannot be refreshed: ${result.validationErrors.join(' ')}`,
+    );
+  }
+
+  if (result.generated) {
+    for (const alert of result.alerts) {
+      await pipelines.delivery.publishAndFanOutAlert(alert, { now });
+    }
   }
 
   return {
-    generatedAtIso: result.generatedAtIso ?? null,
+    generatedAtIso: result.generatedAtIso || null,
     ok: result.generated === true,
-    providerId: result.providerId ?? null,
-    recommendationCount: result.recommendationCount ?? 0,
-    taskCount: result.taskCount ?? 0,
+    providerId: result.providerId || null,
+    recommendationCount: result.recommendationCount || 0,
+    skipped: result.skipped || null,
+    taskCount: result.taskCount || 0,
+    workspaceRevisionId: result.workspaceRevisionId || null,
   };
 });
 
-exports.onGardenWeatherSnapshotUpdated = onDocumentWritten(
-  'gardenWorkspaces/main/drafts/{uid}',
+exports.publishGardenDraftV2 = onCall((request) =>
+  runWorkspaceMutation(request, 'publishDraft', {
+    changeSummary: request.data?.changeSummary,
+    expectedRevisionId: request.data?.expectedRevisionId,
+  }),
+);
+
+exports.revertGardenPlanV2 = onCall((request) =>
+  runWorkspaceMutation(request, 'revertPublished', {
+    expectedRevisionId: request.data?.expectedRevisionId,
+    revisionId: request.data?.revisionId,
+  }),
+);
+
+exports.publishGardenSettingsV2 = onCall((request) =>
+  runWorkspaceMutation(request, 'publishSharedSettings', {
+    expectedRevisionId: request.data?.expectedRevisionId,
+    plan: request.data?.plan,
+  }),
+);
+
+exports.onGardenWeatherSnapshotUpdated = onDocumentCreated(
+  CANONICAL_WEATHER_SNAPSHOT_PATH,
   async (event) => {
-    const beforeDraft = event.data?.before.exists
-      ? event.data.before.data()
+    const snapshot = event.data?.data();
+
+    if (!snapshot) {
+      return;
+    }
+
+    const workspaceRef = db.collection('gardenWorkspaces').doc('main');
+    const [workspaceSnapshot, publishedSnapshot] = await Promise.all([
+      workspaceRef.get(),
+      workspaceRef.collection('plans').doc('published').get(),
+    ]);
+    const workspaceData = workspaceSnapshot.exists
+      ? workspaceSnapshot.data()
       : null;
-    const afterDraft = event.data?.after.exists
-      ? event.data.after.data()
+    const publishedData = publishedSnapshot.exists
+      ? publishedSnapshot.data()
       : null;
-    const beforeGarden =
-      beforeDraft && typeof beforeDraft.garden === 'object'
-        ? beforeDraft.garden
-        : null;
-    const afterGarden =
-      afterDraft && typeof afterDraft.garden === 'object'
-        ? afterDraft.garden
-        : null;
+    const validation = validateCanonicalWorkspace({
+      metadata: workspaceData,
+      published: publishedData,
+    });
 
-    if (!afterGarden) {
+    if (!validation.valid) {
+      logger.warn('Weather alert fanout skipped for invalid workspace.', {
+        errors: validation.errors,
+        snapshotId: event.params.snapshotId,
+      });
       return;
     }
 
-    const uid = event.params.uid;
-    const beforeSnapshot = getLatestSnapshot(beforeGarden);
-    const afterSnapshot = getLatestSnapshot(afterGarden);
+    const normalizedSnapshot = {
+      ...snapshot,
+      id: snapshot.id || event.params.snapshotId,
+    };
+    const alerts = buildWeatherGardenAlerts(
+      validation.plan,
+      normalizedSnapshot,
+      validation.revisionId,
+    );
+    const delivery = createNotificationDeliveryPipeline({
+      auth,
+      db,
+      logger,
+      messaging,
+    });
 
-    if (!afterSnapshot || beforeSnapshot?.id === afterSnapshot.id) {
-      return;
-    }
-
-    const profileSnapshot = await db.collection('users').doc(uid).get();
-
-    if (!profileSnapshot.exists) {
-      return;
-    }
-
-    const profile = profileSnapshot.data();
-    const notifications = [];
-
-    if (
-      afterSnapshot.frostRisk &&
-      afterSnapshot.frostRisk !== 'none' &&
-      beforeSnapshot?.frostRisk !== afterSnapshot.frostRisk
-    ) {
-      notifications.push(buildFrostNotification(afterGarden, afterSnapshot));
-    }
-
-    if (
-      afterSnapshot.heatRisk &&
-      afterSnapshot.heatRisk !== 'none' &&
-      beforeSnapshot?.heatRisk !== afterSnapshot.heatRisk
-    ) {
-      notifications.push(buildHeatNotification(afterGarden, afterSnapshot));
-    }
-
-    if ((afterSnapshot.alertSummaries || []).length > 0) {
-      notifications.push(buildSevereWeatherNotification(afterSnapshot));
-    }
-
-    for (const notification of notifications) {
-      await dispatchNotification({
-        body: notification.body,
-        dedupeKey: notification.dedupeKey ?? null,
-        garden: afterGarden,
-        profile,
-        title: notification.title,
-        type: notification.type,
-        uid,
+    for (const alert of alerts) {
+      await delivery.publishAndFanOutAlert(alert, {
+        now: new Date(),
       });
     }
   },
 );
-
-async function dispatchNotification({
-  body,
-  dedupeKey = null,
-  garden,
-  profile,
-  title,
-  type,
-  uid,
-}) {
-  const duplicate = wasRecentlyLogged({
-    body,
-    dedupeKey,
-    garden,
-    now: new Date(),
-    type,
-  });
-
-  if (duplicate) {
-    logger.info('Skipping duplicate notification', { type, uid });
-    return;
-  }
-
-  const inAppDecision = shouldSendNotification({
-    channel: 'inApp',
-    profile,
-    type,
-  });
-
-  await writeNotificationLog(
-    createNotificationLog({
-      body,
-      channel: 'inApp',
-      decisionReason: inAppDecision.reason,
-      dedupeKey,
-      gardenId: garden.id || uid,
-      provider: 'inApp',
-      recipientRedacted: 'in-app',
-      status: inAppDecision.allowed ? 'sent' : 'skipped',
-      title,
-      type,
-      userId: uid,
-    }),
-    uid,
-    garden,
-  );
-
-  await sendPushAndLog({
-    body,
-    dedupeKey,
-    garden,
-    profile,
-    title,
-    type,
-    uid,
-  });
-}
-
-async function sendPushAndLog({
-  body,
-  dedupeKey = null,
-  garden,
-  profile,
-  title,
-  type,
-  uid,
-}) {
-  const decision = shouldSendNotification({ channel: 'push', profile, type });
-
-  if (!decision.allowed) {
-    await writeNotificationLog(
-      createNotificationLog({
-        body,
-        channel: 'push',
-        decisionReason: decision.reason,
-        dedupeKey,
-        errorMessage: decision.reason,
-        gardenId: garden.id || uid,
-        provider: 'firebaseCloudMessaging',
-        recipientRedacted: 'push',
-        status: 'skipped',
-        title,
-        type,
-        userId: uid,
-      }),
-      uid,
-      garden,
-    );
-    return { reason: decision.reason, status: 'skipped' };
-  }
-
-  const tokensSnapshot = await db
-    .collection('users')
-    .doc(uid)
-    .collection('pushTokens')
-    .get();
-  const tokenDocuments = tokensSnapshot.docs
-    .map((document) => ({
-      id: document.id,
-      ref: document.ref,
-      token: document.data().token,
-    }))
-    .filter((entry) => Boolean(entry.token));
-  const tokens = tokenDocuments.map((entry) => entry.token);
-
-  if (tokens.length === 0) {
-    await writeNotificationLog(
-      createNotificationLog({
-        body,
-        channel: 'push',
-        dedupeKey,
-        errorMessage: 'No web or native push tokens registered',
-        gardenId: garden.id || uid,
-        provider: 'firebaseCloudMessaging',
-        recipientRedacted: 'push',
-        status: 'skipped',
-        title,
-        type,
-        userId: uid,
-      }),
-      uid,
-      garden,
-    );
-    return {
-      reason: 'No web or native push tokens registered',
-      status: 'skipped',
-    };
-  }
-
-  const deepLink = getDeepLinkForNotification(type);
-  let response;
-
-  try {
-    response = await messaging.sendEachForMulticast({
-      data: { body, link: deepLink, title, type },
-      notification: { body, title },
-      tokens: tokens.slice(0, 500),
-      webpush: {
-        fcmOptions: {
-          link: deepLink,
-        },
-      },
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    await writeNotificationLog(
-      createNotificationLog({
-        attemptCount: tokens.length,
-        body,
-        channel: 'push',
-        decisionReason: 'push provider error',
-        dedupeKey,
-        deepLink,
-        errorMessage,
-        gardenId: garden.id || uid,
-        provider: 'firebaseCloudMessaging',
-        recipientRedacted: `${tokens.length} push tokens`,
-        status: 'failed',
-        title,
-        type,
-        userId: uid,
-      }),
-      uid,
-      garden,
-    );
-
-    return { reason: errorMessage, status: 'failed' };
-  }
-
-  const invalidTokenDeletes = response.responses.flatMap(
-    (sendResponse, index) => {
-      const code = sendResponse.error?.code || '';
-      const tokenDocument = tokenDocuments[index];
-
-      return isInvalidFcmTokenCode(code) && tokenDocument
-        ? [tokenDocument.ref.delete()]
-        : [];
-    },
-  );
-
-  await Promise.all(invalidTokenDeletes);
-
-  await writeNotificationLog(
-    createNotificationLog({
-      attemptCount: tokens.length,
-      body,
-      channel: 'push',
-      decisionReason:
-        response.failureCount > 0 ? 'partial push failure' : 'allowed',
-      dedupeKey,
-      deepLink,
-      errorMessage:
-        response.failureCount > 0
-          ? `${response.failureCount} push sends failed; ${invalidTokenDeletes.length} stale tokens removed`
-          : null,
-      gardenId: garden.id || uid,
-      provider: 'firebaseCloudMessaging',
-      recipientRedacted: `${response.successCount}/${tokens.length} web tokens`,
-      status: response.successCount > 0 ? 'sent' : 'failed',
-      title,
-      type,
-      userId: uid,
-    }),
-    uid,
-    garden,
-  );
-
-  return {
-    reason:
-      response.failureCount > 0 ? 'partial push failure' : 'push delivered',
-    status: response.successCount > 0 ? 'sent' : 'failed',
-  };
-}
-
-async function writeNotificationLog(log, uid, garden, extra = {}) {
-  const payload = {
-    ...log,
-    ...extra,
-  };
-  const nextLogs = [...(garden.notificationLogs || []), payload].slice(-60);
-
-  garden.notificationLogs = nextLogs;
-
-  await db
-    .collection('gardenWorkspaces')
-    .doc('main')
-    .collection('notifications')
-    .doc(payload.id)
-    .set(payload);
-  await db.collection('gardenWorkspaces').doc('main').set(
-    {
-      sharedOperationsUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      sharedOperationsUpdatedAtIso: payload.createdAtIso,
-    },
-    { merge: true },
-  );
-}
-
-function wasRecentlyLogged({ body, dedupeKey = null, garden, now, type }) {
-  const nowMs = now.getTime();
-  const cutoffMs = nowMs - 24 * 60 * 60 * 1000;
-  const fallbackKey = `${type}:${body}`;
-
-  return (garden.notificationLogs || []).some((log) => {
-    const createdAt = Date.parse(log.createdAtIso || '');
-    const snoozedUntil = Date.parse(log.snoozedUntilIso || '');
-    const matchesAlert =
-      (dedupeKey &&
-        log.type === type &&
-        (log.dedupeKey === dedupeKey || log.body === body)) ||
-      ((!dedupeKey || !log.dedupeKey) &&
-        log.type === type &&
-        (log.body === body || `${log.type}:${log.body}` === fallbackKey));
-
-    if (!matchesAlert) {
-      return false;
-    }
-
-    if (Number.isFinite(snoozedUntil) && snoozedUntil > now.getTime()) {
-      return true;
-    }
-
-    return Number.isFinite(createdAt) && createdAt >= cutoffMs;
-  });
-}
-
-function getLatestSnapshot(garden) {
-  const snapshots = garden?.weatherSnapshots || [];
-
-  return [...snapshots].sort((left, right) =>
-    String(right.capturedAtIso || '').localeCompare(
-      String(left.capturedAtIso || ''),
-    ),
-  )[0];
-}
-
-function isInvalidFcmTokenCode(code) {
-  return [
-    'messaging/invalid-registration-token',
-    'messaging/registration-token-not-registered',
-  ].includes(code);
-}
-
-function getDeepLinkForNotification(type) {
-  if (type === 'task' || type === 'taskDue' || type === 'watering') {
-    return '/app/today';
-  }
-
-  return '/app/today';
-}

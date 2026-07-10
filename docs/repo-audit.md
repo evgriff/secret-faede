@@ -39,6 +39,11 @@
 - `/app/garden`, `/app/tasks`, `/app/journal` legacy redirects
 - `*`
 
+`src/main.tsx` mounts only the `src/v2` application. The prior `src/app` and
+`src/features` clients have been removed; legacy URLs above are redirect rules,
+not alternate pages. Legacy persisted records are reachable only through
+explicit one-way readers in the v2 migration boundary.
+
 ## 4. Preserved seams
 
 - `AuthService` for password auth
@@ -62,8 +67,23 @@
 - one shared published garden workspace with private per-user drafts
 - plot dimensions in feet
 - plant and planting-instance center positions in feet
-- shared draft/publish save through `gardenWorkspaces/main` in Firebase mode
+- private draft writes through `GardenRepository`; authenticated Functions
+  callables exclusively own publish, revert, and shared climate publication
+- deterministic, provenance-rich watering per crop group with actor-attributed,
+  revisioned applied/partial/skipped history
 - authenticated shell routes for Plan, Today, Feed, and Settings
 - weather reads and watering recommendations are scoped to garden operations
 - no multiple garden management, maps, collaboration, carrier messaging,
   onboarding-heavy flows, or AI features
+
+## 7. Current release blockers
+
+- production VAPID build configuration is missing
+- the backup-first production v2 workspace migration is not yet applied and
+  rechecked
+- Android lacks `google-services.json`
+- iOS has its Firebase plist but no verified FCM-token bridge; a raw APNs token
+  is intentionally rejected
+
+The app is not deployment-ready until these environment/data/device steps and
+the full release gate are complete.

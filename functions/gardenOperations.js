@@ -1,71 +1,105 @@
 'use strict';
 
-const { buildAutomatedTasks, mergeTasks } = require('./taskAutomation');
-const { getGardenLocation } = require('./operationTime');
 const {
-  buildWaterRecommendations,
+  buildAutomatedTasks,
+  mergeAutomatedTasks,
+} = require('./taskAutomationV2');
+const {
+  calculateWateringRecommendations,
+  createCropGroupTargets,
+} = require('./wateringModelV2');
+const {
+  buildWeatherInputs,
   createWeatherSnapshot,
-  mergeWaterRecommendations,
-} = require('./wateringLogic');
+} = require('./weatherWateringInputs');
 
 async function generateGardenOperations({
-  garden,
-  logger,
   now = new Date(),
-  profile,
+  operationsSettings,
+  plan,
+  sharedOperations,
+  validationWarnings = [],
   weatherProvider,
+  logger,
 }) {
-  const location = getGardenLocation(garden, profile);
+  const location = {
+    latitude: plan.plot.location.coordinates?.latitude ?? null,
+    locationName: plan.plot.location.label,
+    longitude: plan.plot.location.coordinates?.longitude ?? null,
+    timezone: plan.plot.location.timezone,
+  };
   const context = await loadWeatherWateringContext(
     weatherProvider,
     location,
     logger,
+    now,
   );
-  const snapshot = createWeatherSnapshot(garden, context, now);
-  const generatedRecommendations = buildWaterRecommendations(
-    garden,
+  const weatherInputs = buildWeatherInputs({
     context,
+    now,
+    priorBalances: sharedOperations.waterBalances,
+    timezone: location.timezone,
+  });
+  const snapshot = createWeatherSnapshot({
+    context,
+    now,
+    plan,
+    validationWarnings,
+    weatherInputs,
+  });
+  const targets = createCropGroupTargets(
+    plan,
+    sharedOperations.wateringRecommendations,
+  );
+  const watering = calculateWateringRecommendations({
+    applications: sharedOperations.waterApplications,
+    checkTimeLocal: operationsSettings.defaultWateringCheckTime,
+    forecastWeather: weatherInputs.forecastWeather,
+    gardenId: plan.id,
+    historicalWeather: weatherInputs.historicalWeather,
+    nowIso: now.toISOString(),
+    priorBalances: sharedOperations.waterBalances,
+    targets,
+    timezone: location.timezone,
+  });
+  const generatedTasks = buildAutomatedTasks(
+    plan,
+    watering.recommendations,
     snapshot,
     now,
-    {
-      defaultWateringCheckTime:
-        profile?.notificationPreference?.defaultWateringCheckTime || '07:00',
-      timezone:
-        profile?.notificationPreference?.timezone ||
-        profile?.timezone ||
-        garden?.plot?.location?.timezone ||
-        'America/Detroit',
-    },
-  );
-  const wateringSchedule = mergeWaterRecommendations(
-    garden.wateringSchedule || garden.waterRecommendations || [],
-    generatedRecommendations,
-    now,
-  );
-  const tasks = mergeTasks(
-    garden.tasks || [],
-    buildAutomatedTasks({ ...garden, wateringSchedule }, snapshot, now),
   );
 
   return {
     generatedAtIso: now.toISOString(),
     providerId: context.currentConditions.providerId,
-    recommendations: generatedRecommendations,
+    recommendations: watering.recommendations,
     snapshot,
-    tasks,
-    wateringSchedule,
-    weatherSnapshots: [...(garden.weatherSnapshots || []), snapshot].slice(-8),
+    tasks: mergeAutomatedTasks(sharedOperations.tasks, generatedTasks, now),
+    waterBalances: watering.recommendations.map(
+      (recommendation) => recommendation.balance,
+    ),
   };
 }
 
-async function loadWeatherWateringContext(provider, location, logger) {
+async function loadWeatherWateringContext(
+  provider,
+  location,
+  logger,
+  now = new Date(),
+) {
+  if (
+    !Number.isFinite(location.latitude) ||
+    !Number.isFinite(location.longitude)
+  ) {
+    return unavailableWeatherContext(now);
+  }
   const failures = [];
   const guard = async (label, fallback, load) => {
     try {
       return await load();
     } catch (error) {
       failures.push(label);
-      logger?.warn?.('Weather signal unavailable; using fallback.', {
+      logger?.warn?.('Weather signal unavailable; using safe fallback.', {
         error: error instanceof Error ? error.message : String(error),
         label,
         providerId: provider.id,
@@ -73,7 +107,7 @@ async function loadWeatherWateringContext(provider, location, logger) {
       return fallback;
     }
   };
-  const nowIso = new Date().toISOString();
+  const nowIso = now.toISOString();
   const [
     currentConditions,
     forecast,
@@ -100,26 +134,75 @@ async function loadWeatherWateringContext(provider, location, logger) {
     agricultureMetrics: agriculture,
     alerts,
     currentConditions,
-    dataQuality:
-      failures.length === 0
-        ? 'complete'
-        : failures.length <= 2
-          ? 'partial'
-          : 'limited',
-    failedSignals: failures,
+    failures,
     forecast,
+    forecastQuality: worstSignalQuality(
+      weatherSignalQuality(
+        forecast.generatedAtIso,
+        failures.includes('forecast'),
+        now,
+        forecast.qualityHint,
+      ),
+      Number.isFinite(agriculture.evapotranspirationNext24hIn)
+        ? weatherSignalQuality(
+            agriculture.generatedAtIso,
+            failures.includes('agricultureMetrics'),
+            now,
+            agriculture.qualityHint,
+          )
+        : 'fresh',
+    ),
+    historicalQuality: weatherSignalQuality(
+      recentPrecipitation.generatedAtIso,
+      failures.includes('recentPrecipitation') ||
+        recentPrecipitation.available === false,
+      now,
+      recentPrecipitation.qualityHint,
+    ),
     recentPrecipitation,
   };
+}
+
+function unavailableWeatherContext(now) {
+  const nowIso = now.toISOString();
+  const unavailableProvider = {
+    id: 'unavailable',
+    label: 'Weather unavailable',
+  };
+  return {
+    agricultureMetrics: defaultAgriculture(unavailableProvider, nowIso),
+    alerts: [],
+    currentConditions: defaultCurrent(unavailableProvider, nowIso),
+    failures: ['missingCoordinates'],
+    forecast: defaultForecast(unavailableProvider, nowIso),
+    forecastQuality: 'insufficient',
+    historicalQuality: 'insufficient',
+    recentPrecipitation: defaultPrecip(unavailableProvider, nowIso),
+  };
+}
+
+function weatherSignalQuality(generatedAtIso, missing, now, qualityHint) {
+  if (missing) return 'insufficient';
+  if (qualityHint === 'stale') return 'stale';
+  const generatedAtMs = Date.parse(generatedAtIso || '');
+  if (!Number.isFinite(generatedAtMs)) return 'insufficient';
+  if (now.getTime() - generatedAtMs > 6 * 60 * 60 * 1000) return 'stale';
+  return qualityHint === 'cached' ? 'cached' : 'fresh';
+}
+
+function worstSignalQuality(...qualities) {
+  const ranks = { cached: 1, fresh: 0, insufficient: 3, stale: 2 };
+  return qualities.reduce((worst, quality) =>
+    ranks[quality] > ranks[worst] ? quality : worst,
+  );
 }
 
 function defaultCurrent(provider, nowIso) {
   return {
     capturedAtIso: nowIso,
     conditionSummary: 'Weather unavailable',
-    feelsLikeF: null,
     humidityPercent: null,
     observationTimeIso: null,
-    precipitationLastHourIn: null,
     providerId: provider.id,
     sourceLabel: provider.label,
     temperatureF: null,
@@ -132,39 +215,35 @@ function defaultForecast(provider, nowIso) {
     dailyHighF: null,
     days: [],
     generatedAtIso: nowIso,
-    next24hPrecipIn: 0,
-    next48hPrecipIn: 0,
-    nextRainIso: null,
     overnightLowF: null,
-    periods: [],
     providerId: provider.id,
-    summary: 'Forecast unavailable',
   };
 }
 
 function defaultPrecip(provider, nowIso) {
   return {
+    available: false,
     generatedAtIso: nowIso,
-    hours: 72,
-    last24hIn: 0,
-    last72hIn: 0,
+    last24hIn: null,
+    last72hIn: null,
     observations: [],
     providerId: provider.id,
-    totalIn: 0,
+    totalIn: null,
   };
 }
 
 function defaultAgriculture(provider, nowIso) {
   return {
-    evapotranspirationIn: null,
     evapotranspirationNext24hIn: null,
     generatedAtIso: nowIso,
-    notes: ['Agriculture metrics unavailable.'],
     providerId: provider.id,
   };
 }
 
 module.exports = {
+  buildWeatherInputs,
+  createWeatherSnapshot,
   generateGardenOperations,
   loadWeatherWateringContext,
+  weatherSignalQuality,
 };

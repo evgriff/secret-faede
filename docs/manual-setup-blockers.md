@@ -1,50 +1,56 @@
 # Manual Setup Blockers
 
-Date: 2026-04-21
+Date: 2026-07-10
 
-These items are not solved by app code alone. Do them before inviting real
-Firebase testers or enabling production push notifications.
+These release prerequisites require project-owner credentials, provider
+configuration, real accounts, or physical devices. Passing CI does not satisfy
+them.
 
-## Firebase Project And Web App
+Current release status:
 
-Required:
+- production `VITE_FIREBASE_MESSAGING_VAPID_KEY` is not configured
+- the production workspace migration has not been reviewed/applied/rechecked
+- `android/app/google-services.json` is absent
+- the iOS Firebase plist is present, but native registration does not yet
+  provide a safe FCM token path
 
-1. Create or choose a Firebase project.
-2. Register a web app.
-3. Set these live build repository variables:
-   - `VITE_FIREBASE_API_KEY`
-   - `VITE_FIREBASE_APP_ID`
-   - `VITE_FIREBASE_AUTH_DOMAIN`
-   - `VITE_FIREBASE_MESSAGING_SENDER_ID`
-   - `VITE_FIREBASE_PROJECT_ID`
-   - `VITE_FIREBASE_STORAGE_BUCKET`
-4. Optionally set `VITE_FIREBASE_MESSAGING_VAPID_KEY` after generating a
-   Firebase Web Push certificate.
-5. Set these production environment secrets:
-   - `APP_LOGIN_PRIMARY_EMAIL`
-   - `APP_LOGIN_PARTNER_EMAIL`
-6. Enable Authentication Email/Password. Do not add a public sign-up path in
-   the app.
-7. Add authorized domains for local, preview, live Hosting, and any custom
-   domain.
-8. Deploy Firestore and Storage rules before using Firebase mode with real data.
+These are release blockers, not CI failures. Do not push/deploy `main` or
+advertise the affected push surfaces until they are resolved and smoke-tested.
 
-## Production Login Users
+## Firebase project and web app
 
-Only Primary Gardener and Partner Gardener should be provisioned for production. Firestore, Storage, and
-callable Functions require both `gardenAccess: true` and
-`secretFaeriesMember: true`. The browser allowlist is mock/local only and does
-not grant production access.
+Before Firebase-mode testing or deployment:
 
-Preferred seed flow:
+1. Select the production Firebase project and register its web app.
+2. Enable Email/Password Authentication.
+3. configure the six required browser values:
+   `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_APP_ID`,
+   `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_MESSAGING_SENDER_ID`,
+   `VITE_FIREBASE_PROJECT_ID`, and `VITE_FIREBASE_STORAGE_BUCKET`.
+   Confirm public `VITE_FIREBASE_PROJECT_ID` exactly equals protected
+   `FIREBASE_PROJECT_ID`; the live workflow rejects a mismatch.
+4. Add localhost, preview, live Hosting, and any custom domain to Auth's
+   authorized domains.
+5. Configure ADC/Firebase CLI login for administrative scripts and the
+   `FIREBASE_SERVICE_ACCOUNT` GitHub secret for deployment.
+6. Run `npm run setup:firebase:live` where supported, then review the Firebase
+   console rather than assuming every project setting is API-configurable.
+7. Deploy Firestore rules/indexes and Storage rules before exposing migrated
+   data to the client.
 
-```bash
-export FIREBASE_PROJECT_ID=your-project-id
-export APP_LOGIN_PRIMARY_EMAIL=primary.gardener@example.com
-export APP_LOGIN_PARTNER_EMAIL=partner.gardener@example.com
-export APP_LOGIN_PRIMARY_TEMP_PASSWORD='replace-with-long-temp-password'
-export APP_LOGIN_PARTNER_TEMP_PASSWORD='replace-with-long-temp-password'
+Incomplete browser configuration intentionally falls back to mock mode. A
+release smoke must confirm the deployed build reports Firebase mode, not merely
+that the page renders.
 
+## Exactly two production accounts
+
+Set secure local/workflow values for `APP_LOGIN_PRIMARY_EMAIL` and
+`APP_LOGIN_PARTNER_EMAIL`. If the accounts do not exist, also set strong
+temporary password values outside source control.
+
+Review and run:
+
+```sh
 npm --prefix functions ci
 npm run auth:seed-users -- --dry-run
 npm run auth:seed-users
@@ -52,120 +58,175 @@ npm run auth:sync-access -- --dry-run
 npm run auth:sync-access
 ```
 
-Use `npm run auth:seed-users -- --reset-passwords` only when intentionally
-rotating existing passwords. After claims change, the user must sign out and
-sign back in, or refresh their Firebase ID token.
+The intended result is exactly two enabled Auth accounts with
+`gardenAccess: true` and `secretFaeriesMember: true`. The sync command removes
+those managed claims from other Auth users. Do not use
+`-- --reset-passwords` unless password rotation is deliberate.
 
-Manual claim fallback if the seed script cannot be used:
+After a claim change, sign out/in or force an ID-token refresh. Verify that a
+user missing either claim reaches `/access-denied` and cannot read Firestore or
+Storage even if its email appears in a local allowlist.
 
-```bash
-cd functions
-GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json node - <<'NODE'
-const admin = require('firebase-admin');
+## Required v2 workspace migration
 
-admin.initializeApp({
-  credential: admin.credential.applicationDefault(),
-});
+Production data must be migrated before the v2 Hosting client is deployed. This
+step is still outstanding for the current release. The
+client does not silently interpret legacy `gardens/{uid}` or an older workspace
+as current data.
 
-const email = 'tester@example.com';
+1. Authenticate the Firebase CLI with an account allowed to read/write the
+   target project.
+2. Run a dry run:
 
-admin
-  .auth()
-  .getUserByEmail(email)
-  .then((user) =>
-    admin.auth().setCustomUserClaims(user.uid, {
-      ...(user.customClaims || {}),
-      gardenAccess: true,
-      secretFaeriesMember: true,
-    }),
-  )
-  .then(() => {
-    console.log(`Secret Faeries access granted to ${email}`);
-  })
-  .finally(() => process.exit());
-NODE
-```
+   ```sh
+   npm run migrate:workspace-v2:dry-run -- --project <project-id>
+   ```
 
-Firebase Console setup that remains manual:
+3. Preserve the generated mode-`0600` backup under
+   `output/production-backups/` outside normal source control.
+4. Review every proposed write and warning. In particular, confirm the chosen
+   published source, per-user draft ownership, coordinate/timezone cleanup,
+   crop-group water-profile snapshots, and legacy water logs. Ambiguous water
+   notes must remain uncredited.
+5. Apply only after review:
 
-- Confirm Email/Password provider is enabled.
-- Confirm no sign-up screen or invite link is exposed by this app.
-- If Identity Platform is upgraded later, add Auth blocking triggers to reject
-  accounts outside the two-user membership list before sign-in completes.
+   ```sh
+   npm run migrate:workspace-v2:apply -- --project <project-id>
+   ```
 
-## GitHub Deploy Secrets
+6. Rerun the dry run. It must report the workspace already current: workspace
+   schema 2, plan schema 9, matching revision IDs, and profile schema 2.
+7. Smoke both accounts before deleting or archiving any legacy documents. The
+   migration is additive and does not authorize destructive cleanup.
 
-Required for Hosting preview/live workflows:
+The 2026-07-10 live dry run is intentionally non-applicable: it produced zero
+actions and 105 redacted geometry blockers across the published plan, two
+drafts, and retained revisions. Every affected source has plantings without a
+saved bed/container growing area; several also have instance/plot containment
+issues. The backup is mode `0600`. Repair and review the actual legacy plans,
+then rerun the dry run; never bypass these blockers or synthesize assignments.
+
+## Real garden location
+
+Watering accuracy requires a deliberate location label/query, exact valid
+latitude/longitude pair, IANA timezone, hardiness zone, and typical frost dates.
+First-run setup and Settings require these values. Environment variables and
+seed scripts must not inject a default city. Lower-level operation code still
+treats missing coordinates in incomplete/migrated data as safe soil-check mode.
+
+Before enabling watering/weather alerts:
+
+- compare the saved point and timezone with the intended garden
+- refresh operations and inspect the provider, observation/forecast times,
+  data-quality labels, reason codes, and crop-specific amounts
+- compare at least two crop groups with different saved water profiles
+- use a deliberately prepared non-production null-coordinate migration fixture
+  to confirm safe soil-check output and no automatic weather/watering push
+
+## Weather providers
+
+NWS requires outbound network access and an identifying `NWS_USER_AGENT`. The
+production workflow requires this variable, and the production value is now
+configured. Tomorrow.io is optional; enable it only when a valid
+server-side `TOMORROW_API_KEY` has been configured for Functions and the
+additional provider has been intentionally accepted.
+
+Perform a controlled production refresh and inspect Functions logs for the
+chosen provider, fallback reason, failed signals, and stale/insufficient
+classification. Do not treat a successful HTTP request as proof that rain or
+evapotranspiration semantics are correct.
+
+## Web push
+
+Before claiming web push support:
+
+1. Generate a Firebase Web Push certificate.
+2. set the public `VITE_FIREBASE_MESSAGING_VAPID_KEY` build variable.
+3. confirm `/firebase-messaging-sw.js` is served from the deployed origin and
+   contains the intended Firebase config query.
+4. enable push from Settings on each provisioned account/device and verify a
+   token document under `users/{uid}/pushTokens/{tokenId}`.
+5. generate controlled task and watering alerts.
+6. verify foreground in-app banner, background system notification, exact
+   Today deep link, separate crop-group alerts, same-alert retry coalescing,
+   quiet-hour deferral, and private delivery history.
+7. verify an invalid/expired token is removed after the provider reports it.
+
+Web push registration must remain visibly unavailable when the VAPID key is
+absent. It is currently absent from the production environment and is required
+by the live workflow. Browser permission alone is not evidence that a token
+exists. A provider-accepted send is not evidence that a device displayed it.
+
+## Native builds
+
+iOS setup requires a final bundle ID, Apple Developer access, Push
+Notifications capability, an APNs auth key uploaded to Firebase,
+`GoogleService-Info.plist`, release signing, and inclusion of
+`PrivacyInfo.xcprivacy` in the target. The plist is currently present, but the
+adapter correctly refuses to register its raw APNs token as FCM; a real FCM
+token bridge is still required.
+
+Android setup requires a final application ID, Firebase Android app,
+`google-services.json`, release keystore/signing, and a suitable monochrome
+notification icon. `android/app/google-services.json` is currently absent.
+
+For both platforms:
+
+- run the intended Capacitor sync/build flow
+- confirm native token registration uses the correct platform label
+- verify background tap and foreground in-app behavior on a physical device
+- verify camera/photo upload permission behavior when photo capture is in scope
+- verify Settings reports unsupported capabilities honestly outside a native
+  shell
+
+The mobile adapter can schedule local notifications, but the active v2 routes
+do not currently create a separate device-local reminder schedule. Do not
+describe local reminder delivery as production-ready without adding and testing
+that workflow.
+
+## GitHub live workflow
+
+The live workflow needs:
 
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_SERVICE_ACCOUNT`
+- `NWS_USER_AGENT`
+- the six required Firebase browser variables
+- secure primary/partner account email values
+- `VITE_FIREBASE_MESSAGING_VAPID_KEY`
 
-Live workflow also requires the Firebase `VITE_*` repository variables listed
-above. The live workflow now runs the full release gate, deploys Firestore
-rules/indexes, Storage rules, Functions, and then Hosting.
+Confirm the workflow runs the full release gate, syncs access claims, and
+verifies the protected/public Firebase project IDs match. Before deploy it
+writes only the NWS identity into `functions/.env.<project-id>` with mode `0600`,
+then deploys rules/indexes, Storage, Functions, and Hosting. The workspace
+migration is a separately reviewed pre-deploy operation; a green workflow must
+not be used to skip it.
 
-## Web Push
+## Final live verification
 
-Required for real FCM registration:
+Before declaring the release ready:
 
-1. Generate a Firebase Web Push certificate.
-2. Set `VITE_FIREBASE_MESSAGING_VAPID_KEY`.
-3. Confirm `public/firebase-messaging-sw.js` is served from the deployed origin.
-4. Smoke test token creation under `users/{uid}/pushTokens/{tokenId}`.
-5. Send a controlled push and confirm foreground and background behavior.
+- both accounts complete sign-in, shared publish, separate draft, and separate
+  Settings/profile checks
+- production rules deny a non-member and cross-user private writes
+- canonical Functions generate separate balances/recommendations/tasks for each
+  active crop group
+- applied/partial/skipped water records affect only the selected group and skip
+  remains zero credit
+- corrected water keeps the same ID/crop/recorder, advances revision once, and
+  replaces rather than duplicates ledger credit
+- Feed photo upload/read and private delivery-history reads work
+- web/native push works on every platform claimed by release notes
+- a push marked sent is described as provider-accepted unless device display
+  was separately observed
+- a two-session publish conflict cannot silently overwrite the other account
+- mobile/desktop routes have no serious console, network, focus, overflow, or
+  touch defects
+- rollback information and the migration backup are accessible to the project
+  owner
 
-## Native Mobile Shell
+## Explicitly excluded
 
-Required before TestFlight, Google Play testing, or real native push:
-
-1. Apple Developer access:
-   - Register bundle id `com.secretfaeries.app` or choose the final replacement.
-   - Enable Push Notifications for the app id.
-   - Create or reuse an APNs auth key and upload it in Firebase Cloud Messaging.
-   - Add `GoogleService-Info.plist` to `ios/App/App/` and the Xcode app target.
-   - Confirm `ios/App/PrivacyInfo.xcprivacy` is included in the target before
-     App Store submission.
-2. Google Play / Android access:
-   - Create the Android app with package `com.secretfaeries.app` or choose the
-     final replacement.
-   - Configure app signing or a release keystore outside the repository.
-   - Download `google-services.json` and place it at
-     `android/app/google-services.json`.
-   - Generate a white transparent notification icon before public push testing;
-     otherwise Android may show the default app icon.
-3. Firebase:
-   - Register iOS and Android apps matching the final ids.
-   - Confirm native push token writes under `users/{uid}/pushTokens/{tokenId}`.
-   - Send one controlled push to each platform after native config files are in
-     place.
-4. Quick unlock:
-   - Select an audited Keychain/Keystore storage implementation and document it
-     in a new ADR.
-   - Do not store Firebase passwords, refresh tokens, or long-lived secrets in
-     Capacitor Preferences.
-
-## Carrier Messaging
-
-Carrier messaging is no longer in scope. Do not set carrier delivery secrets,
-add phone-number seed values, configure carrier webhooks, or run carrier
-delivery smoke tests. Any new carrier-message code should be treated as scope
-regression.
-
-## Optional Provider Keys
-
-- `TOMORROW_API_KEY`: optional server-side weather enhancement in Functions.
-- `VITE_TOMORROW_API_KEY`: optional browser weather enhancement; use only a
-  restricted public key.
-- `VITE_GOOGLE_MAPS_API_KEY`: optional browser geocoding key.
-- `TREFLE_API_TOKEN`: optional local catalog ingestion key; not used at runtime.
-
-## Current Manual Verification Still Needed
-
-- Live password auth on the production domain with the seeded Primary Gardener and Partner Gardener
-  accounts.
-- Live Firestore and Storage access with a production user who has
-  `gardenAccess: true` and `secretFaeriesMember: true`.
-- Live FCM registration and delivery.
-- Live NWS/Tomorrow weather refresh from a saved garden location.
-- Offline save flush after reconnect in Firebase mode.
-- Real mobile touch pass for Plan drag/resize and sun painting.
+Carrier messaging is not a setup blocker because it is not product scope. Do
+not configure phone numbers, provider secrets, webhooks, fixtures, or smoke
+tests for it.

@@ -1,0 +1,270 @@
+.wateringCard {
+  background: var(--sf2-surface-raised);
+  border: 1px solid var(--sf2-border);
+  border-radius: var(--sf2-radius);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sf2-space-3);
+  min-inline-size: 0;
+  padding: var(--sf2-space-4);
+}
+
+.wateringCard[data-status='due'] {
+  border-block-start: 0.35rem solid var(--sf2-warning);
+}
+
+.wateringCard[data-status='checkSoil'] {
+  border-block-start: 0.35rem solid var(--sf2-info);
+}
+
+.cardHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--sf2-space-4);
+  justify-content: space-between;
+}
+
+.cardEyebrow {
+  color: var(--sf2-ink-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.wateringCard h3 {
+  font-family: var(--sf2-font-note);
+  font-size: 1.4rem;
+  line-height: 1.15;
+}
+
+.statusPill {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.25rem 0.55rem;
+}
+
+.success {
+  background: var(--sf2-success-soft);
+  color: var(--sf2-success);
+}
+
+.info {
+  background: var(--sf2-info-soft);
+  color: var(--sf2-info);
+}
+
+.warning {
+  background: var(--sf2-warning-soft);
+  color: var(--sf2-warning);
+}
+
+.recommendationInstruction {
+  min-block-size: 3.1em;
+}
+
+.exactAmount {
+  background: var(--sf2-leaf-soft);
+  border-radius: var(--sf2-radius-small);
+  display: grid;
+  padding: var(--sf2-space-3);
+}
+
+.exactAmount span {
+  color: var(--sf2-ink-soft);
+  font-size: 0.78rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.exactAmount strong {
+  font-size: 1.2rem;
+}
+
+.qualityRow,
+.cardActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sf2-space-2);
+}
+
+.qualityRow {
+  font-size: 0.82rem;
+}
+
+.qualityRow span {
+  background: var(--sf2-surface);
+  border: 1px solid var(--sf2-border);
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+}
+
+.balanceBlock {
+  display: grid;
+  gap: var(--sf2-space-2);
+}
+
+.balanceBlock > div:first-child {
+  display: flex;
+  font-size: 0.85rem;
+  gap: var(--sf2-space-2);
+  justify-content: space-between;
+}
+
+.meter {
+  background: var(--sf2-paper-deep);
+  block-size: 0.55rem;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.meter span {
+  background: var(--sf2-leaf);
+  block-size: 100%;
+  display: block;
+}
+
+.details {
+  border-block-start: 1px solid var(--sf2-rule);
+  padding-block-start: var(--sf2-space-3);
+}
+
+.details summary {
+  cursor: pointer;
+  font-weight: 780;
+  min-block-size: var(--sf2-control-min);
+  padding-block: 0.5rem;
+}
+
+.reasonList,
+.basisList {
+  display: grid;
+  gap: var(--sf2-space-3);
+  margin: var(--sf2-space-2) 0 0;
+}
+
+.reasonList {
+  padding-inline-start: 1.25rem;
+}
+
+.reasonList li,
+.basisList div {
+  display: grid;
+  gap: var(--sf2-space-1);
+}
+
+.reasonList span,
+.reasonList small,
+.basisList dd {
+  color: var(--sf2-ink-soft);
+  margin: 0;
+}
+
+.basisList dt {
+  color: var(--sf2-ink-muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.cardActions {
+  margin-block-start: auto;
+  padding-block-start: var(--sf2-space-2);
+}
+
+.inlineLink {
+  align-items: center;
+  display: inline-flex;
+  font-weight: 750;
+  min-block-size: var(--sf2-control-min);
+  padding: 0.55rem 0.2rem;
+}
+
+.logForm,
+.choiceGroup {
+  display: grid;
+  gap: var(--sf2-space-4);
+}
+
+.choiceGroup {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.choiceGroup legend {
+  font-weight: 800;
+  margin-block-end: var(--sf2-space-2);
+}
+
+.choiceGroup label {
+  align-items: flex-start;
+  border: 1px solid var(--sf2-border);
+  border-radius: var(--sf2-radius-small);
+  cursor: pointer;
+  display: flex;
+  gap: var(--sf2-space-3);
+  min-block-size: var(--sf2-control-min);
+  padding: var(--sf2-space-3);
+}
+
+.choiceGroup input {
+  accent-color: var(--sf2-leaf);
+  block-size: 1.2rem;
+  inline-size: 1.2rem;
+  margin-block-start: 0.2rem;
+}
+
+.choiceGroup span {
+  display: grid;
+}
+
+.choiceGroup small {
+  color: var(--sf2-ink-soft);
+}
+
+.field {
+  display: grid;
+  gap: var(--sf2-space-1);
+  min-inline-size: 0;
+}
+
+.field > span {
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.field select {
+  background: var(--sf2-surface-raised);
+  border: 1px solid var(--sf2-border-strong);
+  border-radius: var(--sf2-radius-small);
+  min-block-size: var(--sf2-control-min);
+  padding: 0.55rem 2rem 0.55rem 0.7rem;
+}
+
+.amountFields {
+  align-items: start;
+  display: grid;
+  gap: var(--sf2-space-3);
+  grid-template-columns: minmax(0, 1fr) minmax(9rem, 0.6fr);
+}
+
+@media (max-width: 30rem) {
+  .amountFields {
+    grid-template-columns: 1fr;
+  }
+
+  .cardHeader,
+  .balanceBlock > div:first-child {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .cardActions > * {
+    flex: 1 1 100%;
+  }
+}

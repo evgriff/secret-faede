@@ -9,11 +9,11 @@ import type {
   CropWaterNeed,
   PlantingMode,
   SunExposure,
-} from '../gardens/GardenRepository';
+} from './cropCatalogTypes';
 import {
   getFallbackCropSupportProfile,
   normalizeCropSupportProfile,
-} from '../gardens/supportNeeds';
+} from './cropSupport';
 import cropRecords from './homeGardenCropCatalog.generated.json';
 
 interface CatalogCropRecord {

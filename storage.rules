@@ -4,31 +4,35 @@ service firebase.storage {
   match /b/{bucket}/o {
     function hasGardenAccess() {
       return request.auth != null
-        && request.auth.token.keys().hasAny(['gardenAccess'])
         && request.auth.token.gardenAccess == true
-        && request.auth.token.keys().hasAny(['secretFaeriesMember'])
         && request.auth.token.secretFaeriesMember == true;
     }
 
     function isOwner(userId) {
-      return hasGardenAccess()
-        && request.auth.uid == userId;
+      return hasGardenAccess() && request.auth.uid == userId;
     }
 
-    match /users/{userId}/journal/{allPaths=**} {
-      allow read: if isOwner(userId);
-
-      allow write: if isOwner(userId)
-        && request.resource.size < 10 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+    function isValidPhoto(entryId, userId, fileName) {
+      return entryId.size() > 0
+        && entryId.size() <= 128
+        && userId.size() > 0
+        && userId.size() <= 128
+        && fileName.size() > 0
+        && fileName.size() <= 200
+        && request.resource.size > 0
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp|heic|heif)')
+        && request.resource.metadata.entryId == entryId
+        && request.resource.metadata.userId == userId;
     }
 
-    match /gardenWorkspaces/main/journal/{allPaths=**} {
+    match /gardenWorkspaces/main/journal/{entryId}/{userId}/{fileName} {
       allow read: if hasGardenAccess();
-
-      allow write: if hasGardenAccess()
-        && request.resource.size < 10 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+      allow create: if resource == null
+        && isOwner(userId)
+        && isValidPhoto(entryId, userId, fileName);
+      allow update: if false;
+      allow delete: if isOwner(userId);
     }
 
     match /{allPaths=**} {

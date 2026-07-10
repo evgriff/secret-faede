@@ -1,8 +1,8 @@
 import { createReadStream, createWriteStream } from 'node:fs';
-import { readdir, stat, unlink, writeFile } from 'node:fs/promises';
+import { readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises';
 import { createGzip } from 'node:zlib';
 import { mkdir } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import process from 'node:process';
 import { pipeline } from 'node:stream/promises';
 import { tmpdir } from 'node:os';
@@ -35,8 +35,11 @@ const rows = await Promise.all(
 
 rows.sort((left, right) => right.bytes - left.bytes);
 
+const moduleGraph = await analyzeBuiltModuleGraph(rows);
+
 const summary = {
   generatedAtIso: new Date().toISOString(),
+  moduleGraph,
   totalBytes: rows.reduce((total, row) => total + row.bytes, 0),
   totalGzipBytes: rows.reduce((total, row) => total + row.gzipBytes, 0),
   assets: rows,
@@ -90,6 +93,195 @@ async function getGzipSize(path) {
   }
 }
 
+async function analyzeBuiltModuleGraph(assetRows) {
+  const indexPath = join(distDir, 'index.html');
+  const indexHtml = await readFile(indexPath, 'utf8');
+  const entryJsAsset = getEntryJsAsset(indexHtml);
+  const initialJsAssets = getReferencedJsAssets(indexHtml);
+  const jsAssetPaths = new Set(
+    assetRows.filter((asset) => asset.type === 'js').map((asset) => asset.path),
+  );
+  const sources = new Map(
+    await Promise.all(
+      [...jsAssetPaths].map(async (assetPath) => [
+        assetPath,
+        await readFile(assetPath, 'utf8'),
+      ]),
+    ),
+  );
+  const importsByAsset = new Map(
+    [...sources].map(([assetPath, source]) => [
+      assetPath,
+      {
+        dynamic: resolveImports(assetPath, readDynamicImports(source)),
+        static: resolveImports(assetPath, readStaticImports(source)),
+      },
+    ]),
+  );
+
+  return {
+    contentMarkers: {
+      cropCatalogInitialJsAssets: initialJsAssets.filter((assetPath) =>
+        (sources.get(assetPath) ?? '').includes(
+          'secret-faeries-home-garden-v2',
+        ),
+      ),
+    },
+    entryJsAsset,
+    initialJsAssets,
+    routes: {
+      plan: findLazyRoute({
+        entryJsAsset,
+        exportName: 'PlanPage',
+        importsByAsset,
+        initialJsAssets,
+        sources,
+      }),
+    },
+  };
+}
+
+function findLazyRoute({
+  entryJsAsset,
+  exportName,
+  importsByAsset,
+  initialJsAssets,
+  sources,
+}) {
+  const dynamicImports = importsByAsset.get(entryJsAsset)?.dynamic ?? [];
+  const routeEntries = dynamicImports.filter((assetPath) =>
+    exportsName(sources.get(assetPath) ?? '', exportName),
+  );
+
+  if (routeEntries.length !== 1) {
+    throw new Error(
+      `Expected exactly one lazy module exporting ${exportName}; found ${routeEntries.length}.`,
+    );
+  }
+
+  const entryAsset = routeEntries[0];
+  const initialAssets = new Set(initialJsAssets);
+  const jsAssets = collectStaticImportClosure(
+    entryAsset,
+    importsByAsset,
+  ).filter((assetPath) => !initialAssets.has(assetPath));
+
+  if (jsAssets.length === 0) {
+    throw new Error(`The ${exportName} lazy route resolved to no JavaScript.`);
+  }
+
+  return {
+    entryAsset,
+    exportName,
+    jsAssets,
+  };
+}
+
+function collectStaticImportClosure(entryAsset, importsByAsset) {
+  const visited = new Set();
+  const pending = [entryAsset];
+
+  while (pending.length > 0) {
+    const assetPath = pending.pop();
+
+    if (!assetPath || visited.has(assetPath)) {
+      continue;
+    }
+
+    visited.add(assetPath);
+
+    for (const dependency of importsByAsset.get(assetPath)?.static ?? []) {
+      pending.push(dependency);
+    }
+  }
+
+  return [...visited].sort();
+}
+
+function exportsName(source, exportName) {
+  const escapedName = exportName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return (
+    new RegExp(`\\bas\\s+${escapedName}\\b`).test(source) ||
+    new RegExp(`\\bexport\\s*\\{[^}]*\\b${escapedName}\\b`).test(source)
+  );
+}
+
+function readDynamicImports(source) {
+  return [...source.matchAll(/\bimport\(\s*(["'])([^"']+\.js)\1\s*\)/g)].map(
+    (match) => match[2],
+  );
+}
+
+function readStaticImports(source) {
+  const references = new Set();
+  const patterns = [
+    /\bimport\s*(["'])([^"']+\.js)\1/g,
+    /\b(?:import|export)[^;"']*?\bfrom\s*(["'])([^"']+\.js)\1/g,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of source.matchAll(pattern)) {
+      references.add(match[2]);
+    }
+  }
+
+  return [...references];
+}
+
+function resolveImports(importerPath, references) {
+  return references
+    .filter((reference) => reference.startsWith('.'))
+    .map((reference) =>
+      relative(process.cwd(), resolve(dirname(importerPath), reference)),
+    );
+}
+
+function getReferencedJsAssets(html) {
+  const paths = new Set();
+  const referencePattern = /<(?:script|link)\b[^>]*>/g;
+
+  for (const tag of html.match(referencePattern) ?? []) {
+    const reference = readHtmlAttribute(
+      tag,
+      tag.startsWith('<script') ? 'src' : 'href',
+    );
+
+    if (reference && reference.split('?', 1)[0].endsWith('.js')) {
+      paths.add(toDistPath(reference));
+    }
+  }
+
+  return [...paths];
+}
+
+function getEntryJsAsset(html) {
+  for (const tag of html.match(/<script\b[^>]*>/g) ?? []) {
+    if (readHtmlAttribute(tag, 'type') !== 'module') {
+      continue;
+    }
+
+    const source = readHtmlAttribute(tag, 'src');
+
+    if (source?.split('?', 1)[0].endsWith('.js')) {
+      return toDistPath(source);
+    }
+  }
+
+  throw new Error('Could not find the module entry script in dist/index.html.');
+}
+
+function readHtmlAttribute(tag, name) {
+  const match = tag.match(
+    new RegExp(`\\b${name}\\s*=\\s*["']([^"']+)["']`, 'i'),
+  );
+  return match?.[1] ?? null;
+}
+
+function toDistPath(reference) {
+  const withoutQuery = reference.split('?', 1)[0];
+  return join(distDir, withoutQuery.replace(/^\.?\//, ''));
+}
+
 function getAssetType(path) {
   if (path.endsWith('.js')) {
     return 'js';
@@ -111,6 +303,15 @@ function getAssetType(path) {
 }
 
 function toMarkdown(summary) {
+  const assetsByPath = new Map(
+    summary.assets.map((asset) => [asset.path, asset]),
+  );
+  const initialJsGzipBytes = sumAssetGzip(
+    summary.moduleGraph.initialJsAssets,
+    assetsByPath,
+  );
+  const planRoute = summary.moduleGraph.routes.plan;
+  const planRouteGzipBytes = sumAssetGzip(planRoute.jsAssets, assetsByPath);
   const lines = [
     '# Bundle Summary',
     '',
@@ -119,6 +320,10 @@ function toMarkdown(summary) {
     `Total: ${formatBytes(summary.totalBytes)} (${formatBytes(
       summary.totalGzipBytes,
     )} gzip)`,
+    '',
+    `Initial JavaScript: ${formatBytes(initialJsGzipBytes)} gzip`,
+    '',
+    `Plan route JavaScript: ${formatBytes(planRouteGzipBytes)} gzip (${planRoute.entryAsset})`,
     '',
     '| Asset | Type | Size | Gzip |',
     '| --- | --- | ---: | ---: |',
@@ -135,6 +340,18 @@ function toMarkdown(summary) {
   lines.push('');
 
   return `${lines.join('\n')}\n`;
+}
+
+function sumAssetGzip(assetPaths, assetsByPath) {
+  return assetPaths.reduce((total, assetPath) => {
+    const asset = assetsByPath.get(assetPath);
+
+    if (!asset) {
+      throw new Error(`Asset ${assetPath} was not analyzed.`);
+    }
+
+    return total + asset.gzipBytes;
+  }, 0);
 }
 
 function formatBytes(bytes) {

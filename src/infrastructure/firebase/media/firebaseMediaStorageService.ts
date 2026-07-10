@@ -13,7 +13,7 @@ export class FirebaseMediaStorageService implements MediaStorageService {
     const uploadedAtIso = new Date().toISOString();
     const photoId = createPhotoId();
     const fileName = sanitizeFileName(request.file.name);
-    const storagePath = `gardenWorkspaces/main/journal/${request.entryId}/${photoId}-${fileName}`;
+    const storagePath = `gardenWorkspaces/main/journal/${request.entryId}/${request.userId}/${photoId}-${fileName}`;
     const storageRef = ref(
       getFirebaseStorageClient(this.environment),
       storagePath,
@@ -32,10 +32,12 @@ export class FirebaseMediaStorageService implements MediaStorageService {
       contentType: request.file.type || 'application/octet-stream',
       downloadUrl,
       fileName,
+      height: null,
       id: photoId,
       sizeBytes: request.file.size,
       storagePath,
       uploadedAtIso,
+      width: null,
     };
   }
 }

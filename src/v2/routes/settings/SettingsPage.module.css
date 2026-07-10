@@ -1,0 +1,323 @@
+.page {
+  display: grid;
+  gap: var(--sf2-space-5);
+  inline-size: min(100%, 52rem);
+  margin-inline: auto;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.pageHeader h1 {
+  font-family: var(--sf2-font-note);
+  font-size: clamp(2rem, 7vw, 3.2rem);
+  line-height: 1;
+  margin: 0;
+}
+
+.pageHeader p:last-child {
+  color: var(--sf2-ink-soft);
+  margin: var(--sf2-space-2) 0 0;
+  max-inline-size: var(--sf2-readable);
+}
+
+.eyebrow {
+  color: var(--sf2-leaf);
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  margin: 0 0 var(--sf2-space-2);
+  text-transform: uppercase;
+}
+
+.identityPanel,
+.panel {
+  background: var(--sf2-surface);
+  border: 1px solid var(--sf2-border);
+  border-radius: var(--sf2-radius);
+  box-shadow: var(--sf2-shadow-small);
+}
+
+.identityPanel {
+  align-items: center;
+  display: grid;
+  gap: var(--sf2-space-4);
+  grid-template-columns: auto minmax(0, 1fr) minmax(12rem, 1fr);
+  padding: var(--sf2-space-4);
+}
+
+.identityPanel h2,
+.identityPanel p,
+.identityPanel strong,
+.identityPanel span {
+  display: block;
+  margin: 0;
+}
+
+.identityPanel h2 {
+  color: var(--sf2-ink-soft);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+}
+
+.identityPanel > p {
+  color: var(--sf2-ink-soft);
+  font-size: 0.9rem;
+}
+
+.avatar {
+  align-items: center;
+  background: var(--sf2-leaf-soft);
+  border: 1px solid var(--sf2-leaf);
+  border-radius: 50%;
+  color: var(--sf2-leaf);
+  display: flex !important;
+  font-family: var(--sf2-font-note);
+  font-size: 1.5rem;
+  font-weight: 800;
+  inline-size: 3rem;
+  justify-content: center;
+  min-block-size: 3rem;
+}
+
+.form {
+  display: grid;
+  gap: var(--sf2-space-5);
+}
+
+.panel {
+  display: grid;
+  gap: var(--sf2-space-5);
+  padding: clamp(1rem, 4vw, 1.5rem);
+}
+
+.sectionHeading h2,
+.panel h3 {
+  font-family: var(--sf2-font-note);
+  line-height: 1.2;
+  margin: 0;
+}
+
+.sectionHeading h2 {
+  font-size: clamp(1.35rem, 4vw, 1.75rem);
+}
+
+.panel h3 {
+  font-size: 1.15rem;
+}
+
+.sectionHeading p,
+.group > p {
+  color: var(--sf2-ink-soft);
+  margin: var(--sf2-space-2) 0 0;
+}
+
+.formGrid,
+.formGridTwo,
+.formGridThree,
+.checkGrid {
+  display: grid;
+  gap: var(--sf2-space-4);
+}
+
+.formGridTwo {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.formGridThree {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.group {
+  border: 0;
+  border-block-start: 1px solid var(--sf2-border);
+  margin: 0;
+  padding: var(--sf2-space-4) 0 0;
+}
+
+.group legend {
+  font-weight: 800;
+  padding: 0 var(--sf2-space-2) 0 0;
+}
+
+.checkGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-block-start: var(--sf2-space-3);
+}
+
+.checkGrid label {
+  background: var(--sf2-paper);
+  border: 1px solid var(--sf2-border);
+  border-radius: var(--sf2-radius-small);
+  padding: var(--sf2-space-3);
+}
+
+.checkGrid strong,
+.checkGrid small {
+  display: block;
+}
+
+.checkGrid small {
+  color: var(--sf2-ink-soft);
+  margin-block-start: var(--sf2-space-1);
+}
+
+.deliveryRows {
+  border-block: 1px solid var(--sf2-border);
+}
+
+.deliveryRows > div {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  min-block-size: var(--sf2-control-min);
+  padding: var(--sf2-space-2) 0;
+}
+
+.deliveryRows > div + div {
+  border-block-start: 1px solid var(--sf2-border);
+}
+
+.actions,
+.saveBar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sf2-space-3);
+}
+
+.saveBar {
+  background: color-mix(in srgb, var(--sf2-surface) 94%, transparent);
+  border: 1px solid var(--sf2-border);
+  border-radius: var(--sf2-radius);
+  bottom: calc(var(--sf2-space-3) + env(safe-area-inset-bottom));
+  box-shadow: var(--sf2-shadow-small);
+  justify-content: space-between;
+  padding: var(--sf2-space-3) var(--sf2-space-4);
+  position: sticky;
+  z-index: 2;
+}
+
+.capabilityList {
+  display: grid;
+  gap: var(--sf2-space-2);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.capabilityList > div {
+  background: var(--sf2-paper);
+  border-radius: var(--sf2-radius-small);
+  padding: var(--sf2-space-3);
+}
+
+.capabilityList dt {
+  color: var(--sf2-ink-soft);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.capabilityList dd {
+  font-weight: 750;
+  margin: var(--sf2-space-1) 0 0;
+}
+
+.filterButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sf2-space-2);
+}
+
+.filterButtons button {
+  background: var(--sf2-surface-raised);
+  border: 1px solid var(--sf2-border-strong);
+  border-radius: 999px;
+  cursor: pointer;
+  min-block-size: 2.5rem;
+  padding: 0.45rem 0.8rem;
+}
+
+.filterButtons button[aria-pressed='true'] {
+  background: var(--sf2-leaf-soft);
+  border-color: var(--sf2-leaf);
+  color: var(--sf2-leaf);
+  font-weight: 800;
+}
+
+.historyList {
+  display: grid;
+  gap: var(--sf2-space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.historyList article {
+  border-block-start: 1px solid var(--sf2-border);
+  display: grid;
+  gap: var(--sf2-space-2);
+  padding-block-start: var(--sf2-space-3);
+}
+
+.historyList header,
+.historyMeta {
+  color: var(--sf2-ink-soft);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  gap: var(--sf2-space-2) var(--sf2-space-3);
+  justify-content: space-between;
+}
+
+.historyList h3,
+.historyList p {
+  margin: 0;
+}
+
+.historyMeta {
+  justify-content: flex-start;
+}
+
+.historyMeta [data-history-status='failed'] {
+  color: var(--sf2-danger);
+  font-weight: 800;
+}
+
+.historyMeta [data-history-status='sent'] {
+  color: var(--sf2-success);
+  font-weight: 800;
+}
+
+.historyError {
+  background: var(--sf2-danger-soft);
+  border: 1px solid var(--sf2-danger);
+  border-radius: var(--sf2-radius-small);
+  color: var(--sf2-danger);
+  margin: 0;
+  padding: var(--sf2-space-3);
+}
+
+.empty {
+  color: var(--sf2-ink-soft);
+  margin: 0;
+}
+
+@media (max-width: 38rem) {
+  .identityPanel {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .identityPanel > p {
+    grid-column: 1 / -1;
+  }
+
+  .formGridTwo,
+  .formGridThree,
+  .checkGrid,
+  .capabilityList {
+    grid-template-columns: 1fr;
+  }
+
+  .saveBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

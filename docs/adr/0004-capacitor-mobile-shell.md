@@ -42,6 +42,9 @@ plugin or custom native code before secrets can be stored locally.
   platform-only behavior directly.
 - Native push still needs Apple/Google/Firebase entitlements and config files
   before real device delivery works.
+- Current implementation status is deliberately unconfigured: Android lacks
+  `google-services.json`, while iOS has its plist but still needs a native FCM-
+  token bridge because an APNs token is not registered as FCM.
 - The generated native directories become part of the repository and must be
   synced after web build changes with `npm run mobile:sync`.
 - If Capacitor is removed later, delete the native directories, Capacitor config,

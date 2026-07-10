@@ -1,230 +1,225 @@
 # API Integrations
 
-Date: 2026-04-21
+Date: 2026-07-09
 
-## Firebase Cloud Functions
+The active v2 client owns no direct garden-data API calls. `AuthService`,
+`GardenRepository`, and `UserProfileRepository` are its stable boundaries;
+Firebase, weather, media, push, and mobile implementations are selected in
+`src/v2/app/services.ts`.
 
-- `dailyWateringCheck` now runs hourly in UTC and filters users by their saved
-  `notificationPreference.defaultWateringCheckTime` in that user's local
-  timezone. This avoids one global Detroit-only watering check while keeping
-  Cloud Scheduler simple.
-- `refreshGardenOperations` is an authenticated callable manual refresh. It
-  only accepts the signed-in user's own uid, generates operations on the
-  backend, writes Firestore, and lets the client reload through
-  `GardenRepository`.
-- Functions write the garden document with `waterRecommendations`,
-  `weatherSnapshots`, `operationsLastGeneratedAtIso`,
-  `operationsLastGeneratedLocalDate`, and `operationsLastProviderId`.
-- Generated tasks are written to `gardens/{uid}/tasks` with stable ids so
-  completed, snoozed, deferred, and skipped task state is preserved.
-- Firebase scheduled functions are backed by Cloud Scheduler and an HTTP
-  function created by the Firebase CLI:
-  <https://firebase.google.com/docs/functions/schedule-functions>
+## Firebase Auth
 
-## Weather Providers
+Firebase mode uses Email/Password Auth for two provisioned accounts. Access
+requires both `gardenAccess: true` and `secretFaeriesMember: true` ID-token
+claims. `FirebaseAuthService` listens for ID-token changes so membership changes
+are reflected without treating a stale authentication event as authorization.
 
-- NWS is the default U.S. provider.
-- Tomorrow.io is optional and only used when `ENABLE_TOMORROW_WEATHER=true` or
-  `TOMORROW_WEATHER_ENABLED=true` and `TOMORROW_API_KEY` is present.
-- Tomorrow.io handles enhanced forecast and evapotranspiration fields when
-  available. NWS remains the fallback for alerts, recent precipitation, and any
-  Tomorrow.io request failure.
-- Provider decisions are logged with `providerId`, fallback provider, and
-  reason. Request failures log the failed signal and whether stale cache was
-  used.
-- Both backend providers use short in-memory read-through caching. When a fresh
-  request fails and a stale value exists, the stale value is used and logged.
-  If there is no cached value, the failed signal falls back to a conservative
-  empty weather signal so operations can still generate with limited quality.
-- NWS rain handling uses `quantitativePrecipitation` only for inch totals.
-  When NWS publishes precipitation probability or rain wording without QPF,
-  the app stores that as qualitative rain metadata (`rainLikely`, rain window,
-  chance, and provider copy) instead of inventing inches or displaying `0in` as
-  "no rain." Qualitative rain can delay a watering check until the NWS window
-  passes, but only QPF or observed rain counts as water credit.
+There is no registration integration or public sign-up route. Mock mode uses
+the configured two-address allowlist only for local development and tests.
 
-Official references:
+## Firestore and Storage
 
-- NWS API overview and `/points` discovery:
-  <https://www.weather.gov/documentation/services-web-api>
-- NWS active alerts:
-  <https://www.weather.gov/documentation/services-web-alerts>
-- Tomorrow.io data layers, including evapotranspiration:
-  <https://www.tomorrow.io/weather-api/data-layers/>
+All shared client data belongs to the canonical `gardenWorkspaces/main`
+workspace:
 
-## Plant Catalog: Trefle
+- `plans/published`: current shared plan
+- `drafts/{uid}`: one private draft per member
+- `revisions/{revisionId}`: immutable publish/revert history
+- `journal/{entryId}`, `harvests/{harvestId}`, `tasks/{taskId}`, and
+  `waterApplications/{applicationId}`: shared operational records
+- `wateringRecommendations/{cropGroupId}`,
+  `waterBalances/{cropGroupId}`, `weatherSnapshots/{snapshotId}`, and
+  `alerts/{alertId}`: server-owned output
 
-Trefle is the catalog ingestion/enrichment source, not a runtime dependency.
-The browser imports the checked-in generated catalog at
-`src/domain/crops/homeGardenCropCatalog.generated.json`; no normal app screen
-calls Trefle.
+Private profile, token, and delivery state lives at `users/{uid}` and its
+`pushTokens` and `notificationDeliveries` subcollections. The v2 client does
+not use `gardens/{uid}` as active persistence; legacy documents are inputs only
+to the explicit one-way migration.
 
-Pipeline:
+Journal images use
+`gardenWorkspaces/main/journal/{entryId}/{uid}/{photoId}-{fileName}`. The user
+segment prevents one member from overwriting the other member's object. Photos
+must pass client and Storage-rule type/size checks; there is no durable offline
+binary-upload queue.
 
-1. `npm run catalog:build` builds the offline home-garden catalog from the
-   curated overlay and generated variety-group profiles.
-2. `npm run catalog:ingest:trefle -- --write` refreshes the checked-in catalog
-   with Trefle search results when `TREFLE_API_TOKEN` is available.
-3. The curated overlay supplies gardening-specific fields that Trefle may not
-   provide reliably for planning: spacing, row spacing, sow method, water need,
-   support/trellis defaults, root depth, planting modes, pollinator role, and
-   caution notes.
-4. Runtime search uses local JSON only. Generated variety-group records are
-   labeled as derived profiles and tell users to verify cultivar-specific timing
-   from the seed packet or nursery tag.
+Clients may save only their own private draft directly. Publication crosses
+the callable Functions boundary:
 
-Provenance fields on every crop profile:
+- `publishGardenDraftV2`: validates and publishes the actor's current draft
+- `revertGardenPlanV2`: restores a selected immutable revision as a new publish
+- `publishGardenSettingsV2`: publishes only shared location/climate and rebases
+  the actor's private draft when one exists
 
-- `source`: currently `trefle+curated-overlay` for shipped records.
-- `lastRefreshedIso`: build or Trefle refresh timestamp.
-- `manualOverride`: true when gardening heuristics override or supplement source
-  data.
-- `sourceTags`: machine-readable tags such as `trefle-query`,
-  `curated-overlay`, `generated-variety-profile`, and Trefle ids when refreshed.
-- `profileCompleteness` and `completenessScore`: local quality labels for planner
-  use.
+All three require both membership claims and an expected revision. Firestore
+rules deny direct client writes to workspace metadata, `plans/published`, and
+`revisions`.
 
-Official references:
+## Canonical Functions
 
-- Trefle getting started and token requirement:
-  <https://docs.trefle.io/docs/guides/getting-started/>
-- Trefle plant/species search with the `q` parameter:
-  <https://docs.trefle.io/docs/guides/searching/>
-- Trefle filters and null exclusion:
-  <https://docs.trefle.io/docs/guides/filtering/>
+`functions/index.js` exports three v2 operation entry points:
 
-## Watering Model
+- `dailyWateringCheck`: runs at minute 0 of every hour in UTC. A workspace
+  claim/lease ensures only one worker publishes output, and the saved garden
+  timezone/check time determines whether a non-forced run is due.
+- `refreshGardenOperations`: authenticated callable refresh. It requires both
+  membership claims and accepts only the signed-in user's own uid.
+- `onGardenWeatherSnapshotUpdated`: creates frost, heat, and severe-weather
+  alerts from a newly committed canonical weather snapshot.
 
-Watering recommendations now record:
+An operation run validates workspace schema 2, plan schema 9, revision linkage,
+feet-based geometry, IANA timezone, coordinates, structures, and crop-group
+water profiles before calculation. It loads the exact published revision,
+claims a 15-minute lease, reads shared applications/balances/tasks, calculates
+operations, preserves concurrent field actions, and commits only if the
+published revision and shared water ledger are still compatible.
 
-- `generatedBy`: `backend`, `client`, or `manualRefresh`
-- `refreshedAtIso`
-- `dataQuality`: `complete`, `partial`, or `limited`
-- optional `waterBalance` metadata with model version, baseline date/source,
-  daily need, root-zone capacity, allowed depletion threshold, current
-  depletion, actionable amount, observed/manual/forecast credits, and the
-  plain-language next-check reason
+The worker writes one balance and one recommendation per active crop group,
+the weather snapshot, and stable generated tasks. It never writes client-owned
+drafts or profiles.
 
-Backend and client-fallback recommendation inputs:
+## Weather providers
 
-- crop or planting weekly water target
-- recent rainfall
-- forecast rainfall with partial credit
-- heat stress multiplier
-- evapotranspiration when the provider supplies it
-- container/raised-bed multiplier
-- mulch flag
-- soil type
-- drainage profile
-- manual watering logs from journal notes
-- irrigation zone label when assigned
-- planting lifecycle events, where same-day direct sowing and planting out count
-  as the starting watering baseline instead of creating immediate watering work
+The National Weather Service adapter is the default U.S. provider. It resolves
+the saved point, current conditions, forecast, alerts, recent precipitation,
+and available agricultural signals. Tomorrow.io is an optional server-side
+enhancement when explicitly enabled and given a server key; NWS remains its
+fallback.
 
-The lifecycle model calculates a capped root-zone depletion bucket from a
-baseline date instead of treating the whole weekly water target as immediately
-due. Observed rain and logged watering reduce depletion, daily crop demand
-raises it, and extra water above the estimated root-zone capacity is ignored.
-Forecast rain can suppress or delay watering, but does not mark a target
-complete. NWS probability/text rain may delay a recommendation, but it does not
-reduce the water-balance deficit until actual/QPF rain is available.
-Recommendations preserve history and stable ids. Old active/new
-recommendations from prior dates are suppressed rather than deleted so Today
-does not keep showing stale work.
+Provider behavior is intentionally conservative:
 
-Today presents the same model as watering windows instead of daily deficit
-math. Future outlook rows collapse into one decision per bed, zone, or planting:
-water today, water on one specific day, or water during a short date range. The
-UI keeps inches as secondary "deep soak" guidance and does not show tiny daily
-watering recommendations as separate cards.
+- location comes only from the saved latitude/longitude pair
+- no city, station, rainfall, or evapotranspiration value is substituted for
+  missing evidence
+- recent precipitation and forecast quality are labeled fresh, cached, stale,
+  or insufficient
+- failures are logged by signal and become safe unavailable inputs
+- process-local caches may serve a labeled stale value after a provider error
+- precipitation probability or descriptive rain is not credited as observed
+  water
 
-## Task Automation
+Without coordinates, the provider is not called. The worker records an
+unavailable weather snapshot, retains non-weather tasks, returns one low-
+confidence `checkSoil` recommendation for each active crop group, and suppresses
+automatic weather/watering push.
 
-Backend generation writes:
+## Deterministic crop-group watering
 
-- watering tasks from active backend recommendations
-- frost-prep tasks when the saved weather snapshot has frost watch/warning
-- heat-prep tasks when the saved weather snapshot has heat watch/warning
-- upcoming planting tasks from saved planned dates
-- succession review tasks for harvest-ready or harvested plantings
+`crop-water-balance-v2` calculation revision 1 is the behavior contract used by
+the TypeScript client domain and production Functions implementation. Each
+calculation is a pure function of:
 
-The backend does not delete existing user tasks. It refreshes matching open
-generated tasks only when they are not snoozed or deferred.
+- the exact calculation instant and valid garden timezone
+- one crop group's saved/versioned water-profile snapshot
+- lifecycle-derived or explicit stage and stage coefficient
+- measured/geometry/estimated area and linked growing structure
+- structure soil depth/type, drainage, container status, mulch, and irrigation
+  context
+- the compatible prior crop-group balance and application ledger
+- ordered historical observations and forecast periods with unique source IDs
+- explicit applied, partial, or skipped water records, actor/revision identity,
+  and application efficiency
 
-## Client Fallbacks
+The model caps the effective root zone by structure soil depth, accrues ET,
+credits observed rain and explicit applied/partial water, applies crop/soil/container/
+mulch factors, and projects forecast depletion against that crop group's own
+trigger. Partial credits only its recorded amount; a skipped application always
+receives zero credit. An unknown amount
+is never converted to inches, and gallons are omitted when growing area is not
+reliable.
 
-- Plan and Today weather refresh actions first attempt the backend callable in
-  Firebase mode and reload the saved garden after success. If the callable is
-  unavailable, they fall back to the client-side weather/watering path.
-- Mock mode keeps the client-side generator.
-- The browser weather cache can now return stale cached data if a refresh
-  request fails.
+Every result carries model/revision identifiers, a profile fingerprint,
+calculation and recheck times, basis, confidence, data quality, root-zone
+capacity, current/projected depletion, trigger, optional depth/gallons, reason
+codes/details, source IDs, status, action, and an exact crop-group deep link.
+Possible statuses are `due`, `scheduled`, `suppressed`, and `checkSoil`.
 
-## Notification Delivery
+Uncertain inputs lower confidence or produce a soil check instead of false
+precision. Only an actionable `due` result with a positive depth can create a
+watering alert, and per-user delivery still applies the enabled alert kind,
+minimum deficit, consent, timezone, and quiet hours.
 
-### In-app
+The client prefers fresh persisted Functions results. If none is available, it
+creates only a conservative per-crop soil-check card; it does not reproduce a
+supposedly authoritative server amount.
 
-- In-app notification logs are durable Firestore documents under
-  `gardens/{uid}/notifications/{notificationId}`.
-- In-app logs are not a user-toggleable delivery channel; they are the durable
-  audit/history path for generated garden alerts.
-- Logs now include delivery status plus user-facing `acknowledgedAtIso` and
-  `dismissedAtIso` state.
-- The Settings notification center reads the same log stream and filters by
-  alert type.
+## Task automation
 
-### Web push
+Functions derive stable tasks for crop-group watering or soil checks, lifecycle
+and planting timelines, support, thinning, feeding, pruning, mulching,
+inspection/weeding, harvest, succession review, and evidence-backed frost/heat
+preparation. Regeneration merges matching open generated tasks while preserving
+concurrent user completion, snooze, defer, and reopen state. Task alerts link to
+the exact task in Today.
 
-- Browser push registration uses FCM, stores tokens under
-  `users/{uid}/pushTokens/{tokenId}`, and records token freshness timestamps.
-- Foreground messages open `/app/today`; background notification clicks are
-  handled in `firebase-messaging-sw.js` before importing FCM scripts so custom
-  click handling is not overwritten.
-- Failed FCM sends remove invalid/stale token documents when Firebase returns a
-  registration-token error.
-- FCM recommends storing tokens server-side with timestamps and refreshing token
-  freshness over time:
-  <https://firebase.google.com/docs/cloud-messaging/manage-tokens>
-- FCM web receive/click behavior reference:
-  <https://firebase.google.com/docs/cloud-messaging/web/receive-messages>
+## Notification delivery
 
-### Native and local notifications
+Alerts are durable shared facts under the workspace; delivery decisions and
+receipts are private to each member.
 
-- Capacitor-native push registration is exposed through the same
-  `NotificationService` contract where native capabilities are available.
-- Local notifications are used for device-local reminders such as harvest
-  "not ready" follow-ups when the native shell reports support.
-- Local reminders are device-local permission/capability state, not a
-  server-side delivery channel stored beside push.
-- Web/PWA remains fully usable without native notification capability; Settings
-  reports unavailable native hooks instead of pretending registration happened.
+For every stable alert ID, Functions:
 
-### Carrier Messaging
+1. list enabled Auth users with both membership claims
+2. validate user-profile schema 2 and notification preferences
+3. always record an in-app delivery receipt
+4. apply alert-kind consent, watering threshold, push consent, timezone, and
+   quiet hours before push
+5. defer quiet-hour push until the exact local quiet-hours end
+6. ask FCM to accept payloads, remove invalid tokens, retry transient failures,
+   and record provider acceptance/failure
 
-Carrier messaging is outside the current product scope. Push, local native
-reminders, and in-app logs are the supported notification paths. Do not add
-carrier setup, product copy, demo scripts, or prompt-chain work that depends on
-phone-number delivery. Legacy provider-specific Functions, env, seed, Settings,
-rules, and webhook paths were removed earlier in the overhaul.
+Stable alert/delivery IDs make retries idempotent. Separate crop-group IDs keep
+different watering alerts distinct.
 
-## Required Secrets And Env
+Web tokens receive data-only FCM payloads. `firebase-messaging-sw.js` displays
+the background notification, tags it with the alert ID, and focuses or opens
+the exact deep link. Foreground web messages become in-app banners so the page
+does not duplicate the service worker's system notification.
 
-- `TREFLE_API_TOKEN`: optional local-only catalog refresh token. It is never
-  required by the deployed app and must not be exposed to browser runtime config.
-- `TOMORROW_API_KEY`: optional Functions secret/env for Tomorrow.io.
-- `ENABLE_TOMORROW_WEATHER=true` or `TOMORROW_WEATHER_ENABLED=true`: opt in to
-  Tomorrow.io on Functions.
-- `NWS_USER_AGENT`: optional identifying User-Agent for NWS requests.
+Native iOS/Android tokens receive platform notification-plus-data payloads and
+foreground messages also use the in-app banner path. The Capacitor adapter can
+report and schedule device-local notifications, but current v2 routes do not
+create an independent local-reminder schedule; Settings reports capability
+without claiming registration or delivery occurred.
 
-## Known Gaps
+The persisted push status `sent` means FCM accepted the request, not that a
+device displayed it. Current native registration is not release-ready: Android
+lacks `google-services.json`, and iOS requires an FCM-token bridge rather than
+registering the raw APNs token. Settings exposes these states as unconfigured.
 
-- Backend weather cache is in-memory per Functions instance, not Firestore or
-  Memorystore-backed.
-- The scheduled job scans all user documents hourly. That is acceptable for the
-  current prototype, but should become a query/indexed schedule queue before
-  scale.
-- NWS evapotranspiration is not available in this adapter; ET only appears when
-  Tomorrow.io returns it.
-- Soil type, drainage profile, and irrigation zone fields are persisted but do
-  not yet have dedicated Settings/Inspector controls beyond existing object
-  editing paths.
+## Local crop catalog
+
+Trefle is an optional ingestion/enrichment source, never a runtime dependency.
+The active crop picker reads the checked-in local catalog. Catalog records are
+combined with curated garden fields, and each saved crop group receives its own
+water-profile snapshot so a later catalog refresh cannot silently change a
+published plan's watering behavior.
+
+- `npm run catalog:build` rebuilds the local catalog.
+- `TREFLE_API_TOKEN npm run catalog:ingest:trefle -- --write` explicitly
+  refreshes source data.
+
+## External references
+
+- [Firebase scheduled functions](https://firebase.google.com/docs/functions/schedule-functions)
+- [Firebase Cloud Messaging token management](https://firebase.google.com/docs/cloud-messaging/manage-tokens)
+- [Firebase Cloud Messaging web receive behavior](https://firebase.google.com/docs/cloud-messaging/web/receive-messages)
+- [National Weather Service API](https://www.weather.gov/documentation/services-web-api)
+- [Tomorrow.io weather data layers](https://www.tomorrow.io/weather-api/data-layers/)
+- [Trefle getting started](https://docs.trefle.io/docs/guides/getting-started/)
+
+## Known integration limits
+
+- provider caches are process-local rather than durable shared caches
+- weather behavior still needs periodic contract checks against live provider
+  responses
+- production web push is blocked until the VAPID build variable is configured
+- native push is blocked until each claimed platform has complete Firebase
+  configuration, a valid FCM token path, signing, and real-device smoke tests
+- native local-notification capability exists, but v2 has no separate local
+  scheduling workflow
+- photo uploads require a connection
+- production schema migration is an explicit pre-deploy step, not a runtime
+  compatibility mode
+
+Carrier messaging is explicitly excluded. Do not add phone/contact fields,
+carrier providers, webhooks, or delivery fallbacks.

@@ -3,11 +3,16 @@
 const assert = require('node:assert/strict');
 const {
   buildForecastDays,
+  cachedJson,
+  combineCachedJsonMetadata,
   findNextGridRainIso,
   findNextProbabilityRainIso,
+  getCachedJsonMetadata,
   parseGridValues,
   readPrecipitationQuantityInches,
 } = require('../weatherProviderUtils');
+const { clipGridValues } = require('../nwsWeatherProvider');
+const { clipForecastPeriods } = require('../tomorrowWeatherProvider');
 
 assert.equal(
   readPrecipitationQuantityInches(
@@ -240,4 +245,118 @@ assert.equal(
   '2026-04-28T06:00:00.000Z',
 );
 
-console.log('weatherProviderUtils tests passed');
+const clipAt = new Date('2026-07-09T13:00:00.000Z');
+assert.deepEqual(
+  clipGridValues(
+    [
+      {
+        end: new Date('2026-07-09T14:00:00.000Z'),
+        start: new Date('2026-07-09T12:00:00.000Z'),
+        value: 1,
+      },
+    ],
+    clipAt,
+    true,
+  ),
+  [
+    {
+      end: new Date('2026-07-09T14:00:00.000Z'),
+      start: clipAt,
+      value: 0.5,
+    },
+  ],
+);
+assert.equal(
+  clipGridValues(
+    [
+      {
+        end: new Date('2026-07-09T14:00:00.000Z'),
+        start: new Date('2026-07-09T12:00:00.000Z'),
+        value: 80,
+      },
+    ],
+    clipAt,
+    false,
+  )[0].value,
+  80,
+  'probability is clipped in time but not scaled as an accumulated amount',
+);
+assert.deepEqual(
+  clipForecastPeriods(
+    [
+      {
+        endIso: '2026-07-09T14:00:00.000Z',
+        precipitationAmountIn: 0.4,
+        startIso: '2026-07-09T12:00:00.000Z',
+      },
+    ],
+    clipAt,
+  ),
+  [
+    {
+      endIso: '2026-07-09T14:00:00.000Z',
+      precipitationAmountIn: 0.2,
+      startIso: clipAt.toISOString(),
+    },
+  ],
+);
+
+(async () => {
+  const originalFetch = global.fetch;
+  const originalNow = Date.now;
+  const fetchedAtMs = Date.parse('2026-07-09T12:00:00.000Z');
+  let currentMs = fetchedAtMs;
+  let fetchCount = 0;
+  Date.now = () => currentMs;
+  global.fetch = async () => {
+    fetchCount += 1;
+    return {
+      json: async () => ({ sequence: fetchCount }),
+      ok: true,
+    };
+  };
+
+  try {
+    const request = {
+      headers: {},
+      logger: { warn() {} },
+      ttlMs: 60_000,
+      url: 'https://weather.test/cache-metadata-parity',
+    };
+    const fresh = await cachedJson(request);
+    assert.deepEqual(getCachedJsonMetadata(fresh), {
+      cacheState: 'fresh',
+      fetchedAtIso: '2026-07-09T12:00:00.000Z',
+    });
+
+    currentMs += 1_000;
+    const cached = await cachedJson(request);
+    assert.equal(fetchCount, 1);
+    assert.deepEqual(getCachedJsonMetadata(cached), {
+      cacheState: 'cached',
+      fetchedAtIso: '2026-07-09T12:00:00.000Z',
+    });
+
+    currentMs += 60_000;
+    global.fetch = async () => {
+      throw new Error('provider unavailable');
+    };
+    const stale = await cachedJson(request);
+    assert.deepEqual(getCachedJsonMetadata(stale), {
+      cacheState: 'stale',
+      fetchedAtIso: '2026-07-09T12:00:00.000Z',
+    });
+    assert.deepEqual(combineCachedJsonMetadata([fresh, stale]), {
+      cacheState: 'stale',
+      fetchedAtIso: '2026-07-09T12:00:00.000Z',
+    });
+  } finally {
+    global.fetch = originalFetch;
+    Date.now = originalNow;
+  }
+
+  console.log('weatherProviderUtils tests passed');
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

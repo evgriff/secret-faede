@@ -1,6 +1,6 @@
 # Local Setup
 
-Date: 2026-04-21
+Date: 2026-07-10
 
 ## Web And PWA
 
@@ -32,26 +32,31 @@ truth.
 
 ## Native Firebase Files
 
-Do not commit native Firebase config files. They are ignored by `.gitignore`.
+Native Firebase browser/app identifiers are public configuration, but signing
+material and provider credentials are not. Current tree state:
 
-- Android: place `google-services.json` at `android/app/google-services.json`.
-- iOS: place `GoogleService-Info.plist` at
-  `ios/App/App/GoogleService-Info.plist` and add it to the iOS app target in
-  Xcode.
+- Android: `android/app/google-services.json` is absent; supply the correct file
+  through the mobile release process before applying the Google Services plugin
+  or claiming Android push.
+- iOS: `ios/App/App/GoogleService-Info.plist` is present and included in the app
+  target.
 
-Native push will not deliver on real devices until those files and the Firebase
-Cloud Messaging/APNs setup are complete.
+Native push will not deliver on real devices until platform Firebase,
+FCM/APNs, entitlements, and signing setup are complete. iOS additionally needs a
+native FCM-token path; the client intentionally refuses to store a raw APNs
+token as though it were FCM.
 
 ## Native Features Wired
 
-- Native network status feeds the same online/offline and queued-sync UI used
-  by the PWA.
+- Native network status feeds the same honest online/offline status used by the
+  PWA; active repositories do not promise a durable offline write queue.
 - Native camera capture can attach photos from Today and Feed while preserving
   the existing file input for web/PWA.
-- Native push registration stores device tokens under
-  `users/{uid}/pushTokens/{tokenId}` with a native platform label.
-- Local notifications can be permissioned and test-scheduled from Settings in
-  the native shell.
+- Android native push registration can store a valid FCM token under
+  `users/{uid}/pushTokens/{tokenId}` after platform configuration is complete;
+  iOS registration is currently unavailable pending an FCM-token bridge.
+- Local-notification capability can be reported by Settings, but v2 routes do
+  not schedule an independent local-reminder workflow.
 - Capacitor Preferences stores only non-secret session hints such as the last
   signed-in user and route.
 

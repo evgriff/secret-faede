@@ -1,0 +1,322 @@
+.page {
+  display: grid;
+  gap: var(--sf2-space-5);
+  inline-size: min(100%, var(--sf2-wide));
+  margin-inline: auto;
+}
+
+.pageHeader {
+  align-items: end;
+  display: flex;
+  gap: var(--sf2-space-4);
+  justify-content: space-between;
+}
+
+.pageHeader h1,
+.pageHeader p,
+.inspector h2,
+.inspector h3,
+.inspector p,
+.waterCard h3,
+.waterCard p {
+  margin: 0;
+}
+
+.pageHeader h1,
+.inspector h2 {
+  font-family: var(--sf2-font-note);
+  line-height: 1.12;
+}
+
+.pageHeader h1 {
+  font-size: clamp(1.8rem, 5vw, 2.75rem);
+}
+
+.pageHeader > div {
+  display: grid;
+  gap: var(--sf2-space-1);
+}
+
+.eyebrow {
+  color: var(--sf2-leaf);
+  font-size: 0.75rem;
+  font-weight: 850;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.actionBar {
+  align-items: center;
+  background: var(--sf2-surface);
+  border: 1px solid var(--sf2-border);
+  border-radius: var(--sf2-radius);
+  box-shadow: var(--sf2-shadow-small);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sf2-space-3);
+  justify-content: space-between;
+  padding: var(--sf2-space-3);
+}
+
+.primaryActions,
+.canvasControls,
+.checkRow,
+.inspectorActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sf2-space-2);
+}
+
+.workspaceGrid {
+  align-items: start;
+  display: grid;
+  gap: var(--sf2-space-4);
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 23rem);
+}
+
+.canvasColumn,
+.inspector {
+  min-inline-size: 0;
+}
+
+.canvasColumn {
+  display: grid;
+  gap: var(--sf2-space-3);
+}
+
+.canvasControls {
+  background: var(--sf2-surface);
+  border: 1px solid var(--sf2-border);
+  border-radius: var(--sf2-radius-small);
+  padding: 0 var(--sf2-space-3);
+}
+
+.canvasFrame {
+  background: var(--sf2-surface);
+  border: 1px solid var(--sf2-border);
+  border-radius: var(--sf2-radius-large);
+  box-shadow: var(--sf2-shadow-small);
+  container-type: inline-size;
+  display: grid;
+  gap: var(--sf2-space-2);
+  overflow: hidden;
+  padding: clamp(0.75rem, 3vw, 1.5rem);
+}
+
+.axisTop {
+  color: var(--sf2-ink-soft);
+  font-size: 0.8rem;
+  font-weight: 750;
+  text-align: center;
+}
+
+.plot {
+  background-color: #dfe8ce;
+  border: 2px solid #45533e;
+  border-radius: var(--sf2-radius-small);
+  inline-size: 100%;
+  max-block-size: min(68vh, 54rem);
+  overflow: hidden;
+  position: relative;
+  touch-action: none;
+}
+
+.grid {
+  background-image:
+    linear-gradient(to right, rgba(49, 74, 47, 0.2) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(49, 74, 47, 0.2) 1px, transparent 1px);
+  background-size: 5% 5%;
+}
+
+.northMarker {
+  align-items: center;
+  background: rgba(255, 253, 247, 0.92);
+  border: 1px solid var(--sf2-border-strong);
+  border-radius: 999px;
+  display: flex;
+  font-size: 0.7rem;
+  font-weight: 850;
+  gap: var(--sf2-space-1);
+  inset-block-start: var(--sf2-space-2);
+  inset-inline-end: var(--sf2-space-2);
+  min-block-size: 2rem;
+  padding-inline: var(--sf2-space-2);
+  position: absolute;
+  z-index: 8;
+}
+
+.northArrow {
+  display: inline-block;
+  font-size: 1rem;
+  line-height: 1;
+  transform-origin: center;
+  transition: transform var(--sf2-motion-fast) var(--sf2-ease);
+}
+
+.structure,
+.plantingGroup {
+  border: 1px solid;
+  min-block-size: 1.5rem;
+  min-inline-size: 1.5rem;
+  overflow: hidden;
+  position: absolute;
+  text-align: start;
+}
+
+.structure {
+  background: rgba(139, 100, 59, 0.46);
+  border-color: #624425;
+  color: #2f2419;
+  padding: var(--sf2-space-1);
+  transform-origin: center;
+  z-index: 2;
+}
+
+.structure span {
+  background: rgba(255, 253, 247, 0.82);
+  border-radius: 0.2rem;
+  display: inline-block;
+  font-size: clamp(0.55rem, 2cqi, 0.76rem);
+  font-weight: 800;
+  max-inline-size: 100%;
+  overflow: hidden;
+  padding: 0.12rem 0.25rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.structure_path {
+  background: rgba(198, 186, 158, 0.82);
+  border-style: dashed;
+}
+
+.structure_container {
+  border-radius: 999px;
+}
+
+.structure_trellis {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(94, 77, 55, 0.22),
+    rgba(94, 77, 55, 0.22) 4px,
+    rgba(255, 253, 247, 0.4) 4px,
+    rgba(255, 253, 247, 0.4) 8px
+  );
+}
+
+.plantingGroup {
+  background: rgba(44, 105, 55, 0.82);
+  border-color: #173c21;
+  border-radius: 0.45rem;
+  color: #fff;
+  cursor: grab;
+  display: grid;
+  isolation: isolate;
+  justify-items: center;
+  padding: var(--sf2-space-1);
+  place-content: center;
+  transition:
+    box-shadow var(--sf2-motion-fast) var(--sf2-ease),
+    filter var(--sf2-motion-fast) var(--sf2-ease);
+  z-index: 4;
+}
+
+.plantingGroup:active {
+  cursor: grabbing;
+}
+
+.plantingGroup strong,
+.plantingGroup small {
+  line-height: 1.15;
+  overflow: hidden;
+  position: relative;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.plantingGroup strong {
+  font-size: clamp(0.58rem, 2.5cqi, 0.9rem);
+}
+
+.plantingGroup small {
+  font-size: clamp(0.5rem, 2cqi, 0.72rem);
+}
+
+.plantingGroup[data-lifecycle='planned'] {
+  background: rgba(58, 95, 62, 0.72);
+  border-style: dashed;
+}
+
+.plantingGroup[data-lifecycle='harvestReady'] {
+  background: rgba(121, 87, 17, 0.9);
+}
+
+.plantingGroup[data-lifecycle='harvested'],
+.plantingGroup[data-lifecycle='removed'] {
+  filter: saturate(0.35);
+  opacity: 0.72;
+}
+
+.selected {
+  box-shadow:
+    0 0 0 3px var(--sf2-surface-raised),
+    0 0 0 6px var(--sf2-focus);
+  z-index: 6;
+}
+
+.instanceField {
+  inset: 0;
+  opacity: 0.68;
+  pointer-events: none;
+  position: absolute;
+  z-index: 1;
+}
+
+.instanceField i {
+  background: rgba(225, 244, 213, 0.84);
+  block-size: clamp(0.15rem, 0.8cqi, 0.35rem);
+  border-radius: 50%;
+  inline-size: clamp(0.15rem, 0.8cqi, 0.35rem);
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+.canvasHint,
+.hint {
+  color: var(--sf2-ink-soft);
+  font-size: 0.86rem;
+  margin: 0;
+}
+
+@media (max-width: 64rem) {
+  .workspaceGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 42rem) {
+  .pageHeader,
+  .actionBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .primaryActions > * {
+    flex: 1 1 8rem;
+  }
+
+  .canvasFrame {
+    border-inline: 0;
+    border-radius: 0;
+    margin-inline: calc(-1 * var(--sf2-space-4));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plantingGroup {
+    transition: none;
+  }
+}

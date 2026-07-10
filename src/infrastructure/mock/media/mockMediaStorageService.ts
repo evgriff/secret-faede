@@ -14,10 +14,12 @@ export class MockMediaStorageService implements MediaStorageService {
       contentType: request.file.type || 'application/octet-stream',
       downloadUrl,
       fileName,
+      height: null,
       id: photoId,
       sizeBytes: request.file.size,
       storagePath: `mock/gardenWorkspaces/main/journal/${request.entryId}/${photoId}-${fileName}`,
       uploadedAtIso,
+      width: null,
     };
   }
 }

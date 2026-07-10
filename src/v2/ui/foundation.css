@@ -1,0 +1,66 @@
+@import './tokens.css';
+
+[data-sf-v2] {
+  box-sizing: border-box;
+  color: var(--sf2-ink);
+  font-family: var(--sf2-font-body);
+  font-size: 1rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+[data-sf-v2] *,
+[data-sf-v2] *::before,
+[data-sf-v2] *::after {
+  box-sizing: inherit;
+}
+
+[data-sf-v2] :where(h1, h2, h3, p) {
+  margin-block-start: 0;
+}
+
+[data-sf-v2] :where(button, input, select, textarea) {
+  color: inherit;
+  font: inherit;
+}
+
+[data-sf-v2]
+  :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--sf2-focus);
+  outline-offset: 3px;
+}
+
+[data-sf-v2] :where(a) {
+  color: var(--sf2-sky);
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 0.1em;
+}
+
+[data-sf-v2] :where(a:hover) {
+  text-decoration-thickness: 0.16em;
+}
+
+[data-sf-v2] :where(button, input, select, textarea):disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-sf-v2] *,
+  [data-sf-v2] *::before,
+  [data-sf-v2] *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+@media (forced-colors: active) {
+  [data-sf-v2]
+    :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+    outline-color: Highlight;
+  }
+}

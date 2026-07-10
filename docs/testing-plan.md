@@ -1,340 +1,224 @@
 # Testing Plan
 
-Date: 2026-04-21
+Date: 2026-07-10
 
-## Required Verification
+Testing protects the operational loop, not just route rendering: a saved plan
+must produce deterministic crop-group work, field actions must update the
+correct durable records, and every persistence/delivery boundary must fail
+closed.
 
-Run before finishing implementation prompts:
+## Release gates
 
-- `npm run lint`
-- `npm run typecheck`
-- `npm run test:unit`
-- `npm run test:integration`
-- `npm run test:rules`
-- `npm run functions:build`
-- `npm run functions:test`
-- `npm run test:e2e`
-- `npm run test:visual`
-- `npm run build`
-- `node scripts/analyze-bundle.mjs`
-- `npm run quality:bundle-budget`
-- `npm run ci`
+Run every command below before a release:
 
-Run when Functions, notifications, or scheduled behavior changes:
+1. `npm run lint`
+2. `npm run typecheck`
+3. `npm run quality:serena`
+4. `npm run test:unit`
+5. `npm run test:e2e`
+6. `npm run build`
+7. `npm run ci`
 
-- `npm run functions:build`
-- `npm run functions:test`
+`npm run ci` is the authoritative aggregate. It also runs formatting,
+dependency/file-quality guards, high-severity production dependency audits for
+the client and Functions, Firebase adapter integration tests, emulator rules
+tests, Functions syntax/tests, bundle analysis/budget, and visual regression.
 
-Run when Firestore or Storage rules change:
+Use targeted commands during development:
 
-- `npm run test:rules`
+- domain, repository, or React behavior: `npm run test:unit`
+- Firebase adapters: `npm run test:integration`
+- Firestore/Storage rules: `npm run test:rules`
+- Functions/watering/delivery: `npm run functions:build && npm run functions:test`
+- semantic browser journeys: `npm run test:e2e`
+- intended visual changes: `npm run test:visual:update`, review the images,
+  then `npm run test:visual`
+- migration changes: `npx vitest run scripts/migrate-workspace-v2.test.mjs`
+- production bundle changes: `npm run quality:bundle`
 
-Run when seed data, crop catalog, or demo defaults change:
+Do not update screenshots merely to make a failure disappear. Review the route
+at the affected viewport, confirm the change is intentional, then update and
+rerun the visual suite.
 
-- `SEED_USER_EMAIL=<allowlisted email> npm run seed:dev -- --dry-run`
+## Deterministic watering contract
 
-Run when shared motion, overlay choreography, or reduced-motion behavior
-changes:
+The TypeScript domain and Functions implementations must test the same
+`crop-water-balance-v2` invariants:
 
-- `npm run test:e2e`
-- `npm run test:visual`
-- a reduced-motion browser smoke for the affected overlay/selection flow; the
-  current redesign regression suite covers a Today quick-action sheet and Feed
-  composer under `prefers-reduced-motion: reduce`
+- one result per active crop-group ID, even when crops share a bed or irrigation
+  zone
+- input ordering cannot change the result; invalid order, overlap, duplicate
+  source IDs, invalid timezones, and incompatible revisions are rejected
+- saved crop-profile/stage/structure factors change only the owning crop group
+- explicit stage, stage source, coefficient, profile source/version/fingerprint,
+  and weather source IDs survive client/Functions parity
+- root depth is capped by known structure soil depth
+- observed rain and explicit applications are credited once through ledger
+  IDs/revisions
+- partial water credits only its explicit amount; skipped water is always zero
+  credit and has no inferred amount
+- unknown water amount, unreliable area, missing structure, low-confidence crop
+  profile, and missing/stale weather lower confidence or produce `checkSoil`
+- gallons are absent unless area is reliable
+- missing coordinates never trigger a default weather location
+- the same explicit inputs and calculation instant produce byte-stable
+  recommendation semantics, reason codes, balance, and timestamps
+- actionable push eligibility requires `due`, positive depth, adequate evidence,
+  and the member's threshold/consent
 
-## Current Coverage
+Tests should assert useful reason codes and source IDs, not only headline
+amounts. Any model-version or calculation-revision change requires fixtures for
+the previous balance compatibility path and an explicit migration/rebaseline
+decision.
 
-- Unit tests explicitly cover geometry conversion, eighth-foot snap logic,
-  optimizer fixtures, footprint-wide sun scoring, path/support clearance, review
-  suggestion generation, watering recommendations, and draft/publish/revert
-  behavior.
-- Unit tests cover env parsing, allowlist, auth, repositories, pending offline
-  saves, pending-sync conflict metadata, schema migration helpers, validation,
-  garden math, precision Plan interaction geometry, planning warnings,
-  sun/shade, watering, weather cache, notifications, tasks, journal summaries,
-  routing, and page behavior.
-- Plan page tests cover crop placement, arrangement plantings rendered as
-  individual selectable nodes, quantity-first Add Plant creation, arrangement
-  editor node-count and spacing updates, crop focus Plant/Crop/Needs summaries,
-  structure placement, Review-mode warning visibility, Review accept/reject
-  decisions in the publish confirmation, Choose Plants save/clear/search
-  behavior, planning-tradeoff comparison without metric copy, absence of
-  visible legacy weighting placement controls, sun
-  recalculation/manual override, weather watering recommendations, plot
-  resizing, selected saved plants, duplicate/delete/lock flows, lifecycle state
-  changes, shift multi-select, group nudge, group duplicate/delete, undo/redo,
-  and first-run blank setup.
-- Domain tests cover starter template generation, crop suitability scoring, and
-  crop catalog completeness/provenance flags.
-- Sample garden tests cover the Detroit demo builder, active warning content,
-  operations data, Feed examples, notification history, and no seeded phone.
-- Planning-domain tests cover spacing, pathway conflicts, sun mismatch,
-  container fit, trellis warnings, timeline-aware succession occupancy,
-  saved-history rotation cautions, warning taxonomy, and decision-category
-  summaries.
-- Task-domain tests cover approving a succession recommendation into a real
-  future planned planting.
-- Today-domain tests cover water done, issue follow-up task creation, issue
-  resolution, harvest not-ready delays, native/local harvest reminders,
-  one-tap harvest logging with linked task completion, harvest lifecycle
-  updates, and crop stage changes from the field view.
-- Today route tests cover manual task entry, issue-to-task creation from the
-  field quick action sheet, one-tap harvest logging from a harvest-ready card,
-  contextual harvest-photo prompting, Do Now action semantics without duplicate
-  action badges, no photo prompt after watering, crop stage updates that
-  record recent activity, and task/feed cross-links that open Plan with the
-  relevant planting selected.
-- Feed-domain tests cover journal filtering, target scoping, issue-status
-  filtering, photo-entry selection, linked issue tasks, issue timeline
-  derivation, harvest filtering, season harvest totals, yield by crop and bed,
-  starts-versus-harvest signals, rough value proxy math, issue lifecycle counts,
-  water alert acknowledgement, and media attachment counts.
-- Feed browser smoke coverage verifies the demo photo update keeps title-first
-  hierarchy and renders the attached image as a large central memory.
-- Backend operations tests cover per-user local watering check windows,
-  backend-generated watering recommendations, soil/drainage/manual-log inputs,
-  heat tasks, succession review tasks, and preservation of completed
-  recommendation state.
-- Playwright smoke tests cover mock sign-in, allowlist denial, Plan add/save,
-  first-run setup, plot sizing, large-plot scroll containment, stable canvas
-  controls while the plot viewport scrolls, explicit Fit/100% zoom states,
-  mini-map expand/collapse, eighth-foot drag settling, multi-select, corner
-  snapping, persistence across reload, sample garden loading across
-  Plan/Today/Feed/Settings, sample garden reset back to the canonical profile,
-  and Feed composer draft safety plus offline text-save queued state.
-- Critical Playwright smoke now also covers the Plan workflow from Choose
-  Plants through optimizer proposal generation, walkthrough snooze/reject/apply
-  decisions, publishing, opening revision history, and reverting to the initial
-  published revision.
-- Plan interaction smoke includes a reduced-motion path for Add Plant, crop
-  focus, influence overlay, and inspector entry while asserting the plot viewport
-  width stays stable; mobile Plan smoke now asserts the plot viewport remains
-  first-screen dominant, the HUD stays compact, touch launchers remain large
-  enough, and bottom sheets do not cover too much of the phone viewport.
-- Redesign regression smoke covers Prompt 42 guardrails directly: Add Plant stays
-  quantity-first, creates individual plant nodes, and keeps the desktop plot
-  width stable; generated layouts open the walkthrough and plot diff without
-  removed scoring copy; Feed uses one **New entry** launcher with explicit
-  private memory modes; and shell demo controls stay discoverable without
-  carrier-message scope.
-- Firebase adapter integration tests cover email/password auth persistence,
-  password reset/sign-out calls, user-profile notification preference
-  persistence, push-first channel preferences, scoped Storage photo uploads,
-  and mockable FCM web token registration.
-- Functions tests cover notification logic, quiet hours, and consent checks.
-- Rules tests run against the Firebase emulators and cover custom-claim
-  authorization, owner-only garden/user access, read-only catalog access, scoped
-  garden subcollections, journal image-only Storage writes, and cross-user
-  denial.
-- Visual regression baselines cover `auth`, `plan`, `today`, `feed`,
-  `settings`, `choose-plants`, `optimize-results`, and `review-queue` on
-  desktop and mobile. Baselines live in `e2e/__screenshots__/`; generated
-  traces and diffs live under `output/playwright/visual/`.
-- Plan desktop/mobile visual baselines now assert the contained plot viewport,
-  stable overlay controls, default-hidden mini-map affordance, and fully visible
-  mobile bottom toolbar.
+## Current automated coverage
 
-## Anti-Slop Gates
+### Domain and time
 
-- `npm run quality:deps` fails when a new production dependency is added without
-  a matching ADR entry.
-- `npm run quality:files` reports oversized source files and requires an
-  architecture note for intentionally large files.
-- `node scripts/analyze-bundle.mjs` writes
-  `output/bundle-analysis/bundle-summary.{json,md}` after each production
-  build.
-- `npm run quality:bundle-budget` fails if total gzip, initial JavaScript,
-  app-entry JavaScript, or the Plan route exceed the current budgets. It also
-  fails if Firebase, Capacitor, or the offline crop catalog are accidentally
-  preloaded by `index.html`.
-- `npm run ci` now runs format check, dependency ADR guard, oversized-file
-  guard, lint, typecheck, unit tests, Firebase adapter integration tests,
-  emulator-backed rules tests, Functions syntax/tests, build, bundle analysis,
-  bundle budget, critical Playwright E2E, and visual regression.
+`src/v2/domain/**` tests cover crop-group targeting, target factors, root-zone
+balance accrual, forecast projection, missing/stale weather, application
+ledger behavior, separate group recommendations, safety downgrades, IANA
+garden-date conversion, quiet-hour boundaries, and DST ambiguity/gaps.
 
-## P0 Test Gaps
+Plan/profile/workspace contracts are schema-versioned and repository
+validation tests cover bounds, unique IDs, target links, feet-based geometry,
+water-profile ranges, coordinate pairs, IANA timezones, alert preferences, and
+unknown-field rejection where required.
 
-- Canonical IA labels are covered by the critical route smoke path; add a
-  smaller shell-only unit assertion if the navigation component is split again.
-- Plan editor now has direct geometry coverage for snap/resize and browser
-  coverage for drag settling plus mobile Plan panel ergonomics, but still needs
-  real-device touch QA for handle size, pan/drag thresholds, and outdoor
-  readability.
-- First-run setup needs Firebase-mode coverage for profile sync and live
-  geocoding behavior when `VITE_GOOGLE_MAPS_API_KEY` is present.
-- Suitability scoring needs broader fixtures by climate region and date window
-  before it can be treated as agronomic advice.
-- Rotation guidance is based only on saved planting and harvest history; it
-  needs multi-season fixtures before being positioned as disease prediction.
-- Companion/antagonist rules are intentionally not enforced yet because the
-  current curated data is too weak to avoid folklore-like advice.
-- Delete/duplicate controls need repository tests or emulator coverage that
-  prove stale Firestore nested documents are removed or reconciled after save.
-- Today still needs broader e2e coverage for issue reporting, crop stage
-  buttons, and offline saved-locally state on a mobile viewport. One-tap
-  harvest logging now has browser smoke coverage.
-- Feed now has browser-level e2e coverage for selecting a photo while offline,
-  previewing it as a volatile form draft, disabling the upload save path, and
-  saving text only. Online photo upload success/failure, issue status changes,
-  and mobile filter ergonomics still need broader browser coverage.
-- Water skip/dismiss/custom amount controls are not implemented and need unit
-  tests once added.
-- Notification production readiness still needs live or emulator smoke coverage
-  for actual push delivery. Mockable FCM token persistence is now covered by
-  Firebase adapter integration tests.
-- Backend operations still need Firestore emulator coverage for the scheduled
-  hourly scan, callable auth rejection, task subcollection writes, and
-  duplicate notification suppression across multiple generated snapshots.
-- Authorization claim assignment still needs an admin workflow; current rules
-  tests prove enforcement, not tester provisioning.
-- Demo mode has mock-browser enter/reset/exit coverage; it still needs
-  Firebase-emulator coverage for stale nested document cleanup after loading or
-  resetting the canonical demo garden.
-- Weather provider adapters need contract tests with captured NWS/Tomorrow.io
-  payload fixtures before they should be treated as fully regression-proof.
-- Offline behavior needs mobile-sized e2e coverage for queued saves, visible
-  "saved locally" state, and stale-base conflict resolution from the Plan
-  publish flow.
-- Bundle budget enforcement exists, but the offline crop catalog remains a large
-  intentional route chunk and should be split only when it can stay offline.
+### Persistence and migration
 
-## Manual QA Checklist
+Mock repository tests cover per-user draft/profile isolation, subscriptions,
+expected-revision conflicts, collision-free revisions, publish/revert/history,
+operation writes, normalization, and localStorage recovery. Firebase gateway
+tests cover callable request/result mapping for server-owned publication.
 
-- Sign in with an allowlisted mock email.
-- On a fresh user, complete first-run setup from the slim primary path with a
-  template, then repeat with Blank plan.
-- Open **Optional location and climate**, edit USDA zone and frost dates during
-  setup, and confirm Today reflects those editable climate defaults.
-- Confirm the shell uses Plan, Today, Feed, Settings labels once relabeled.
-- Confirm shell sync badges, Review proposal badges, Today task metadata, Feed
-  issue metadata, and Feed filters use distinct status/info/filter/action
-  semantics rather than the same pill treatment.
-- Open Review and confirm the proposal inbox shows waiting decision count, next
-  safe action, quiet decision metrics, payoff copy, and physical-move versus
-  low-risk batch semantics.
-- Confirm physical-move Review proposals require a visible plot diff preview
-  before acceptance, and that publish review records the accepted decision as
-  physical work rather than low-risk support.
-- Generate layouts and confirm the optimizer opens the guided walkthrough with
-  strategy choice, before/after preview, support/materials, warnings/tradeoffs,
-  and apply/reject/snooze actions before anything mutates the draft.
-- Confirm optimizer proposal copy uses practical strategy labels and explains
-  real constraints/tradeoffs rather than raw scores or certainty language.
-- Confirm generated layouts and Review proposals expose the plot-level proposal
-  diff overlay before acceptance. Unit coverage should verify feet-based
-  before/after geometry and connectors; Playwright visual coverage should keep
-  the overlay visible in the Optimize baseline.
-- Add a crop planting, move it, save, reload, and confirm feet coordinates are
-  preserved.
-- Add or load a multi-plant row/block/cluster and confirm each plant appears as
-  its own selectable node with shared crop identity and feet-based coordinates.
-- Open Choose Plants, add several crops, and confirm Season Board cards lead
-  with crop, quantity, recommended form, and variety/notes while legacy
-  weighting controls and score-like language stay out of the primary card.
-- Select a plant and confirm the crop focus card highlights all matching plant
-  nodes, exposes Plant/Crop/Needs views, labels the interaction as a selected
-  plant preview, and opens the full inspector only when **Open details** is
-  clicked.
-- Toggle **Show influence** from the crop focus card and confirm the contextual
-  overlay shows feet-based keep-away zones plus any modeled shade cells for the
-  focused crop, then hides cleanly without changing saved `xFt`/`yFt`.
-- Select a multi-plant group, adjust arrangement spacing in the inspector, and
-  confirm the individual nodes update in place without changing crop identity or
-  leaving the saved plot.
-- Confirm plant nodes show readable crop labels, lifecycle state, anchored or
-  locked state when relevant, and support/warning signals without colliding with
-  labels on desktop or mobile.
-- Confirm normal drag settles on eighth-foot increments and that temporary
-  free-move keeps sub-snap precision until released.
-- Drag near a bed corner, path edge/center, trellis line, and plot centerline;
-  confirm the guide appears and the item lands exactly on the intended edge or
-  center.
-- Duplicate a planting, change lifecycle to harvest-ready, lock it, then delete
-  it and confirm the original remains.
-- Add a bed or trellis, resize it, save, reload, and confirm geometry is
-  preserved.
-- Resize beds from each corner and edge handle, including on a touch-sized
-  viewport, and confirm neighboring edges snap cleanly.
-- Shift-select multiple items, drag a marquee around a small group, nudge with
-  arrow keys, duplicate the group, align it, distribute it, delete it, then
-  undo/redo the edits.
-- Use Undo and Redo after a plant placement, structure placement, and inspector
-  edit.
-- Generate or paint sun/shade and confirm manual overrides survive recalculation.
-- Switch spring, summer, and fall sun views; confirm direct-sun hour labels and
-  manual override markers are understandable.
-- Open Review mode, jump from a warning to the affected item, and acknowledge an
-  informational caution.
-- Resize the browser to desktop and mobile widths, scroll a large plot inside
-  the Plan viewport, and confirm the app header, rail, zoom controls, and bottom
-  toolbar do not move with the plot.
-- Confirm global shell chrome stays subordinate on desktop and mobile: side nav
-  and bottom nav remain usable, the topbar exposes one passive sync status group
-  plus a quiet user label, and Plan avoids duplicating default online/cloud-ready
-  badges when there is no queued edit, error, or conflict.
-- On a phone-sized viewport, confirm the Plan canvas fills the first screen, the
-  canvas controls are a compact horizontal row, the Tools launcher and selected
-  item controls are thumb-sized above the mobile nav, and mode/inspector bottom
-  sheets leave the plot visible behind them.
-- Use Fit, 100%, zoom in, and zoom out on a large plot and confirm item hit
-  testing still lands on the intended feet-based cells.
-- Toggle the Overview layer open and closed and confirm it never blocks the
-  primary planting work by default.
-- Confirm motion follows `docs/motion-guidelines.md`: overlays have clear
-  trigger-to-surface causality, Plan geometry stays stable, Today/Feed/Settings
-  confirmations use the same short tokenized choreography, and reduced-motion
-  mode removes transform travel without hiding state changes.
-- Approve a succession suggestion in Plan and confirm it appears as a planned
-  future planting with generated schedule work.
-- Update weather when online and confirm watering rationale is visible.
-- Trigger backend operation refresh in Firebase mode and confirm the saved
-  recommendation shows source, data quality, and refreshed time.
-- Complete or snooze a task in Today and confirm the change persists.
-- In Today, mark water done and confirm the water recommendation disappears,
-  the linked water task is done, and Feed shows the water note.
-- In Today, report an issue, confirm a follow-up inspect task appears, then
-  resolve the issue and confirm the follow-up task completes.
-- In Today, use harvest schedule **Log harvest** and confirm a default field
-  harvest is written, the planting remains harvest-ready, and no photo-note
-  prompt appears automatically. Use **View details** to log a finished harvest
-  and confirm the planting becomes harvested.
-- Confirm Today Do Now cards and task cards use clear semantic actions while
-  date, bed, priority, crop, and reason copy remains passive supporting text.
-- Confirm Today and Feed stay compact on desktop and mobile: empty secondary
-  Today panels collapse, Feed uses the compact summary rail, filtered-empty Feed
-  states explain how to return to the full stream, and photo memories still keep
-  the title-image-caption hierarchy. On mobile Today, field priorities should
-  appear before weather so the first screen leads with action.
-- In Today, mark a planned crop planted, then growing and confirm setup tasks,
-  generated tasks, Feed notes, recent activity, and harvest timing update.
-- In Feed, add a garden-scoped note, bed-scoped note, planting-scoped issue,
-  photo attachment, and harvest.
-- In Feed, open **New entry**, then filter by search text, target, issue
-  status, Journal, Issues, Harvests, Media, and Season.
-- Move a Feed issue from Open to In progress to Resolved and confirm the linked
-  follow-up task status changes when resolved.
-- Confirm Harvests aggregate by crop and bed, and Season shows starts versus
-  harvests, issue counts, water alert acknowledgements, best performers, watch
-  list, attached photos, and rough value disclosure.
-- Toggle offline mode and confirm text changes queue locally.
-- Confirm the app shell shows queued local change state with a queued timestamp
-  and clears after reconnect/sync.
-- With one browser queued offline and another browser publishing first, confirm
-  reconnecting marks a sync conflict instead of silently overwriting the newer
-  published plan.
-- In Feed while offline, attach a photo and confirm the UI previews it as a
-  volatile form draft, offers reconnect or text-only save, and never claims the
-  photo uploaded or queued.
-- In Firebase mode, sign in with a user missing `gardenAccess: true` or
-  `secretFaeriesMember: true` and confirm Firestore/Storage access fails even if
-  the email is in the client allowlist.
+Firebase rule tests cover:
 
-## Release Evidence
+- both required membership claims
+- shared published reads, client-owned private draft writes, and denied direct
+  metadata/published/revision writes
+- expected schema/key/shape validation
+- callable auth/claim validation plus atomic server publish/revision linkage
+- operation write ownership and immutable server-only balances,
+  recommendations, alerts, automation, and delivery decisions
+- user-owned profile/token scope and private delivery receipt reads
+- uploader-scoped journal photo objects with member reads
 
-Each verification handoff note should include:
+The v2 migration tests cover dry-run option parsing, backup-first planning,
+current-workspace no-op behavior, schema/profile conversion, conservative water
+log credit, warning output, deterministic revision IDs, and idempotency.
 
-- files or surfaces changed
-- schema decisions
-- commands run
-- live integrations not exercised
-- known blockers or residual risks
+### Functions and notifications
+
+Functions tests cover canonical workspace validation, operation claims,
+already-generated/run-in-progress/revision-conflict paths, preservation of
+concurrent task/application actions, per-crop balance/recommendation writes,
+safe no-coordinate output, generated watering/weather/lifecycle/succession
+tasks, exact deep links, weather alert creation, and provider fallback
+classification.
+
+Delivery tests cover the two-claim recipient filter, profile validation,
+alert-kind/threshold/consent decisions, quiet-hour deferral across timezones,
+stable alert and delivery IDs, retry limits, invalid-token deletion, platform-
+specific web/native payloads, and persisted receipt title/body/status. Tests
+interpret push `sent` as provider acceptance; only physical-device QA can prove
+display/tap behavior.
+
+### Route and component behavior
+
+React/Vitest tests cover:
+
+- sign-in, reset/denied/recovery routes, auth guards, and route restoration
+- shell navigation, skip link, route focus, foreground banners, loading/error/
+  conflict states, and modal focus trap/restoration
+- Plan setup, crop/structure editing, water-profile inputs, validation, review,
+  checked layout, draft/publish/history/revert, drag and keyboard movement
+- Today ordering/focus, separate watering cards, reasons/basis, applied/partial/
+  skipped logging, and task complete/snooze/defer/reopen
+- Feed activity composition/filtering, note/issue/photo/harvest creation,
+  watering activity, issue lifecycle, upload validation, and empty states
+- Settings shared location/climate validation, private alert preferences,
+  registration truth, capability reporting, and delivery history
+
+### Browser and visual journeys
+
+The v2 Playwright suite is intentionally semantic:
+
+- `auth-session.spec.ts`: guarded deep-link resume, last-route memory,
+  session-only login, allowlist denial, and revoked access
+- `plan-workflow.spec.ts`: setup, add/edit/drag, water-profile input, save,
+  review, publish, history, and two-step restore
+- `today-operations.spec.ts`: separate crop-group recommendations, safe missing-
+  weather soil checks, exact watering/task focus, task actions, and structural
+  zero-credit skips
+- `feed-settings.spec.ts`: note/issue/harvest/watering history, filters, issue
+  lifecycle, settings validation/persistence, and honest push state
+- `accessibility-responsive.spec.ts`: 320 CSS-pixel route containment, route
+  focus, one visible navigation, skip link, modal focus, and keyboard plot nudge
+
+`main-routes.visual.ts` captures auth, first-run setup, Plan, Today, Feed,
+Settings, add-crop, review, and checked-layout states at desktop and mobile
+viewports. Baselines live in `e2e/__screenshots__/`; transient traces/diffs live
+under `output/playwright/`.
+
+## Manual release checks
+
+Automation does not replace these environment-dependent checks:
+
+- both provisioned production accounts can sign in and read the same published
+  plan while retaining separate drafts and profiles
+- an account missing either claim reaches access denied and cannot read
+  Firestore/Storage directly
+- v2 migration dry run creates a private backup, reviewed warnings are
+  acceptable, apply is idempotent, and the client opens schema 2/9 without a
+  fallback
+- a real saved coordinate pair/timezone produces plausible provider evidence;
+  a deliberately prepared incomplete/migrated null-coordinate fixture returns
+  every active crop group to safe soil checks
+- two crops with intentionally different profiles produce separate balances,
+  recommendations, tasks, alerts, and exact deep links
+- applied inches/gallons affect only the selected group; partial application is
+  credited explicitly; skip gives zero credit
+- web foreground/background push, quiet-hour deferral, duplicate retry, and
+  exact-click focus work on the deployed origin
+- native push works on one real iOS and Android device when those builds are in
+  release scope
+- photo upload/read/delete rules work for both members and one member cannot
+  overwrite the other's object
+- publish conflict messaging is honest across two simultaneous sessions
+- keyboard-only and VoiceOver/NVDA smoke can complete the primary Plan/Today/
+  Feed/Settings flows
+- Plan drag/nudge and all four routes remain usable at 320 CSS pixels and on a
+  real touch device outdoors
+- offline/pending actions make no unsupported durable-queue promise, preserve
+  form edits where designed, and never describe photo bytes as queued
+- the deployed app has no unexpected console errors or failed requests during
+  the main journey
+
+## Residual risks to report, not hide
+
+- live NWS/Tomorrow payload changes can outpace fixtures
+- platform push credentials and notification permission behavior cannot be
+  proven by mock tests
+- the production web VAPID variable is currently missing
+- Android Firebase configuration is absent, and iOS lacks a verified FCM-token
+  bridge; neither native platform is release evidence yet
+- Firestore offline transaction/conflict timing needs periodic multi-device QA
+- native device-local notification scheduling is not an active v2 route flow
+- photo binaries have no offline queue
+- real-device touch target and outdoor contrast checks remain manual
+
+## Release evidence
+
+Every release handoff should record:
+
+- exact files/surfaces and schema/model revisions changed
+- all commands run and whether they passed
+- migration dry-run/apply report and backup path, without secrets
+- live integrations and devices exercised
+- visual baseline changes reviewed
+- unresolved failures, skipped gates, setup blockers, and residual risks
+
+A build is not release-ready when a required check is skipped, a migration is
+unreviewed, or watering/push evidence has only been tested with invented
+location data.

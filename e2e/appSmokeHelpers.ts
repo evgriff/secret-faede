@@ -1,190 +1,284 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
-export async function signInToFirstRunSetup(
-  page: Page,
-  email = 'primary.gardener@example.com',
-) {
-  await page.goto('/');
+export const primaryEmail = 'primary.gardener@example.com';
+export const partnerEmail = 'partner.gardener@example.com';
+
+const workspaceKey = 'secret-faeries:v2:workspace';
+
+export async function resetBrowserState(page: Page) {
+  await page.goto('/sign-in');
   await page.evaluate(() => {
     localStorage.clear();
     sessionStorage.clear();
   });
   await page.context().clearCookies();
   await page.goto('/sign-in');
-  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
-  await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password', { exact: true }).fill('password');
   await expect(
-    page.getByRole('checkbox', {
-      name: 'Stay signed in on this trusted device',
-    }),
-  ).toBeChecked();
+    page.getByRole('heading', { name: 'Open the field book' }),
+  ).toBeVisible();
+}
+
+export async function signIn(
+  page: Page,
+  options: { email?: string; remember?: boolean; reset?: boolean } = {},
+) {
+  if (options.reset !== false) await resetBrowserState(page);
+  await page.getByLabel('Email').fill(options.email ?? primaryEmail);
+  await page.getByLabel(/^Password/).fill('password');
+  const remember = page.getByRole('checkbox', {
+    name: 'Keep me signed in on this trusted device',
+  });
+  if ((options.remember ?? true) !== (await remember.isChecked())) {
+    await remember.click();
+  }
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Set up your garden' }),
+    page.getByRole('navigation', { name: 'Garden workspace' }).first(),
   ).toBeVisible();
 }
 
-export async function signInWithMockPassword(
+export async function createGarden(
   page: Page,
-  email = 'primary.gardener@example.com',
+  options: {
+    depthFt?: number;
+    name?: string;
+    template?: 'Blank plot' | 'Containers' | 'Raised bed';
+    widthFt?: number;
+  } = {},
 ) {
-  await signInToFirstRunSetup(page, email);
-  await page.getByLabel(/Blank plan/).check();
-  await page.getByRole('button', { name: 'Create plan' }).click();
+  await signIn(page);
+  const setup = page.getByRole('dialog', { name: 'Set up your garden' });
+  await expect(setup).toBeVisible();
+  await setup.getByLabel('Garden name').fill(options.name ?? 'E2E garden');
+  await setup.getByLabel('Width in feet').fill(String(options.widthFt ?? 20));
+  await setup.getByLabel('Depth in feet').fill(String(options.depthFt ?? 14));
+  await setup
+    .getByRole('radio', {
+      name: new RegExp(`^${options.template ?? 'Raised bed'}`),
+    })
+    .check();
+  await fillGardenEnvironment(setup);
+  await setup.getByRole('button', { name: 'Create garden plan' }).click();
+  await expect(setup).toHaveCount(0);
   await expect(
-    page.getByRole('heading', {
-      exact: true,
-      name: 'Plan',
-    }),
-  ).toBeVisible();
-  await savePlan(page);
-  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
-}
-
-export async function enterDemoFromShell(page: Page) {
-  await page.getByRole('link', { name: 'Settings' }).click();
-  await openSampleGardenDisclosure(page);
-  await page.getByRole('button', { name: 'Open sample garden' }).click();
-
-  const sampleGarden = page.getByRole('region', { name: 'Sample garden' });
-
-  await expect(sampleGarden).toBeVisible();
-  await expect(sampleGarden).toContainText('Sample garden active.');
-  await page.getByRole('link', { exact: true, name: 'Plan' }).click();
-  await expect(
-    page.getByRole('heading', { exact: true, name: 'Plan' }),
-  ).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('20 ft by 16 ft')).toBeVisible();
-}
-
-export async function expectSampleGardenSettings(page: Page) {
-  await expect(
-    page.getByRole('region', { name: 'Sample garden' }),
-  ).toContainText('Sample garden active.');
-  await expect(page.getByLabel('Watering check time')).toHaveValue('07:15');
-  const recentAlertsDisclosure = page
-    .locator('details')
-    .filter({ has: page.locator('summary', { hasText: 'Recent alerts' }) })
-    .first();
-  const activeAlerts = recentAlertsDisclosure.getByLabel('Active alerts');
-
-  if (!(await activeAlerts.isVisible().catch(() => false))) {
-    await recentAlertsDisclosure.locator('summary').click();
-  }
-
-  await expect(
-    activeAlerts.getByRole('heading', {
-      name: 'Water roots and salad bed today',
-    }),
+    page.getByRole('heading', { name: options.name ?? 'E2E garden' }),
   ).toBeVisible();
 }
 
-export async function resetAndExitSampleGarden(page: Page) {
-  await openSampleGardenDisclosure(page);
-  const demoPanel = page.getByRole('region', { name: 'Sample garden' });
-
-  await demoPanel.getByRole('button', { name: 'Reset sample garden' }).click();
-  await expect(page.getByText('Sample garden reset.')).toBeVisible();
-  await expect(page.getByLabel('Watering check time')).toHaveValue('07:15');
-  await demoPanel.getByRole('button', { name: 'Back to my garden' }).click();
-  await expect(page.getByText('Returned to your garden.')).toHaveCount(1);
+export async function fillGardenEnvironment(setup: Locator) {
+  await setup.getByLabel('Location label').fill('Detroit test garden');
+  await setup.getByLabel('Weather location description').fill('Detroit, MI');
+  await setup.getByLabel('Latitude').fill('42.3314');
+  await setup.getByLabel('Longitude').fill('-83.0458');
+  await setup.getByLabel('Garden timezone').fill('America/Detroit');
+  await setup.getByLabel('Hardiness zone').fill('6b');
+  await setup.getByLabel('Typical last frost').fill('04-30');
+  await setup.getByLabel('Typical first frost').fill('10-15');
 }
 
-export async function savePlan(page: Page) {
-  await page.getByRole('button', { name: 'Save' }).first().click();
-}
-
-export async function openPlanTool(page: Page, name: string) {
-  const launcher = page.locator('[aria-label="More tools menu"]');
-
-  if (!(await launcher.isVisible().catch(() => false))) {
-    await page.getByRole('button', { name: 'Open more tools' }).click();
-  }
-
-  await expect(launcher).toBeVisible();
-  const toolButton = launcher.getByRole('button', { name });
-
-  await expect(toolButton).toBeVisible();
-  await toolButton.click();
-}
-
-export async function addTomatoToSeasonList(page: Page) {
-  await page
-    .getByRole('button', { name: /add plants/i })
+export async function addCropGroup(
+  page: Page,
+  cropName: string,
+  options: {
+    arrangement?:
+      | 'Block'
+      | 'Cluster'
+      | 'Row'
+      | 'Single / spaced'
+      | 'Trellis line';
+    growingArea?: string;
+    lifecycle?: 'Growing' | 'Harvest ready' | 'Planned' | 'Planted';
+    quantity?: number;
+  } = {},
+) {
+  await page.getByRole('button', { name: 'Add crop' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add a crop group' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Search crops').fill(cropName);
+  await dialog
+    .getByRole('radio', {
+      name: new RegExp(`^${escapeRegExp(cropName)}\\b`, 'i'),
+    })
     .first()
-    .click();
-  await expect(
-    page.getByRole('dialog', { name: 'Choose Plants' }),
-  ).toBeVisible();
-  await page.getByRole('searchbox', { name: 'Search plants' }).fill('tomato');
-  await page.getByRole('button', { name: 'Add Tomato' }).click();
-  await expandPickedPlants(page);
-  await expect(
-    page.getByRole('region', { name: 'Season crop board' }),
-  ).toContainText('Tomato');
-  await page.getByRole('button', { name: 'Save list' }).click();
-  await expect(page.getByRole('dialog', { name: 'Choose Plants' })).toHaveCount(
-    0,
-  );
-}
-
-export async function expandPickedPlants(page: Page) {
-  const expandButton = page.getByRole('button', {
-    name: 'Expand picked plants',
-  });
-  const seasonBoardTab = page.getByRole('tab', { name: 'Picked' });
-
-  if (await expandButton.isVisible().catch(() => false)) {
-    await expandButton.click();
-    return;
+    .check();
+  await dialog
+    .getByLabel('Number of plants')
+    .fill(String(options.quantity ?? 1));
+  if (options.arrangement) {
+    await dialog.getByLabel('Arrangement').selectOption({
+      label: options.arrangement,
+    });
   }
-
-  if (await seasonBoardTab.isVisible().catch(() => false)) {
-    await seasonBoardTab.click();
+  if (options.growingArea) {
+    await dialog.getByLabel('Growing area').selectOption({
+      label: options.growingArea,
+    });
   }
-}
+  await dialog.getByRole('button', { name: 'Add crop group' }).click();
+  await expect(dialog).toHaveCount(0);
 
-export async function generateAndApplyFirstLayout(page: Page) {
-  await openPlanTool(page, 'Generate layout');
-  await expect(
-    page.getByRole('heading', { name: 'Review problems' }),
-  ).toBeVisible();
-  const preview = page.getByRole('region', {
-    name: 'Before and after preview',
+  const cropButton = page.getByRole('button', {
+    name: new RegExp(`^${escapeRegExp(cropName)} group,`),
   });
-
-  if (!(await preview.isVisible().catch(() => false))) {
+  await expect(cropButton).toBeVisible();
+  if (options.lifecycle) {
     await page
-      .getByRole('button', { name: /Generate layout|Check again/ })
-      .first()
-      .click();
+      .getByLabel('Lifecycle')
+      .selectOption({ label: options.lifecycle });
   }
-
-  const layoutWalkthrough = page.getByRole('region', {
-    name: 'Layout suggestion',
-  });
-  await expect(
-    layoutWalkthrough.getByRole('heading', {
-      exact: true,
-      name: 'Try a different arrangement',
-    }),
-  ).toBeVisible();
-  await expect(preview).toBeVisible();
-  await expect(page.getByLabel(/Layout diff overlay/)).toBeVisible();
-  await layoutWalkthrough
-    .getByRole('button', { name: 'Apply this layout' })
-    .click();
+  return cropButton;
 }
 
-async function openSampleGardenDisclosure(page: Page) {
-  const disclosure = page.getByTestId('sample-garden-disclosure');
+export async function saveDraft(page: Page) {
+  const save = page.getByRole('button', { name: 'Save draft' });
+  await expect(save).toBeEnabled();
+  await save.click();
+  await expect(page.getByText('All changes saved').first()).toBeVisible();
+}
 
-  await expect(disclosure).toBeVisible();
+export async function publishDraft(
+  page: Page,
+  changeSummary = 'Published by the browser journey',
+) {
+  const before = await readWorkspace(page);
+  const publish = page.getByRole('button', { exact: true, name: 'Publish' });
+  await expect(publish).toBeEnabled();
+  await publish.click();
 
-  if ((await disclosure.getAttribute('open')) !== null) {
-    return;
+  const dialog = page.getByRole('dialog', {
+    name: 'Publish this private draft?',
+  });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Change summary').fill(changeSummary);
+  await dialog.getByRole('button', { name: 'Publish shared plan' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect
+    .poll(async () => (await readWorkspace(page)).published.revisionId)
+    .not.toBe(before.published.revisionId);
+  await expect
+    .poll(async () => Object.keys((await readWorkspace(page)).drafts).length)
+    .toBe(0);
+}
+
+export async function openWorkspaceRoute(
+  page: Page,
+  route: 'Feed' | 'Plan' | 'Settings' | 'Today',
+) {
+  const link = page
+    .getByRole('navigation', { name: 'Garden workspace' })
+    .getByRole('link', { exact: true, name: route });
+  await link.filter({ visible: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/app/${route.toLowerCase()}$`));
+  if (route === 'Plan') {
+    await expect(
+      page.getByRole('region', { name: 'Garden plot editor' }),
+    ).toBeVisible();
+  } else {
+    await expect(
+      page.getByRole('heading', { exact: true, level: 1, name: route }),
+    ).toBeVisible();
   }
+}
 
-  await disclosure.locator('summary').click();
+export async function readWorkspace(page: Page): Promise<MockWorkspaceState> {
+  return page.evaluate((key) => {
+    const value = localStorage.getItem(key);
+    if (!value) throw new Error('The mock workspace has not been initialized.');
+    return JSON.parse(value) as MockWorkspaceState;
+  }, workspaceKey);
+}
+
+export async function seedTodayTask(
+  page: Page,
+  input: { cropGroupId: string; cropName: string; id?: string },
+) {
+  const id = input.id ?? 'e2e-tie-crop';
+  await page.evaluate(
+    ({ cropGroupId, cropName, id, key }) => {
+      const state = JSON.parse(localStorage.getItem(key) ?? '{}');
+      const now = new Date().toISOString();
+      const dateParts = new Intl.DateTimeFormat('en-US', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      })
+        .formatToParts(new Date())
+        .reduce<Record<string, string>>((parts, part) => {
+          parts[part.type] = part.value;
+          return parts;
+        }, {});
+      const dueOn = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+      state.tasks = [
+        {
+          completedAtIso: null,
+          createdAtIso: now,
+          dueOn,
+          id,
+          kind: 'support',
+          notes: 'Use the soft ties in the shed.',
+          priority: 'high',
+          reason: 'Keep stems upright before the next wind.',
+          sourceId: cropGroupId,
+          status: 'open',
+          target: { id: cropGroupId, kind: 'plantingGroup', label: cropName },
+          title: `Tie ${cropName.toLowerCase()}`,
+          updatedAtIso: now,
+        },
+      ];
+      localStorage.setItem(key, JSON.stringify(state));
+    },
+    {
+      cropGroupId: input.cropGroupId,
+      cropName: input.cropName,
+      id,
+      key: workspaceKey,
+    },
+  );
+  return id;
+}
+
+export async function expectNoHorizontalOverflow(page: Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+      ),
+    )
+    .toBe(true);
+}
+
+export async function expectFocused(locator: Locator) {
+  await expect
+    .poll(() =>
+      locator.evaluate((element) => element === document.activeElement),
+    )
+    .toBe(true);
+}
+
+export interface MockWorkspaceState {
+  drafts: Record<string, { plan: MockPlan }>;
+  harvests: Array<Record<string, unknown>>;
+  journal: Array<Record<string, unknown>>;
+  published: { plan: MockPlan; revisionId: string };
+  revisions: Array<{ changeSummary: string; revisionId: string }>;
+  tasks: Array<Record<string, unknown>>;
+  waterApplications: Array<Record<string, unknown>>;
+  wateringRecommendations: Array<Record<string, unknown>>;
+}
+
+interface MockPlan {
+  name: string;
+  plantings: Array<{
+    cropName: string;
+    id: string;
+    lifecycle: string;
+    xFt: number;
+    yFt: number;
+  }>;
+  plot: { depthFt: number; widthFt: number };
+  setupCompleted: boolean;
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

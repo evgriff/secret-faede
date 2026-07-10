@@ -1,0 +1,114 @@
+.weatherSummary {
+  align-items: center;
+  display: grid;
+  gap: var(--sf2-space-5);
+  grid-template-columns: minmax(12rem, 1fr) minmax(18rem, auto);
+}
+
+.weatherSummary > div {
+  display: grid;
+  gap: var(--sf2-space-2);
+}
+
+.weatherSummary dl {
+  display: grid;
+  gap: var(--sf2-space-2);
+  grid-template-columns: repeat(2, minmax(7rem, 1fr));
+}
+
+.weatherSummary dl div {
+  background: var(--sf2-paper);
+  border-radius: var(--sf2-radius-small);
+  display: grid;
+  padding: var(--sf2-space-3);
+}
+
+.weatherSummary dt {
+  color: var(--sf2-ink-muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.weatherSummary dd {
+  font-size: 1.1rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.qualityLabel {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 800;
+  inline-size: fit-content;
+  padding: 0.25rem 0.55rem;
+}
+
+.qualityLabel[data-quality='fresh'] {
+  background: var(--sf2-success-soft);
+  color: var(--sf2-success);
+}
+
+.qualityLabel[data-quality='cached'] {
+  background: var(--sf2-info-soft);
+  color: var(--sf2-info);
+}
+
+.qualityLabel[data-quality='stale'],
+.qualityLabel[data-quality='insufficient'] {
+  background: var(--sf2-warning-soft);
+  color: var(--sf2-warning);
+}
+
+.alertList {
+  display: grid;
+  gap: var(--sf2-space-3);
+}
+
+.weatherAlert {
+  align-items: center;
+  background: var(--sf2-warning-soft);
+  border-inline-start: 0.35rem solid var(--sf2-warning);
+  border-radius: var(--sf2-radius-small);
+  display: flex;
+  gap: var(--sf2-space-4);
+  justify-content: space-between;
+  padding: var(--sf2-space-4);
+}
+
+.weatherAlert h3 {
+  font-size: 1rem;
+}
+
+.weatherAlert p,
+.weatherAlert small,
+.noAlerts {
+  color: var(--sf2-ink-soft);
+}
+
+.inlineLink {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-weight: 750;
+  min-block-size: var(--sf2-control-min);
+  padding: 0.55rem 0.2rem;
+}
+
+@media (max-width: 48rem) {
+  .weatherAlert {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .weatherSummary {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 30rem) {
+  .weatherSummary dl {
+    grid-template-columns: 1fr;
+  }
+}

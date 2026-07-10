@@ -2,50 +2,62 @@
 
 User story:
 
-As a home food grower, I need a real plot editor that preserves physical dimensions, crop placement, supports, sun/shade context, and draft/publish safety so I can decide what goes where and keep the garden plan accurate.
+As a home food grower, I need a measured plot editor with crop-specific care
+inputs and safe draft/publish history so the saved plan matches the real garden
+and can drive trustworthy field work.
 
-Route and workflow:
+Route and ownership:
 
-- primary route: `/app/plan`
+- canonical route: `/app/plan`
 - legacy redirect: `/app/garden`
-- first-run setup asks for garden name, plot type, plot size, and starter layout, with optional location and climate details
-- first-run and layout fixtures use the generic Detroit climate/location baseline so public builds avoid private location data while keeping frost-date behavior realistic
-- Plan remains the product center and should be canvas-first
+- canonical selection links:
+  `?plantingId=<crop-group-id>` and `?structureId=<structure-id>`
+- active implementation: `src/v2/routes/plan`
+- persistence: `GardenRepository` through `src/v2/app/WorkspaceProvider.tsx`
 
 Success criteria:
 
-- plot width/depth and object positions remain feet-based
-- Add Plants asks for crop and quantity, then uses arrangement-aware planting groups
-- grouped plant footprints expose individual plant nodes when needed
-- Review and Optimize present practical before/after choices, not numeric score dashboards
-- Publish, revert, stale draft conflicts, and draft recovery actions are visible
-  and recoverable from the primary Plan controls
-- pointer interactions should avoid forced synchronous React renders so drag,
-  resize, select, and pan stay responsive on production-sized gardens
-- drop/release should keep the imperative preview visible, then commit feet-based
-  state and autosave after paint so pointer-up does not block the visual release
-- drag and resize pointer-move paths must stay compositor-only: no snapping,
-  warning analysis, autosave, dirty/save-status flips, or selection churn while
-  the pointer is moving
-- locked or anchored plot items must not preview or commit movement when dragged
-- weather, watering, sun, and operations panels support the editor rather than replacing it
-- layout suggestions and seasonal crop planning should keep climate-aware assertions tied to the public Detroit baseline
+- first-run setup requires garden name, exact plot width/depth, a blank,
+  raised-bed, or container starting structure, location/query, exact coordinate
+  pair, IANA timezone, hardiness zone, and typical frost dates
+- internal new-plan storage starts with null coordinates/neutral `UTC`, but
+  setup cannot complete in that state and no preset/default city is inferred
+- plot/object dimensions stay in feet; crop-group and plant-instance centers use
+  `xFt` from the left and `yFt` from the top
+- structures and crop groups can be selected, edited, moved by pointer or
+  keyboard, locked, and deleted; crop groups can also be duplicated
+- pointer preview remains rendering state until release, then commits the same
+  feet-based mutation as keyboard movement
+- each crop group owns crop identity, arrangement/instances, lifecycle,
+  growing-area link, geometry, notes, and a versioned water-profile snapshot
+- the inspector makes weekly need, root depth, depletion fraction, profile
+  confidence/source/version, and stage coefficients visibly specific to the
+  selected crop group
+- geometry/link/water-profile validation blocks invalid save/publish and
+  assigned crop footprints must fit their growing structure
+- Review exposes current problems plus explicit ignore/restore records; ignored
+  state never removes the underlying geometry fact
+- checked layout is previewed without mutation and requires explicit apply
+- draft save/discard, publish summary, revision history, two-step restore, and
+  expected-revision conflict recovery are visible
+- publish/revert/shared-climate publication cross authenticated Functions
+  callables; Firestore denies direct client writes to shared publication records
+- a Plan deep link focuses only the matching existing object and never changes
+  the draft
 
-Implementation ownership:
+Design constraints:
 
-- `src/features/plan`: route, canvas workspace, overlays, inspectors, first-run, review, optimizer, publish/revert
-- `src/features/garden`: shared state, geometry, sun/shade, warning, watering, and review engines
-- `src/domain/gardens`: canonical garden model and repository interfaces
-
-Off-scope traps:
-
-- do not add map/GIS behavior
-- do not turn Review or Optimize into dashboards
-- do not reintroduce score-heavy optimizer UI or generic AI planning
+- keep the editor canvas-first and accessible using labeled DOM controls
+- do not turn layout/review into score dashboards or make unsupported yield
+  claims
+- weather/Today/Feed/Settings support the plot; they do not duplicate its
+  editing authority
+- no maps/GIS, generic AI planning, or multi-garden navigation
 
 Primary local sources:
 
 - `docs/architecture.md`
+- `docs/data-model.md`
+- `docs/ux-architecture.md`
 - `docs/demo-script.md`
-- `docs/manual-qa-checklist.md`
 - `README.md`

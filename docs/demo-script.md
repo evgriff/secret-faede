@@ -1,109 +1,157 @@
 # Demo Script
 
-Date: 2026-04-24
+Date: 2026-07-10
 
-## Setup
+This walkthrough uses the active v2 client. It creates a fresh garden during
+the demo; there is no canned city, preset workspace, or hidden watering
+calendar.
 
-- Use mock runtime unless demonstrating Firebase specifically.
-- Start with `npm run dev`.
-- Sign in with an allowlisted email and the mock password `password`.
-- Open **Settings** and use **Open sample garden** to load the seeded Detroit
-  example. While the sample is active, the shell exposes **Back to my garden**
-  on every route.
-- Use **Reset sample garden** before a meeting to restore the seeded Detroit
-  baseline; it should put the watering check back to 7:15 AM even if the prior
-  walkthrough changed settings or completed work.
-- Use **Back to my garden** after the walkthrough to restore the garden draft
-  saved before the sample was opened on this device and stay on the current
-  route whenever possible.
-- Never enter, seed, or commit off-scope contact-delivery test data.
+## Preparation
 
-## Story
+1. Run `npm run dev` in mock mode.
+2. Clear site data for the dev origin, or use a fresh browser profile.
+3. Open `/sign-in` and use either configured mock email with password
+   `password`.
+4. Keep the browser online so offline banners are meaningful if demonstrated.
 
-Secret Faeries is for one real home food garden. The sample garden shows the
-closed loop: place the garden in Plan, do the work in Today, remember it in
-Feed, and keep the defaults trustworthy in Settings.
+Do not enter production credentials or a real private address in a recorded
+demo. If Firebase delivery is part of the walkthrough, use a provisioned test
+account and a deliberately selected test location.
 
-## Sample Garden
+## Product story
 
-The sample garden loads **Sample Kitchen Garden** in Detroit, MI.
+Secret Faeries is a field book for one real food garden. Plan records what is
+physically there. Today turns the saved crop groups into separate, explainable
+watering decisions and practical work. Feed records what happened. Settings
+makes the climate and alert assumptions explicit.
 
-It includes:
+## Walkthrough
 
-- a 20 ft by 16 ft plot
-- three beds, one main path, and one saved trellis
-- active cool-season crops plus a few planned warm-season moves
-- Detroit location, timezone, frost dates, and watering defaults
-- one clear layout suggestion instead of a compare-many optimizer deck
-- one real watering schedule entry tied to weather, crop need, and bed context
-- due work in Today for watering, harvest, issue follow-up, support staging,
-  mulch prep, and succession timing
-- watering, issue, note, photo, harvest, publish, and alert history in Feed
-- sample controls in Settings plus **Back to my garden** in the shell
+### 1. Sign in and route protection
 
-## Step-By-Step
+Open `/app/today?focus=watering` while signed out. Sign in and show that the app
+returns to the guarded deep link. Point out that there is no registration path:
+mock mode has exactly two configured accounts, while production uses two
+provisioned Firebase accounts with claims.
 
-1. Auth
-   Open `/`, enter an allowlisted email and password, keep **Stay signed in on
-   this trusted device** on, and sign in. Mention that Firebase Email/Password
-   auth remains behind `AuthService` and there is no public sign-up path.
+### 2. Create the measured plot
 
-2. First-run
-   On a fresh user, show the setup flow briefly: garden name, plot type, plot
-   size, starter layouts, and Blank plan. Open **Optional location and climate**
-   only to show that location, timezone, USDA zone, and frost dates can still be
-   refined without blocking the first entry.
+On the setup dialog:
 
-3. Sample garden controls
-   Open Settings and show the sample-garden card. Point out that **Open sample
-   garden** loads a resettable Detroit example, **Reset sample garden**
-   restores the seeded baseline, and **Back to my garden** restores the saved
-   real garden from this device. Once the sample is active, point out the shell
-   banner so the return path stays obvious outside Settings.
+- name the garden `Kitchen garden`
+- enter a 20 ft by 14 ft plot
+- choose the raised-bed starting structure
+- enter a deliberately selected non-private location label/query, exact test
+  coordinates, valid IANA timezone, USDA hardiness zone, and typical first/last
+  frost dates
+- create the plan
 
-4. Plan
-   Open Plan. Show the feet-based plot, beds, path, trellis, crop nodes, and
-   saved dimensions. Explain that the draft is plausible already: peas and cool
-   crops are anchored, while warm-season ideas are still planned and movable.
-   Open **Generate layout** and show the practical review flow:
-   **What needs attention**, one **Layout suggestion**, one before/after
-   preview, one summary of why the suggestion helps, and **Apply this layout**
-   or **Keep current layout**. The point is not planner cleverness; it is one
-   checked arrangement that keeps crops reachable and support simpler.
-   Open **Add plants** and show that Detroit drives the picker: search works
-   normally, but the saved location and timing help surface what fits now or
-   soon. Mention that tomatoes and peppers are still future transplants here,
-   while cool-season crops already in the sample are planted now.
+Show that dimensions and positions are in feet. Setup cannot complete from the
+internal empty plan's null coordinates/neutral timezone; the app requires the
+gardener to supply operational climate facts and does not locate the garden in
+a preset city.
 
-5. Today
-   Open Today. Show **Watering work** first. Point out that the due card is a
-   schedule entry, not a generic recommendation: it has an amount, a target,
-   weather-linked reasoning, and direct field actions for **Water done**,
-   **Partial watering**, **Skip for rain**, **Snooze to tonight**, **Snooze to
-   tomorrow**, and **Adjust amount**. Then show the rest of the day: harvest
-   work, the open slug issue, and the staged support and succession tasks.
-   Mention that Today is the work surface, so alerts should bring the gardener
-   back here rather than create a second dashboard.
+Add a path or container, then select the raised bed and edit its soil,
+drainage, mulch, and soil-depth context. Drag it within the plot and use keyboard
+arrow movement to show that pointer and keyboard input update the same
+feet-based state.
 
-6. Feed
-   Open Feed. Show the watering history entry, the pinned slug issue, the pea
-   trellis photo update, the radish harvest photo memory, and the publish/task
-   entries. If time allows, log a short field note or a partial radish harvest.
-   Use filters briefly to show that Feed narrows cleanly without turning into an
-   admin table.
+### 3. Add two independently modeled crop groups
 
-7. Settings
-   Return to Settings and show that location, timezone, watering check time,
-   quiet hours, and push/in-app preferences remain the single source of truth
-   for alerts and schedule timing. Change the watering check time, save, then
-   use **Reset sample garden** to show that the seeded baseline comes back clean.
+Add one growing Tomato group and one growing Lettuce group. Assign both to the
+raised bed, but give them distinct crop-group positions. Select each group and
+show its saved water-model inputs:
 
-8. Restore
-   Use **Back to my garden** from the shell or Settings. Confirm the saved real
-   garden draft returns and that the app stays on the current route whenever it
-   can.
+- weekly need
+- root depth
+- depletion fraction
+- confidence/source/version
+- establishing, flowering, fruiting, and mature coefficients
 
-## Closing Line
+Explain the key invariant: sharing a structure does not pool the crops. Each
+`PlantingGroup.id` retains its own versioned water-profile snapshot, balance,
+recommendation, reasons, and alert identity.
 
-Secret Faeries is not a planner deck. It is a calm working app for the one garden
-someone actually maintains.
+Move a group, edit a water input, and use **Save draft**. Open **Review** to
+show blocking versus non-blocking geometry problems and ignore/restore a
+review decision. Use **Check layout** to preview the single checked proposal
+before explicitly applying it.
+
+Publish the private draft with a short change summary. Open **History** and
+show that restore is a second explicit publish, not a silent overwrite. Do not
+actually restore unless the remainder of the demo is meant to restart.
+
+### 4. Verify safe watering in Today
+
+Open Today. In mock mode there is no fresh canonical Functions result, so Tomato
+and Lettuce appear as separate conservative soil-check cards. Each card names
+its crop group, shows data quality, explicit stage/stage source, profile
+provenance, and root-zone context, exposes reason details and calculation basis,
+and links field logging to only that group.
+
+This is the intended safety behavior: the app keeps the crops cohesive with
+the plan but does not invent rain, evapotranspiration, gallons, or a city-based
+watering amount.
+
+Open Tomato's **Log watering decision** dialog and record an applied amount in
+inches or gallons. Record a partial amount for Lettuce, then record a skip where
+appropriate with a reason such as `Soil is still moist`. Note that partial
+credits only its explicit amount and a skip is stored structurally without an
+amount or efficiency and always receives zero water credit.
+
+If a task fixture is present, demonstrate complete, snooze, defer, and reopen.
+Use an exact Today deep link to show focus behavior:
+
+- `/app/today?focus=watering&cropGroupId=<crop-group-id>`
+- `/app/today?focus=task&taskId=<task-id>`
+
+### 5. Record field memory in Feed
+
+Open Feed and show the separate Tomato and Lettuce watering activity. Use
+**New entry** to create:
+
+- a garden or crop-targeted note
+- a structured issue with severity/category
+- a harvest for a specific crop group
+- an optional photo update while online
+
+Change an issue between open, in progress, and resolved. Use search, type,
+target, and status filters. Emphasize that Feed is a private operational record,
+not a social stream. Show the **You**/**Garden member** attribution, partial
+filter, and watering correction flow: the correction keeps the same record ID,
+crop group, and original recorder while advancing the revision. If the browser
+is taken offline, show that the app makes no durable queue promise for text or
+selected photo bytes.
+
+### 6. Make alert assumptions explicit in Settings
+
+Open Settings and show the split between shared garden facts and private
+account preferences:
+
+- location label/query, required exact coordinate pair, and garden timezone
+- hardiness zone and typical frost dates as editable assumptions
+- alert kinds, daily check time, quiet hours, and minimum watering deficit
+- push consent/registration, device capabilities, and private delivery history
+
+Try saving one invalid IANA timezone or only one coordinate to show focused
+validation. Then save a deliberately selected valid timezone and both
+coordinates. Do not use a memorized default city. Explain that the next
+canonical Functions refresh can use real weather evidence, while push still
+requires explicit consent, a production VAPID key for web, and complete native
+configuration. In delivery history, **Sent to push service** is provider
+acceptance, not proof that a device displayed the message.
+
+### 7. Close the loop
+
+Return to Plan and confirm the two crop groups still own distinct water-profile
+snapshots. Return to Feed to show the applied, partial, and skipped field
+decisions. The story should end with this loop:
+
+`Plan -> deterministic crop-group operation -> Today action -> Feed memory ->
+future balance`
+
+## Closing line
+
+Secret Faeries does not guess where the garden is or average unrelated crops.
+It keeps one measured plan and turns evidence into crop-specific work only when
+the evidence is strong enough.
